@@ -3,6 +3,8 @@ import {
     aggregateTopSources,
     findBiggestChanges,
     analyzeContent,
+    computeSelfChannelStats,
+    computeContentTrajectory,
     tokenizeTitle,
     findSharedTags,
     type EnrichedVideoData,
@@ -345,5 +347,311 @@ describe('analyzeContent', () => {
         const lofiKw = kws.find(k => k.keyword === 'lofi');
         expect(lofiKw).toBeDefined();
         expect(lofiKw!.count).toBe(2);
+    });
+});
+
+// --- computeSelfChannelStats ---
+
+describe('computeSelfChannelStats', () => {
+    const makeSelfTopSource = (videoId: string, impressions: number, views: number): TopSource => ({
+        videoId,
+        sourceTitle: `Title for ${videoId}`,
+        views,
+        impressions,
+        ctr: null,
+        avgViewDuration: '0:05:00',
+        watchTimeHours: views * 0.1,
+    });
+
+    it('detects high self-channel dominance', () => {
+        const topSources = [
+            makeSelfTopSource('v1', 5000, 200),
+            makeSelfTopSource('v2', 3000, 150),
+            makeSelfTopSource('v3', 2000, 100),
+            makeSelfTopSource('v4', 1000, 50),
+            makeSelfTopSource('v5', 500, 30),
+        ];
+        const enriched = new Map<string, EnrichedVideoData>([
+            ['v1', { videoId: 'v1', tags: [], channelTitle: 'MyChannel' }],
+            ['v2', { videoId: 'v2', tags: [], channelTitle: 'MyChannel' }],
+            ['v3', { videoId: 'v3', tags: [], channelTitle: 'MyChannel' }],
+            ['v4', { videoId: 'v4', tags: [], channelTitle: 'MyChannel' }],
+            ['v5', { videoId: 'v5', tags: [], channelTitle: 'Competitor' }],
+        ]);
+
+        const result = computeSelfChannelStats('MyChannel', topSources, enriched);
+        expect(result).not.toBeNull();
+        expect(result!.selfCount).toBe(4);
+        expect(result!.totalEnriched).toBe(5);
+        expect(result!.selfPercentage).toBe(80);
+        expect(result!.selfImpressions).toBe(11000);
+        expect(result!.selfViews).toBe(500);
+        expect(result!.timeline).toEqual([]); // no snapshot rows → empty timeline
+    });
+
+    it('returns zero self-count when no self-channel videos', () => {
+        const topSources = [makeSelfTopSource('v1', 5000, 200)];
+        const enriched = new Map<string, EnrichedVideoData>([
+            ['v1', { videoId: 'v1', tags: [], channelTitle: 'CompetitorA' }],
+        ]);
+
+        const result = computeSelfChannelStats('MyChannel', topSources, enriched);
+        expect(result).not.toBeNull();
+        expect(result!.selfCount).toBe(0);
+        expect(result!.selfPercentage).toBe(0);
+    });
+
+    it('is case-insensitive for channel matching', () => {
+        const topSources = [makeSelfTopSource('v1', 5000, 200)];
+        const enriched = new Map<string, EnrichedVideoData>([
+            ['v1', { videoId: 'v1', tags: [], channelTitle: 'MYCHANNEL' }],
+        ]);
+
+        const result = computeSelfChannelStats('mychannel', topSources, enriched);
+        expect(result).not.toBeNull();
+        expect(result!.selfCount).toBe(1);
+    });
+
+    it('returns null for empty channel title', () => {
+        const topSources = [makeSelfTopSource('v1', 5000, 200)];
+        const enriched = new Map<string, EnrichedVideoData>([
+            ['v1', { videoId: 'v1', tags: [], channelTitle: 'SomeChannel' }],
+        ]);
+
+        expect(computeSelfChannelStats('', topSources, enriched)).toBeNull();
+        expect(computeSelfChannelStats('  ', topSources, enriched)).toBeNull();
+    });
+
+    it('selfTopVideos are sorted by impressions desc and limited to 5', () => {
+        const topSources = Array.from({ length: 8 }, (_, i) =>
+            makeSelfTopSource(`v${i}`, (8 - i) * 1000, (8 - i) * 100)
+        );
+        const enriched = new Map<string, EnrichedVideoData>(
+            topSources.map(s => [s.videoId, { videoId: s.videoId, tags: [], channelTitle: 'Mine' }])
+        );
+
+        const result = computeSelfChannelStats('Mine', topSources, enriched);
+        expect(result!.selfTopVideos).toHaveLength(5);
+        expect(result!.selfTopVideos[0].videoId).toBe('v0'); // 8000 impressions
+        expect(result!.selfTopVideos[4].videoId).toBe('v4'); // 4000 impressions
+    });
+
+    it('skips videos without enriched data in totalEnriched count', () => {
+        const topSources = [
+            makeSelfTopSource('v1', 5000, 200),
+            makeSelfTopSource('v2', 3000, 150),
+            makeSelfTopSource('v3', 2000, 100),
+        ];
+        const enriched = new Map<string, EnrichedVideoData>([
+            ['v1', { videoId: 'v1', tags: [], channelTitle: 'Mine' }],
+            // v2 and v3 have no enriched data
+        ]);
+
+        const result = computeSelfChannelStats('Mine', topSources, enriched);
+        expect(result!.totalEnriched).toBe(1); // only v1 counted
+        expect(result!.selfCount).toBe(1);
+        expect(result!.selfPercentage).toBe(100);
+    });
+
+    it('computes per-snapshot timeline with growing self-channel dominance', () => {
+        const topSources = [makeSelfTopSource('v1', 5000, 200)];
+        const enriched = new Map<string, EnrichedVideoData>([
+            ['v1', { videoId: 'v1', tags: [], channelTitle: 'Mine' }],
+            ['v2', { videoId: 'v2', tags: [], channelTitle: 'Mine' }],
+            ['v3', { videoId: 'v3', tags: [], channelTitle: 'CompetitorA' }],
+            ['v4', { videoId: 'v4', tags: [], channelTitle: 'CompetitorB' }],
+        ]);
+
+        // Snapshot 1: 3 videos, 0 self
+        // Snapshot 2: 3 videos, 1 self (v1 appears)
+        // Snapshot 3: 3 videos, 2 self (v1 + v2 dominate)
+        const snapshotRows: SuggestedVideoRow[][] = [
+            [makeRow('v3', 100, 500), makeRow('v4', 80, 400), makeRow('unknown1', 50, 200)],
+            [makeRow('v1', 500, 2000), makeRow('v3', 100, 500), makeRow('v4', 80, 400)],
+            [makeRow('v1', 2000, 8000), makeRow('v2', 1500, 6000), makeRow('v3', 100, 500)],
+        ];
+        const dates = ['2025-01-15', '2025-01-22', '2025-02-01'];
+
+        const result = computeSelfChannelStats('Mine', topSources, enriched, snapshotRows, dates);
+        expect(result!.timeline).toHaveLength(3);
+
+        // Snapshot 1: v3=CompetitorA, v4=CompetitorB, unknown1=not enriched → 0/2 = 0%
+        expect(result!.timeline[0].selfPercentage).toBe(0);
+        expect(result!.timeline[0].selfCount).toBe(0);
+
+        // Snapshot 2: v1=Mine, v3=CompetitorA, v4=CompetitorB → 1/3 = 33%
+        expect(result!.timeline[1].selfPercentage).toBe(33);
+        expect(result!.timeline[1].selfCount).toBe(1);
+        expect(result!.timeline[1].selfImpressions).toBe(2000);
+
+        // Snapshot 3: v1=Mine, v2=Mine, v3=CompetitorA → 2/3 = 67%
+        expect(result!.timeline[2].selfPercentage).toBe(67);
+        expect(result!.timeline[2].selfCount).toBe(2);
+        expect(result!.timeline[2].selfImpressions).toBe(14000); // 8000+6000
+    });
+
+    it('returns empty timeline when snapshotRows not provided', () => {
+        const topSources = [makeSelfTopSource('v1', 5000, 200)];
+        const enriched = new Map<string, EnrichedVideoData>([
+            ['v1', { videoId: 'v1', tags: [], channelTitle: 'Mine' }],
+        ]);
+
+        const result = computeSelfChannelStats('Mine', topSources, enriched);
+        expect(result!.timeline).toEqual([]);
+    });
+});
+
+// --- computeContentTrajectory ---
+
+describe('computeContentTrajectory', () => {
+    const makeRowWithTitle = (videoId: string, title: string, views: number, impressions: number): SuggestedVideoRow => ({
+        videoId,
+        sourceTitle: title,
+        views,
+        impressions,
+        ctr: null,
+        avgViewDuration: '0:05:00',
+        watchTimeHours: views * 0.1,
+    });
+
+    it('tracks keyword evolution across snapshots', () => {
+        const snapshotRows: SuggestedVideoRow[][] = [
+            [
+                makeRowWithTitle('v1', 'Deep Meditation Music Calm', 100, 500),
+                makeRowWithTitle('v2', 'Meditation Ambient Sounds', 80, 400),
+            ],
+            [
+                makeRowWithTitle('v1', 'Deep Meditation Music Calm', 100, 500),
+                makeRowWithTitle('v3', 'Lofi Study Beats Mix', 200, 1000),
+                makeRowWithTitle('v4', 'Lofi Chill Piano Study', 150, 800),
+            ],
+        ];
+        const dates = ['2025-01-15', '2025-01-22'];
+        const enriched = new Map<string, EnrichedVideoData>();
+
+        const result = computeContentTrajectory([], snapshotRows, dates, enriched);
+        expect(result).toHaveLength(2);
+
+        // Snapshot 1: "meditation" dominant
+        const kw1 = result[0].topKeywords.map(k => k.keyword);
+        expect(kw1).toContain('meditation');
+
+        // Snapshot 2: "lofi" + "study" appear
+        const kw2 = result[1].topKeywords.map(k => k.keyword);
+        expect(kw2).toContain('lofi');
+        expect(kw2).toContain('study');
+
+        // totalImpressions grow
+        expect(result[0].totalImpressions).toBe(900);
+        expect(result[1].totalImpressions).toBe(2300);
+    });
+
+    it('computes per-snapshot shared tags from enrichedData', () => {
+        const snapshotRows: SuggestedVideoRow[][] = [
+            [makeRowWithTitle('v1', 'Some Video', 100, 500)],
+            [makeRowWithTitle('v1', 'Some Video', 200, 1000), makeRowWithTitle('v2', 'Another', 150, 800)],
+        ];
+        const dates = ['2025-01-15', '2025-01-22'];
+
+        const enriched = new Map<string, EnrichedVideoData>([
+            ['v1', { videoId: 'v1', tags: ['lofi', 'chill', 'study'], channelTitle: 'ChA' }],
+            ['v2', { videoId: 'v2', tags: ['lofi', 'piano', 'jazz'], channelTitle: 'ChB' }],
+        ]);
+
+        // Source video has tags: ['lofi', 'relax']
+        const result = computeContentTrajectory(['lofi', 'relax'], snapshotRows, dates, enriched);
+
+        // Snapshot 1: v1 has 'lofi' shared → 1 shared tag
+        expect(result[0].topSharedTags).toEqual([{ tag: 'lofi', count: 1 }]);
+
+        // Snapshot 2: v1 + v2 both share 'lofi' → count=2
+        expect(result[1].topSharedTags[0]).toEqual({ tag: 'lofi', count: 2 });
+    });
+
+    it('tracks channel distribution shift across snapshots', () => {
+        const snapshotRows: SuggestedVideoRow[][] = [
+            [makeRowWithTitle('v1', 'A', 100, 500), makeRowWithTitle('v2', 'B', 80, 400)],
+            [makeRowWithTitle('v1', 'A', 100, 500), makeRowWithTitle('v3', 'C', 200, 1000), makeRowWithTitle('v4', 'D', 150, 800)],
+        ];
+        const dates = ['2025-01-15', '2025-01-22'];
+
+        const enriched = new Map<string, EnrichedVideoData>([
+            ['v1', { videoId: 'v1', tags: [], channelTitle: 'CompetitorA' }],
+            ['v2', { videoId: 'v2', tags: [], channelTitle: 'CompetitorB' }],
+            ['v3', { videoId: 'v3', tags: [], channelTitle: 'MyChannel' }],
+            ['v4', { videoId: 'v4', tags: [], channelTitle: 'MyChannel' }],
+        ]);
+
+        const result = computeContentTrajectory([], snapshotRows, dates, enriched);
+
+        // Snapshot 1: CompetitorA + CompetitorB
+        expect(result[0].channelDistribution).toEqual([
+            { channelTitle: 'CompetitorA', count: 1 },
+            { channelTitle: 'CompetitorB', count: 1 },
+        ]);
+
+        // Snapshot 2: MyChannel ×2, CompetitorA ×1
+        expect(result[1].channelDistribution[0]).toEqual({ channelTitle: 'MyChannel', count: 2 });
+    });
+
+    it('includes topVideos for non-latest snapshots, skips for latest', () => {
+        // 12 videos in snapshot 1, 5 in snapshot 2 (latest)
+        const rows1: SuggestedVideoRow[] = Array.from({ length: 12 }, (_, i) =>
+            makeRowWithTitle(`v${i}`, `Video ${i}`, (12 - i) * 10, (12 - i) * 100),
+        );
+        const rows2 = [makeRowWithTitle('v0', 'Video 0', 500, 5000)];
+        const snapshotRows = [rows1, rows2];
+        const dates = ['2025-01-15', '2025-01-22'];
+        const enriched = new Map<string, EnrichedVideoData>();
+
+        const result = computeContentTrajectory([], snapshotRows, dates, enriched);
+
+        // Snapshot 1 (non-latest): has topVideos
+        expect(result[0].topVideos).toHaveLength(10);
+        expect(result[0].topVideos[0].videoId).toBe('v0');
+        expect(result[0].topVideos[0].impressions).toBe(1200);
+        expect(result[0].tailImpressions).toBe(300); // v10(200) + v11(100)
+        expect(result[0].isLatest).toBe(false);
+
+        // Snapshot 2 (latest): empty topVideos — use topSources instead
+        expect(result[1].topVideos).toHaveLength(0);
+        expect(result[1].tailImpressions).toBe(0);
+        expect(result[1].isLatest).toBe(true);
+        // But aggregate data is still present
+        expect(result[1].totalImpressions).toBe(5000);
+    });
+
+    it('computes deltaImpressions vs previous snapshot', () => {
+        const snapshotRows: SuggestedVideoRow[][] = [
+            [
+                makeRowWithTitle('v1', 'Alpha', 100, 800),
+                makeRowWithTitle('v2', 'Beta', 80, 600),
+            ],
+            [
+                makeRowWithTitle('v1', 'Alpha', 300, 2000),  // was 800 → delta +1200
+                makeRowWithTitle('v3', 'Gamma', 200, 1500),  // new → delta null
+            ],
+            // Latest — no topVideos
+            [makeRowWithTitle('v1', 'Alpha', 500, 5000)],
+        ];
+        const dates = ['2025-01-15', '2025-01-22', '2025-01-29'];
+        const enriched = new Map<string, EnrichedVideoData>();
+
+        const result = computeContentTrajectory([], snapshotRows, dates, enriched);
+
+        // Snapshot 1 (first): all deltas null (no previous)
+        expect(result[0].topVideos[0].deltaImpressions).toBeNull();
+        expect(result[0].topVideos[1].deltaImpressions).toBeNull();
+
+        // Snapshot 2: v1 grew from 800 to 2000, v3 is new
+        const snap2v1 = result[1].topVideos.find(v => v.videoId === 'v1')!;
+        expect(snap2v1.deltaImpressions).toBe(1200); // 2000 - 800
+
+        const snap2v3 = result[1].topVideos.find(v => v.videoId === 'v3')!;
+        expect(snap2v3.deltaImpressions).toBeNull(); // new video
+
+        // Snapshot 3 (latest): no topVideos
+        expect(result[2].topVideos).toHaveLength(0);
+        expect(result[2].isLatest).toBe(true);
     });
 });

@@ -164,6 +164,8 @@ export const useVideos = (userId: string, channelId: string): UseVideosResult =>
                             finalUpdates.thumbnail = youtubeData.thumbnail;
                             finalUpdates.description = youtubeData.description;
                             finalUpdates.tags = youtubeData.tags;
+                            finalUpdates.channelTitle = youtubeData.channelTitle;
+                            finalUpdates.channelId = youtubeData.channelId;
                             // Delete legacy field if it somehow exists in Firestore
                             (finalUpdates as Record<string, unknown>).mergedVideoData = deleteField();
                             finalUpdates.fetchStatus = 'success';

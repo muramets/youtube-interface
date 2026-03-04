@@ -81,6 +81,8 @@ export const useVideoFetchRetry = () => {
                                         thumbnail: details.thumbnail,
                                         description: details.description,
                                         tags: details.tags,
+                                        channelTitle: details.channelTitle,
+                                        channelId: details.channelId,
                                         fetchStatus: 'success' as const,
                                         fetchRetryCount: undefined,
                                         lastFetchAttempt: undefined
@@ -98,6 +100,8 @@ export const useVideoFetchRetry = () => {
                             thumbnail: details.thumbnail,
                             description: details.description,
                             tags: details.tags,
+                            channelTitle: details.channelTitle,
+                            channelId: details.channelId,
                             mergedVideoData: deleteField(),
                             fetchStatus: 'success',
                             fetchRetryCount: deleteField(),

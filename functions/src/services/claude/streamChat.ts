@@ -184,12 +184,13 @@ function buildHistory(messages: HistoryMessage[]): MessageParam[] {
 // =============================================================================
 
 /**
- * Build Claude thinking configuration from the model's thinkingOptions.
+ * Build the `thinking` config param for Claude API from MODEL_REGISTRY options.
  *
- * Claude uses `thinking: { type: 'enabled', budget_tokens: N }` or `{ type: 'disabled' }`.
- * The thinkingMode for Claude models is always 'budget' — value is a number.
+ * Two modes:
+ *   - 'adaptive' (Opus 4.6, Sonnet 4.6): { type: "adaptive" } — effort is set via output_config
+ *   - 'budget' (legacy/Haiku): { type: "enabled", budget_tokens: N } or { type: "disabled" }
  *
- * Special values:
+ * Special values for budget mode:
  *   - value = 0 (id: 'off') → thinking disabled
  *   - value = -1 (id: 'auto') → use DEFAULT_THINKING_BUDGET
  *   - value > 0 → use as budget_tokens directly
@@ -197,7 +198,7 @@ function buildHistory(messages: HistoryMessage[]): MessageParam[] {
 function buildThinkingConfig(
     model: string,
     thinkingOptionId?: string,
-): ThinkingConfigParam | undefined {
+): { thinking: ThinkingConfigParam; effort?: string } | undefined {
     const modelConfig = MODEL_REGISTRY.find((m) => m.id === model);
     if (!modelConfig) return undefined;
 
@@ -207,22 +208,35 @@ function buildThinkingConfig(
 
     if (!option) return undefined;
 
+    // Adaptive mode (Opus 4.6, Sonnet 4.6)
+    if (modelConfig.thinkingMode === 'adaptive') {
+        const effort = option.value as string;
+        if (effort === 'off') {
+            return { thinking: { type: "disabled" } };
+        }
+        // Adaptive thinking — effort is passed separately via output_config
+        return { thinking: { type: 'adaptive' as const }, effort };
+    }
+
+    // Budget mode (legacy — Haiku etc.)
     const budget = option.value as number;
 
     // Off: disable thinking entirely
     if (budget === 0) {
-        return { type: "disabled" };
+        return { thinking: { type: "disabled" } };
     }
 
     // Auto: use a reasonable default
     if (budget === -1) {
-        return { type: "enabled", budget_tokens: DEFAULT_THINKING_BUDGET };
+        return { thinking: { type: "enabled", budget_tokens: DEFAULT_THINKING_BUDGET } };
     }
 
     // Explicit budget (enforce minimum)
     return {
-        type: "enabled",
-        budget_tokens: Math.max(budget, MIN_THINKING_BUDGET),
+        thinking: {
+            type: "enabled",
+            budget_tokens: Math.max(budget, MIN_THINKING_BUDGET),
+        },
     };
 }
 
@@ -344,21 +358,27 @@ export async function streamChat(
     const claudeTools = tools.length > 0 && toolContext ? toClaudeTools(tools) : [];
 
     // --- Thinking config ---
-    const thinkingConfig = buildThinkingConfig(model, thinkingOptionId);
-    const thinkingEnabled = thinkingConfig && thinkingConfig.type === "enabled";
+    const thinkingResult = buildThinkingConfig(model, thinkingOptionId);
+    const thinkingConfig = thinkingResult?.thinking;
+    const thinkingEffort = thinkingResult?.effort;
+    const thinkingEnabled = thinkingConfig && thinkingConfig.type !== 'disabled';
 
     // --- max_tokens: when thinking is enabled, budget_tokens counts toward max_tokens ---
     // Claude requires max_tokens >= budget_tokens, so we set it high enough.
     let maxTokens = DEFAULT_MAX_TOKENS;
-    if (thinkingEnabled && "budget_tokens" in thinkingConfig) {
-        // Ensure max_tokens accommodates thinking budget + response tokens
+    if (thinkingEnabled && thinkingConfig.type === 'enabled' && 'budget_tokens' in thinkingConfig) {
+        // Budget mode: ensure max_tokens accommodates thinking budget + response tokens
         maxTokens = Math.max(maxTokens, thinkingConfig.budget_tokens + DEFAULT_MAX_TOKENS);
+    } else if (thinkingEnabled && thinkingConfig.type === 'adaptive') {
+        // Adaptive mode: Claude decides thinking budget, set generous max_tokens
+        maxTokens = 16_000;
     }
 
     // Diagnostic logging
     console.log(
         `[claude:streamChat] Payload: ${messages.length} messages, ` +
-        `${claudeTools.length} tools, thinking=${thinkingConfig?.type ?? "none"}, ` +
+        `${claudeTools.length} tools, thinking=${thinkingConfig?.type ?? 'none'}` +
+        `${thinkingEffort ? ` effort=${thinkingEffort}` : ''}, ` +
         `max_tokens=${maxTokens}`,
     );
     if (systemPrompt) {
@@ -390,6 +410,7 @@ export async function streamChat(
                 messages: agenticMessages,
                 tools: claudeTools,
                 thinkingConfig,
+                thinkingEffort,
                 maxTokens,
                 callbacks,
                 signal,
@@ -410,9 +431,18 @@ export async function streamChat(
             },
         );
 
-        // Accumulate text
+        // Accumulate text + tokens (sum across iterations, not overwrite)
         fullText = iterationResult.fullText;
-        tokenUsage = iterationResult.tokenUsage;
+        if (iterationResult.tokenUsage) {
+            tokenUsage = tokenUsage
+                ? {
+                    promptTokens: tokenUsage.promptTokens + iterationResult.tokenUsage.promptTokens,
+                    completionTokens: tokenUsage.completionTokens + iterationResult.tokenUsage.completionTokens,
+                    totalTokens: tokenUsage.totalTokens + iterationResult.tokenUsage.totalTokens,
+                    cachedTokens: (tokenUsage.cachedTokens ?? 0) + (iterationResult.tokenUsage.cachedTokens ?? 0) || undefined,
+                }
+                : iterationResult.tokenUsage;
+        }
 
         console.log(
             `[claude:streamChat] Iteration ${iteration} done — ` +
@@ -552,6 +582,7 @@ interface StreamIterationOpts {
     messages: MessageParam[];
     tools: Tool[];
     thinkingConfig?: ThinkingConfigParam;
+    thinkingEffort?: string;
     maxTokens: number;
     callbacks: StreamCallbacks;
     signal?: AbortSignal;
@@ -591,6 +622,7 @@ async function streamIteration(
         messages,
         tools,
         thinkingConfig,
+        thinkingEffort,
         maxTokens,
         callbacks,
         signal,
@@ -631,6 +663,7 @@ async function streamIteration(
             ...(systemPrompt ? { system: systemPrompt } : {}),
             ...(tools.length > 0 ? { tools } : {}),
             ...(thinkingConfig ? { thinking: thinkingConfig } : {}),
+            ...(thinkingEffort ? { output_config: { effort: thinkingEffort as 'low' | 'medium' | 'high' | 'max' } } : {}),
         };
 
         // Create stream — wrap in a promise race with timeout

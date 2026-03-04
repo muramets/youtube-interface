@@ -502,9 +502,18 @@ export async function streamChat(
             },
         );
 
-        // Update accumulated state from iteration result
+        // Update accumulated state (sum tokens across iterations, not overwrite)
         fullText = iterationResult.fullText;
-        tokenUsage = iterationResult.tokenUsage;
+        if (iterationResult.tokenUsage) {
+            tokenUsage = tokenUsage
+                ? {
+                    promptTokens: tokenUsage.promptTokens + iterationResult.tokenUsage.promptTokens,
+                    completionTokens: tokenUsage.completionTokens + iterationResult.tokenUsage.completionTokens,
+                    totalTokens: tokenUsage.totalTokens + iterationResult.tokenUsage.totalTokens,
+                    cachedTokens: (tokenUsage.cachedTokens ?? 0) + (iterationResult.tokenUsage.cachedTokens ?? 0) || undefined,
+                }
+                : iterationResult.tokenUsage;
+        }
 
         console.log(
             `[gemini:streamChat] Iteration ${iteration} done — ` +

@@ -39,8 +39,8 @@ export interface ModelConfig {
     thinkingOptions: ThinkingOption[];
     /** Default thinking option id */
     thinkingDefault: string;
-    /** Thinking API parameter style: 'level' (enum string) or 'budget' (token count) */
-    thinkingMode: 'level' | 'budget';
+    /** Thinking API parameter style: 'level' (enum string), 'budget' (token count), or 'adaptive' (effort level) */
+    thinkingMode: 'level' | 'budget' | 'adaptive';
     /** Which attachment types this model supports natively */
     attachmentSupport: AttachmentSupport;
 }
@@ -160,17 +160,31 @@ export const MODEL_REGISTRY: ModelConfig[] = [
         attachmentSupport: GEMINI_ATTACHMENT_SUPPORT,
     },
     {
+        id: 'claude-opus-4-6', label: 'Claude Opus 4.6', provider: 'anthropic', contextLimit: 200_000,
+        pricing: { inputPerMillion: 5.00, outputPerMillion: 25.00 },
+        thinkingOptions: [
+            { id: 'off', label: 'Off', value: 'off' },
+            { id: 'low', label: 'Low', value: 'low' },
+            { id: 'medium', label: 'Medium', value: 'medium' },
+            { id: 'high', label: 'High', value: 'high' },
+            { id: 'max', label: 'Max', value: 'max' },
+        ],
+        thinkingDefault: 'high',
+        thinkingMode: 'adaptive',
+        attachmentSupport: CLAUDE_ATTACHMENT_SUPPORT,
+    },
+    {
         id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6', provider: 'anthropic', contextLimit: 200_000,
         pricing: { inputPerMillion: 3.00, outputPerMillion: 15.00 },
         thinkingOptions: [
-            { id: 'off', label: 'Off', value: 0 },
-            { id: 'auto', label: 'Auto', value: -1 },
-            { id: 'low', label: 'Low', value: 4096 },
-            { id: 'medium', label: 'Medium', value: 10240 },
-            { id: 'high', label: 'High', value: 32768 },
+            { id: 'off', label: 'Off', value: 'off' },
+            { id: 'low', label: 'Low', value: 'low' },
+            { id: 'medium', label: 'Medium', value: 'medium' },
+            { id: 'high', label: 'High', value: 'high' },
+            { id: 'max', label: 'Max', value: 'max' },
         ],
-        thinkingDefault: 'auto',
-        thinkingMode: 'budget',
+        thinkingDefault: 'high',
+        thinkingMode: 'adaptive',
         attachmentSupport: CLAUDE_ATTACHMENT_SUPPORT,
     },
     {

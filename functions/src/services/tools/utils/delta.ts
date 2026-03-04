@@ -122,6 +122,7 @@ export function findDroppedEntries(
 
 export interface TimelinePoint {
     date: string;
+    label: string;
     views: number;
     impressions: number;
     ctr: number | null;
@@ -148,7 +149,9 @@ export interface VideoTimeline {
 
 export interface Transition {
     periodFromDate: string;
+    periodFromLabel: string;
     periodToDate: string;
+    periodToLabel: string;
     newCount: number;
     droppedCount: number;
     /** Top new sources by impressions (capped at 10). */
@@ -175,6 +178,7 @@ const TRANSITION_TOP_N = 10;
 export function buildVideoTimeline(
     snapshots: VideoSnapshotEntry[][],
     dates: string[],
+    labels?: string[],
 ): Map<string, VideoTimeline> {
     const result = new Map<string, VideoTimeline>();
 
@@ -207,6 +211,7 @@ export function buildVideoTimeline(
 
             timeline.timeline.push({
                 date,
+                label: labels?.[i] ?? `v${i + 1}`,
                 views: entry.views,
                 impressions: entry.impressions,
                 ctr: entry.ctr,
@@ -238,6 +243,7 @@ export function buildVideoTimeline(
 export function getTransitions(
     snapshots: VideoSnapshotEntry[][],
     dates: string[],
+    labels?: string[],
 ): Transition[] {
     const transitions: Transition[] = [];
 
@@ -258,7 +264,9 @@ export function getTransitions(
 
         transitions.push({
             periodFromDate: dates[i - 1],
+            periodFromLabel: labels?.[i - 1] ?? `v${i}`,
             periodToDate: dates[i],
+            periodToLabel: labels?.[i] ?? `v${i + 1}`,
             newCount: newEntries.length,
             droppedCount: droppedEntries.length,
             topNew,

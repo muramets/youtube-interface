@@ -3,8 +3,7 @@
  */
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
-/** Utility model for title generation — always use the cheapest available. */
-const TITLE_MODEL = 'gemini-2.5-flash';
+import { UTILITY_MODEL_ID } from "../config/models.js";
 
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
 
@@ -31,7 +30,7 @@ export const generateChatTitle = onCall(
         }
 
         const { generateTitle } = await import("../services/gemini/index.js");
-        const title = await generateTitle(apiKey, firstMessage, TITLE_MODEL);
+        const title = await generateTitle(apiKey, firstMessage, UTILITY_MODEL_ID);
         return { title };
     }
 );

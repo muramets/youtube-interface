@@ -2,13 +2,14 @@
 
 ## Текущее состояние
 
-**Реализовано (v2).** Gemini вызывает `analyzeSuggestedTraffic` в чате, передаёт `videoId` + `depth`, получает **per-video timeline по всем снапшотам** с pre-computed дельтами и transitions между периодами. AI интерпретирует trajectory, а не считает.
+**Реализовано (v2.3).** Gemini вызывает `analyzeSuggestedTraffic` в чате, передаёт `videoId` + `depth`, получает **per-video timeline по всем снапшотам** с pre-computed дельтами и transitions между периодами. **Self-channel detection**: тул определяет self-channel видео и вычисляет `selfChannelStats` с per-snapshot timeline. **Content trajectory**: per-snapshot `topKeywords` + `channelDistribution` + `topSharedTags` + `topVideos[10]` с `deltaImpressions` — фильм эволюции контента. Latest snapshot пропускает topVideos (покрыт `topSources`). LLM получает промпт для reconstruction algorithm journey.
 
 **Ключевые принципы (Elite Senior Dev Lens):**
 1. **Deterministic API** — `depth` enum вместо свободного числа
-2. **Code = math, LLM = patterns** — handler считает дельты, Gemini видит trajectory
-3. **Full trajectory** — ни один снапшот не выбрасывается
+2. **Code = math, LLM = patterns** — handler считает дельты, self-channel stats, content trajectory; LLM интерпретирует
+3. **Full trajectory** — ни один снапшот не выбрасывается, labels сохраняются
 4. **No bias** — AVD передаётся как raw метрика без навязанной классификации
+5. **No duplication** — latest snapshot topVideos не дублируют topSources
 
 ---
 
@@ -89,9 +90,9 @@ snapshots: [
 ```typescript
 // Видео "Lofi beats" — было во всех 3 снапшотах:
 timeline: [
-    { date: "2026-01-15", views: 200,  impressions: 3000,  deltaViews: null },    // baseline
-    { date: "2026-01-22", views: 2800, impressions: 45000, deltaViews: +2600 },   // рост
-    { date: "2026-02-15", views: 5000, impressions: 80000, deltaViews: +2200 },   // замедление
+    { date: "2026-01-15", label: "24h", views: 200,  impressions: 3000,  deltaViews: null },    // baseline
+    { date: "2026-01-22", label: "1 week", views: 2800, impressions: 45000, deltaViews: +2600 },   // рост
+    { date: "2026-02-15", label: "1 month", views: 5000, impressions: 80000, deltaViews: +2200 },   // замедление
 ]
 ```
 
@@ -140,7 +141,7 @@ transitions: [
 
 ---
 
-### Что получает Gemini
+### Что получает LLM
 
 | Вопрос | Ответ в JSON |
 |---|---|
@@ -150,6 +151,9 @@ transitions: [
 | По каким тегам ставят? | `contentAnalysis.mostFrequentSharedTags` |
 | Какие каналы-конкуренты? | `contentAnalysis.channelDistribution` |
 | Тематика окружения? | `contentAnalysis.topKeywordsInSuggestedTitles` |
+| Как алгоритм пришёл сюда? | `contentTrajectory` — per-snapshot keywords + channels + top videos + deltas |
+| Сколько трафика от моего канала? | `selfChannelStats` — selfPercentage + timeline |
+| Когда начался ecosystem boost? | `selfChannelStats.timeline` — inflection point |
 
 ---
 
@@ -175,14 +179,14 @@ transitions: [
         videoId, sourceTitle,
         views, impressions, ctr, avgViewDuration, watchTimeHours,
         timeline: [
-            { date, views, impressions, ctr, avgViewDuration, watchTimeHours,
+            { date, label, views, impressions, ctr, avgViewDuration, watchTimeHours,
               deltaViews: null, deltaImpressions: null },
-            { date, views, impressions, ctr, avgViewDuration, watchTimeHours,
+            { date, label, views, impressions, ctr, avgViewDuration, watchTimeHours,
               deltaViews, deltaImpressions },
         ]
     }],
     transitions: [{
-        periodFromDate, periodToDate,
+        periodFromDate, periodFromLabel, periodToDate, periodToLabel,
         newCount, droppedCount,
         topNew: VideoSnapshotEntry[],
         topDropped: VideoSnapshotEntry[]
@@ -196,6 +200,19 @@ transitions: [
             channelDistribution
         }
     },
+    selfChannelStats?: {
+        channelTitle, selfCount, totalEnriched, selfPercentage,
+        selfImpressions, selfViews, selfTopVideos: [{ videoId, sourceTitle, impressions, views }],
+        timeline: [{ date, label, selfCount, totalEnriched, selfPercentage, selfImpressions }]
+    },
+    contentTrajectory?: [{
+        date, label, totalSources, totalImpressions, isLatest,
+        topKeywords: [{ keyword, count }],
+        topSharedTags: [{ tag, count }],
+        channelDistribution: [{ channelTitle, count }],
+        topVideos: [{ videoId, sourceTitle, impressions, views, ctr, avgViewDuration, deltaImpressions }],
+        tailImpressions
+    }],
     analysisGuidance: string
 }
 ```
@@ -208,7 +225,7 @@ transitions: [
 |---|---|---|
 | `utils/csvParser.ts` | `parseSuggestedTrafficCsv` | 12 тестов |
 | `utils/delta.ts` | `calculateSnapshotDeltas`, `findNewEntries`, `findDroppedEntries`, `buildVideoTimeline`, `getTransitions` | 17 тестов |
-| `utils/suggestedAnalysis.ts` | `aggregateTopSources`, `analyzeContent`, `tokenizeTitle`, `findSharedTags` | 20+ тестов |
+| `utils/suggestedAnalysis.ts` | `aggregateTopSources`, `analyzeContent`, `computeSelfChannelStats`, `computeContentTrajectory`, `tokenizeTitle`, `findSharedTags` | 46 тестов |
 
 ---
 
@@ -244,7 +261,7 @@ src/
 
 ---
 
-## ← YOU ARE HERE → v2: timeline + depth + transitions
+## ← YOU ARE HERE → v2.3: self-channel detection + content trajectory + per-snapshot topVideos
 
 ## Roadmap
 
@@ -253,6 +270,15 @@ src/
 
 - [ ] Визуализация transitions на Suggested Traffic page
 - [ ] Timeline view для отдельного source видео
+
+### Stage 3.5 — Self-channel matching по channelId
+**Бизнес-цель:** устранить edge case с совпадающими названиями каналов.
+
+> **Known limitation (v2.1):** `computeSelfChannelStats()` матчит по `channelTitle` (case-insensitive). Совпадение названий каналов — редкий кейс, но `channelId` (YouTube ID `UC...`) — deterministic и неизменен. Переход на `channelId` matching имеет смысл при расширении `EnrichedVideoData` (например, для competitive intelligence).
+
+- [ ] Добавить `channelId` в `EnrichedVideoData`
+- [ ] Читать `channelId` из `cached_suggested_traffic_videos` при enrichment
+- [ ] Matching по `channelId` вместо `channelTitle` в `computeSelfChannelStats()`
 
 ### Stage 4 — Niche correlation
 **Бизнес-цель:** связать suggested traffic с нишами пользователя, показать какие ниши приносят трафик.

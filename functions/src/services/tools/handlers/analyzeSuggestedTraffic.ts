@@ -21,6 +21,8 @@ import {
 } from "../utils/delta.js";
 import {
     analyzeContent,
+    computeSelfChannelStats,
+    computeContentTrajectory,
 } from "../utils/suggestedAnalysis.js";
 import type { ToolContext } from "../types.js";
 import type { VideoSnapshotEntry } from "../utils/delta.js";
@@ -103,6 +105,7 @@ export async function handleAnalyzeSuggestedTraffic(
         title: String(videoData.title ?? ""),
         description: String(videoData.description ?? ""),
         tags: Array.isArray(videoData.tags) ? (videoData.tags as string[]) : [],
+        channelTitle: String(videoData.channelTitle ?? ""),
     };
 
     // --- Step 2: Download all CSVs from Cloud Storage in parallel -----------
@@ -154,8 +157,11 @@ export async function handleAnalyzeSuggestedTraffic(
     const snapshotDates = snapshots.map(
         (snap) => new Date(snap.timestamp).toISOString().split("T")[0],
     );
+    const snapshotLabels = snapshots.map(
+        (snap, i) => snap.label ?? snap.autoLabel ?? `v${i + 1}`,
+    );
 
-    const timelineMap = buildVideoTimeline(snapshotEntries, snapshotDates);
+    const timelineMap = buildVideoTimeline(snapshotEntries, snapshotDates, snapshotLabels);
 
     // --- Step 5: Sort by impressions, apply filters, take top N -------------
 
@@ -192,11 +198,15 @@ export async function handleAnalyzeSuggestedTraffic(
 
     // --- Step 6: Compute transitions ----------------------------------------
 
-    const transitions = getTransitions(snapshotEntries, snapshotDates);
+    const transitions = getTransitions(snapshotEntries, snapshotDates, snapshotLabels);
 
-    // --- Step 7: Content analysis (conditional) -----------------------------
+    // --- Step 7: Content analysis + self-channel stats (conditional) ---------
 
     let contentAnalysis: ReturnType<typeof analyzeContent> | undefined =
+        undefined;
+    let selfChannelStats: ReturnType<typeof computeSelfChannelStats> | undefined =
+        undefined;
+    let contentTrajectory: ReturnType<typeof computeContentTrajectory> | undefined =
         undefined;
 
     if (includeContentAnalysis && topSources.length > 0) {
@@ -238,6 +248,63 @@ export async function handleAnalyzeSuggestedTraffic(
             topSourcesForAnalysis,
             enrichedData,
         );
+
+        // Enrich ALL unique videoIds across ALL snapshots (for timeline + trajectory)
+        const allVideoIds = new Set<string>();
+        for (const snap of parsedSnapshots) {
+            for (const row of snap.rows) {
+                allVideoIds.add(row.videoId);
+            }
+        }
+
+        // Merge with already-enriched data (top-30 from content analysis)
+        const missingIds = [...allVideoIds].filter(id => !enrichedData.has(id));
+
+        // Batch-read missing videoIds from cache (500 per Firestore getAll)
+        if (missingIds.length > 0) {
+            const BATCH_SIZE = 500;
+            for (let b = 0; b < missingIds.length; b += BATCH_SIZE) {
+                const batch = missingIds.slice(b, b + BATCH_SIZE);
+                const refs = batch.map(id =>
+                    db.doc(`${basePath}/cached_suggested_traffic_videos/${id}`),
+                );
+                const snaps = await db.getAll(...refs);
+                for (let j = 0; j < batch.length; j++) {
+                    const snap = snaps[j];
+                    if (snap.exists) {
+                        const d = snap.data()!;
+                        enrichedData.set(batch[j], {
+                            videoId: batch[j],
+                            tags: Array.isArray(d.tags) ? (d.tags as string[]) : [],
+                            channelTitle: String(d.channelTitle ?? ""),
+                        });
+                    }
+                }
+            }
+        }
+
+        const allSnapshotRows = parsedSnapshots.map(s => s.rows);
+
+        // Self-channel stats (only when channel identity is known)
+        if (sourceVideo.channelTitle) {
+            selfChannelStats = computeSelfChannelStats(
+                sourceVideo.channelTitle,
+                topSourcesForAnalysis,
+                enrichedData,
+                allSnapshotRows,
+                snapshotDates,
+                snapshotLabels,
+            );
+        }
+
+        // Content trajectory: per-snapshot keywords + channels + shared tags
+        contentTrajectory = computeContentTrajectory(
+            sourceVideo.tags,
+            allSnapshotRows,
+            snapshotDates,
+            enrichedData,
+            snapshotLabels,
+        );
     }
 
     // --- Build snapshotTimeline ---------------------------------------------
@@ -260,6 +327,21 @@ CRITICAL RULES:
 - "sharedTags" = exact tag match between your video and the suggested video.
 - "topKeywordsInSuggestedTitles" = most frequent words from ALL suggested video titles — useful for niche/topic discovery.
 - "channelDistribution" = which channels appear most in your suggested traffic.
+- "contentTrajectory" (when present) = per-snapshot content evolution. Shows how keywords, channels, and shared tags shifted across ALL snapshots. Each snapshot (except the latest) includes topVideos (top 10 by impressions with pre-computed deltaImpressions) and tailImpressions. Use this to reconstruct the algorithm's journey:
+  1. Identify PHASES: which keywords/channels dominated in early vs late snapshots?
+  2. Compare topVideos across snapshots: which videos appeared, grew, or disappeared? deltaImpressions shows growth vs previous snapshot; null = video was not in the previous snapshot (new arrival). This reveals which specific videos the algorithm tested and settled on.
+  3. Correlate with selfChannelStats.timeline: when did self-channel % start growing?
+  4. Identify CATALYSTS: which video first appeared in topVideos (deltaImpressions=null) and triggered a phase shift?
+  5. If you see a dramatic keyword or channel shift between two snapshots — call getMultipleVideoDetails on key videos from that transition period to investigate their tags and content deeper.
+  6. topSharedTags shows tags that overlap with the source video per snapshot — if high overlap appears only in later snapshots, the algorithm found the topical match late.
+  7. tailImpressions shows how much traffic is in the long tail. High tailImpressions vs low topVideos sum = highly fragmented pool.
+  8. The latest snapshot has isLatest=true and empty topVideos — use topSources for the latest snapshot's per-video breakdown (it has more detail including full cross-snapshot timelines).
+- "selfChannelStats" (when present) = CRITICAL strategic signal. Shows how much of the suggested traffic comes from the user's OWN channel ("${sourceVideo.channelTitle}"). Interpret selfPercentage as follows:
+  • >60% = "Channel Ecosystem Boost" — YouTube's algorithm promotes this video primarily within the user's own channel ecosystem, showing it alongside their other hits. This means: (a) strong channel authority, (b) YouTube trusts this channel to retain viewers across videos, (c) growth was driven by existing audience, not new discovery. The video is a "catalog driver" — it pulls viewers deeper into the channel.
+  • 30-60% = "Hybrid reach" — balanced between self-channel ecosystem and external discovery.
+  • <30% = "External Discovery" — the video broke into external suggested pools, reaching new audiences beyond the subscriber base. This is a sign of broader algorithmic reach and topic authority.
+  selfChannelStats.timeline shows self-channel percentage PER SNAPSHOT — use it to identify the inflection point where self-channel traffic started growing. For example, if timeline shows [0%, 10%, 40%, 73%], explain WHEN the shift happened and correlate with topSources timelines to identify which specific video triggered the ecosystem boost.
+  Always call out selfPercentage explicitly when present. This is one of the most strategically important metrics in the analysis.
 - DO NOT recalculate any numbers. Interpret and explain what the findings mean strategically.
 - If timelines have only 1 point (single snapshot), note that trend data requires at least 2 snapshots.
 - If you need deeper content analysis for specific videos — call getMultipleVideoDetails with their IDs. Do this selectively for the most interesting movers.
@@ -275,6 +357,8 @@ CRITICAL RULES:
         transitions,
         tail,
         ...(contentAnalysis ? { contentAnalysis } : {}),
+        ...(selfChannelStats ? { selfChannelStats } : {}),
+        ...(contentTrajectory && contentTrajectory.length > 0 ? { contentTrajectory } : {}),
         analysisGuidance,
     };
 }

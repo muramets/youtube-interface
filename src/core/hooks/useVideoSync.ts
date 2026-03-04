@@ -29,6 +29,8 @@ export const useVideoSync = (userId: string, channelId: string) => {
                     thumbnail: details.thumbnail,
                     description: details.description,
                     tags: details.tags,
+                    channelTitle: details.channelTitle,
+                    channelId: details.channelId,
                     lastUpdated: Date.now(),
                     fetchStatus: 'success' as const,
                     lastFetchAttempt: Date.now()
