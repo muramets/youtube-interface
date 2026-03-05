@@ -2,7 +2,7 @@
 // Navigation Slice — chat panel open/close, view routing, active IDs
 // =============================================================================
 
-import type { ChatView } from '../../../types/chat';
+import type { ChatView } from '../../../types/chat/chat';
 import type { ChatState } from '../types';
 import { session } from '../session';
 

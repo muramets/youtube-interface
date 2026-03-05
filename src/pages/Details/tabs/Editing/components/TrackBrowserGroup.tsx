@@ -7,9 +7,9 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { ChevronDown, Layers } from 'lucide-react';
-import type { Track } from '../../../../../core/types/track';
+import type { Track } from '../../../../../core/types/music/track';
 import { TrackBrowserItem } from './TrackBrowserItem';
-import { useMusicStore } from '../../../../../core/stores/musicStore';
+import { useMusicStore } from '../../../../../core/stores/music/musicStore';
 
 interface TrackBrowserGroupProps {
     tracks: Track[];

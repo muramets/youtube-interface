@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { Share2 } from 'lucide-react';
-import type { SharedLibraryEntry } from '../../../core/types/musicSharing';
+import type { SharedLibraryEntry } from '../../../core/types/music/musicSharing';
 
 interface MusicLibrarySwitcherProps {
     sharedLibraries: SharedLibraryEntry[];

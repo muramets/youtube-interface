@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useEditingStore } from '../../../../../core/stores/editing/editingStore';
-import { useMusicStore } from '../../../../../core/stores/musicStore';
-import type { TimelineTrack } from '../../../../../core/types/editing';
+import { useMusicStore } from '../../../../../core/stores/music/musicStore';
+import type { TimelineTrack } from '../../../../../core/types/editing/editing';
 import { positionToPixel, pixelToPosition } from '../utils/timelineUtils';
 import { lastTrimDragEndMs } from '../components/TimelineTrackItem';
 import { formatDuration } from '../utils/formatDuration';

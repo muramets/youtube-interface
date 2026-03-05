@@ -2,8 +2,8 @@
 // Conversation Slice — conversations list, pagination, CRUD
 // =============================================================================
 
-import type { ChatConversation } from '../../../types/chat';
-import { ChatService, CONVERSATION_PAGE_SIZE } from '../../../services/chatService';
+import type { ChatConversation } from '../../../types/chat/chat';
+import { ChatService, CONVERSATION_PAGE_SIZE } from '../../../services/ai/chatService';
 import type { AppContextItem } from '../../../types/appContext';
 import type { ChatState } from '../types';
 import { requireContext } from '../helpers';

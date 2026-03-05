@@ -10,10 +10,10 @@ import React, { useMemo } from 'react';
 import { ListMusic } from 'lucide-react';
 import { AddToCollectionModal } from '../../../components/ui/molecules/AddToCollectionModal';
 import type { CollectionItem } from '../../../components/ui/molecules/AddToCollectionModal';
-import { useMusicStore } from '../../../core/stores/musicStore';
+import { useMusicStore } from '../../../core/stores/music/musicStore';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
-import type { TrackSource } from '../../../core/types/musicPlaylist';
+import type { TrackSource } from '../../../core/types/music/musicPlaylist';
 
 interface AddToMusicPlaylistModalProps {
     isOpen: boolean;

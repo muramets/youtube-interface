@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useEditingStore } from '../../../../../core/stores/editing/editingStore';
-import { useMusicStore } from '../../../../../core/stores/musicStore';
-import type { TimelineTrack } from '../../../../../core/types/editing';
-import { getEffectiveDuration } from '../../../../../core/types/editing';
+import { useMusicStore } from '../../../../../core/stores/music/musicStore';
+import type { TimelineTrack } from '../../../../../core/types/editing/editing';
+import { getEffectiveDuration } from '../../../../../core/types/editing/editing';
 import { cumulativeElapsedArray, positionToPixel, findTrackAtPosition as findTrackAtPos } from '../utils/timelineUtils';
 import { useKeyboardShortcuts } from './useKeyboardShortcuts';
 import { useTrackChangeSync } from './useTrackChangeSync';

@@ -7,8 +7,8 @@
 // =============================================================================
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { useMusicStore, selectAllTags, selectAllCategoryOrder, selectAllFeaturedCategories } from '../stores/musicStore';
-import type { Track, MusicGenre, MusicTag } from '../types/track';
+import { useMusicStore, selectAllTags, selectAllCategoryOrder, selectAllFeaturedCategories } from '../stores/music/musicStore';
+import type { Track, MusicGenre, MusicTag } from '../types/music/track';
 
 // -----------------------------------------------------------------------------
 // Types

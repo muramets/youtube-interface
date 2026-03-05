@@ -3,11 +3,11 @@ import { Share2, X, Plus, Trash2, Users, Pencil, TrashIcon, GripVertical } from 
 import { useAuth } from '../../../../core/hooks/useAuth';
 import { useChannels } from '../../../../core/hooks/useChannels';
 import { useChannelStore } from '../../../../core/stores/channelStore';
-import { useMusicStore } from '../../../../core/stores/musicStore';
-import { MusicSharingService } from '../../../../core/services/musicSharingService';
-import type { MusicShareGrant } from '../../../../core/types/musicSharing';
-import type { SharePermissions } from '../../../../core/types/musicSharing';
-import { DEFAULT_SHARE_PERMISSIONS } from '../../../../core/types/musicSharing';
+import { useMusicStore } from '../../../../core/stores/music/musicStore';
+import { MusicSharingService } from '../../../../core/services/music/musicSharingService';
+import type { MusicShareGrant } from '../../../../core/types/music/musicSharing';
+import type { SharePermissions } from '../../../../core/types/music/musicSharing';
+import { DEFAULT_SHARE_PERMISSIONS } from '../../../../core/types/music/musicSharing';
 import { Badge } from '../../../../components/ui/atoms/Badge/Badge';
 import type { BadgeVariant } from '../../../../components/ui/atoms/Badge/Badge';
 

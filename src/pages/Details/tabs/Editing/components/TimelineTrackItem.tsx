@@ -2,10 +2,10 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { X } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import type { TimelineTrack } from '../../../../../core/types/editing';
-import { getEffectiveDuration } from '../../../../../core/types/editing';
+import type { TimelineTrack } from '../../../../../core/types/editing/editing';
+import { getEffectiveDuration } from '../../../../../core/types/editing/editing';
 import { useEditingStore } from '../../../../../core/stores/editing/editingStore';
-import { useMusicStore, selectAllTracks } from '../../../../../core/stores/musicStore';
+import { useMusicStore, selectAllTracks } from '../../../../../core/stores/music/musicStore';
 import { formatDuration } from '../utils/formatDuration';
 import { drawWaveform, hexToHSL } from '../utils/waveformUtils';
 import { PortalTooltip } from '../../../../../components/ui/atoms/PortalTooltip';

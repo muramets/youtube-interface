@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { useSmartPosition } from '@/pages/Trends/Timeline/hooks/useSmartPosition';
-import { useMusicStore } from '@/core/stores/musicStore';
+import { useMusicStore } from '@/core/stores/music/musicStore';
 import { useUIStore } from '@/core/stores/uiStore';
 
 interface FloatingBarProps {

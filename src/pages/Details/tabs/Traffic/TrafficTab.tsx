@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { debug } from '../../../../core/utils/debug';
 import { TrafficTable } from './components/TrafficTable';
-import type { TrafficSortConfig, TrafficSortKey } from '../../../../core/types/traffic';
+import type { TrafficSortConfig, TrafficSortKey } from '../../../../core/types/suggestedTraffic/traffic';
 import { TrafficHeader } from './components/TrafficHeader';
 import { TrafficModals } from './components/TrafficModals';
 import { TrafficFilterChips } from './components/TrafficFilterChips';
@@ -28,22 +28,22 @@ import type { VideoDetails } from '../../../../core/utils/youtubeApi';
 import { useTrafficSelection } from './hooks/useTrafficSelection';
 import { useSettings } from '../../../../core/hooks/useSettings';
 import { formatPremiumPeriod } from './utils/dateUtils';
-import { useTrafficNicheStore } from '../../../../core/stores/trends/useTrafficNicheStore';
-import { useTrafficNoteStore } from '../../../../core/stores/trends/useTrafficNoteStore';
+import { useTrafficNicheStore } from '../../../../core/stores/suggestedTraffic/useTrafficNicheStore';
+import { useTrafficNoteStore } from '../../../../core/stores/suggestedTraffic/useTrafficNoteStore';
 import { useAuth } from '../../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../../core/stores/channelStore';
 import { useVideos } from '../../../../core/hooks/useVideos';
 import { useSmartNicheSuggestions } from './hooks/useSmartNicheSuggestions';
 import { assistantLogger } from '../../../../core/utils/logger';
-import { useTrafficTypeStore } from '../../../../core/stores/trends/useTrafficTypeStore';
+import { useTrafficTypeStore } from '../../../../core/stores/suggestedTraffic/useTrafficTypeStore';
 import { useSmartTrafficAutoApply } from './hooks/useSmartTrafficAutoApply';
-import { useViewerTypeStore } from '../../../../core/stores/trends/useViewerTypeStore';
+import { useViewerTypeStore } from '../../../../core/stores/suggestedTraffic/useViewerTypeStore';
 import { useTrendStore } from '../../../../core/stores/trends/trendStore';
 import { useSmartViewerTypeAutoApply } from './hooks/useSmartViewerTypeAutoApply';
-import { useVideoReactionStore } from '../../../../core/stores/trends/useVideoReactionStore';
+import { useVideoReactionStore } from '../../../../core/stores/suggestedTraffic/useVideoReactionStore';
 import { useVideoDeltaMap } from '../../../../core/hooks/useVideoDeltaMap';
 
-import type { TrafficSource } from '../../../../core/types/traffic';
+import type { TrafficSource } from '../../../../core/types/suggestedTraffic/traffic';
 
 interface TrafficTabProps {
     video: VideoDetails;
@@ -52,7 +52,7 @@ interface TrafficTabProps {
     viewingPeriodIndex?: number;
     selectedSnapshot?: string | null;
     // Shared state from DetailsLayout
-    trafficData: import('../../../../core/types/traffic').TrafficData | null;
+    trafficData: import('../../../../core/types/suggestedTraffic/traffic').TrafficData | null;
     isLoadingData: boolean;
     isSaving: boolean;
     handleCsvUpload: (sources: TrafficSource[], totalRow?: TrafficSource, file?: File, targetVersion?: number) => Promise<string | null>;
@@ -67,13 +67,13 @@ interface TrafficTabProps {
     error: Error | null;
     retry: () => void;
     // Niche Data
-    groups: import('../../../../core/types/traffic').TrafficGroup[];
+    groups: import('../../../../core/types/suggestedTraffic/traffic').TrafficGroup[];
     // Filter Props (Lifted)
-    filters: import('../../../../core/types/traffic').TrafficFilter[];
-    onAddFilter: (filter: Omit<import('../../../../core/types/traffic').TrafficFilter, 'id'>) => void;
+    filters: import('../../../../core/types/suggestedTraffic/traffic').TrafficFilter[];
+    onAddFilter: (filter: Omit<import('../../../../core/types/suggestedTraffic/traffic').TrafficFilter, 'id'>) => void;
     onRemoveFilter: (id: string) => void;
     onClearFilters: () => void;
-    applyFilters: (sources: import('../../../../core/types/traffic').TrafficSource[], groups?: import('../../../../core/types/traffic').TrafficGroup[]) => import('../../../../core/types/traffic').TrafficSource[];
+    applyFilters: (sources: import('../../../../core/types/suggestedTraffic/traffic').TrafficSource[], groups?: import('../../../../core/types/suggestedTraffic/traffic').TrafficGroup[]) => import('../../../../core/types/suggestedTraffic/traffic').TrafficSource[];
     // Sorting (Lifted)
     sortConfig: TrafficSortConfig | null;
     onSort: (key: TrafficSortKey) => void;
@@ -276,8 +276,8 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     const isFirstSnapshot = useMemo(() => {
         const snapshotId = selectedSnapshot ?? (() => {
             const snaps = (trafficData?.snapshots || [])
-                .filter((s: import('../../../../core/types/traffic').TrafficSnapshot) => s.version === viewingVersion)
-                .sort((a: import('../../../../core/types/traffic').TrafficSnapshot, b: import('../../../../core/types/traffic').TrafficSnapshot) => b.timestamp - a.timestamp);
+                .filter((s: import('../../../../core/types/suggestedTraffic/traffic').TrafficSnapshot) => s.version === viewingVersion)
+                .sort((a: import('../../../../core/types/suggestedTraffic/traffic').TrafficSnapshot, b: import('../../../../core/types/suggestedTraffic/traffic').TrafficSnapshot) => b.timestamp - a.timestamp);
             return snaps[0]?.id ?? null;
         })();
         if (!snapshotId) return false;
@@ -295,8 +295,8 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         // 2. Find latest snapshot for current version/period
         const snapshots = trafficData?.snapshots || [];
         const versionSnapshots = snapshots
-            .filter((s: import('../../../../core/types/traffic').TrafficSnapshot) => s.version === viewingVersion)
-            .sort((a: import('../../../../core/types/traffic').TrafficSnapshot, b: import('../../../../core/types/traffic').TrafficSnapshot) => b.timestamp - a.timestamp); // Newest first
+            .filter((s: import('../../../../core/types/suggestedTraffic/traffic').TrafficSnapshot) => s.version === viewingVersion)
+            .sort((a: import('../../../../core/types/suggestedTraffic/traffic').TrafficSnapshot, b: import('../../../../core/types/suggestedTraffic/traffic').TrafficSnapshot) => b.timestamp - a.timestamp); // Newest first
 
         if (versionSnapshots.length > 0) {
             return versionSnapshots[0].id;
@@ -401,7 +401,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     }, [actualTotalRow, filteredSources, viewMode]);
 
     // Handle Traffic Type Toggle
-    const handleToggleTrafficType = useCallback((videoId: string, currentType?: import('../../../../core/types/videoTrafficType').TrafficType) => {
+    const handleToggleTrafficType = useCallback((videoId: string, currentType?: import('../../../../core/types/suggestedTraffic/videoTrafficType').TrafficType) => {
         // 3-State Cycle: Unknown -> Autoplay -> Click -> Unknown (delete)
 
         if (!currentType) {
@@ -415,9 +415,9 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     }, [toggleTrafficType, deleteTrafficType]);
 
     // Handle Viewer Type Toggle
-    const handleToggleViewerType = useCallback((videoId: string, currentType?: import('../../../../core/types/viewerType').ViewerType) => {
+    const handleToggleViewerType = useCallback((videoId: string, currentType?: import('../../../../core/types/suggestedTraffic/viewerType').ViewerType) => {
         // Cycle: bouncer -> trialist -> explorer -> interested -> core -> passive -> unset
-        const types: import('../../../../core/types/viewerType').ViewerType[] = ['bouncer', 'trialist', 'explorer', 'interested', 'core', 'passive'];
+        const types: import('../../../../core/types/suggestedTraffic/viewerType').ViewerType[] = ['bouncer', 'trialist', 'explorer', 'interested', 'core', 'passive'];
 
         if (!currentType) {
             updateViewerType(videoId, types[0], 'manual');
@@ -433,7 +433,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
 
     // Build reaction lookup map (videoId -> reaction) for TrafficTable
     const reactionMap = useMemo(() => {
-        const map: Record<string, import('../../../../core/types/videoReaction').VideoReaction> = {};
+        const map: Record<string, import('../../../../core/types/suggestedTraffic/videoReaction').VideoReaction> = {};
         for (const edge of reactionEdges) {
             map[edge.videoId] = edge.reaction;
         }
@@ -441,7 +441,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     }, [reactionEdges]);
 
     // Handle Reaction Toggle
-    const handleToggleReaction = useCallback((videoId: string, reaction: import('../../../../core/types/videoReaction').VideoReaction) => {
+    const handleToggleReaction = useCallback((videoId: string, reaction: import('../../../../core/types/suggestedTraffic/videoReaction').VideoReaction) => {
         if (!user?.uid || !currentChannel?.id) return;
         toggleReaction(videoId, reaction, user.uid, currentChannel.id);
     }, [toggleReaction, user?.uid, currentChannel?.id]);
@@ -760,7 +760,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
 
     // Handle Confirmation (Single or Bulk)
     // Now handles both channel-based AND Trends-based suggestions
-    const handleConfirmSuggestion = useCallback(async (videoId: string, targetNiche: import('../../../../core/types/suggestedTrafficNiches').SuggestedTrafficNiche) => {
+    const handleConfirmSuggestion = useCallback(async (videoId: string, targetNiche: import('../../../../core/types/suggestedTraffic/suggestedTrafficNiches').SuggestedTrafficNiche) => {
         if (!user?.uid || !currentChannel?.id) return;
 
         const suggestion = getSuggestion(videoId);
@@ -1079,7 +1079,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
 
         // Check if any snapshots exist for the viewing version
         // Simple check — no period matching needed. If version has snapshots, data exists.
-        return snapshots.some((s: import('../../../../core/types/traffic').TrafficSnapshot) => s.version === viewingVersion);
+        return snapshots.some((s: import('../../../../core/types/suggestedTraffic/traffic').TrafficSnapshot) => s.version === viewingVersion);
     }, [trafficData?.snapshots, viewingVersion, selectedSnapshot]);
 
     // Compute Version Label (with Alias Support)
@@ -1145,7 +1145,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         // Are there any snapshots OLDER than this period's start?
         // This matches the logic in useTrafficDataLoader
         const allSnapshots = trafficData?.snapshots || [];
-        const hasOlderSnapshots = allSnapshots.some((s: import('../../../../core/types/traffic').TrafficSnapshot) => s.timestamp < viewingPeriod.startDate);
+        const hasOlderSnapshots = allSnapshots.some((s: import('../../../../core/types/suggestedTraffic/traffic').TrafficSnapshot) => s.timestamp < viewingPeriod.startDate);
 
         return hasOlderSnapshots;
     }, [viewingVersion, viewingPeriodIndex, packagingHistory, trafficData?.snapshots]);

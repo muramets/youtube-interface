@@ -7,8 +7,8 @@
 // =============================================================================
 
 import { Timestamp } from 'firebase/firestore';
-import { ChatService } from '../../../services/chatService';
-import { AiService } from '../../../services/aiService';
+import { ChatService } from '../../../services/ai/chatService';
+import { AiService } from '../../../services/ai/aiService';
 import { prepareContext } from '../../../ai/pipeline/prepareContext';
 import { extractThumbnails } from '../../../ai/pipeline/extractThumbnails';
 import { debugSendLog } from '../../../ai/pipeline/debugSendLog';
@@ -16,8 +16,8 @@ import { getVideoCards, getTrafficContexts, getCanvasContexts } from '../../../t
 import { buildSystemPrompt } from '../../../ai/systemPrompt';
 import { useAppContextStore, selectAllItems } from '../../appContextStore';
 import { debug } from '../../../utils/debug';
-import type { ChatMessage, ToolCallRecord, TokenUsage } from '../../../types/chat';
-import type { ReadyAttachment } from '../../../types/chatAttachment';
+import type { ChatMessage, ToolCallRecord, TokenUsage } from '../../../types/chat/chat';
+import type { ReadyAttachment } from '../../../types/chat/chatAttachment';
 import type { AppContextItem } from '../../../types/appContext';
 import type { ChatState, ActiveToolCall } from '../types';
 import { session, startStreamingSession, cacheSessionThinking } from '../session';

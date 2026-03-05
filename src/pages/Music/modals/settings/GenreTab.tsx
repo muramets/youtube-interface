@@ -9,7 +9,7 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type D
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import type { MusicGenre } from '../../../../core/types/track';
+import type { MusicGenre } from '../../../../core/types/music/track';
 import { PRESET_COLORS } from '../../utils/constants';
 import { ColorPickerPopover } from '../../../../components/ui/molecules/ColorPickerPopover';
 

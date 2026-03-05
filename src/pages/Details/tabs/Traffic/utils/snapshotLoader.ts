@@ -1,4 +1,4 @@
-import type { TrafficSnapshot, TrafficSource } from '../../../../../core/types/traffic';
+import type { TrafficSnapshot, TrafficSource } from '../../../../../core/types/suggestedTraffic/traffic';
 import { downloadCsvSnapshot } from '../../../../../core/services/storageService';
 import { parseTrafficCsv } from './csvParser';
 import { snapshotCache } from './snapshotCache';

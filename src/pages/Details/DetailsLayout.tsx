@@ -13,8 +13,8 @@ import { usePackagingVersions } from './tabs/Packaging/hooks/usePackagingVersion
 import { useTrafficFilters } from './tabs/Traffic/hooks/useTrafficFilters';
 import { useTrafficData } from './tabs/Traffic/hooks/useTrafficData';
 import { useTrafficDataLoader } from './tabs/Traffic/hooks/useTrafficDataLoader';
-import type { TrafficSortConfig } from '../../core/types/traffic';
-import { useTrafficFilterStore } from '../../core/stores/trends/trafficFilterStore';
+import type { TrafficSortConfig } from '../../core/types/suggestedTraffic/traffic';
+import { useTrafficFilterStore } from '../../core/stores/suggestedTraffic/trafficFilterStore';
 // ... existing imports ...
 
 
@@ -25,9 +25,9 @@ import { useVersionManagement } from './hooks/useVersionManagement';
 import { useSnapshotManagement } from './hooks/useSnapshotManagement';
 import { useModalState } from './hooks/useModalState';
 import { DetailsModals } from './components/DetailsModals';
-import { useTrafficNicheStore } from '../../core/stores/trends/useTrafficNicheStore';
+import { useTrafficNicheStore } from '../../core/stores/suggestedTraffic/useTrafficNicheStore';
 import { TrafficSnapshotService } from '../../core/services/traffic';
-import { TrafficSourceService } from '../../core/services/TrafficSourceService';
+import { TrafficSourceService } from '../../core/services/suggestedTraffic/TrafficSourceService';
 import { useTrafficSourceData } from './tabs/TrafficSource/hooks/useTrafficSourceData';
 import { VersionService } from './services/VersionService';
 
@@ -601,7 +601,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
 
 
     // State to track the "previous" niche filter for restoration on "Back" navigation
-    const previousNicheFilterRef = React.useRef<import('../../core/types/traffic').TrafficFilter | null>(null);
+    const previousNicheFilterRef = React.useRef<import('../../core/types/suggestedTraffic/traffic').TrafficFilter | null>(null);
     const previousSortConfigRef = React.useRef<TrafficSortConfig | null>(null);
 
     // Latest Ref Pattern for filter/snapshot callbacks
@@ -624,7 +624,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
     }, [filters, addFilter, removeFilter, sortConfig, activeNicheId, snapshotMgmt, setSortConfig]);
 
     // Context-sensitive Add Filter for Sidebar - 100% stable callback
-    const handleSidebarAddFilter = React.useCallback((filter: Omit<import('../../core/types/traffic').TrafficFilter, 'id'>) => {
+    const handleSidebarAddFilter = React.useCallback((filter: Omit<import('../../core/types/suggestedTraffic/traffic').TrafficFilter, 'id'>) => {
         if (filter.type === 'niche') {
             // If we are starting a navigation chain (ref is null), save the current state
 

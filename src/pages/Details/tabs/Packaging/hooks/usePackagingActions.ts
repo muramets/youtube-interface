@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { type VideoDetails, type CoverVersion } from '../../../../../core/utils/youtubeApi';
 
 import type { PackagingVersion, ActivePeriod } from '../../../../../core/types/versioning';
-import type { TrafficData, TrafficSnapshot } from '../../../../../core/types/traffic';
+import type { TrafficData, TrafficSnapshot } from '../../../../../core/types/suggestedTraffic/traffic';
 import { useUIStore } from '../../../../../core/stores/uiStore';
 import { useVideos } from '../../../../../core/hooks/useVideos';
 import { useAuth } from '../../../../../core/hooks/useAuth';

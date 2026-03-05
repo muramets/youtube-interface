@@ -5,7 +5,7 @@
 
 import { useEffect } from 'react';
 import { useCanvasStore } from '../../../core/stores/canvas/canvasStore';
-import { useTrafficNicheStore } from '../../../core/stores/trends/useTrafficNicheStore';
+import { useTrafficNicheStore } from '../../../core/stores/suggestedTraffic/useTrafficNicheStore';
 import type { TrafficSourceCardData } from '../../../core/types/appContext';
 
 /**

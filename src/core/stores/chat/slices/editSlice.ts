@@ -2,8 +2,8 @@
 // Edit Slice — editing message state + Tier 3 reference override
 // =============================================================================
 
-import type { ChatMessage } from '../../../types/chat';
-import { ChatService } from '../../../services/chatService';
+import type { ChatMessage } from '../../../types/chat/chat';
+import { ChatService } from '../../../services/ai/chatService';
 import type { ChatState } from '../types';
 import { requireContext } from '../helpers';
 

@@ -1,6 +1,6 @@
 import { db } from '../../../config/firebase';
 import { doc, setDoc, deleteField, getDocFromServer } from 'firebase/firestore';
-import type { TrafficData, TrafficSource } from '../../types/traffic';
+import type { TrafficData, TrafficSource } from '../../types/suggestedTraffic/traffic';
 
 /**
  * Сервис для работы с основными данными трафика.

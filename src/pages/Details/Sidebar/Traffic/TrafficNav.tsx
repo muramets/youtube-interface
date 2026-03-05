@@ -7,7 +7,7 @@ import { PortalTooltip } from '../../../../components/ui/atoms/PortalTooltip';
 import { PackagingSnapshotTooltip } from './components/PackagingSnapshotTooltip';
 import { useTrafficVersions } from './hooks/useTrafficVersions';
 import type { PackagingVersion } from '../../../../core/utils/youtubeApi';
-import type { TrafficSnapshot, TrafficGroup, TrafficSource } from '../../../../core/types/traffic';
+import type { TrafficSnapshot, TrafficGroup, TrafficSource } from '../../../../core/types/suggestedTraffic/traffic';
 import { SnapshotContextMenu } from './SnapshotContextMenu';
 import { ConfirmationModal } from '../../../../components/ui/organisms/ConfirmationModal';
 

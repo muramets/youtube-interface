@@ -1,10 +1,10 @@
 import { useEffect, useRef } from 'react';
-import type { TrafficSource } from '../../../../../core/types/traffic';
+import type { TrafficSource } from '../../../../../core/types/suggestedTraffic/traffic';
 import type { VideoDetails } from '../../../../../core/utils/youtubeApi';
-import { useViewerTypeStore } from '../../../../../core/stores/trends/useViewerTypeStore';
+import { useViewerTypeStore } from '../../../../../core/stores/suggestedTraffic/useViewerTypeStore';
 import { assistantLogger } from '../../../../../core/utils/logger';
 import { durationToSeconds } from '../utils/formatters';
-import type { ViewerType } from '../../../../../core/types/viewerType';
+import type { ViewerType } from '../../../../../core/types/suggestedTraffic/viewerType';
 
 /**
  * Hook to automatically apply "Viewer Type" based on AVD vs Video Duration.

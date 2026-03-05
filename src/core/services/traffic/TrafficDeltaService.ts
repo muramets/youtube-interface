@@ -1,4 +1,4 @@
-import type { TrafficSource, TrafficSnapshot } from '../../types/traffic';
+import type { TrafficSource, TrafficSnapshot } from '../../types/suggestedTraffic/traffic';
 
 /**
  * Сервис для расчета дельты трафика между версиями.

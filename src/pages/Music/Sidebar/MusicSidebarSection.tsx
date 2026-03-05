@@ -10,15 +10,15 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useDndContext } from '@dnd-kit/core';
 import { Music, Plus, ChevronDown, ChevronRight, Heart, Share2 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useMusicStore } from '../../../core/stores/musicStore';
+import { useMusicStore } from '../../../core/stores/music/musicStore';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
 import { MusicPlaylistItem } from './MusicPlaylistItem';
 import { MusicPlaylistSkeleton } from './MusicPlaylistSkeleton';
 import { SidebarDivider } from '../../../components/Layout/Sidebar';
 import { CreateMusicPlaylistModal } from '../modals/CreateMusicPlaylistModal';
-import { MusicPlaylistService } from '../../../core/services/musicPlaylistService';
-import type { MusicPlaylist } from '../../../core/types/musicPlaylist';
+import { MusicPlaylistService } from '../../../core/services/music/musicPlaylistService';
+import type { MusicPlaylist } from '../../../core/types/music/musicPlaylist';
 
 // ---------------------------------------------------------------------------
 // LikedPlaylistRow — a regular sidebar item. Dropping on Liked is forbidden, so

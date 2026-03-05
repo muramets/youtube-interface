@@ -1,4 +1,4 @@
-import type { TrafficSource } from '../../../../../core/types/traffic';
+import type { TrafficSource } from '../../../../../core/types/suggestedTraffic/traffic';
 import { logger } from '../../../../../core/utils/logger';
 import { debug } from '../../../../../core/utils/debug';
 import { parseCsvLine, detectColumnMapping, cleanCsvField } from '../../../../../core/utils/csvUtils';

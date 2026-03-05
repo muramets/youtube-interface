@@ -6,9 +6,9 @@
 // =============================================================================
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { TrafficSourceService } from '../../../../../core/services/TrafficSourceService';
+import { TrafficSourceService } from '../../../../../core/services/suggestedTraffic/TrafficSourceService';
 import { useUIStore } from '../../../../../core/stores/uiStore';
-import type { TrafficSourceData, TrafficSourceMetric } from '../../../../../core/types/trafficSource';
+import type { TrafficSourceData, TrafficSourceMetric } from '../../../../../core/types/suggestedTraffic/trafficSource';
 import type { VideoDetails } from '../../../../../core/utils/youtubeApi';
 
 interface UseTrafficSourceDataProps {

@@ -3,7 +3,7 @@ import { RotateCcw } from 'lucide-react';
 import { VerticalSpreadControl } from './VerticalSpreadControl';
 import { TimeDistributionControl } from './TimeDistributionControl';
 import { ControlPill } from './components/ControlPill';
-import { useMusicStore } from '../../../core/stores/musicStore';
+import { useMusicStore } from '../../../core/stores/music/musicStore';
 
 interface TimelineControlsProps {
     scale: number;

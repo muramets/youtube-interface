@@ -1,6 +1,6 @@
 import React from 'react';
 import { TrafficUploader } from './TrafficUploader';
-import type { TrafficSource } from '../../../../../core/types/traffic';
+import type { TrafficSource } from '../../../../../core/types/suggestedTraffic/traffic';
 
 interface TrafficEmptyStateProps {
     onUpload: (sources: TrafficSource[], totalRow?: TrafficSource, file?: File) => Promise<void>;

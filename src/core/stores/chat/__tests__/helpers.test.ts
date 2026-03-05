@@ -17,7 +17,7 @@ vi.mock('../../../config/firebase', () => ({}));
 
 import { requireContext, resolveModel, rebuildPersistedContext } from '../helpers';
 import type { ChatState } from '../types';
-import type { AiAssistantSettings, ChatProject, ChatMessage } from '../../../types/chat';
+import type { AiAssistantSettings, ChatProject, ChatMessage } from '../../../types/chat/chat';
 import type { AppContextItem } from '../../../types/appContext';
 import { Timestamp } from 'firebase/firestore';
 

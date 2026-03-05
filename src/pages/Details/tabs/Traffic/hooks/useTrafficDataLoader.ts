@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import type { TrafficData, TrafficSource, TrafficSnapshot, TrafficGroup } from '../../../../../core/types/traffic';
+import type { TrafficData, TrafficSource, TrafficSnapshot, TrafficGroup } from '../../../../../core/types/suggestedTraffic/traffic';
 import { TrafficService } from '../../../../../core/services/traffic';
 import { loadSnapshotSources } from '../utils/snapshotLoader';
 import { logger } from '../../../../../core/utils/logger';

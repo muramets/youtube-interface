@@ -3,9 +3,9 @@
 // =============================================================================
 
 import { useMemo } from 'react';
-import type { ChatProject, ChatConversation, ChatMessage } from '../../../core/types/chat';
-import { MODEL_REGISTRY, DEFAULT_MODEL, DEFAULT_CONTEXT_LIMIT, resolveModelId } from '../../../core/types/chat';
-import { estimateCostEur, estimateCacheSavingsEur, type ModelPricing } from '../../../core/types/chat';
+import type { ChatProject, ChatConversation, ChatMessage } from '../../../core/types/chat/chat';
+import { MODEL_REGISTRY, DEFAULT_MODEL, DEFAULT_CONTEXT_LIMIT, resolveModelId } from '../../../core/types/chat/chat';
+import { estimateCostEur, estimateCacheSavingsEur, type ModelPricing } from '../../../core/types/chat/chat';
 
 interface UseChatDerivedStateOpts {
     projects: ChatProject[];

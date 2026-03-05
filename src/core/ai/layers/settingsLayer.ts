@@ -3,7 +3,7 @@
 // Not a memory layer — just infrastructure for configuring the AI's behavior.
 // =============================================================================
 
-import type { AiAssistantSettings, ChatProject } from '../../types/chat';
+import type { AiAssistantSettings, ChatProject } from '../../types/chat/chat';
 import {
     STYLE_CONCISE,
     STYLE_DETAILED,

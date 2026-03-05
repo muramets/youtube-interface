@@ -1,4 +1,4 @@
-import type { TrafficSource } from '../../../../../core/types/traffic';
+import type { TrafficSource } from '../../../../../core/types/suggestedTraffic/traffic';
 import { csvLogger } from '../../../../../core/utils/logger';
 
 export const generateTrafficCsv = (sources: TrafficSource[], totalRow?: TrafficSource): string => {

@@ -8,19 +8,19 @@ import { VideoService } from '../../core/services/videoService';
 import { NotificationService } from '../../core/services/notificationService';
 import type { GeneralSettings, SyncSettings, CloneSettings as CloneSettingsType, PackagingSettings, UploadDefaults, PickerSettings } from '../../core/services/settingsService';
 import type { PackagingCheckin } from '../../core/types/versioning';
-import type { AiAssistantSettings as AiSettingsType } from '../../core/types/chat';
+import type { AiAssistantSettings as AiSettingsType } from '../../core/types/chat/chat';
 import { useChatStore } from '../../core/stores/chat/chatStore';
 
 import { Button } from '../../components/ui/atoms/Button/Button';
 
-import { SettingsSidebar } from './SettingsSidebar';
-import { ApiSyncSettings } from './ApiSyncSettings';
-import { CloneSettings } from './CloneSettings';
-import { PackagingSettingsView } from './PackagingSettingsView';
-import { UploadDefaultsSettings } from './UploadDefaultsSettings';
-import { TrendSyncSettings } from './TrendSyncSettings';
-import { PickerSettingsView } from './PickerSettingsView';
-import { AiAssistantSettings } from './AiAssistantSettings';
+import { SettingsSidebar } from './components/SettingsSidebar';
+import { ApiSyncSettings } from './components/ApiSyncSettings';
+import { CloneSettings } from './components/CloneSettings';
+import { PackagingSettingsView } from './components/PackagingSettingsView';
+import { UploadDefaultsSettings } from './components/UploadDefaultsSettings';
+import { TrendSyncSettings } from './components/TrendSyncSettings';
+import { PickerSettingsView } from './components/PickerSettingsView';
+import { AiAssistantSettings } from './components/AiAssistantSettings';
 
 interface SettingsModalProps {
     isOpen: boolean;

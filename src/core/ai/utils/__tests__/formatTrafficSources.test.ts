@@ -7,7 +7,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { formatTrafficSourcesCompact } from '../formatTrafficSources';
-import type { TrafficSourceMetric, SnapshotWithMetrics } from '../../../types/trafficSource';
+import type { TrafficSourceMetric, SnapshotWithMetrics } from '../../../types/suggestedTraffic/trafficSource';
 
 // ---------------------------------------------------------------------------
 // Fixtures

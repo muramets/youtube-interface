@@ -19,7 +19,7 @@ import { useVideos } from '../../../core/hooks/useVideos';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
 import { Toast } from '../../../components/ui/molecules/Toast';
-import type { ChatMessage } from '../../../core/types/chat';
+import type { ChatMessage } from '../../../core/types/chat/chat';
 import type { SuggestedTrafficContext } from '../../../core/types/appContext';
 import type { VideoNote } from '../../../core/utils/youtubeApi';
 

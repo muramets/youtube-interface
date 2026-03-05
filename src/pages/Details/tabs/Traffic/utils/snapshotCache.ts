@@ -1,4 +1,4 @@
-import type { TrafficSource } from '../../../../../core/types/traffic';
+import type { TrafficSource } from '../../../../../core/types/suggestedTraffic/traffic';
 
 interface CacheEntry {
     sources: TrafficSource[];

@@ -5,7 +5,7 @@
 // prompt so the AI accumulates knowledge about the user's channel over time.
 // =============================================================================
 
-import type { ConversationMemory } from '../../types/chat';
+import type { ConversationMemory } from '../../types/chat/chat';
 
 /**
  * Format memories into system prompt sections.

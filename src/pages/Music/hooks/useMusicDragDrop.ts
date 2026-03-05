@@ -8,8 +8,8 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import type { DragStartEvent, DragEndEvent } from '@dnd-kit/core';
-import type { Track } from '../../../core/types/track';
-import { useMusicStore } from '../../../core/stores/musicStore';
+import type { Track } from '../../../core/types/music/track';
+import { useMusicStore } from '../../../core/stores/music/musicStore';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
 

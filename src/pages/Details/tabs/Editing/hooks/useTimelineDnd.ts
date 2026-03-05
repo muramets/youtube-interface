@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { getEffectiveDuration } from '../../../../../core/types/editing';
+import { getEffectiveDuration } from '../../../../../core/types/editing/editing';
 import {
     KeyboardSensor,
     PointerSensor,
@@ -10,8 +10,8 @@ import {
 } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 import { useEditingStore } from '../../../../../core/stores/editing/editingStore';
-import { useMusicStore, selectAllTracks } from '../../../../../core/stores/musicStore';
-import { createTimelineTrack, type TimelineTrack } from '../../../../../core/types/editing';
+import { useMusicStore, selectAllTracks } from '../../../../../core/stores/music/musicStore';
+import { createTimelineTrack, type TimelineTrack } from '../../../../../core/types/editing/editing';
 import { getDefaultVariant } from '../../../../../core/utils/trackUtils';
 
 export interface UseTimelineDndReturn {

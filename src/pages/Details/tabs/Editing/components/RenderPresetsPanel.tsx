@@ -2,11 +2,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { History, ChevronDown, Check, AlertTriangle, Trash2 } from 'lucide-react';
 import { PortalTooltip } from '../../../../../components/ui/atoms/PortalTooltip';
 import { useRenderPresetsStore } from '../../../../../core/stores/editing/renderPresetsStore';
-import { useMusicStore, selectAllTracks, selectAllGenres } from '../../../../../core/stores/musicStore';
+import { useMusicStore, selectAllTracks, selectAllGenres } from '../../../../../core/stores/music/musicStore';
 import { useUIStore } from '../../../../../core/stores/uiStore';
 import { useAuth } from '../../../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../../../core/stores/channelStore';
-import type { RenderPreset } from '../../../../../core/types/editing';
+import type { RenderPreset } from '../../../../../core/types/editing/editing';
 import './RenderPresetsPanel.css';
 
 // ─── Helpers ────────────────────────────────────────────────────────────

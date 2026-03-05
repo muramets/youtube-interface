@@ -1,8 +1,8 @@
-import type { TrafficSource, EnrichedTrafficSource, TrafficFilter } from '../../../../../core/types/traffic';
-import type { TrafficType } from '../../../../../core/types/videoTrafficType';
-import type { ViewerType } from '../../../../../core/types/viewerType';
-import type { VideoReaction } from '../../../../../core/types/videoReaction';
-import type { TrafficNicheProperty } from '../../../../../core/types/suggestedTrafficNiches';
+import type { TrafficSource, EnrichedTrafficSource, TrafficFilter } from '../../../../../core/types/suggestedTraffic/traffic';
+import type { TrafficType } from '../../../../../core/types/suggestedTraffic/videoTrafficType';
+import type { ViewerType } from '../../../../../core/types/suggestedTraffic/viewerType';
+import type { VideoReaction } from '../../../../../core/types/suggestedTraffic/videoReaction';
+import type { TrafficNicheProperty } from '../../../../../core/types/suggestedTraffic/suggestedTrafficNiches';
 import type { MetricDelta } from '../hooks/useTrafficDataLoader';
 import { csvLogger } from '../../../../../core/utils/logger';
 

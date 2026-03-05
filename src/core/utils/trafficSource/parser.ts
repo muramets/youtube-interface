@@ -11,7 +11,7 @@
 // - No enrichment needed — data is self-contained
 // =============================================================================
 
-import type { TrafficSourceMetric } from '../../types/trafficSource';
+import type { TrafficSourceMetric } from '../../types/suggestedTraffic/trafficSource';
 import { parseCsvLine, detectColumnMapping, cleanCsvField, parseNumericField, parseIntField } from '../csvUtils';
 import { logger } from '../logger';
 import { debug } from '../debug';

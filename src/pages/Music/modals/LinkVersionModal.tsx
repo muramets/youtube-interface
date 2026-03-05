@@ -5,7 +5,7 @@
 import React, { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Search, Link, Music } from 'lucide-react';
-import { useMusicStore } from '../../../core/stores/musicStore';
+import { useMusicStore } from '../../../core/stores/music/musicStore';
 import { DEFAULT_ACCENT_COLOR, sortByGroupOrder } from '../../../core/utils/trackUtils';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';

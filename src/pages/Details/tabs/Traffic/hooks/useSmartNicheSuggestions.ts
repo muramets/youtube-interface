@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
-import type { TrafficSource } from '../../../../../core/types/traffic';
+import type { TrafficSource } from '../../../../../core/types/suggestedTraffic/traffic';
 import type { VideoDetails } from '../../../../../core/utils/youtubeApi';
-import type { SuggestedTrafficNiche, TrafficNicheAssignment } from '../../../../../core/types/suggestedTrafficNiches';
+import type { SuggestedTrafficNiche, TrafficNicheAssignment } from '../../../../../core/types/suggestedTraffic/suggestedTrafficNiches';
 import type { TrendNiche } from '../../../../../core/types/trends';
 import { assistantLogger } from '../../../../../core/utils/logger';
 

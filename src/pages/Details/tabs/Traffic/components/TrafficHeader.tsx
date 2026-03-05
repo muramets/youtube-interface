@@ -4,7 +4,7 @@ import { TrafficUploader } from './TrafficUploader';
 import { Settings, CloudDownload, Wand2, Download, Image as ImageIcon } from 'lucide-react';
 import { TrafficCTRConfig } from './TrafficCTRConfig';
 import { TrafficFilterMenu } from './TrafficFilterMenu';
-import type { TrafficSource } from '../../../../../core/types/traffic';
+import type { TrafficSource } from '../../../../../core/types/suggestedTraffic/traffic';
 import type { TrafficFilter } from '../hooks/useTrafficFilters';
 import type { VersionOption } from './TrafficUploader';
 
@@ -35,8 +35,8 @@ interface TrafficHeaderProps {
 
 
     // Data for Niche Filtering
-    groups?: import('../../../../../core/types/traffic').TrafficGroup[];
-    trafficSources?: import('../../../../../core/types/traffic').TrafficSource[];
+    groups?: import('../../../../../core/types/suggestedTraffic/traffic').TrafficGroup[];
+    trafficSources?: import('../../../../../core/types/suggestedTraffic/traffic').TrafficSource[];
 
     // Missing Titles Sync
     missingTitlesCount?: number;

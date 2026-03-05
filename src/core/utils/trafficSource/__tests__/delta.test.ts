@@ -7,7 +7,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { calculateDelta, calculateTotalDelta } from '../delta';
-import type { TrafficSourceMetric } from '../../../types/trafficSource';
+import type { TrafficSourceMetric } from '../../../types/suggestedTraffic/trafficSource';
 
 // ---------------------------------------------------------------------------
 // Fixtures

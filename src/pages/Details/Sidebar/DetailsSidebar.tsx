@@ -2,8 +2,8 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Clapperboard } from 'lucide-react';
 import { type VideoDetails, type PackagingVersion } from '../../../core/utils/youtubeApi';
-import { type TrafficSnapshot, type TrafficGroup, type TrafficSource } from '../../../core/types/traffic';
-import type { TrafficSourceSnapshot } from '../../../core/types/trafficSource';
+import { type TrafficSnapshot, type TrafficGroup, type TrafficSource } from '../../../core/types/suggestedTraffic/traffic';
+import type { TrafficSourceSnapshot } from '../../../core/types/suggestedTraffic/trafficSource';
 import type { GallerySource } from '../../../core/types/gallery';
 import { SidebarVideoPreview } from './SidebarVideoPreview';
 import { SidebarNavItem } from './SidebarNavItem';
@@ -43,7 +43,7 @@ interface DetailsSidebarProps {
     groups: TrafficGroup[];
     displayedSources: TrafficSource[];
     // Filter Control
-    onAddFilter?: (filter: Omit<import('../../../core/types/traffic').TrafficFilter, 'id'>) => void;
+    onAddFilter?: (filter: Omit<import('../../../core/types/suggestedTraffic/traffic').TrafficFilter, 'id'>) => void;
     // Tab Navigation
     activeTab: 'packaging' | 'trafficSource' | 'traffic' | 'gallery' | 'editing';
     onTabChange: (tab: 'packaging' | 'trafficSource' | 'traffic' | 'gallery' | 'editing') => void;

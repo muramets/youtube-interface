@@ -10,9 +10,9 @@
 // =============================================================================
 
 import { createContext, useContext } from 'react';
-import type { SharePermissions } from '../../../core/types/musicSharing';
-import type { TrackSource } from '../../../core/types/musicPlaylist';
-import { OWNER_PERMISSIONS } from '../../../core/types/musicSharing';
+import type { SharePermissions } from '../../../core/types/music/musicSharing';
+import type { TrackSource } from '../../../core/types/music/musicPlaylist';
+import { OWNER_PERMISSIONS } from '../../../core/types/music/musicSharing';
 
 export interface SharedLibraryContextValue {
     /** Effective userId for mutations (owner's when viewing shared library) */

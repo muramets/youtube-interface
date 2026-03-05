@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { Dropdown } from '../../components/ui/molecules/Dropdown';
-import { SettingsMenuMain } from './SettingsMenuMain';
-import { SettingsMenuAppearance } from './SettingsMenuAppearance';
-import { SettingsMenuSync } from './SettingsMenuSync';
-import { SettingsMenuClone } from './SettingsMenuClone';
-import { SettingsMenuApiKey } from './SettingsMenuApiKey';
+import { SettingsMenuMain } from './components/SettingsMenuMain';
+import { SettingsMenuAppearance } from './components/SettingsMenuAppearance';
+import { SettingsMenuSync } from './components/SettingsMenuSync';
+import { SettingsMenuClone } from './components/SettingsMenuClone';
+import { SettingsMenuApiKey } from './components/SettingsMenuApiKey';
 
 interface SettingsDropdownProps {
     onClose: () => void;

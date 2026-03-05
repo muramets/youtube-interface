@@ -4,7 +4,7 @@ import { Plus, Minus } from 'lucide-react';
 import { useSettings } from '../../core/hooks/useSettings';
 import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
-import { useMusicStore } from '../../core/stores/musicStore';
+import { useMusicStore } from '../../core/stores/music/musicStore';
 
 export const ZoomControls: React.FC = () => {
     const { generalSettings, updateGeneralSettings } = useSettings();

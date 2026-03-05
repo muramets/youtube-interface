@@ -1,4 +1,4 @@
-import type { TrafficData, TrafficSource, TrafficSnapshot } from '../../types/traffic';
+import type { TrafficData, TrafficSource, TrafficSnapshot } from '../../types/suggestedTraffic/traffic';
 import { generateSnapshotId } from '../../utils/snapshotUtils';
 import { uploadCsvSnapshot, downloadCsvSnapshot, deleteCsvSnapshot } from '../storageService';
 import { TrafficDataService } from './TrafficDataService';

@@ -4,7 +4,7 @@
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { Settings2, ChevronRight } from 'lucide-react';
-import type { MusicGenre, MusicTag } from '../../../core/types/track';
+import type { MusicGenre, MusicTag } from '../../../core/types/music/track';
 
 interface MusicFilterBarProps {
     genres: MusicGenre[];

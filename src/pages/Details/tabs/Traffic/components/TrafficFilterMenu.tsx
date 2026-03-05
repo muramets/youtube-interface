@@ -6,7 +6,7 @@ import { FilterInputNumeric } from '../../../../../features/Filter/FilterInputs/
 import { TrafficFilterInputNiche, UNASSIGNED_NICHE_ID } from './TrafficFilterInputNiche';
 import type { TrafficFilterType, TrafficFilter } from '../hooks/useTrafficFilters';
 import type { FilterOperator } from '../../../../../core/stores/filterStore';
-import type { TrafficGroup, TrafficSource } from '../../../../../core/types/traffic';
+import type { TrafficGroup, TrafficSource } from '../../../../../core/types/suggestedTraffic/traffic';
 import { formatDuration } from '../utils/formatters';
 
 interface TrafficFilterMenuProps {

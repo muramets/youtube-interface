@@ -2,7 +2,7 @@
 // Message Slice — messages list, pagination, real-time subscription
 // =============================================================================
 
-import { ChatService, MESSAGE_PAGE_SIZE } from '../../../services/chatService';
+import { ChatService, MESSAGE_PAGE_SIZE } from '../../../services/ai/chatService';
 import type { ChatState } from '../types';
 import { requireContext } from '../helpers';
 

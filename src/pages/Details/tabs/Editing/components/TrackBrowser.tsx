@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Search, PanelRightClose, Share2 } from 'lucide-react';
 import { PortalTooltip } from '../../../../../components/ui/atoms/PortalTooltip';
-import { useMusicStore } from '../../../../../core/stores/musicStore';
+import { useMusicStore } from '../../../../../core/stores/music/musicStore';
 import { useEditingStore } from '../../../../../core/stores/editing/editingStore';
 import { useAuth } from '../../../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../../../core/stores/channelStore';
@@ -11,7 +11,7 @@ import { TrackBrowserItem } from './TrackBrowserItem';
 import { TrackBrowserGroup } from './TrackBrowserGroup';
 import { PlaylistBrowserItem } from './PlaylistBrowserItem';
 import { useGroupedBrowserItems } from '../hooks/useGroupedBrowserItems';
-import type { SharedLibraryEntry } from '../../../../../core/types/musicSharing';
+import type { SharedLibraryEntry } from '../../../../../core/types/music/musicSharing';
 
 /** Shared library tab button with truncation-aware tooltip */
 const SharedLibraryTab: React.FC<{

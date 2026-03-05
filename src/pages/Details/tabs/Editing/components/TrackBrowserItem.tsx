@@ -1,10 +1,10 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { Plus, Play, Pause, Music2, Check, Heart } from 'lucide-react';
-import type { Track } from '../../../../../core/types/track';
+import type { Track } from '../../../../../core/types/music/track';
 import { getDefaultVariant } from '../../../../../core/utils/trackUtils';
 import { useEditingStore } from '../../../../../core/stores/editing/editingStore';
-import { useMusicStore, selectAllTags } from '../../../../../core/stores/musicStore';
-import { createTimelineTrack } from '../../../../../core/types/editing';
+import { useMusicStore, selectAllTags } from '../../../../../core/stores/music/musicStore';
+import { createTimelineTrack } from '../../../../../core/types/editing/editing';
 import { formatDuration } from '../utils/formatDuration';
 import { PortalTooltip } from '../../../../../components/ui/atoms/PortalTooltip';
 import { useAuth } from '../../../../../core/hooks/useAuth';

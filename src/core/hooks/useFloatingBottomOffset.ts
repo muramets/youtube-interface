@@ -8,7 +8,7 @@
  * - Editing tab with collapsed browser
  */
 import { useLocation, useSearchParams } from 'react-router-dom';
-import { useMusicStore } from '../stores/musicStore';
+import { useMusicStore } from '../stores/music/musicStore';
 import { useEditingStore } from '../stores/editing/editingStore';
 
 interface FloatingOffset {

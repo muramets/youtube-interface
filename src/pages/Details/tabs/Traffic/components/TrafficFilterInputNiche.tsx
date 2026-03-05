@@ -1,6 +1,6 @@
 import React, { useMemo, useLayoutEffect, useRef, useState } from 'react';
 import { Check, Search, CheckCheck, CircleOff } from 'lucide-react';
-import type { TrafficGroup, TrafficSource } from '../../../../../core/types/traffic';
+import type { TrafficGroup, TrafficSource } from '../../../../../core/types/suggestedTraffic/traffic';
 
 // Special ID for "Unassigned" filter option
 export const UNASSIGNED_NICHE_ID = 'UNASSIGNED';

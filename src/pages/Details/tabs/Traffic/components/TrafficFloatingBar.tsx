@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Check, Home, Loader2, Trash2 } from 'lucide-react';
-import type { TrafficSource } from '@/core/types/traffic';
+import type { TrafficSource } from '@/core/types/suggestedTraffic/traffic';
 import { useAuth } from '@/core/hooks/useAuth';
-import { useTrafficNicheStore } from '@/core/stores/trends/useTrafficNicheStore';
+import { useTrafficNicheStore } from '@/core/stores/suggestedTraffic/useTrafficNicheStore';
 import { useChannelStore } from '@/core/stores/channelStore';
 
 import { useUIStore } from '@/core/stores/uiStore';

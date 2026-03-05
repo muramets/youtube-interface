@@ -2,7 +2,7 @@ import React from 'react';
 import { ColumnMapperModal } from '../modals/ColumnMapperModal';
 import { DataRepairModal } from '../modals/DataRepairModal';
 import { parseTrafficCsv } from '../utils/csvParser';
-import type { TrafficSource } from '../../../../../core/types/traffic';
+import type { TrafficSource } from '../../../../../core/types/suggestedTraffic/traffic';
 import type { CsvMapping } from '../utils/csvParser';
 
 interface TrafficModalsProps {

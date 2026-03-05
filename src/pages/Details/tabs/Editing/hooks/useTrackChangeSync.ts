@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useEditingStore } from '../../../../../core/stores/editing/editingStore';
-import { useMusicStore } from '../../../../../core/stores/musicStore';
-import type { TimelineTrack } from '../../../../../core/types/editing';
+import { useMusicStore } from '../../../../../core/stores/music/musicStore';
+import type { TimelineTrack } from '../../../../../core/types/editing/editing';
 
 /**
  * Keeps AudioPlayer in sync when the timeline's tracks are mutated

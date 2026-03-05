@@ -9,7 +9,7 @@
 // - Calculator: Computation (delta, % change)
 // =============================================================================
 
-import type { TrafficSourceMetric } from '../../types/trafficSource';
+import type { TrafficSourceMetric } from '../../types/suggestedTraffic/trafficSource';
 
 /**
  * Extended metric with delta values for UI display.

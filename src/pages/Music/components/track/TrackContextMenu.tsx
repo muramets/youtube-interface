@@ -16,9 +16,9 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 import { ConfirmationModal } from '../../../../components/ui/organisms/ConfirmationModal';
 import { AddToMusicPlaylistModal } from '../../modals/AddToMusicPlaylistModal';
 import { LinkVersionModal } from '../../modals/LinkVersionModal';
-import { useMusicStore } from '../../../../core/stores/musicStore';
-import type { Track } from '../../../../core/types/track';
-import type { TrackSource } from '../../../../core/types/musicPlaylist';
+import { useMusicStore } from '../../../../core/stores/music/musicStore';
+import type { Track } from '../../../../core/types/music/track';
+import type { TrackSource } from '../../../../core/types/music/musicPlaylist';
 
 interface TrackContextMenuProps {
     track: Track;

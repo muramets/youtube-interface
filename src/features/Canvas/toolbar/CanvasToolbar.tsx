@@ -8,7 +8,7 @@ import React, { useRef, useCallback, useState, useEffect } from 'react';
 import { X, RotateCcw, StickyNote } from 'lucide-react';
 import { ControlPill } from '../../../pages/Trends/Timeline/components/ControlPill';
 import type { CanvasBoardHandle } from '../CanvasBoard';
-import { useMusicStore } from '../../../core/stores/musicStore';
+import { useMusicStore } from '../../../core/stores/music/musicStore';
 import { useCanvasStore } from '../../../core/stores/canvas/canvasStore';
 import { liveZoom } from '../utils/liveZoom';
 

@@ -10,7 +10,7 @@ import { useUIStore } from '@/core/stores/uiStore';
 import { VideoService } from '@/core/services/videoService';
 import { PlaylistService } from '@/core/services/playlistService';
 import { fetchVideosBatch } from '@/core/utils/youtubeApi';
-import type { TrafficSource } from '@/core/types/traffic';
+import type { TrafficSource } from '@/core/types/suggestedTraffic/traffic';
 import { useSettings } from '@/core/hooks/useSettings';
 import type { VideoDetails } from '@/core/utils/youtubeApi';
 

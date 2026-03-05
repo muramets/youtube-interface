@@ -5,7 +5,7 @@
 // Mirrors the pattern from Traffic/utils/snapshotLoader.ts.
 // =============================================================================
 
-import type { TrafficSourceSnapshot, TrafficSourceMetric } from '../../types/trafficSource';
+import type { TrafficSourceSnapshot, TrafficSourceMetric } from '../../types/suggestedTraffic/trafficSource';
 import { downloadCsvSnapshot } from '../../services/storageService';
 import { parseTrafficSourceCsv } from './parser';
 import { logger } from '../logger';

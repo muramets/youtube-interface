@@ -8,10 +8,10 @@ import { ArrowLeft, Heart, ListMusic, Music, ArrowUp, ArrowDown, Settings, Uploa
 import { Button } from '../../../components/ui/atoms';
 import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
 import { SortButton } from '../../../features/Filter/SortButton';
-import type { Track } from '../../../core/types/track';
-import type { MusicTag } from '../../../core/types/track';
-import type { MusicPlaylist } from '../../../core/types/musicPlaylist';
-import type { SharedLibraryEntry } from '../../../core/types/musicSharing';
+import type { Track } from '../../../core/types/music/track';
+import type { MusicTag } from '../../../core/types/music/track';
+import type { MusicPlaylist } from '../../../core/types/music/musicPlaylist';
+import type { SharedLibraryEntry } from '../../../core/types/music/musicSharing';
 
 interface MusicLibraryHeaderProps {
     // Context

@@ -5,7 +5,7 @@ import type { SnapshotRequestParams } from '../types/versionManagement';
 import { VersionService } from '../services/VersionService';
 import { TrafficDataService } from '../../../core/services/traffic/TrafficDataService';
 import { VideoService } from '../../../core/services/videoService';
-import type { TrafficData } from '../../../core/types/traffic';
+import type { TrafficData } from '../../../core/types/suggestedTraffic/traffic';
 import type { PackagingVersion } from '../../../core/types/versioning';
 import { db } from '../../../config/firebase';
 import { writeBatch } from 'firebase/firestore';

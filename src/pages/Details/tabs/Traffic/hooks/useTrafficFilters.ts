@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
-import type { TrafficSource, TrafficFilter, TrafficFilterType, EnrichedTrafficSource } from '../../../../../core/types/traffic';
+import type { TrafficSource, TrafficFilter, TrafficFilterType, EnrichedTrafficSource } from '../../../../../core/types/suggestedTraffic/traffic';
 import { durationToSeconds } from '../utils/formatters';
-import { useTrafficFilterStore } from '../../../../../core/stores/trends/trafficFilterStore';
+import { useTrafficFilterStore } from '../../../../../core/stores/suggestedTraffic/trafficFilterStore';
 
 /**
  * BUSINESS LOGIC: Traffic Filters Hook
@@ -75,7 +75,7 @@ export const useTrafficFilters = ({ contextKey }: UseTrafficFiltersProps) => {
      * @param sources List of traffic sources to filter
      * @param groups Optional list of groups (niches) needed for 'niche' filter
      */
-    const applyFilters = useCallback((sources: TrafficSource[], groups?: import('../../../../../core/types/traffic').TrafficGroup[]) => {
+    const applyFilters = useCallback((sources: TrafficSource[], groups?: import('../../../../../core/types/suggestedTraffic/traffic').TrafficGroup[]) => {
         if (filters.length === 0) return sources;
 
         // Pre-compute VideoID -> Set<NicheID> map if Niche filter is active, for O(1) lookup

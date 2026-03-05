@@ -20,8 +20,8 @@
 // =============================================================================
 
 import { useDndContext } from '@dnd-kit/core';
-import type { Track } from '../../../core/types/track';
-import { useMusicStore } from '../../../core/stores/musicStore';
+import type { Track } from '../../../core/types/music/track';
+import { useMusicStore } from '../../../core/stores/music/musicStore';
 
 export interface DragOverlayState {
     /** Show the mini TrackCardGhost */

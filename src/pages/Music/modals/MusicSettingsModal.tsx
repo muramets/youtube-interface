@@ -6,9 +6,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Disc, Tag, Share2 } from 'lucide-react';
-import { useMusicStore } from '../../../core/stores/musicStore';
+import { useMusicStore } from '../../../core/stores/music/musicStore';
 import { Button } from '../../../components/ui/atoms';
-import type { MusicGenre, MusicTag, MusicSettings } from '../../../core/types/track';
+import type { MusicGenre, MusicTag, MusicSettings } from '../../../core/types/music/track';
 import { GenreTab } from './settings/GenreTab';
 import { TagTab } from './settings/TagTab';
 import { ShareTab } from './settings/ShareTab';

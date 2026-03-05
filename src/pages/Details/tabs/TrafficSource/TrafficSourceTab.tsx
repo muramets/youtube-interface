@@ -16,7 +16,7 @@ import { CsvDropZone } from '../../../../components/ui/molecules/CsvDropZone';
 import { SegmentedControl } from '../../../../components/ui/molecules/SegmentedControl';
 import { FilterDropdown } from '../../../../components/ui/molecules/FilterDropdown';
 import { Button } from '../../../../components/ui/atoms/Button/Button';
-import type { TrafficSourceData, TrafficSourceMetric } from '../../../../core/types/trafficSource';
+import type { TrafficSourceData, TrafficSourceMetric } from '../../../../core/types/suggestedTraffic/trafficSource';
 
 interface TrafficSourceTabProps {
     video: { id: string; publishedAt?: string };

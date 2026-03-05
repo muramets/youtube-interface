@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, CircleOff, Target, Flag, FolderPlus, ChevronDown, Layers, Check, MoreVertical, Trash2 } from 'lucide-react';
-import { useTrafficNicheStore } from '@/core/stores/trends/useTrafficNicheStore';
+import { useTrafficNicheStore } from '@/core/stores/suggestedTraffic/useTrafficNicheStore';
 import { useAuth } from '@/core/hooks/useAuth';
 import { useChannelStore } from '@/core/stores/channelStore';
-import type { TrafficNicheProperty } from '@/core/types/suggestedTrafficNiches';
+import type { TrafficNicheProperty } from '@/core/types/suggestedTraffic/suggestedTrafficNiches';
 import { generateNicheColor } from '@/core/stores/trends/trendStore';
 import { TrafficNicheContextMenu } from './TrafficNicheContextMenu';
 import { FloatingDropdownPortal } from '@/components/ui/atoms/FloatingDropdownPortal';

@@ -10,8 +10,8 @@ import type {
     ChatView,
     ConversationMemory,
     ToolCallRecord,
-} from '../../types/chat';
-import type { ReadyAttachment } from '../../types/chatAttachment';
+} from '../../types/chat/chat';
+import type { ReadyAttachment } from '../../types/chat/chatAttachment';
 import type { AppContextItem } from '../../types/appContext';
 
 /** Transient tool call entry tracked during streaming — extends ToolCallRecord with optional progress. */

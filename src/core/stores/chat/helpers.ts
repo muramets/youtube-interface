@@ -2,7 +2,7 @@
 // Helpers — pure utility functions (no side effects, individually testable)
 // =============================================================================
 
-import type { AiAssistantSettings, ChatProject, ChatMessage } from '../../types/chat';
+import type { AiAssistantSettings, ChatProject, ChatMessage } from '../../types/chat/chat';
 import type { AppContextItem } from '../../types/appContext';
 import { mergeContextItems } from '../../types/appContext';
 import type { ChatState } from './types';

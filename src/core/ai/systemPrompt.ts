@@ -9,7 +9,7 @@
 //   2. Import and add it to the layers array below
 // =============================================================================
 
-import type { AiAssistantSettings, ChatProject, ConversationMemory } from '../types/chat';
+import type { AiAssistantSettings, ChatProject, ConversationMemory } from '../types/chat/chat';
 import type { AppContextItem } from '../types/appContext';
 import { buildSettingsLayer } from './layers/settingsLayer';
 import { buildPersistentContextLayer } from './layers/persistentContextLayer';

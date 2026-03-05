@@ -23,12 +23,12 @@ import {
     sortableKeyboardCoordinates,
     verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { SortableRecommendationCard } from './SortableRecommendationCard';
-import { WatchPageFilterBar } from './WatchPageFilterBar';
-import { WatchPageSkeleton } from './WatchPageSkeleton';
-import { WatchPageVideoPlayer } from './WatchPageVideoPlayer';
-import { WatchPageVideoInfo } from './WatchPageVideoInfo';
-import { WatchPageNotes } from './WatchPageNotes';
+import { SortableRecommendationCard } from './components/SortableRecommendationCard';
+import { WatchPageFilterBar } from './components/WatchPageFilterBar';
+import { WatchPageSkeleton } from './components/WatchPageSkeleton';
+import { WatchPageVideoPlayer } from './components/WatchPageVideoPlayer';
+import { WatchPageVideoInfo } from './components/WatchPageVideoInfo';
+import { WatchPageNotes } from './components/WatchPageNotes';
 
 export const WatchPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();

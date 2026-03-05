@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { type VideoDetails } from '../../../../core/utils/youtubeApi';
-import type { TrafficData } from '../../../../core/types/traffic';
+import type { TrafficData } from '../../../../core/types/suggestedTraffic/traffic';
 import { PackagingForm } from './components/PackagingForm';
 import { VideoPreviewCard } from './components/VideoPreviewCard';
 import { LanguageTabs } from '../../../../features/Video/LanguageTabs';
@@ -16,7 +16,7 @@ import { usePackagingFormState } from './hooks/usePackagingFormState';
 import { useABTesting } from './hooks/useABTesting';
 import { usePackagingActions } from './hooks/usePackagingActions';
 import { useVideos } from '../../../../core/hooks/useVideos';
-import { useThumbnailActions } from '../../../../core/hooks/useThumbnailActions';
+import { useThumbnailActions } from '../../../../features/Video/hooks/useThumbnailActions';
 import {
     type VersionState,
     DEFAULT_TAGS,

@@ -3,7 +3,7 @@ import { MoreVertical, ChevronRight, ChevronDown } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { PortalTooltip } from '../../../../../components/ui/atoms/PortalTooltip';
 import { DateRangePicker } from '../../../../../components/ui/molecules/DateRangePicker';
-import type { TrafficGroup } from '../../../../../core/types/traffic';
+import type { TrafficGroup } from '../../../../../core/types/suggestedTraffic/traffic';
 import { TrafficSidebarNicheList } from './TrafficSidebarNicheList';
 
 /**

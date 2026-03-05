@@ -15,7 +15,7 @@ import { VideoCardMenu } from './VideoCardMenu';
 import { AddToPlaylistModal as PlaylistSelectionModal } from '../Playlists/modals/AddToPlaylistModal';
 import { ConfirmationModal } from '../../components/ui/organisms/ConfirmationModal';
 import { ClonedVideoTooltipContent } from './ClonedVideoTooltipContent';
-import { useThumbnailActions } from '../../core/hooks/useThumbnailActions';
+import { useThumbnailActions } from './hooks/useThumbnailActions';
 import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
 import { useSettings } from '../../core/hooks/useSettings';

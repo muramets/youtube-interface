@@ -4,8 +4,8 @@
 // =============================================================================
 
 import { useState, useCallback, useRef } from 'react';
-import type { StagedFile, ReadyAttachment } from '../../../core/types/chatAttachment';
-import { getAttachmentType, isAllowedMimeType, isFileWithinLimit, getFileSizeLabel, AiService } from '../../../core/services/aiService';
+import type { StagedFile, ReadyAttachment } from '../../../core/types/chat/chatAttachment';
+import { getAttachmentType, isAllowedMimeType, isFileWithinLimit, getFileSizeLabel, AiService } from '../../../core/services/ai/aiService';
 import { uploadChatAttachment, deleteStagingAttachment } from '../../../core/services/storageService';
 import { useUIStore } from '../../../core/stores/uiStore';
 

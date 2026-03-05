@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef, Fragment } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { Button } from '../../../components/ui/atoms/Button/Button';
-import { MODEL_REGISTRY } from '../../../core/types/chat';
+import { MODEL_REGISTRY } from '../../../core/types/chat/chat';
 
 interface ProjectSettingsProps {
     project: { id: string; name: string; systemPrompt?: string; model?: string };

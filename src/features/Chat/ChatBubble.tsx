@@ -8,7 +8,7 @@ import { useChatStore } from '../../core/stores/chat/chatStore';
 import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
 import { useFloatingBottomOffset } from '../../core/hooks/useFloatingBottomOffset';
 import { useAuth } from '../../core/hooks/useAuth';
-import { useMusicStore } from '../../core/stores/musicStore';
+import { useMusicStore } from '../../core/stores/music/musicStore';
 import { ChatPanel } from './ChatPanel';
 import './Chat.css';
 

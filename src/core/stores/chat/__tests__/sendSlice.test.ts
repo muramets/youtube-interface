@@ -23,7 +23,7 @@ import { session } from '../session';
 // Module mocks
 // ---------------------------------------------------------------------------
 
-vi.mock('../../../services/chatService', () => ({
+vi.mock('../../../services/ai/chatService', () => ({
     ChatService: {
         addMessage: vi.fn(),
         createConversation: vi.fn(),
@@ -37,7 +37,7 @@ vi.mock('../../../services/chatService', () => ({
     CONVERSATION_PAGE_SIZE: 20,
 }));
 
-vi.mock('../../../services/aiService', () => ({
+vi.mock('../../../services/ai/aiService', () => ({
     AiService: {
         sendMessage: vi.fn(),
         generateTitle: vi.fn(),
@@ -73,11 +73,11 @@ vi.mock('../../../utils/debug', () => ({
 // Helpers
 // ---------------------------------------------------------------------------
 
-import { ChatService } from '../../../services/chatService';
-import { AiService } from '../../../services/aiService';
+import { ChatService } from '../../../services/ai/chatService';
+import { AiService } from '../../../services/ai/aiService';
 import { prepareContext } from '../../../ai/pipeline/prepareContext';
-import type { AiAssistantSettings } from '../../../types/chat';
-import { DEFAULT_AI_SETTINGS } from '../../../types/chat';
+import type { AiAssistantSettings } from '../../../types/chat/chat';
+import { DEFAULT_AI_SETTINGS } from '../../../types/chat/chat';
 import { Timestamp } from 'firebase/firestore';
 
 const mockChatService = ChatService as ReturnType<typeof vi.mocked<typeof ChatService>>;

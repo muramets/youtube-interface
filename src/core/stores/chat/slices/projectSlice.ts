@@ -2,8 +2,8 @@
 // Project Slice — chat projects CRUD + pending model/thinking overrides
 // =============================================================================
 
-import type { ChatProject } from '../../../types/chat';
-import { ChatService } from '../../../services/chatService';
+import type { ChatProject } from '../../../types/chat/chat';
+import { ChatService } from '../../../services/ai/chatService';
 import type { ChatState } from '../types';
 import { requireContext } from '../helpers';
 

@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { TrafficSource, TrafficData, TrafficSnapshot } from '../../../../../core/types/traffic';
+import type { TrafficSource, TrafficData, TrafficSnapshot } from '../../../../../core/types/suggestedTraffic/traffic';
 import type { VideoDetails } from '../../../../../core/utils/youtubeApi';
 import { fetchVideosBatch } from '../../../../../core/utils/youtubeApi';
 import { VideoService } from '../../../../../core/services/videoService';

@@ -2,7 +2,7 @@ import React from 'react';
 import { Button } from '../../../../../components/ui/atoms/Button/Button';
 import { TrafficUploader } from '../components/TrafficUploader';
 import { Info } from 'lucide-react';
-import type { TrafficSource } from '../../../../../core/types/traffic';
+import type { TrafficSource } from '../../../../../core/types/suggestedTraffic/traffic';
 
 interface VersionFreezeModalProps {
     isOpen: boolean;

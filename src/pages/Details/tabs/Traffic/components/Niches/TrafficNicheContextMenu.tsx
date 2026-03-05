@@ -1,7 +1,7 @@
 import React, { useState, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Pencil, Trash2, Tag, ChevronLeft, CircleOff, Target, Flag, Layers } from 'lucide-react';
-import type { SuggestedTrafficNiche, TrafficNicheProperty } from '@/core/types/suggestedTrafficNiches';
+import type { SuggestedTrafficNiche, TrafficNicheProperty } from '@/core/types/suggestedTraffic/suggestedTrafficNiches';
 
 interface TrafficNicheContextMenuProps {
     niche: SuggestedTrafficNiche;

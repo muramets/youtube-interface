@@ -3,7 +3,7 @@ import { Menu, Search, Bell, User } from 'lucide-react';
 import { useChannelStore } from '../../core/stores/channelStore';
 import { ChannelDropdown } from '../../features/Profile/ChannelDropdown';
 import { useFilterStore } from '../../core/stores/filterStore';
-import { useMusicStore } from '../../core/stores/musicStore';
+import { useMusicStore } from '../../core/stores/music/musicStore';
 import { useNotificationStore } from '../../core/stores/notificationStore';
 import { NotificationDropdown } from '../../features/Notifications/NotificationDropdown';
 import { Dropdown } from '../../components/ui/molecules/Dropdown';

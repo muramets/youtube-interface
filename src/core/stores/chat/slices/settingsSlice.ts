@@ -2,10 +2,10 @@
 // Settings Slice — AI settings, memories, memorize/update/delete
 // =============================================================================
 
-import type { AiAssistantSettings, ConversationMemory } from '../../../types/chat';
-import { DEFAULT_AI_SETTINGS } from '../../../types/chat';
-import { ChatService } from '../../../services/chatService';
-import * as AiProxy from '../../../services/aiProxyService';
+import type { AiAssistantSettings, ConversationMemory } from '../../../types/chat/chat';
+import { DEFAULT_AI_SETTINGS } from '../../../types/chat/chat';
+import { ChatService } from '../../../services/ai/chatService';
+import * as AiProxy from '../../../services/ai/aiProxyService';
 import type { ChatState } from '../types';
 import { requireContext } from '../helpers';
 

@@ -3,7 +3,7 @@
 // =============================================================================
 
 import { useMemo } from 'react';
-import type { Track } from '../../../../../core/types/track';
+import type { Track } from '../../../../../core/types/music/track';
 
 export type BrowserDisplayItem =
     | { type: 'single'; track: Track }

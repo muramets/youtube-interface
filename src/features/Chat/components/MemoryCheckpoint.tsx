@@ -6,7 +6,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Brain, ChevronDown, Pencil, Check, X, Trash2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import type { ConversationMemory } from '../../../core/types/chat';
+import type { ConversationMemory } from '../../../core/types/chat/chat';
 
 interface MemoryCheckpointProps {
     memory: ConversationMemory;

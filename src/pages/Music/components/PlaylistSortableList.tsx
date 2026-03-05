@@ -9,7 +9,7 @@ import React, { useState, useCallback, useMemo, useRef, useLayoutEffect } from '
 import { flushSync } from 'react-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { GripVertical } from 'lucide-react';
-import { useMusicStore } from '../../../core/stores/musicStore';
+import { useMusicStore } from '../../../core/stores/music/musicStore';
 import {
     useDndMonitor,
     useDndContext,
@@ -24,8 +24,8 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { TrackCard } from './track/TrackCard';
 import { TrackGroupCard } from './track/TrackGroupCard';
-import type { Track, MusicTag } from '../../../core/types/track';
-import type { TrackSource } from '../../../core/types/musicPlaylist';
+import type { Track, MusicTag } from '../../../core/types/music/track';
+import type { TrackSource } from '../../../core/types/music/musicPlaylist';
 import type { DisplayItem } from '../hooks/useTrackDisplay';
 import { useSharedLibrary } from '../contexts/SharedLibraryContext';
 

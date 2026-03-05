@@ -5,10 +5,10 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { deleteField } from 'firebase/firestore';
-import { TrackService } from '../../../core/services/trackService';
+import { TrackService } from '../../../core/services/music/trackService';
 import { uploadTrackAudio, uploadTrackCover } from '../../../core/services/storageService';
-import { useMusicStore } from '../../../core/stores/musicStore';
-import type { Track, TrackCreateData } from '../../../core/types/track';
+import { useMusicStore } from '../../../core/stores/music/musicStore';
+import type { Track, TrackCreateData } from '../../../core/types/music/track';
 import { extractPeaksFromFile } from '../../../core/utils/audioPeaks';
 import { extractAudioMetadata } from '../../../core/utils/audioMetadata';
 

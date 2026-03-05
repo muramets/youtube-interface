@@ -2,7 +2,7 @@ import { setDocument, getDocument, deleteDocument } from './firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { storage } from '../../config/firebase';
 import { serverTimestamp } from 'firebase/firestore';
-import type { EditingSession } from '../types/editingSession';
+import type { EditingSession } from '../types/editing/editingSession';
 
 // ─── Firestore Paths ───────────────────────────────────────────────────
 function getEditingPath(userId: string, channelId: string, videoId: string): string {

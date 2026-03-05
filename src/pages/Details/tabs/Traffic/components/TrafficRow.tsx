@@ -4,23 +4,23 @@ import {
     MousePointerClick, HelpCircle, Wand2, ZapOff, Zap, Compass, Eye, Coffee, User, Play, MessageSquare,
     Star, ThumbsUp, ThumbsDown
 } from 'lucide-react';
-import type { TrafficSource } from '../../../../../core/types/traffic';
-import type { TrafficType } from '../../../../../core/types/videoTrafficType';
-import type { ViewerType } from '../../../../../core/types/viewerType';
-import type { VideoReaction } from '../../../../../core/types/videoReaction';
+import type { TrafficSource } from '../../../../../core/types/suggestedTraffic/traffic';
+import type { TrafficType } from '../../../../../core/types/suggestedTraffic/videoTrafficType';
+import type { ViewerType } from '../../../../../core/types/suggestedTraffic/viewerType';
+import type { VideoReaction } from '../../../../../core/types/suggestedTraffic/videoReaction';
 import { Checkbox } from '../../../../../components/ui/atoms/Checkbox/Checkbox';
 import { PortalTooltip } from '../../../../../components/ui/atoms/PortalTooltip';
 import { VideoPreviewTooltip } from '../../../../../features/Video/components/VideoPreviewTooltip';
 import { formatDuration } from '../utils/formatters';
 import { formatPublishDate, formatDateDelta } from '../utils/publishDateFormatter';
 import type { CTRRule } from '../../../../../core/services/settingsService';
-import { useTrafficNicheStore } from '../../../../../core/stores/trends/useTrafficNicheStore';
-import { useTrafficNoteStore } from '../../../../../core/stores/trends/useTrafficNoteStore';
+import { useTrafficNicheStore } from '../../../../../core/stores/suggestedTraffic/useTrafficNicheStore';
+import { useTrafficNoteStore } from '../../../../../core/stores/suggestedTraffic/useTrafficNoteStore';
 import { TrafficRowBadges } from './TrafficRowBadges';
 import { useVideoPlayer } from '../../../../../core/hooks/useVideoPlayer';
 import { useAuth } from '../../../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../../../core/stores/channelStore';
-import type { SuggestedTrafficNiche } from '../../../../../core/types/suggestedTrafficNiches';
+import type { SuggestedTrafficNiche } from '../../../../../core/types/suggestedTraffic/suggestedTrafficNiches';
 
 import type { VideoDetails } from '../../../../../core/utils/youtubeApi';
 import type { VideoDeltaStats } from '../../../../../core/types/videoDeltaStats';

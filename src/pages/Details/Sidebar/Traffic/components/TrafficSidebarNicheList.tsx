@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
-import type { TrafficGroup } from '../../../../../core/types/traffic';
+import type { TrafficGroup } from '../../../../../core/types/suggestedTraffic/traffic';
 import { TrafficNicheItem } from '../../../../Details/tabs/Traffic/components/Niches/TrafficNicheItem';
 
 interface TrafficSidebarNicheListProps {

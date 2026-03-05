@@ -1,5 +1,5 @@
-import type { TimelineTrack } from '../../../../../core/types/editing';
-import { getEffectiveDuration } from '../../../../../core/types/editing';
+import type { TimelineTrack } from '../../../../../core/types/editing/editing';
+import { getEffectiveDuration } from '../../../../../core/types/editing/editing';
 
 /** Minimum display width in pixels for very short tracks */
 const MIN_TRACK_WIDTH = 60;

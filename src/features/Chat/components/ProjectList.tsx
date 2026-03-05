@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { FolderOpen, MessageSquare, Settings, Trash2 } from 'lucide-react';
-import type { ChatConversation, ChatProject } from '../../../core/types/chat';
+import type { ChatConversation, ChatProject } from '../../../core/types/chat/chat';
 
 interface ProjectListProps {
     projects: ChatProject[];

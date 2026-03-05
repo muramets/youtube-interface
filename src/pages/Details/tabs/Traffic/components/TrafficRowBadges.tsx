@@ -1,7 +1,7 @@
 import React from 'react';
 import { TrendingUp } from 'lucide-react';
 
-import type { SuggestedTrafficNiche } from '@/core/types/suggestedTrafficNiches';
+import type { SuggestedTrafficNiche } from '@/core/types/suggestedTraffic/suggestedTrafficNiches';
 
 import { Badge } from '@/components/ui/atoms/Badge/Badge';
 import { PortalTooltip } from '@/components/ui/atoms/PortalTooltip';

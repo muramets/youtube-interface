@@ -1,11 +1,11 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { Check, ChevronRight, ListMusic, Plus } from 'lucide-react';
-import type { MusicPlaylist } from '../../../../../core/types/musicPlaylist';
-import type { Track } from '../../../../../core/types/track';
+import type { MusicPlaylist } from '../../../../../core/types/music/musicPlaylist';
+import type { Track } from '../../../../../core/types/music/track';
 import { getDefaultVariant } from '../../../../../core/utils/trackUtils';
 import { useEditingStore } from '../../../../../core/stores/editing/editingStore';
-import { useMusicStore } from '../../../../../core/stores/musicStore';
-import { createTimelineTrack } from '../../../../../core/types/editing';
+import { useMusicStore } from '../../../../../core/stores/music/musicStore';
+import { createTimelineTrack } from '../../../../../core/types/editing/editing';
 import { TrackBrowserItem } from './TrackBrowserItem';
 
 interface PlaylistBrowserItemProps {

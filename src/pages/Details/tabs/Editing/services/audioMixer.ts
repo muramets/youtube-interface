@@ -1,4 +1,4 @@
-import type { TimelineTrack } from '../../../../../core/types/editing';
+import type { TimelineTrack } from '../../../../../core/types/editing/editing';
 
 const TARGET_SAMPLE_RATE = 48_000;
 const TARGET_CHANNELS = 2;

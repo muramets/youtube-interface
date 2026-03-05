@@ -16,7 +16,7 @@ import { useChatNavigation } from './hooks/useChatNavigation';
 import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
 import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
-import { MODEL_REGISTRY } from '../../core/types/chat';
+import { MODEL_REGISTRY } from '../../core/types/chat/chat';
 import { ChatMessageList } from './ChatMessageList';
 import { ChatInput } from './ChatInput';
 import { ChatHeader } from './components/ChatHeader';
@@ -28,7 +28,7 @@ import { ProjectSettings } from './components/ProjectSettings';
 import { ConversationList } from './components/ConversationList';
 import { ChatSummaryBanner } from './components/ChatSummaryBanner';
 import { ChatListErrorBoundary } from './components/ChatBoundaries';
-import type { ReadyAttachment } from '../../core/types/chatAttachment';
+import type { ReadyAttachment } from '../../core/types/chat/chatAttachment';
 
 export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number; anchorRightPx?: number }> = ({ onClose, anchorBottomPx = 32, anchorRightPx = 32 }) => {
     const { user } = useAuth();

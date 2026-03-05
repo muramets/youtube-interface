@@ -9,11 +9,11 @@
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { useMusicStore } from '../../../core/stores/musicStore';
+import { useMusicStore } from '../../../core/stores/music/musicStore';
 import { useFilterStore } from '../../../core/stores/filterStore';
 import { sortByGroupOrder } from '../../../core/utils/trackUtils';
-import type { Track, MusicTag } from '../../../core/types/track';
-import type { MusicPlaylist } from '../../../core/types/musicPlaylist';
+import type { Track, MusicTag } from '../../../core/types/music/track';
+import type { MusicPlaylist } from '../../../core/types/music/musicPlaylist';
 
 // ── DisplayItem type (also consumed by PlaylistSortableList) ────────────────
 export type DisplayItem =

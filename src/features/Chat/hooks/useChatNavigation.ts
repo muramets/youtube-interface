@@ -3,7 +3,7 @@
 // =============================================================================
 
 import { useCallback, useState } from 'react';
-import type { ChatProject, ChatView } from '../../../core/types/chat';
+import type { ChatProject, ChatView } from '../../../core/types/chat/chat';
 
 interface UseChatNavigationOpts {
     projects: ChatProject[];

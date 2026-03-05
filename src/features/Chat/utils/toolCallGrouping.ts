@@ -5,7 +5,7 @@
 // this module = pure data transformation (grouping, extraction, labeling).
 // =============================================================================
 
-import type { ToolCallRecord } from '../../../core/types/chat';
+import type { ToolCallRecord } from '../../../core/types/chat/chat';
 
 // --- Types ---
 

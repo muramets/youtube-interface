@@ -1,5 +1,5 @@
 import { useMemo, useCallback } from 'react';
-import type { TrafficSnapshot } from '../../../../../core/types/traffic';
+import type { TrafficSnapshot } from '../../../../../core/types/suggestedTraffic/traffic';
 import type { PackagingVersion as PackagingVersionType } from '../../../../../core/types/versioning';
 import { TrafficSnapshotService } from '../../../../../core/services/traffic/TrafficSnapshotService';
 

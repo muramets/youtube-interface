@@ -13,18 +13,18 @@ import { useMatch } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
-import type { SharePermissions } from '../../../core/types/musicSharing';
-import { DEFAULT_SHARE_PERMISSIONS, OWNER_PERMISSIONS } from '../../../core/types/musicSharing';
+import type { SharePermissions } from '../../../core/types/music/musicSharing';
+import { DEFAULT_SHARE_PERMISSIONS, OWNER_PERMISSIONS } from '../../../core/types/music/musicSharing';
 import {
     useMusicStore,
     selectAllTags, selectAllGenres,
     selectAllCategoryOrder, selectAllFeaturedCategories,
-} from '../../../core/stores/musicStore';
+} from '../../../core/stores/music/musicStore';
 import { useFilterStore } from '../../../core/stores/filterStore';
 import { useTrackDisplay } from './useTrackDisplay';
-import { TrackService } from '../../../core/services/trackService';
+import { TrackService } from '../../../core/services/music/trackService';
 import { deleteTrackFolder } from '../../../core/services/storageService';
-import type { TrackSource } from '../../../core/types/musicPlaylist';
+import type { TrackSource } from '../../../core/types/music/musicPlaylist';
 
 export function useMusicPageData() {
     // ── Auth / channel ──────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
-import { useTrafficNicheStore } from '@/core/stores/trends/useTrafficNicheStore';
-import type { TrafficSource } from '@/core/types/traffic';
+import { useTrafficNicheStore } from '@/core/stores/suggestedTraffic/useTrafficNicheStore';
+import type { TrafficSource } from '@/core/types/suggestedTraffic/traffic';
 import { TrafficNicheItem } from './TrafficNicheItem';
 import { ChevronDown, ChevronRight, Hash } from 'lucide-react';
 

@@ -9,7 +9,7 @@
 import React, { useCallback, useState, useMemo } from 'react';
 import { ChartNoAxesCombined, MoreVertical, Pencil, Trash2 } from 'lucide-react';
 import { createPortal } from 'react-dom';
-import type { TrafficSourceSnapshot } from '../../../../core/types/trafficSource';
+import type { TrafficSourceSnapshot } from '../../../../core/types/suggestedTraffic/trafficSource';
 import { SidebarNavHeader } from '../SidebarNavHeader';
 import { ConfirmationModal } from '../../../../components/ui/organisms/ConfirmationModal';
 

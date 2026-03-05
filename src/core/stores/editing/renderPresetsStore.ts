@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import { collection, query, orderBy, limit, getDocs, doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
-import type { RenderPreset, TimelineTrack } from '../../types/editing';
-import type { Track, MusicGenre } from '../../types/track';
+import type { RenderPreset, TimelineTrack } from '../../types/editing/editing';
+import type { Track, MusicGenre } from '../../types/music/track';
 import { useEditingStore } from './editingStore';
 import { useUIStore } from '../uiStore';
 import { parseFirestoreTimestamp } from '../../utils/firestoreUtils';

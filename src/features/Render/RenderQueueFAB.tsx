@@ -9,7 +9,7 @@ import { Button } from '../../components/ui/atoms/Button/Button';
 import { Badge } from '../../components/ui/atoms/Badge/Badge';
 import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
 import { useRenderQueueStore, type RenderJob } from '../../core/stores/editing/renderQueueStore';
-import { useMusicStore } from '../../core/stores/musicStore';
+import { useMusicStore } from '../../core/stores/music/musicStore';
 import { RenderStatusBar } from '../../components/ui/atoms/RenderStatusBar';
 import { getRenderStatusDisplay } from './getRenderStageDisplay';
 import { useElapsedTimer, formatElapsed } from './useElapsedTimer';

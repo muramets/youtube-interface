@@ -3,14 +3,14 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { User, LogOut, Plus, Check, Settings, Target } from 'lucide-react';
 import { useChannelStore } from '../../core/stores/channelStore';
-import { useMusicStore } from '../../core/stores/musicStore';
+import { useMusicStore } from '../../core/stores/music/musicStore';
 import { useTrendStore } from '../../core/stores/trends/trendStore';
 import { useChannels } from '../../core/hooks/useChannels';
 import { useSettings } from '../../core/hooks/useSettings';
 import { type Channel } from '../../core/services/channelService';
 import { useAuth } from '../../core/hooks/useAuth';
-import { CreateChannelModal } from './CreateChannelModal';
-import { EditChannelModal } from './EditChannelModal';
+import { CreateChannelModal } from './modals/CreateChannelModal';
+import { EditChannelModal } from './modals/EditChannelModal';
 import { Dropdown } from '../../components/ui/molecules/Dropdown';
 
 /** Badge component for displaying a target niche with truncation and tooltip */

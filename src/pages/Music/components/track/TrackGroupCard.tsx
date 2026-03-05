@@ -33,9 +33,9 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { TrackCard } from './TrackCard';
 import { InsertionLine } from './InsertionLine';
-import type { Track, MusicTag } from '../../../../core/types/track';
-import type { TrackSource } from '../../../../core/types/musicPlaylist';
-import { useMusicStore } from '../../../../core/stores/musicStore';
+import type { Track, MusicTag } from '../../../../core/types/music/track';
+import type { TrackSource } from '../../../../core/types/music/musicPlaylist';
+import { useMusicStore } from '../../../../core/stores/music/musicStore';
 import { sortByGroupOrder } from '../../../../core/utils/trackUtils';
 
 // Max time to keep the optimistic sort order while waiting for Firestore to confirm.

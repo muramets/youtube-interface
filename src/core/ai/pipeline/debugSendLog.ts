@@ -10,7 +10,7 @@
 //   - System prompt size
 // =============================================================================
 
-import type { AiAssistantSettings, ChatProject, ChatMessage, ConversationMemory } from '../../types/chat';
+import type { AiAssistantSettings, ChatProject, ChatMessage, ConversationMemory } from '../../types/chat/chat';
 import type { AppContextItem } from '../../types/appContext';
 import { getVideoCards, getTrafficContexts, getCanvasContexts } from '../../types/appContext';
 import { DEBUG_ENABLED } from '../../utils/debug';

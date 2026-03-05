@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Upload, AlertCircle, Loader2, Check } from 'lucide-react';
 import { parseTrafficCsv } from '../utils/csvParser';
-import type { TrafficSource } from '../../../../../core/types/traffic';
+import type { TrafficSource } from '../../../../../core/types/suggestedTraffic/traffic';
 import { Button } from '../../../../../components/ui/atoms/Button/Button';
 import { SplitButton } from '../../../../../components/ui/atoms/SplitButton/SplitButton';
 import { Badge } from '../../../../../components/ui/atoms/Badge/Badge';

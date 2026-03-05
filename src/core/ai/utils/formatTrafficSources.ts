@@ -12,7 +12,7 @@
 //     Δ 7d: Suggested +3.5Ki/+102v | Browse +800i/+31v
 // =============================================================================
 
-import type { TrafficSourceMetric, SnapshotWithMetrics } from '../../types/trafficSource';
+import type { TrafficSourceMetric, SnapshotWithMetrics } from '../../types/suggestedTraffic/trafficSource';
 import { calculateDelta } from '../../utils/trafficSource/delta';
 import type { TrafficSourceDeltaMetric } from '../../utils/trafficSource/delta';
 

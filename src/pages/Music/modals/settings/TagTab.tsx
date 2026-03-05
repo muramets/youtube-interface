@@ -32,7 +32,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { CollapsibleSection } from '../../../../components/ui/molecules/CollapsibleSection';
-import type { MusicTag } from '../../../../core/types/track';
+import type { MusicTag } from '../../../../core/types/music/track';
 
 interface TagTabProps {
     localTags: MusicTag[];

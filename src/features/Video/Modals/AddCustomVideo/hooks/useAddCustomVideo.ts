@@ -3,7 +3,7 @@ import { useAuth } from '../../../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../../../core/stores/channelStore';
 import { useSettings } from '../../../../../core/hooks/useSettings';
 import { useVideos } from '../../../../../core/hooks/useVideos';
-import { useVideoForm } from '../../../../../core/hooks/useVideoForm';
+import { useVideoForm } from '../../../hooks/useVideoForm';
 import { uploadImageToStorage, uploadBase64ToStorage } from '../../../../../core/services/storageService';
 import { resizeImageToBlob } from '../../../../../core/utils/imageUtils';
 import {

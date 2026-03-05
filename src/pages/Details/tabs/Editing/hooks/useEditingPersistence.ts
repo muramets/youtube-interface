@@ -1,10 +1,10 @@
 import { useEffect, useRef } from 'react';
 import { useEditingStore } from '../../../../../core/stores/editing/editingStore';
-import { useMusicStore, selectAllTracks } from '../../../../../core/stores/musicStore';
+import { useMusicStore, selectAllTracks } from '../../../../../core/stores/music/musicStore';
 import { useAuth } from '../../../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../../../core/stores/channelStore';
 import { EditingService } from '../../../../../core/services/editingService';
-import { serializeTrack } from '../../../../../core/types/editingSession';
+import { serializeTrack } from '../../../../../core/types/editing/editingSession';
 
 const DEBOUNCE_MS = 1500;
 

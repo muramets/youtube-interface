@@ -2,7 +2,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { MessageSquare, Pencil, Trash2, ChevronDown } from 'lucide-react';
 import { formatRelativeTime } from '../formatRelativeTime';
 import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
-import type { ChatConversation } from '../../../core/types/chat';
+import type { ChatConversation } from '../../../core/types/chat/chat';
 
 interface ConversationListProps {
     conversations: ChatConversation[];

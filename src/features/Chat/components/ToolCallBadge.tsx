@@ -6,7 +6,7 @@
 
 import React, { useState } from 'react';
 import { Loader2, Check, AlertCircle, ChevronDown } from 'lucide-react';
-import type { ToolCallRecord } from '../../../core/types/chat';
+import type { ToolCallRecord } from '../../../core/types/chat/chat';
 
 /** Human-readable labels for tool names */
 const TOOL_LABELS: Record<string, { pending: string; resolved: string }> = {

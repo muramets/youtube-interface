@@ -7,7 +7,7 @@
  */
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../../../../config/firebase';
-import type { RenderResolution } from '../../../../../core/types/editing';
+import type { RenderResolution } from '../../../../../core/types/editing/editing';
 
 // ─── YouTube-compliant bitrates (SDR, 30fps) ──────────────────────────
 // NOTE: Duplicated from cloud-run/render/src/ffmpeg.ts on purpose.

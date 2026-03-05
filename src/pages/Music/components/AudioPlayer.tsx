@@ -16,18 +16,18 @@ import { AddToMusicPlaylistModal } from '../modals/AddToMusicPlaylistModal';
 import { UploadTrackModal } from '../modals/UploadTrackModal';
 import { WaveformCanvas } from './WaveformCanvas';
 import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
-import { useMusicStore, selectAllTracks } from '../../../core/stores/musicStore';
+import { useMusicStore, selectAllTracks } from '../../../core/stores/music/musicStore';
 import { useEditingStore } from '../../../core/stores/editing/editingStore';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
-import { TrackService } from '../../../core/services/trackService';
+import { TrackService } from '../../../core/services/music/trackService';
 import { DEFAULT_ACCENT_COLOR } from '../../../core/utils/trackUtils';
 import { formatDuration } from '../utils/formatDuration';
 import { useAudioEngine } from '../hooks/useAudioEngine';
 import { usePlaybackNavigation } from '../hooks/usePlaybackNavigation';
 import { useTrimMode } from '../hooks/useTrimMode';
-import type { SharePermissions } from '../../../core/types/musicSharing';
-import { DEFAULT_SHARE_PERMISSIONS, OWNER_PERMISSIONS } from '../../../core/types/musicSharing';
+import type { SharePermissions } from '../../../core/types/music/musicSharing';
+import { DEFAULT_SHARE_PERMISSIONS, OWNER_PERMISSIONS } from '../../../core/types/music/musicSharing';
 
 export const AudioPlayer: React.FC = () => {
     // ── Hook composition ────────────────────────────────────────────────────

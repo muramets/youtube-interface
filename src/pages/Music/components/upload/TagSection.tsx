@@ -7,7 +7,7 @@
 import React, { useState } from 'react';
 import { X, Plus, Search } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
-import type { MusicGenre, MusicTag, MusicSettings } from '../../../../core/types/track';
+import type { MusicGenre, MusicTag, MusicSettings } from '../../../../core/types/music/track';
 
 interface TagSectionProps {
     tags: MusicTag[];

@@ -3,11 +3,11 @@
 // =============================================================================
 
 import { useCallback } from 'react';
-import { useMusicStore } from '../../../core/stores/musicStore';
+import { useMusicStore } from '../../../core/stores/music/musicStore';
 import { useEditingStore } from '../../../core/stores/editing/editingStore';
-import { getEffectiveDuration } from '../../../core/types/editing';
+import { getEffectiveDuration } from '../../../core/types/editing/editing';
 import { getDefaultVariant } from '../../../core/utils/trackUtils';
-import type { Track } from '../../../core/types/track';
+import type { Track } from '../../../core/types/music/track';
 
 interface PlaybackNavigationResult {
     handlePrevious: () => void;

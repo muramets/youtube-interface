@@ -4,11 +4,11 @@
 // =============================================================================
 
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { useMusicStore, selectAllTracks, selectAllGenres } from '../../../core/stores/musicStore';
+import { useMusicStore, selectAllTracks, selectAllGenres } from '../../../core/stores/music/musicStore';
 import { useEditingStore } from '../../../core/stores/editing/editingStore';
-import { getEffectiveDuration } from '../../../core/types/editing';
+import { getEffectiveDuration } from '../../../core/types/editing/editing';
 import { refreshAudioUrl } from '../../../core/services/storageService';
-import { TrackService } from '../../../core/services/trackService';
+import { TrackService } from '../../../core/services/music/trackService';
 import { getDefaultVariant } from '../../../core/utils/trackUtils';
 
 interface AudioEngineResult {

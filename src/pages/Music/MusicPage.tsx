@@ -7,7 +7,7 @@ import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from '
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { WifiOff, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import type { Track } from '../../core/types/track';
+import type { Track } from '../../core/types/music/track';
 import { TrackListSkeleton } from './components/track/TrackCardSkeleton';
 import { UploadTrackModal } from './modals/UploadTrackModal';
 import { MusicSettingsModal } from './modals/MusicSettingsModal';

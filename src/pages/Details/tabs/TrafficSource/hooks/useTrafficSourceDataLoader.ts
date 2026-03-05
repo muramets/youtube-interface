@@ -10,7 +10,7 @@
 // =============================================================================
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import type { TrafficSourceData, TrafficSourceMetric } from '../../../../../core/types/trafficSource';
+import type { TrafficSourceData, TrafficSourceMetric } from '../../../../../core/types/suggestedTraffic/trafficSource';
 import { loadTrafficSourceSnapshot } from '../../../../../core/utils/trafficSource/snapshotLoader';
 import { calculateDelta, calculateTotalDelta } from '../../../../../core/utils/trafficSource/delta';
 import type { TrafficSourceDeltaMetric } from '../../../../../core/utils/trafficSource/delta';

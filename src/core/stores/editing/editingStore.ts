@@ -1,14 +1,14 @@
 import { create } from 'zustand';
-import { useMusicStore, selectAllGenres } from '../musicStore';
+import { useMusicStore, selectAllGenres } from '../music/musicStore';
 import type {
     EditingState,
     TimelineTrack,
     RenderResolution,
-} from '../../types/editing';
-import { getEffectiveDuration } from '../../types/editing';
-import type { Track } from '../../types/track';
-import type { EditingSession } from '../../types/editingSession';
-import { hydrateTrack } from '../../types/editingSession';
+} from '../../types/editing/editing';
+import { getEffectiveDuration } from '../../types/editing/editing';
+import type { Track } from '../../types/music/track';
+import type { EditingSession } from '../../types/editing/editingSession';
+import { hydrateTrack } from '../../types/editing/editingSession';
 
 interface EditingActions {
     // Timeline

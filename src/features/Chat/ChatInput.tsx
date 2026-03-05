@@ -4,9 +4,9 @@
 
 import React, { useState, useMemo, useRef, useCallback, useLayoutEffect } from 'react';
 import { Plus, Send, X, FileAudio, FileVideo, File, Image, Square, Loader2, Check, AlertCircle, ChevronUp, Pencil, Link, Unlink, Brain } from 'lucide-react';
-import { MODEL_REGISTRY, getAcceptedMimeTypes, type ThinkingOption } from '../../core/types/chat';
-import { getAttachmentType, isAllowedMimeTypeForModel } from '../../core/services/aiService';
-import type { StagedFile, ReadyAttachment } from '../../core/types/chatAttachment';
+import { MODEL_REGISTRY, getAcceptedMimeTypes, type ThinkingOption } from '../../core/types/chat/chat';
+import { getAttachmentType, isAllowedMimeTypeForModel } from '../../core/services/ai/aiService';
+import type { StagedFile, ReadyAttachment } from '../../core/types/chat/chatAttachment';
 import { useChatStore } from '../../core/stores/chat/chatStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useAppContextStore, selectAllItems } from '../../core/stores/appContextStore';
@@ -28,7 +28,7 @@ interface ChatInputProps {
     activeModel?: string;
     onModelChange?: (modelId: string) => void;
     // Editing
-    editingMessage?: import('../../core/types/chat').ChatMessage | null;
+    editingMessage?: import('../../core/types/chat/chat').ChatMessage | null;
     onCancelEdit?: () => void;
     onEditSend?: (newText: string, attachments?: ReadyAttachment[]) => void;
 }

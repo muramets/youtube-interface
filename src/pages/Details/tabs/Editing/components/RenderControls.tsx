@@ -4,7 +4,7 @@ import { Button } from '../../../../../components/ui/atoms/Button/Button';
 import { useEditingStore } from '../../../../../core/stores/editing/editingStore';
 import { useRenderQueueStore } from '../../../../../core/stores/editing/renderQueueStore';
 import { useUIStore } from '../../../../../core/stores/uiStore';
-import { RESOLUTION_PRESETS, getEffectiveDuration, type RenderResolution } from '../../../../../core/types/editing';
+import { RESOLUTION_PRESETS, getEffectiveDuration, type RenderResolution } from '../../../../../core/types/editing/editing';
 import { BITRATE_MAP } from '../services/renderService';
 import { getSizeCalibrationRatio } from '../../../../../core/stores/editing/renderQueueStore';
 import { PortalTooltip } from '../../../../../components/ui/atoms/PortalTooltip';

@@ -12,7 +12,7 @@
 
 import React, { useState } from 'react';
 import { Loader2, Check, AlertCircle, ChevronDown, BarChart3, TrendingUp, Images, Satellite, Globe, PieChart } from 'lucide-react';
-import type { ToolCallRecord } from '../../../core/types/chat';
+import type { ToolCallRecord } from '../../../core/types/chat/chat';
 import type { VideoCardContext } from '../../../core/types/appContext';
 import { groupToolCalls, getGroupLabel, isExpandable, isThumbnailTool, getGroupQuota } from '../utils/toolCallGrouping';
 import type { ToolCallGroup } from '../utils/toolCallGrouping';

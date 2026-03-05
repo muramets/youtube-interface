@@ -7,11 +7,11 @@ import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { Play, Pause, Mic, Piano, Sparkles, Copy, Check, BookOpen, Share2 } from 'lucide-react';
 import { WaveformCanvas } from '../WaveformCanvas';
 import { TrackContextMenu } from './TrackContextMenu';
-import { useMusicStore } from '../../../../core/stores/musicStore';
-import { selectAllGenres } from '../../../../core/stores/musicStore';
+import { useMusicStore } from '../../../../core/stores/music/musicStore';
+import { selectAllGenres } from '../../../../core/stores/music/musicStore';
 import { useFilterStore } from '../../../../core/stores/filterStore';
-import type { Track, MusicTag } from '../../../../core/types/track';
-import type { TrackSource } from '../../../../core/types/musicPlaylist';
+import type { Track, MusicTag } from '../../../../core/types/music/track';
+import type { TrackSource } from '../../../../core/types/music/musicPlaylist';
 import { DEFAULT_ACCENT_COLOR, getDefaultVariant } from '../../../../core/utils/trackUtils';
 
 // Section marker regex: matches [Verse 1], [Chorus], (Bridge), or bare "Verse 1:" etc.

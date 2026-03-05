@@ -8,10 +8,10 @@
 // =============================================================================
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { useMusicStore } from '../../../core/stores/musicStore';
+import { useMusicStore } from '../../../core/stores/music/musicStore';
 import { useUIStore } from '../../../core/stores/uiStore';
-import { TrackService } from '../../../core/services/trackService';
-import type { Track, TrackVariant } from '../../../core/types/track';
+import { TrackService } from '../../../core/services/music/trackService';
+import type { Track, TrackVariant } from '../../../core/types/music/track';
 
 // ---------------------------------------------------------------------------
 // Types

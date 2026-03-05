@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { TrafficService } from '../../../../../core/services/traffic';
 import { useUIStore } from '../../../../../core/stores/uiStore';
-import type { TrafficData, TrafficSource } from '../../../../../core/types/traffic';
+import type { TrafficData, TrafficSource } from '../../../../../core/types/suggestedTraffic/traffic';
 import type { PackagingVersion } from '../../../../../core/types/versioning';
 import type { VideoDetails } from '../../../../../core/utils/youtubeApi';
 

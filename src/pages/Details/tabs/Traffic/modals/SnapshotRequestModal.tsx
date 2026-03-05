@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { TrafficUploader } from '../components/TrafficUploader';
 import { AlertTriangle, X } from 'lucide-react';
-import type { TrafficSource } from '../../../../../core/types/traffic';
+import type { TrafficSource } from '../../../../../core/types/suggestedTraffic/traffic';
 
 interface SnapshotRequestModalProps {
     isOpen: boolean;

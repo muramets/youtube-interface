@@ -2,7 +2,7 @@
 // TRACK UTILITIES: Shared helpers for track-related logic
 // =============================================================================
 
-import type { Track } from '../types/track';
+import type { Track } from '../types/music/track';
 
 /**
  * Default accent color used when a track has no genre or the genre has

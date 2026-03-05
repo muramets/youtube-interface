@@ -1,7 +1,7 @@
 import React, { useCallback, useRef, useMemo, memo } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ArrowUp, ArrowDown } from 'lucide-react';
-import type { TrafficSource, TrafficSortKey, TrafficSortConfig } from '../../../../../core/types/traffic';
+import type { TrafficSource, TrafficSortKey, TrafficSortConfig } from '../../../../../core/types/suggestedTraffic/traffic';
 import { Checkbox } from '../../../../../components/ui/atoms/Checkbox/Checkbox';
 import { TrafficRow } from './TrafficRow';
 import { TrafficEmptyState } from './TrafficEmptyState';
@@ -9,18 +9,18 @@ import { formatDuration, durationToSeconds } from '../utils/formatters';
 import { computeAverageDelta } from '../utils/publishDateFormatter';
 import { TRAFFIC_TABLE } from '../utils/constants';
 import type { CTRRule } from '../../../../../core/services/settingsService';
-import { useTrafficNicheStore } from '../../../../../core/stores/trends/useTrafficNicheStore';
+import { useTrafficNicheStore } from '../../../../../core/stores/suggestedTraffic/useTrafficNicheStore';
 import { SmartTrafficTooltip } from './SmartTrafficTooltip';
 
-import type { SuggestedTrafficNiche } from '../../../../../core/types/suggestedTrafficNiches';
+import type { SuggestedTrafficNiche } from '../../../../../core/types/suggestedTraffic/suggestedTrafficNiches';
 import type { SmartSuggestion } from '../hooks/useSmartNicheSuggestions';
 
 import type { VideoDetails } from '../../../../../core/utils/youtubeApi';
 import type { VideoDeltaStats } from '../../../../../core/types/videoDeltaStats';
 
-import type { TrafficType } from '../../../../../core/types/videoTrafficType';
-import type { ViewerType } from '../../../../../core/types/viewerType';
-import type { VideoReaction } from '../../../../../core/types/videoReaction';
+import type { TrafficType } from '../../../../../core/types/suggestedTraffic/videoTrafficType';
+import type { ViewerType } from '../../../../../core/types/suggestedTraffic/viewerType';
+import type { VideoReaction } from '../../../../../core/types/suggestedTraffic/videoReaction';
 
 interface TrafficTableProps {
     data: TrafficSource[];

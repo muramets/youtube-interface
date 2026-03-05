@@ -8,7 +8,7 @@
 import type { AppContextItem } from '../../types/appContext';
 import { mergeContextItems } from '../../types/appContext';
 import { enrichContextWithDeltas } from './enrichContextWithDeltas';
-import { ChatService } from '../../services/chatService';
+import { ChatService } from '../../services/ai/chatService';
 import { debug } from '../../utils/debug';
 
 export interface PreparedContext {

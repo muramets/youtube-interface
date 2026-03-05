@@ -11,7 +11,7 @@ export default defineConfig({
                 test: {
                     name: 'frontend',
                     root: '.',
-                    include: ['src/**/*.test.{ts,tsx}'],
+                    include: ['src/**/*.test.{ts,tsx}', 'shared/**/*.test.ts'],
                     environment: 'jsdom',
                     setupFiles: './src/test/setup.ts',
                     css: false,
@@ -24,6 +24,7 @@ export default defineConfig({
                     name: 'functions',
                     root: './functions',
                     include: ['src/**/*.test.ts'],
+                    exclude: ['src/shared/**'],
                     environment: 'node',
                     alias: {
                         '^(.*)\\.js$': '$1',

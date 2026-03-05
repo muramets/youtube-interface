@@ -9,8 +9,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Pencil, Trash2, FolderOpen, FolderPlus } from 'lucide-react';
-import type { MusicPlaylist } from '../../../core/types/musicPlaylist';
-import { useMusicStore } from '../../../core/stores/musicStore';
+import type { MusicPlaylist } from '../../../core/types/music/musicPlaylist';
+import { useMusicStore } from '../../../core/stores/music/musicStore';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
 
