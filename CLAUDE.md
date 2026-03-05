@@ -160,6 +160,18 @@ UI listens for status changes via Firestore `onSnapshot`. Download links come fr
 - One handler / hook / util = one file. Dispatcher / registry = separate file.
 - Every new file must have a single responsibility (SRP). If a file mixes routing and business logic — split immediately, not in a future refactor.
 
+### Effort Estimation
+When estimating task duration, account for **agentic development speed**, not human-developer baselines:
+- **Boilerplate & repetitive edits** (import updates, file moves, config generation): minutes, not hours. Agents parallelize and don't fatigue.
+- **Knowledge formalization** (writing docs, CLAUDE.md sections, PATTERNS.md): fast — the agent already holds codebase context in memory.
+- **Pattern application** (applying an existing project pattern to a new feature): fast — no learning curve.
+- **Product decisions** (Free vs Pro tier, UX flow, naming): bottleneck is human, not agent. Flag these as "awaiting user input" rather than padding the estimate.
+- **External service setup** (GitHub secrets, Sentry account, DNS): bottleneck is human clicking through UIs. Estimate the agent's part separately.
+- **Browser testing & visual QA**: slower — requires human eyes or multi-step browser automation.
+- **Novel architecture** (designing a pattern that doesn't exist in the codebase yet): comparable to human speed — requires reasoning, not just execution.
+
+Rule of thumb: for tasks that are mostly code generation + refactoring, divide the human-baseline estimate by 3–5x. For tasks requiring product decisions or external service interaction, estimate the human part separately.
+
 ### Elite Senior Dev Lens (New Feature Design)
 Before implementing any new feature or extending existing functionality, challenge every design decision by asking:
 1. **Deterministic vs magic.** Is the API contract explicit and predictable, or does it rely on the caller (LLM or human) guessing the right value? Prefer enums and structured options over free-form numeric parameters.
