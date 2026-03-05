@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { TrafficSourceService } from '../../../../../core/services/suggestedTraffic/TrafficSourceService';
+import { syncSnapshotCount } from '../../../../../core/services/traffic/syncSnapshotCount';
 import { useUIStore } from '../../../../../core/stores/uiStore';
 import type { TrafficSourceData, TrafficSourceMetric } from '../../../../../core/types/suggestedTraffic/trafficSource';
 import type { VideoDetails } from '../../../../../core/utils/youtubeApi';
@@ -50,6 +51,10 @@ export const useTrafficSourceData = ({
         try {
             const fetched = await TrafficSourceService.fetch(userId, channelId, video.id);
             setData(fetched);
+
+            // Lazy sync: denormalize snapshot count onto video doc for LLM tool awareness
+            const actualCount = fetched?.snapshots?.length ?? 0;
+            syncSnapshotCount(userId, channelId, video.id, 'trafficSourceSnapshotCount', actualCount);
         } catch (err) {
             console.error('[useTrafficSourceData] Failed to load:', err);
             setError('Failed to load traffic source data');

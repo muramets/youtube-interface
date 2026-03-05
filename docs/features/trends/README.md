@@ -99,7 +99,7 @@
 | YouTubeService | `functions/src/services/youtube.ts` |
 | Backend types | `functions/src/types.ts` |
 | Delta utility | `src/core/utils/computeVideoDeltas.ts` |
-| Tests | `functions/src/trends/scheduledSync.test.ts` |
+| Tests | `functions/src/trends/__tests__/scheduledSync.test.ts` |
 
 ### Firestore Collections
 

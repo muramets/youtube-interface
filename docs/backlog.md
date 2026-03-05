@@ -9,8 +9,8 @@
 | # | Feature | Item | Priority | Link |
 |---|---------|------|----------|------|
 | 1 | Chat | Streaming dots пропадают при навигации | Medium | [Known Issues](features/chat/README.md#known-issues) |
-| 2 | Chat / YT Research | `publishedAfter` early stop при пагинации | Low | [Backlog](features/chat/tools/youtube-research-tools.md#backlog) |
-| 3 | Chat / YT Research | `lookupTrendVideos` — explicit tool для trend cache | Low | [Backlog](features/chat/tools/youtube-research-tools.md#backlog) |
+| 2 | Chat / YT Research | `publishedAfter` early stop при пагинации | Low | [Roadmap](features/chat/tools/browse-channel-videos-tool.md#roadmap) |
+| 3 | Chat / YT Research | `lookupTrendVideos` — explicit tool для trend cache | Low | [Roadmap](features/chat/tools/browse-channel-videos-tool.md#roadmap) |
 | 4 | UI | DropZone consolidation (Audio → shared base) | Low | [dropzone-consolidation.md](backlog/dropzone-consolidation.md) |
 | 5 | Infrastructure | Cache consolidation Phase 5 (cleanup old collection) | Low | [cache-consolidation-tasks.md](decisions/cache-consolidation/cache-consolidation-tasks.md#phase-5-cleanup-old-collection) |
 | 6 | Chat | Prompt Caching (Claude → Gemini) | High | [prompt-caching.md](features/chat/prompt-caching.md) |

@@ -120,7 +120,9 @@ UI listens for status changes via Firestore `onSnapshot`. Download links come fr
 - When creating new files or refactoring imports — additionally run `npm run typecheck`.
 - Fix all lint errors and warnings following industry best practices — no hacks or workarounds. If a fix requires an architectural change, make it.
 - **Always run existing tests before deploying** (`npm run test:run` for frontend, `npx vitest run --project functions` for backend — both from project root). "Lint/typecheck pass" is NOT a substitute for passing tests. If test runner itself fails (timeout, worker crash, config issue) — fix the test infrastructure first, do not deploy with broken tests.
-- When editing files in `docs/features/` — run `npm run check:docs` to verify all markdown links and code file paths are valid. Fix any broken references before finishing.
+- When editing files in `docs/features/` — run `npm run check:docs` to verify all markdown links and code file paths are valid.
+- When renaming, moving, or deleting any source files — also run `npm run check:docs`, because docs may reference those paths.
+- Fix any broken references before finishing.
 
 ### Communication Style
 - The user is a product director / orchestra conductor with no assumed technical background. Always accompany technical explanations with plain, everyday Russian language analogies.

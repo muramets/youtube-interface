@@ -92,7 +92,7 @@
 | `functions/src/services/sync.ts` | `SyncService` — orchestration logic |
 | `functions/src/services/youtube.ts` | `YouTubeService` — YouTube Data API wrapper |
 | `functions/src/types.ts` | `TrendChannel`, `ProcessStats`, `Notification`, YouTube types |
-| `functions/src/trends/scheduledSync.test.ts` | Unit tests |
+| `functions/src/trends/__tests__/scheduledSync.test.ts` | Unit tests |
 
 ### Cloud Function Config
 

@@ -44,6 +44,7 @@ interface TrafficHeaderProps {
 
     // Smart Assistant Toggle
     isAssistantEnabled?: boolean;
+    isAssistantLoading?: boolean;
     onToggleAssistant?: () => void;
 
     // Export
@@ -80,6 +81,7 @@ export const TrafficHeader: React.FC<TrafficHeaderProps> = ({
     missingTitlesCount = 0,
     onOpenMissingTitles,
     isAssistantEnabled = false,
+    isAssistantLoading = false,
     onToggleAssistant,
     onExport,
     onExportImages,
@@ -129,10 +131,13 @@ export const TrafficHeader: React.FC<TrafficHeaderProps> = ({
                                 {onToggleAssistant && (
                                     <button
                                         onClick={onToggleAssistant}
-                                        className={`w-[34px] h-[34px] rounded-full flex items-center justify-center transition-all border-none cursor-pointer ${isAssistantEnabled
-                                            ? 'bg-blue-500 text-white shadow-[0_0_10px_rgba(59,130,246,0.5)]'
-                                            : 'bg-transparent text-text-primary hover:bg-hover-bg'}`}
-                                        title={isAssistantEnabled ? "Disable Smart Assistant" : "Enable Smart Assistant"}
+                                        disabled={isAssistantLoading && !isAssistantEnabled}
+                                        className={`w-[34px] h-[34px] rounded-full flex items-center justify-center transition-all border-none ${isAssistantLoading && !isAssistantEnabled
+                                            ? 'cursor-wait opacity-50 bg-transparent text-text-primary'
+                                            : isAssistantEnabled
+                                                ? 'cursor-pointer bg-blue-500 text-white shadow-[0_0_10px_rgba(59,130,246,0.5)]'
+                                                : 'cursor-pointer bg-transparent text-text-primary hover:bg-hover-bg'}`}
+                                        title={isAssistantLoading && !isAssistantEnabled ? "Loading cached data..." : isAssistantEnabled ? "Disable Smart Assistant" : "Enable Smart Assistant"}
                                     >
                                         <Wand2 size={18} className={isAssistantEnabled ? "animate-pulse" : ""} />
                                     </button>

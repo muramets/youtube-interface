@@ -4,13 +4,13 @@
 
 Telescope Pattern: Discovery → Detail → Analysis tools for AI assistant to independently research YouTube.
 
-**Architecture doc:** `docs/features/chat/youtube-research-tools.md` — READ BEFORE ANY PHASE.
+**Architecture doc:** `docs/features/chat/tools/README.md` — READ BEFORE ANY PHASE.
 
 ## Quick Context Recovery
 
 If you lost context — read these files in order:
 1. This file (status + phase checklist)
-2. `docs/features/chat/youtube-research-tools.md` (architecture + user flows)
+2. `docs/features/chat/tools/README.md` (architecture + user flows)
 3. The specific handler/test file for the current phase
 
 ---
@@ -290,7 +290,7 @@ Elite senior dev review:
   - Keep only decisions that are still relevant and actionable
 
 - [x] **T3.5** — Update feature docs (LAST — after all code changes)
-  - File: `docs/features/chat/youtube-research-tools.md`
+  - File: `docs/features/chat/tools/README.md` (was `youtube-research-tools.md`)
     - Update architecture diagram: add `getChannelOverview` to Layer 1
     - Update sequence diagram: two separate tool calls instead of two-phase
     - Update "Текущее состояние" — mark tools as implemented

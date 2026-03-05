@@ -12,6 +12,7 @@ import { doc, setDoc, getDocFromServer } from 'firebase/firestore';
 import type { TrafficSourceData, TrafficSourceSnapshot, TrafficSourceMetric } from '../../types/suggestedTraffic/trafficSource';
 import { uploadTrafficSourceCsv } from '../storageService';
 import { generateAutoLabel } from '../../../pages/Details/tabs/TrafficSource/utils/autoLabel';
+import { syncSnapshotCount } from '../traffic/syncSnapshotCount';
 
 /**
  * Sanitize data for Firestore — remove undefined values.
@@ -109,6 +110,8 @@ export const TrafficSourceService = {
         // 4. Save to Firestore
         await this.save(userId, channelId, videoId, updatedData);
 
+        // Denormalize snapshot count onto the video document for LLM tool awareness
+        syncSnapshotCount(userId, channelId, videoId, 'trafficSourceSnapshotCount', updatedData.snapshots.length);
 
         return snapshotId;
     },
@@ -132,6 +135,10 @@ export const TrafficSourceService = {
         };
 
         await this.save(userId, channelId, videoId, updatedData);
+
+        // Denormalize snapshot count onto the video document for LLM tool awareness
+        syncSnapshotCount(userId, channelId, videoId, 'trafficSourceSnapshotCount', updatedData.snapshots.length);
+
         return updatedData;
     },
 

@@ -142,5 +142,11 @@ function formatVideoData(
         publishedAt: data.publishedAt || undefined,
         duration: data.duration || undefined,
         thumbnailUrl: data.thumbnail || undefined,
+        // Traffic snapshot counts (denormalized from traffic/main and trafficSource/main)
+        // Only present for own videos after user visits the Traffic tab (lazy sync)
+        ...(source === "own" && typeof data.suggestedTrafficSnapshotCount === "number"
+            ? { suggestedTrafficSnapshotCount: data.suggestedTrafficSnapshotCount } : {}),
+        ...(source === "own" && typeof data.trafficSourceSnapshotCount === "number"
+            ? { trafficSourceSnapshotCount: data.trafficSourceSnapshotCount } : {}),
     };
 }

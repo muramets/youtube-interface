@@ -4,6 +4,8 @@
 
 **Stages 1-3 реализованы.** Таб Traffic Sources в Video Details page: CSV upload (drag & drop), auto-naming ("13 hours", "3 days"), sidebar timeline, sortable table с 6 колонками, cumulative/delta toggle. AI-анализ доступен on-demand через tool `analyzeTrafficSources` — AI сам скачивает все snapshot'ы, строит per-source timelines с pre-computed deltas и интерпретирует тренды. Общие CSV утилиты переиспользуются между Traffic Sources и Suggested Traffic.
 
+**Snapshot count denormalization:** `trafficSourceSnapshotCount` записывается на документ видео при каждом create/delete снэпшота и при входе в Traffic Sources таб (lazy sync). `getMultipleVideoDetails` пробрасывает это поле для own-видео, а tool description указывает LLM проверять его перед вызовом.
+
 ---
 
 ## Что это
@@ -102,8 +104,8 @@ AI-ассистент анализирует traffic sources через dedicate
 ---
 
 ## Связанные фичи
-- [Suggested Traffic](./suggested-traffic.md) — другой CSV (конкретные видео). Разделяют sidebar UI, Storage паттерн, и AI tool gateway-цепочку
-- [YouTube Research Tools](../chat/tools/youtube-research-tools.md) — `analyzeTrafficSources` входит в Telescope Pattern (Layer 3 — gateway tool)
+- [Suggested Traffic](./suggested-traffic/) — другой CSV (конкретные видео). Разделяют sidebar UI, Storage паттерн, и AI tool gateway-цепочку
+- [Telescope Pattern Overview](../chat/tools/README.md) — `analyzeTrafficSources` входит в Telescope Pattern (Layer 3 — gateway tool)
 - Video Details — Traffic Sources живёт как таб внутри Details page
 
 ---
@@ -119,8 +121,8 @@ AI-ассистент анализирует traffic sources через dedicate
 | `pages/Details/tabs/TrafficSource/hooks/useTrafficSourceDataLoader.ts` | Loader: скачивает CSV, парсит, считает delta |
 | `pages/Details/tabs/TrafficSource/modals/TrafficSourceColumnMapperModal.tsx` | Fallback column mapping UI |
 | `pages/Details/Sidebar/TrafficSource/TrafficSourceNav.tsx` | Sidebar: timeline list, inline rename, delete |
-| `core/services/TrafficSourceService.ts` | Firestore CRUD + Cloud Storage upload |
-| `core/types/trafficSource.ts` | `TrafficSourceMetric`, `TrafficSourceSnapshot`, `TrafficSourceData`, `SnapshotWithMetrics` |
+| `core/services/suggestedTraffic/TrafficSourceService.ts` | Firestore CRUD + Cloud Storage upload |
+| `core/types/suggestedTraffic/trafficSource.ts` | `TrafficSourceMetric`, `TrafficSourceSnapshot`, `TrafficSourceData`, `SnapshotWithMetrics` |
 | `core/utils/trafficSource/parser.ts` | Client-side CSV parser (auto-detect EN + RU headers) |
 | `core/utils/trafficSource/snapshotLoader.ts` | Cloud Storage download + LRU cache (max 20) |
 | `core/utils/trafficSource/delta.ts` | Delta calculation + `TrafficSourceDeltaMetric` type |

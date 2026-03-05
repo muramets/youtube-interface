@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { TrafficService } from '../../../../../core/services/traffic';
+import { syncSnapshotCount } from '../../../../../core/services/traffic/syncSnapshotCount';
 import { useUIStore } from '../../../../../core/stores/uiStore';
 import type { TrafficData, TrafficSource } from '../../../../../core/types/suggestedTraffic/traffic';
 import type { PackagingVersion } from '../../../../../core/types/versioning';
@@ -39,6 +40,10 @@ export const useTrafficData = ({ userId, channelId, video, packagingHistory = []
         try {
             const fetched = await TrafficService.fetchTrafficData(userId, channelId, video.id);
             setData(fetched);
+
+            // Lazy sync: denormalize snapshot count onto video doc for LLM tool awareness
+            const actualCount = fetched?.snapshots?.length ?? 0;
+            syncSnapshotCount(userId, channelId, video.id, 'suggestedTrafficSnapshotCount', actualCount);
         } catch (err) {
             console.error("Failed to load traffic data", err);
             setError("Failed to load traffic data");

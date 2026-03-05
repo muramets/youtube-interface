@@ -234,9 +234,9 @@ tokenUsage = {
 |---|---|
 | `shared/models.ts` | `ModelPricing` + `cacheReadMultiplier?` / `cacheWriteMultiplier?`; `estimateCostEur` cache-aware; новая `estimateCacheSavingsEur`; Claude models — множители 0.1 / 2.0 |
 | `src/core/types/sseEvents.ts` | `SSETokenUsage` + `cachedTokens?`, `cacheWriteTokens?` |
-| `src/core/types/chat.ts` | `ChatMessage.tokenUsage` + cache-поля; реэкспорт `estimateCacheSavingsEur` |
-| `src/core/services/aiProxyService.ts` | `StreamChatResult` + cache-поля |
-| `src/core/services/aiService.ts` | `AiSendResult` + cache-поля |
+| `src/core/types/chat/chat.ts` | `ChatMessage.tokenUsage` + cache-поля; реэкспорт `estimateCacheSavingsEur` |
+| `src/core/services/ai/aiProxyService.ts` | `StreamChatResult` + cache-поля |
+| `src/core/services/ai/aiService.ts` | `AiSendResult` + cache-поля |
 | `src/core/stores/chat/slices/sendSlice.ts` | `streamAiResponse` / `persistAiResponse` — расширенные типы |
 | `src/features/Chat/hooks/useChatDerivedState.ts` | `totalSavingsEur` (cost + savings в одном reduce) |
 | `src/features/Chat/components/ChatHeader.tsx` | `totalSavingsEur` prop; `saved €X` badge (`--color-success`); `costTooltip` pre-computed |

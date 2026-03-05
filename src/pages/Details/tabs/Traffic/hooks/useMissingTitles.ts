@@ -54,6 +54,8 @@ export const repairTrafficSources = async (
     const videoIdsToFetch = uniqueVideoIds.filter((id: string) => {
         const cached = cachedMap.get(id);
         if (!cached) return true;
+        // Skip videos already confirmed as unfindable by YouTube API
+        if ((cached as VideoDetails & { notFoundInApi?: boolean }).notFoundInApi) return false;
         // Even if in cache, if it's missing channelId there too, we should try to fetch (unlikely but safe)
         return !cached.channelId;
     });
@@ -68,11 +70,27 @@ export const repairTrafficSources = async (
         }
 
         for (const chunk of chunks) {
+            assistantLogger.debug('[DATA-REPAIR] Fetching chunk from YouTube API', {
+                requested: chunk,
+                count: chunk.length
+            });
             const batch = await fetchVideosBatch(chunk, apiKey);
+            const returnedIds = batch.map(v => v.id);
+            const missingFromApi = chunk.filter(id => !returnedIds.includes(id));
+            assistantLogger.debug('[DATA-REPAIR] YouTube API response', {
+                requested: chunk.length,
+                returned: batch.length,
+                returnedIds,
+                missingFromApi,
+                thumbnails: batch.map(v => ({ id: v.id, thumbnail: v.thumbnail?.slice(0, 60) || '(empty)' }))
+            });
             batch.forEach(v => fetchedMap.set(v.id, v));
         }
 
-        // 4. Persist newly fetched to Firestore (Rich Metadata)
+        // 4. Identify videos that YouTube API silently ignored (deleted, private, etc.)
+        const unfindableIds = videoIdsToFetch.filter(id => !fetchedMap.has(id));
+
+        // 5. Persist newly fetched to Firestore (Rich Metadata)
         const allFetchedVideos = Array.from(fetchedMap.values());
         const batchWrites = allFetchedVideos.map(video => {
             const cleanData = JSON.parse(JSON.stringify(video));
@@ -86,13 +104,39 @@ export const repairTrafficSources = async (
             };
         });
 
+        // Save stubs for unfindable videos so they don't block Smart Assistant forever
+        for (const id of unfindableIds) {
+            batchWrites.push({
+                videoId: id,
+                data: {
+                    id,
+                    title: '',
+                    thumbnail: '',
+                    channelId: '',
+                    channelTitle: '',
+                    channelAvatar: '',
+                    publishedAt: '',
+                    source: "suggested_traffic",
+                    notFoundInApi: true,
+                    lastUpdated: Date.now()
+                } as Partial<VideoDetails> & Record<string, unknown>
+            });
+        }
+
+        if (unfindableIds.length > 0) {
+            assistantLogger.warn('[DATA-REPAIR] Saving stubs for unfindable videos', {
+                unfindableIds
+            });
+        }
+
         if (batchWrites.length > 0) {
             await VideoService.batchUpdateExternalVideos(userId, channelId, batchWrites);
         }
     }
 
     // 5. Update Sources (Merging results from YouTube and Cache)
-    return sources.map(source => {
+    const notFound: string[] = [];
+    const result = sources.map(source => {
         if (source.videoId) {
             // Priority: newly fetched > cached
             const details = fetchedMap.get(source.videoId) || cachedMap.get(source.videoId);
@@ -107,9 +151,20 @@ export const repairTrafficSources = async (
                     publishedAt: details.publishedAt || source.publishedAt
                 };
             }
+            notFound.push(source.videoId);
         }
         return source;
     });
+
+    if (notFound.length > 0) {
+        assistantLogger.warn('[DATA-REPAIR] Videos not found in API or cache after repair', {
+            notFoundIds: notFound,
+            fetchedMapSize: fetchedMap.size,
+            cachedMapSize: cachedMap.size
+        });
+    }
+
+    return result;
 };
 
 export const useMissingTitles = ({
@@ -148,10 +203,14 @@ export const useMissingTitles = ({
             // It IS missing channelId?
             const hasSourceChannelId = !!s.channelId;
             // AND we don't have it in cache?
-            const hasCachedChannelId = cachedMap.has(s.videoId) && !!cachedMap.get(s.videoId)?.channelId;
+            const cached = cachedMap.get(s.videoId);
+            const hasCachedChannelId = cached && !!cached.channelId;
+            // Skip videos that YouTube API confirmed as unfindable (deleted, private, etc.)
+            const isUnfindable = cached && (cached as VideoDetails & { notFoundInApi?: boolean }).notFoundInApi === true;
 
             // If we don't have it in source AND don't have it in cache = UNENRICHED
-            return !hasSourceChannelId && !hasCachedChannelId;
+            // But if it's unfindable, don't count it (can't be enriched anyway)
+            return !hasSourceChannelId && !hasCachedChannelId && !isUnfindable;
         });
 
         debug.traffic('Unenriched calculation', {
@@ -187,11 +246,12 @@ export const useMissingTitles = ({
         // Get unique video IDs
         const uniqueVideoIds = Array.from(new Set(allRepairSources.map(s => s.videoId!)));
 
-        // Exclude cached videos (same logic as repairTrafficSources lines 50-56)
+        // Exclude cached videos (same logic as repairTrafficSources)
         const cachedMap = new Map(cachedVideos.map(v => [v.id, v]));
         const toFetch = uniqueVideoIds.filter(id => {
             const cached = cachedMap.get(id);
             if (!cached) return true;
+            if ((cached as VideoDetails & { notFoundInApi?: boolean }).notFoundInApi) return false;
             return !cached.channelId;
         });
 

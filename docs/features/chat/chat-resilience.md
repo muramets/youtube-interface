@@ -83,7 +83,7 @@ User sends message
 |---|---|---|
 | `STREAM_INACTIVITY_TIMEOUT_MS` | 90 000 ms (90 сек) | Provider-specific: передаётся в `withStreamRetry()` из каждого провайдера |
 | `MAX_STREAM_RETRIES` | 2 (итого 3 попытки) | Provider-specific: передаётся в `withStreamRetry()` из каждого провайдера |
-| `STREAM_TIMEOUT_MS` | 120 000 ms (120 сек, клиент) | `src/core/services/aiProxyService.ts` — 30с буфер сверх серверных 90с |
+| `STREAM_TIMEOUT_MS` | 120 000 ms (120 сек, клиент) | `src/core/services/ai/aiProxyService.ts` — 30с буфер сверх серверных 90с |
 
 ### Различия провайдеров при retry
 

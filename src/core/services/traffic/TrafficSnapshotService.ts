@@ -2,6 +2,7 @@ import type { TrafficData, TrafficSource, TrafficSnapshot } from '../../types/su
 import { generateSnapshotId } from '../../utils/snapshotUtils';
 import { uploadCsvSnapshot, downloadCsvSnapshot, deleteCsvSnapshot } from '../storageService';
 import { TrafficDataService } from './TrafficDataService';
+import { syncSnapshotCount } from './syncSnapshotCount';
 import { logger, snapshotLogger } from '../../utils/logger';
 
 /**
@@ -100,6 +101,9 @@ export const TrafficSnapshotService = {
         };
 
         await TrafficDataService.save(userId, channelId, videoId, updated);
+
+        // Denormalize snapshot count onto the video document for LLM tool awareness
+        syncSnapshotCount(userId, channelId, videoId, 'suggestedTrafficSnapshotCount', updated.snapshots.length);
 
         logger.info('Traffic snapshot created', {
             component: 'TrafficSnapshotService',
@@ -355,6 +359,10 @@ export const TrafficSnapshotService = {
         }
 
         await TrafficDataService.save(userId, channelId, videoId, updated);
+
+        // Denormalize snapshot count onto the video document for LLM tool awareness
+        syncSnapshotCount(userId, channelId, videoId, 'suggestedTrafficSnapshotCount', updated.snapshots.length);
+
         return updated;
     },
 

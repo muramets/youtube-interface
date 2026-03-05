@@ -86,6 +86,10 @@ const analyzeSuggestedTraffic: ToolDefinition = {
         "tag/keyword overlap. Returns structured findings for strategic interpretation. " +
         "Use when the user asks about suggested traffic, algorithmic neighbors, " +
         "or which videos appear alongside theirs. " +
+        "IMPORTANT: This tool only works for videos that have Suggested Traffic CSV snapshots " +
+        "uploaded by the user in the app. Check suggestedTrafficSnapshotCount from " +
+        "getMultipleVideoDetails — if 0 or missing, do NOT call this tool. " +
+        "External videos and videos not imported into the app will never have this data. " +
         "After analysis, use mentionVideo to reference key competitor videos from topSources " +
         "so the user sees interactive badges instead of plain text names. " +
         "If your findings lead to CTR or thumbnail recommendations, also call viewThumbnails " +
@@ -220,7 +224,10 @@ const analyzeTrafficSources: ToolDefinition = {
         "Returns a per-source breakdown with timeline and pre-computed deltas across snapshots. " +
         "Use this tool BEFORE analyzeSuggestedTraffic — it's the gateway: " +
         "if Suggested traffic dominates, THEN drill down with analyzeSuggestedTraffic to see the specific videos. " +
-        "Requires the video to have Traffic Source CSV data imported by the user (📊 icon on the video card).",
+        "IMPORTANT: This tool only works for videos that have Traffic Source CSV snapshots " +
+        "uploaded by the user in the app. Check trafficSourceSnapshotCount from " +
+        "getMultipleVideoDetails — if 0 or missing, do NOT call this tool. " +
+        "External videos and videos not imported into the app will never have this data.",
     parametersJsonSchema: {
         type: "object",
         properties: {

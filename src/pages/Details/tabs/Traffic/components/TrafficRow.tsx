@@ -2,7 +2,7 @@ import React, { useRef, useState, useCallback } from 'react';
 import {
     ExternalLink, Info, Sparkles, Flag, CircleOff, Layers, Target,
     MousePointerClick, HelpCircle, Wand2, ZapOff, Zap, Compass, Eye, Coffee, User, Play, MessageSquare,
-    Star, ThumbsUp, ThumbsDown
+    Star, ThumbsUp, ThumbsDown, Film
 } from 'lucide-react';
 import type { TrafficSource } from '../../../../../core/types/suggestedTraffic/traffic';
 import type { TrafficType } from '../../../../../core/types/suggestedTraffic/videoTrafficType';
@@ -117,6 +117,7 @@ export const TrafficRow = ({
     const enterTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const wrapperRef = useRef<HTMLDivElement>(null);
     const [isThumbLoaded, setIsThumbLoaded] = useState(false);
+    const [isThumbError, setIsThumbError] = useState(false);
     const [isEditingNote, setIsEditingNote] = useState(false);
     const [editNoteText, setEditNoteText] = useState('');
     const noteInputRef = useRef<HTMLInputElement>(null);
@@ -299,15 +300,24 @@ export const TrafficRow = ({
                 {item.videoId ? (
                     <div className={`relative w-full overflow-hidden rounded-md ${isNowPlaying ? 'ring-1 ring-emerald-400/60' : ''}`} style={{ aspectRatio: '16/9' }}>
                         {/* Pulse placeholder — starts animating instantly, no compositor delay */}
-                        <div className="absolute inset-0 bg-white/5 animate-pulse rounded-md" />
-                        <img
-                            src={videoDetails?.thumbnail || `https://i.ytimg.com/vi/${item.videoId}/mqdefault.jpg`}
-                            alt=""
-                            loading="lazy"
-                            onLoad={() => setIsThumbLoaded(true)}
-                            className={`absolute inset-0 w-full h-full object-cover group-hover:scale-105 group-hover:brightness-110 group-hover:shadow-lg group-hover:shadow-white/10 ${isThumbLoaded ? 'opacity-100' : 'opacity-0'}`}
-                            style={{ transition: 'opacity 500ms ease-out, transform 200ms ease-out, filter 200ms ease-out, box-shadow 200ms ease-out' }}
-                        />
+                        {!isThumbError && (
+                            <div className="absolute inset-0 bg-white/5 animate-pulse rounded-md" />
+                        )}
+                        {isThumbError ? (
+                            <div className="absolute inset-0 flex items-center justify-center bg-white/5 rounded-md">
+                                <Film size={16} className="text-white/20" />
+                            </div>
+                        ) : (
+                            <img
+                                src={videoDetails?.thumbnail || `https://i.ytimg.com/vi/${item.videoId}/mqdefault.jpg`}
+                                alt=""
+                                loading="lazy"
+                                onLoad={() => setIsThumbLoaded(true)}
+                                onError={() => setIsThumbError(true)}
+                                className={`absolute inset-0 w-full h-full object-cover group-hover:scale-105 group-hover:brightness-110 group-hover:shadow-lg group-hover:shadow-white/10 ${isThumbLoaded ? 'opacity-100' : 'opacity-0'}`}
+                                style={{ transition: 'opacity 500ms ease-out, transform 200ms ease-out, filter 200ms ease-out, box-shadow 200ms ease-out' }}
+                            />
+                        )}
                         {/* Play button overlay — visible on row hover, hidden when already playing */}
                         {!isNowPlaying && (
                             <button

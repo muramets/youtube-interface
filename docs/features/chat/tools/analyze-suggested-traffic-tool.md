@@ -4,6 +4,8 @@
 
 **Реализовано.** AI вызывает `analyzeSuggestedTraffic` в чате, передаёт `videoId` + `depth`, получает per-video timeline по всем снапшотам с дельтами и transitions между периодами. Определяет self-channel видео, вычисляет content trajectory (эволюция ключевых слов, каналов, тегов по снапшотам). Enrichment из `cached_external_videos` (tags, channelTitle).
 
+**Snapshot count denormalization:** `suggestedTrafficSnapshotCount` записывается на документ видео при каждом create/delete снэпшота и при входе в Traffic таб (lazy sync). `getMultipleVideoDetails` пробрасывает это поле для own-видео, а tool description указывает LLM проверять его перед вызовом.
+
 **Ключевые принципы:**
 1. **Deterministic API** — `depth` enum вместо свободного числа
 2. **Code = math, LLM = patterns** — handler считает дельты и статистику; LLM интерпретирует паттерны
@@ -241,9 +243,9 @@ Per-snapshot эволюция контента:
 ---
 
 ## Связанные фичи
-- [Suggested Traffic UI](../../video-details/suggested-traffic.md) — откуда берутся CSV и данные enrichment
+- [Suggested Traffic UI](../../video-details/suggested-traffic/) — откуда берутся CSV и данные enrichment
 - [Traffic Sources Tool](../../video-details/traffic-sources.md) — gateway tool (`analyzeTrafficSources`) вызывается перед drill-down
-- [YouTube Research Tools](./youtube-research-tools.md) — Telescope Pattern (Layer 3)
+- [Telescope Pattern Overview](./README.md) — архитектура tool chain
 - Chat — SSE streaming, tool call pipeline, ToolCallSummary UI
 
 ---

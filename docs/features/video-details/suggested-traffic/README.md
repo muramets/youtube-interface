@@ -52,6 +52,8 @@ YT_RELATED.kJQP7kiw5Fk,Luis Fonsi - Despacito,280,52.1,0:11:09,8500,3.29
 | niche, nicheProperty | — | — | ✅ (+ manual) |
 
 > Enrichment делает 2 API-вызова на batch (до 50 видео): `videos.list` (title, description, tags, viewCount, duration) + `channels.list` (subscriberCount, channelAvatar). Квота: 2 units на batch. Результат кэшируется в `cached_external_videos` — shared коллекция, доступная всем фичам.
+>
+> Подробнее о процессе обогащения и блокировке Smart Assistant: [Data Repair & Smart Assistant Gate](./data-repair.md)
 
 ---
 
@@ -130,7 +132,7 @@ Canvas ноды содержат enrichment data (description, tags) — они 
 - [x] Delta mode (прирост между снапшотами)
 - [x] Packaging snapshot preservation (если version удалена)
 
-### Stage 3 — Enrichment ✅
+### Stage 3 — Enrichment ✅ → [Data Repair doc](./data-repair.md)
 - [x] Pre-upload: patch titles из кэша (`cached_external_videos`)
 - [x] Missing Titles modal + `repairTrafficSources` (YouTube API)
 - [x] CSV regeneration после repair
@@ -177,9 +179,10 @@ Bridge передаёт только IDs вместо полных данных.
 ---
 
 ## Связанные фичи
-- [Traffic Sources](./traffic-sources.md) — агрегированные метрики по источникам. `analyzeTrafficSources` = gateway, `analyzeSuggestedTraffic` = drill-down
-- [YouTube Research Tools](../chat/tools/youtube-research-tools.md) — `analyzeSuggestedTraffic` входит в Telescope Pattern (Layer 3 — drill-down tool)
-- [analyzeSuggestedTraffic Tool Doc](../chat/tools/analyze-suggested-traffic-tool.md) — подробная документация AI-тула (параметры, output, stages)
+- [Traffic Sources](../traffic-sources.md) — агрегированные метрики по источникам. `analyzeTrafficSources` = gateway, `analyzeSuggestedTraffic` = drill-down
+- [Data Repair & Smart Assistant Gate](./data-repair.md) — enrichment flow, gatekeeper pattern, cache-first архитектура
+- [Telescope Pattern Overview](../../chat/tools/README.md) — `analyzeSuggestedTraffic` входит в Telescope Pattern (Layer 3 — drill-down tool)
+- [analyzeSuggestedTraffic Tool Doc](../../chat/tools/analyze-suggested-traffic-tool.md) — подробная документация AI-тула (параметры, output, stages)
 - Chat — Chat Bridge передаёт `SuggestedTrafficContext` через `appContextStore`; `SuggestedTrafficChip` в chat UI
 - Canvas — Traffic nodes с frame grouping по snapshot'ам
 - Video Details — Suggested Traffic живёт как таб `traffic` внутри Details page
@@ -268,25 +271,25 @@ Bridge передаёт только IDs вместо полных данных.
 | `core/services/traffic/TrafficDataService.ts` | Firestore CRUD for traffic data |
 | `core/services/traffic/TrafficSnapshotService.ts` | Snapshot creation → Cloud Storage + Firestore |
 | `core/services/traffic/TrafficDeltaService.ts` | Delta computation (current vs previous) |
-| `core/services/TrafficNicheService.ts` | Niche/group CRUD |
-| `core/services/TrafficNoteService.ts` | Per-video notes |
-| `core/services/TrafficTypeService.ts` | Traffic type assignments (autoplay/click) |
-| `core/services/ViewerTypeService.ts` | Viewer type assignments (bouncer→core) |
-| `core/services/VideoReactionService.ts` | Reactions (star/like/dislike) |
+| `core/services/suggestedTraffic/TrafficNicheService.ts` | Niche/group CRUD |
+| `core/services/suggestedTraffic/TrafficNoteService.ts` | Per-video notes |
+| `core/services/suggestedTraffic/TrafficTypeService.ts` | Traffic type assignments (autoplay/click) |
+| `core/services/suggestedTraffic/ViewerTypeService.ts` | Viewer type assignments (bouncer→core) |
+| `core/services/suggestedTraffic/VideoReactionService.ts` | Reactions (star/like/dislike) |
 
 ### Frontend — Types & Stores
 | Файл | Назначение |
 |------|-----------|
-| `core/types/traffic.ts` | `TrafficSource`, `EnrichedTrafficSource`, `TrafficSnapshot`, `TrafficData` |
+| `core/types/suggestedTraffic/traffic.ts` | `TrafficSource`, `EnrichedTrafficSource`, `TrafficSnapshot`, `TrafficData` |
 | `core/types/appContext.ts` | `SuggestedTrafficContext`, `SuggestedVideoItem`, `TrafficSourceCardData` |
-| `core/types/suggestedTrafficNiches.ts` | Niche taxonomy |
-| `core/types/videoTrafficType.ts` | `TrafficType` enum |
-| `core/types/viewerType.ts` | `ViewerType` enum |
+| `core/types/suggestedTraffic/suggestedTrafficNiches.ts` | Niche taxonomy |
+| `core/types/suggestedTraffic/videoTrafficType.ts` | `TrafficType` enum |
+| `core/types/suggestedTraffic/viewerType.ts` | `ViewerType` enum |
 | `core/stores/appContextStore.ts` | `setSlot('traffic', context)` — Chat Bridge |
-| `core/stores/trends/useTrafficNicheStore.ts` | Niche assignments |
-| `core/stores/trends/useTrafficTypeStore.ts` | Traffic type labels |
-| `core/stores/trends/useTrafficNoteStore.ts` | Per-video notes |
-| `core/stores/trends/trafficFilterStore.ts` | Traffic filter state |
+| `core/stores/suggestedTraffic/useTrafficNicheStore.ts` | Niche assignments |
+| `core/stores/suggestedTraffic/useTrafficTypeStore.ts` | Traffic type labels |
+| `core/stores/suggestedTraffic/useTrafficNoteStore.ts` | Per-video notes |
+| `core/stores/suggestedTraffic/trafficFilterStore.ts` | Traffic filter state |
 
 ### Frontend — Chat & Canvas integration
 | Файл | Назначение |

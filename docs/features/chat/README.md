@@ -107,7 +107,7 @@ Gemini ссылается на конкретные видео, пользова
 - [x] `getChannelOverview(channelId)` — статистика канала, последние видео, subscriber count
 - [x] `browseChannelVideos(channelId)` — пагинированный список видео канала с метриками
 - [x] Кеширование внешних видео в `cached_external_videos/` для повторного использования
-- [x] Подробнее: [YouTube Research Tools](./tools/youtube-research-tools.md)
+- [x] Подробнее: [AI Chat Tools](./tools/README.md)
 
 **Что осталось:**
 - [ ] `searchYouTube(query)` — поиск видео на YouTube
@@ -139,9 +139,10 @@ Gemini ссылается на конкретные видео, пользова
 ---
 
 ## Связанные фичи
+- [Context Bridges](./context-bridges/README.md) — 4 моста: автосинхронизация выделения со страниц в Chat (architecture, bridges, enrichment pipeline)
 - [Multi-Provider Architecture](./multi-provider.md) — Gemini + Claude, provider router, abstraction layer
 - [Memory System](./memory-system.md) — 4-слойная память: L1-L4, summarization, cross-conversation memory
-- [YouTube Research Tools](./tools/youtube-research-tools.md) — Telescope pattern: getChannelOverview → browseChannelVideos
+- [AI Chat Tools](./tools/README.md) — Telescope pattern: getChannelOverview → browseChannelVideos
 - [viewThumbnails](./tools/view-thumbnails.md) — AI визуально анализирует обложки видео
 - [analyzeSuggestedTraffic](./tools/analyze-suggested-traffic-tool.md) — анализ suggested traffic с визуальным UI
 - [Prompt Caching](./prompt-caching.md) — кэширование system prompt, tools и истории для экономии ~80% на input tokens

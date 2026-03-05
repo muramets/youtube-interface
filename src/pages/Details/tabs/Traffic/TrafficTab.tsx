@@ -166,7 +166,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     }, [displayedSources]);
 
     // Fetch only the needed external videos (not the entire collection)
-    const { videoMap: suggestedVideoMap } = useExternalVideoLookup(
+    const { videoMap: suggestedVideoMap, isLoading: isExternalCacheLoading } = useExternalVideoLookup(
         sourceVideoIds,
         user?.uid || '',
         currentChannel?.id || ''
@@ -1188,6 +1188,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                     setIsMissingTitlesModalOpen(true);
                 }}
                 isAssistantEnabled={isAssistantEnabled}
+                isAssistantLoading={isExternalCacheLoading}
                 onToggleAssistant={() => {
                     assistantLogger.debug('[DEBUG-MODAL] onToggleAssistant clicked', {
                         currentEnabled: isAssistantEnabled,
@@ -1197,6 +1198,12 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                         cachedVideosCount: allVideos.length,
                         displayedSourcesCount: displayedSources.length
                     });
+
+                    // Wait for external cache to load before deciding — avoids false "needs sync" modal
+                    if (!isAssistantEnabled && isExternalCacheLoading) {
+                        assistantLogger.debug('[DEBUG-MODAL] External cache still loading, skipping check');
+                        return;
+                    }
 
                     // Smart Check: If we have missing titles OR unenriched data, prompt to sync first
                     if (!isAssistantEnabled && (existingMissingCount > 0 || existingUnenrichedCount > 0)) {
