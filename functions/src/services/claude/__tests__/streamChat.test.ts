@@ -114,6 +114,7 @@ function finalMessageEvent(usage: {
     input_tokens: number;
     output_tokens: number;
     cache_read_input_tokens?: number;
+    cache_creation_input_tokens?: number;
 }): StreamEvent {
     return {
         event: "finalMessage",
@@ -898,5 +899,359 @@ describe("Claude streamChat — error handling", () => {
 
         // No retry
         expect(mockMessagesStream).toHaveBeenCalledTimes(1);
+    });
+});
+
+// ===========================================================================
+// Suite F: Prompt caching — cache_control breakpoint placement
+// ===========================================================================
+
+describe("Claude streamChat — prompt caching (cache_control breakpoints)", () => {
+    const EXPECTED_CACHE_CONTROL = { type: "ephemeral", ttl: "1h" };
+
+    // --- BP1: System prompt ---
+
+    it("converts system prompt to TextBlockParam[] with cache_control (BP1)", async () => {
+        const mockStream = mockClientStreams({
+            events: [
+                ...textEvents("Hi"),
+                finalMessageEvent({ input_tokens: 100, output_tokens: 50 }),
+            ],
+        });
+
+        await streamChat(makeOpts({ systemPrompt: "You are a helpful assistant." }));
+
+        const params = mockStream.mock.calls[0][0];
+        expect(params.system).toEqual([{
+            type: "text",
+            text: "You are a helpful assistant.",
+            cache_control: EXPECTED_CACHE_CONTROL,
+        }]);
+    });
+
+    it("skips BP1 when no system prompt is provided", async () => {
+        const mockStream = mockClientStreams({
+            events: [
+                ...textEvents("Hi"),
+                finalMessageEvent({ input_tokens: 100, output_tokens: 50 }),
+            ],
+        });
+
+        await streamChat(makeOpts({ systemPrompt: undefined }));
+
+        const params = mockStream.mock.calls[0][0];
+        expect(params.system).toBeUndefined();
+    });
+
+    // --- BP2: Last tool definition ---
+
+    it("adds cache_control to the last tool definition (BP2)", async () => {
+        const mockStream = mockClientStreams({
+            events: [
+                ...textEvents("Hi"),
+                finalMessageEvent({ input_tokens: 100, output_tokens: 50 }),
+            ],
+        });
+
+        const tools = [
+            { name: "tool1", description: "First", parametersJsonSchema: { type: "object" } },
+            { name: "tool2", description: "Second", parametersJsonSchema: { type: "object" } },
+        ];
+
+        await streamChat(makeOpts({
+            tools,
+            toolContext: { userId: "u1", channelId: "c1" },
+        }));
+
+        const params = mockStream.mock.calls[0][0];
+        expect(params.tools[0].cache_control).toBeUndefined();
+        expect(params.tools[1].cache_control).toEqual(EXPECTED_CACHE_CONTROL);
+    });
+
+    it("adds cache_control to a single tool (BP2 with 1 tool)", async () => {
+        const mockStream = mockClientStreams({
+            events: [
+                ...textEvents("Hi"),
+                finalMessageEvent({ input_tokens: 100, output_tokens: 50 }),
+            ],
+        });
+
+        const tools = [
+            { name: "onlyTool", description: "Only", parametersJsonSchema: { type: "object" } },
+        ];
+
+        await streamChat(makeOpts({
+            tools,
+            toolContext: { userId: "u1", channelId: "c1" },
+        }));
+
+        const params = mockStream.mock.calls[0][0];
+        expect(params.tools[0].cache_control).toEqual(EXPECTED_CACHE_CONTROL);
+    });
+
+    it("skips BP2 when no tools are provided", async () => {
+        const mockStream = mockClientStreams({
+            events: [
+                ...textEvents("Hi"),
+                finalMessageEvent({ input_tokens: 100, output_tokens: 50 }),
+            ],
+        });
+
+        await streamChat(makeOpts({ tools: [] }));
+
+        const params = mockStream.mock.calls[0][0];
+        expect(params.tools).toBeUndefined();
+    });
+
+    // --- BP3: Incremental message history ---
+
+    it("adds cache_control to last content block of second-to-last message (BP3)", async () => {
+        const mockStream = mockClientStreams({
+            events: [
+                ...textEvents("Response"),
+                finalMessageEvent({ input_tokens: 100, output_tokens: 50 }),
+            ],
+        });
+
+        await streamChat(makeOpts({
+            history: [
+                { id: "1", role: "user", text: "Hello" },
+                { id: "2", role: "model", text: "Hi there" },
+            ],
+            text: "How are you?",
+        }));
+
+        const params = mockStream.mock.calls[0][0];
+        // messages: [user_1, assistant_1, user_2]
+        // BP3 on assistant_1 (second-to-last)
+        const secondToLast = params.messages[1];
+        expect(secondToLast.role).toBe("assistant");
+        const lastBlock = secondToLast.content[secondToLast.content.length - 1];
+        expect(lastBlock.cache_control).toEqual(EXPECTED_CACHE_CONTROL);
+    });
+
+    it("skips BP3 when there is no history (first message)", async () => {
+        const mockStream = mockClientStreams({
+            events: [
+                ...textEvents("Hi"),
+                finalMessageEvent({ input_tokens: 100, output_tokens: 50 }),
+            ],
+        });
+
+        await streamChat(makeOpts({ history: [], text: "Hello" }));
+
+        const params = mockStream.mock.calls[0][0];
+        // Only 1 message — no second-to-last
+        expect(params.messages).toHaveLength(1);
+        const userMsg = params.messages[0];
+        const lastBlock = userMsg.content[userMsg.content.length - 1];
+        expect(lastBlock.cache_control).toBeUndefined();
+    });
+
+    it("does not add BP3 to the current user message (only to history)", async () => {
+        const mockStream = mockClientStreams({
+            events: [
+                ...textEvents("Response"),
+                finalMessageEvent({ input_tokens: 100, output_tokens: 50 }),
+            ],
+        });
+
+        await streamChat(makeOpts({
+            history: [
+                { id: "1", role: "user", text: "Hello" },
+                { id: "2", role: "model", text: "Hi" },
+            ],
+            text: "New question",
+        }));
+
+        const params = mockStream.mock.calls[0][0];
+        // Last message (current user) should NOT have cache_control
+        const lastMsg = params.messages[params.messages.length - 1];
+        const lastBlock = lastMsg.content[lastMsg.content.length - 1];
+        expect(lastBlock.cache_control).toBeUndefined();
+    });
+
+    it("shifts BP3 to assistant tool_use message in agentic loop", async () => {
+        const toolContext = { userId: "u1", channelId: "c1" };
+        const tools = [
+            { name: "getTool", description: "Get", parametersJsonSchema: { type: "object" } },
+        ];
+
+        const mockStream = mockClientStreams(
+            // Iteration 1: tool_use
+            {
+                events: [
+                    toolUseEvent("call-1", "getTool", { id: "1" }),
+                    finalMessageEvent({ input_tokens: 20, output_tokens: 10 }),
+                ],
+            },
+            // Iteration 2: final text
+            {
+                events: [
+                    ...textEvents("Done"),
+                    finalMessageEvent({ input_tokens: 40, output_tokens: 15 }),
+                ],
+            },
+        );
+
+        mockExecuteToolBatch.mockResolvedValueOnce({
+            results: [{
+                name: "getTool",
+                args: { id: "1" },
+                result: { success: true },
+            }],
+        });
+
+        await streamChat(makeOptsWithCallbacks({}, { tools, toolContext }));
+
+        // Second API call (iteration 2): messages = [user_msg, assistant_tool_use, tool_result_user]
+        const params2 = mockStream.mock.calls[1][0];
+        // BP3 on assistant_tool_use (second-to-last)
+        const assistantMsg = params2.messages[params2.messages.length - 2];
+        expect(assistantMsg.role).toBe("assistant");
+        const lastBlock = assistantMsg.content[assistantMsg.content.length - 1];
+        expect(lastBlock.cache_control).toEqual(EXPECTED_CACHE_CONTROL);
+    });
+
+    it("does not mutate original agenticMessages when applying BP3", async () => {
+        const toolContext = { userId: "u1", channelId: "c1" };
+        const tools = [
+            { name: "getTool", description: "Get", parametersJsonSchema: { type: "object" } },
+        ];
+
+        const mockStream = mockClientStreams(
+            // Iteration 1: tool_use
+            {
+                events: [
+                    toolUseEvent("call-1", "getTool", { id: "1" }),
+                    finalMessageEvent({ input_tokens: 20, output_tokens: 10 }),
+                ],
+            },
+            // Iteration 2: another tool_use
+            {
+                events: [
+                    toolUseEvent("call-2", "getTool", { id: "2" }),
+                    finalMessageEvent({ input_tokens: 30, output_tokens: 10 }),
+                ],
+            },
+            // Iteration 3: final text
+            {
+                events: [
+                    ...textEvents("Done"),
+                    finalMessageEvent({ input_tokens: 50, output_tokens: 20 }),
+                ],
+            },
+        );
+
+        mockExecuteToolBatch.mockResolvedValue({
+            results: [{
+                name: "getTool",
+                args: { id: "1" },
+                result: { ok: true },
+            }],
+        });
+
+        await streamChat(makeOptsWithCallbacks({}, { tools, toolContext }));
+
+        // Iteration 2: should have BP3 on iteration 1's assistant message
+        const params2 = mockStream.mock.calls[1][0];
+        const bp3msg2 = params2.messages[params2.messages.length - 2];
+        expect(bp3msg2.content[bp3msg2.content.length - 1].cache_control).toEqual(EXPECTED_CACHE_CONTROL);
+
+        // Iteration 3: BP3 should have moved to iteration 2's assistant message (not duplicated)
+        const params3 = mockStream.mock.calls[2][0];
+        const bp3msg3 = params3.messages[params3.messages.length - 2];
+        expect(bp3msg3.content[bp3msg3.content.length - 1].cache_control).toEqual(EXPECTED_CACHE_CONTROL);
+
+        // Earlier messages in iteration 3 should NOT have leftover cache_control from previous iterations
+        // (iteration 1's assistant message at index 1 should be clean)
+        const earlyAssistant = params3.messages[1];
+        if (earlyAssistant.role === "assistant" && Array.isArray(earlyAssistant.content)) {
+            const earlyLastBlock = earlyAssistant.content[earlyAssistant.content.length - 1];
+            expect(earlyLastBlock.cache_control).toBeUndefined();
+        }
+    });
+
+    // --- Cache token metrics ---
+
+    it("extracts cache_creation_input_tokens into cacheWriteTokens", async () => {
+        mockClientStreams({
+            events: [
+                ...textEvents("Hi"),
+                finalMessageEvent({
+                    input_tokens: 200,
+                    output_tokens: 80,
+                    cache_read_input_tokens: 150,
+                    cache_creation_input_tokens: 50,
+                }),
+            ],
+        });
+
+        const result = await streamChat(makeOpts());
+
+        expect(result.tokenUsage?.cachedTokens).toBe(150);
+        expect(result.tokenUsage?.cacheWriteTokens).toBe(50);
+    });
+
+    it("sets cacheWriteTokens to undefined when cache_creation_input_tokens is 0", async () => {
+        mockClientStreams({
+            events: [
+                ...textEvents("Hi"),
+                finalMessageEvent({
+                    input_tokens: 200,
+                    output_tokens: 80,
+                    cache_read_input_tokens: 0,
+                    cache_creation_input_tokens: 0,
+                }),
+            ],
+        });
+
+        const result = await streamChat(makeOpts());
+
+        expect(result.tokenUsage?.cacheWriteTokens).toBeUndefined();
+    });
+
+    it("accumulates cacheWriteTokens across agentic iterations", async () => {
+        const toolContext = { userId: "u1", channelId: "c1" };
+        const tools = [
+            { name: "getTool", description: "Get", parametersJsonSchema: { type: "object" } },
+        ];
+
+        mockClientStreams(
+            {
+                events: [
+                    toolUseEvent("call-1", "getTool", { id: "1" }),
+                    finalMessageEvent({
+                        input_tokens: 100,
+                        output_tokens: 10,
+                        cache_read_input_tokens: 0,
+                        cache_creation_input_tokens: 80,
+                    }),
+                ],
+            },
+            {
+                events: [
+                    ...textEvents("Done"),
+                    finalMessageEvent({
+                        input_tokens: 150,
+                        output_tokens: 20,
+                        cache_read_input_tokens: 80,
+                        cache_creation_input_tokens: 30,
+                    }),
+                ],
+            },
+        );
+
+        mockExecuteToolBatch.mockResolvedValueOnce({
+            results: [{ name: "getTool", args: { id: "1" }, result: { ok: true } }],
+        });
+
+        const result = await streamChat(
+            makeOptsWithCallbacks({}, { tools, toolContext }),
+        );
+
+        // Accumulated: 80 + 30 = 110 write, 0 + 80 = 80 read
+        expect(result.tokenUsage?.cacheWriteTokens).toBe(110);
+        expect(result.tokenUsage?.cachedTokens).toBe(80);
     });
 });

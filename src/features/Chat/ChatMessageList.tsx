@@ -3,6 +3,7 @@
 // =============================================================================
 
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { useChatScroll } from './hooks/useChatScroll';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -47,9 +48,10 @@ import type { ChatMessage } from '../../core/types/chat';
 import { getVideoCards, getTrafficContexts, getCanvasContexts } from '../../core/types/appContext';
 import type { VideoCardContext } from '../../core/types/appContext';
 import { buildVideoIdMap } from '../../core/utils/buildReferenceMap';
-import { estimateCostEur, type ModelPricing } from '../../core/types/chat';
+import { estimateCostEur, estimateCacheSavingsEur, type ModelPricing } from '../../core/types/chat';
+import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
 import { MemoryCheckpoint } from './components/MemoryCheckpoint';
-import { FileAudio, FileVideo, File, Copy, Check, ArrowDown, RotateCcw, Zap, MessageCircle, Pencil } from 'lucide-react';
+import { FileAudio, FileVideo, File, Copy, Check, ArrowDown, RotateCcw, MessageCircle, Pencil } from 'lucide-react';
 import { Timestamp } from 'firebase/firestore';
 import { useChatStore } from '../../core/stores/chat/chatStore';
 import { VideoReferenceTooltip } from './components/VideoReferenceTooltip';
@@ -58,7 +60,6 @@ import { MessageErrorBoundary } from './components/ChatBoundaries';
 import { VideoCardChip } from './VideoCardChip';
 import { SuggestedTrafficChip } from './SuggestedTrafficChip';
 import { CanvasSelectionChip } from './CanvasSelectionChip';
-import { debug } from '../../core/utils/debug';
 import { SelectionToolbar } from './components/SelectionToolbar';
 import { ThinkingBubble } from './components/ThinkingBubble';
 import { ToolCallSummary } from './components/ToolCallSummary';
@@ -211,9 +212,6 @@ const MSG_BUBBLE_BASE = 'chat-message-bubble py-2 px-3.5 rounded-xl text-[13px] 
 const MSG_BUBBLE_USER = `${MSG_BUBBLE_BASE} bg-[#2a2a2a] text-text-primary rounded-br-sm`;
 const MSG_BUBBLE_MODEL = `${MSG_BUBBLE_BASE} bg-bg-secondary text-text-primary rounded-bl-sm`;
 
-// --- Scroll State Machine types ---
-type ScrollIntent = 'idle' | 'pinned' | 'away';
-
 // --- Debounced markdown for streaming ---
 function useDebouncedMarkdown(text: string | null, delay: number): string | null {
     const [debounced, setDebounced] = useState(text);
@@ -268,6 +266,22 @@ const MessageItem: React.FC<MessageItemProps> = React.memo(({ msg, modelPricing,
         }, interval);
         return () => clearInterval(id);
     }, [msg.createdAt]);
+
+    // Pre-compute cache-aware cost for model messages (avoids IIFE in JSX)
+    const messageCost = useMemo(() => {
+        if (msg.role !== 'model' || !msg.tokenUsage || !modelPricing) return null;
+        const { promptTokens, completionTokens, cachedTokens, cacheWriteTokens } = msg.tokenUsage;
+        const totalInput = promptTokens + (cachedTokens ?? 0) + (cacheWriteTokens ?? 0);
+        const cost = estimateCostEur(modelPricing, promptTokens, completionTokens, cachedTokens, cacheWriteTokens);
+        const savings = estimateCacheSavingsEur(modelPricing, promptTokens, completionTokens, cachedTokens, cacheWriteTokens);
+        const cachedPct = cachedTokens ? Math.round((cachedTokens / totalInput) * 100) : 0;
+        const tooltip = [
+            `Input: ${totalInput.toLocaleString()} tokens${cachedTokens ? ` (${cachedTokens.toLocaleString()} cached)` : ''}`,
+            `Output: ${completionTokens.toLocaleString()} tokens`,
+            `Cost: €${cost.toFixed(4)}${savings > 0 ? ` (without cache: €${(cost + savings).toFixed(4)})` : ''}`,
+        ].join('\n');
+        return { cost, cachedPct, tooltip };
+    }, [msg.role, msg.tokenUsage, modelPricing]);
 
     return (
         <div ref={itemRef} data-message-id={msg.id} data-message-role={msg.role} className={`chat-message flex flex-col max-w-[85%] ${skipAnimation ? '' : 'animate-message-in'} ${msg.role === 'user' ? 'self-end' : 'self-start'}`}>
@@ -346,12 +360,13 @@ const MessageItem: React.FC<MessageItemProps> = React.memo(({ msg, modelPricing,
                 <span className="text-[10px] text-text-tertiary select-none cursor-default hover:text-text-secondary transition-colors">
                     {timestamp}
                 </span>
-                {msg.role === 'model' && msg.tokenUsage && (
-                    <span className="text-[10px] text-text-tertiary select-none cursor-default inline-flex items-center gap-0.5 hover:text-text-secondary transition-colors">
-                        <Zap size={10} /> {msg.tokenUsage.totalTokens.toLocaleString()}
-                        {modelPricing && (
-                            <> • €{estimateCostEur(modelPricing, msg.tokenUsage.promptTokens, msg.tokenUsage.completionTokens).toFixed(4)}</>)}
-                    </span>
+                {messageCost && (
+                    <PortalTooltip content={messageCost.tooltip} enterDelay={300}>
+                        <span className="text-[10px] text-text-tertiary select-none cursor-default inline-flex items-center gap-0.5 hover:text-text-secondary transition-colors">
+                            €{messageCost.cost.toFixed(4)}
+                            {messageCost.cachedPct > 0 && <span className="ml-0.5" style={{ color: 'var(--color-success)' }}>↓{messageCost.cachedPct}%</span>}
+                        </span>
+                    </PortalTooltip>
                 )}
                 {msg.role === 'model' && (
                     <CopyButton text={msg.text} />
@@ -435,238 +450,52 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
         [memories, activeConversationId]
     );
 
-    const containerRef = useRef<HTMLDivElement>(null);
-    const bottomRef = useRef<HTMLDivElement>(null);
-    const pinAnchorRef = useRef<HTMLDivElement>(null);
-    const spacerRef = useRef<HTMLDivElement>(null);
-    const [showScrollFab, setShowScrollFab] = useState(false);
-    const isProgrammaticRef = useRef(false);
-    const scrollEndCleanupRef = useRef<(() => void) | null>(null);
+    // --- Scroll State Machine (extracted to dedicated hook) ---
+    const lastMsg = messages[messages.length - 1];
+    const {
+        containerRef, pinAnchorRef, spacerRef, bottomRef,
+        showScrollFab, scrollToBottom, handleScroll,
+    } = useChatScroll({
+        messageCount: messages.length,
+        isStreaming,
+        streamingText,
+        lastMessageRole: lastMsg?.role,
+    });
 
-    // --- Scroll State Machine ---
-    const intentRef = useRef<ScrollIntent>('idle');
-    const prevMsgCountRef = useRef(messages.length);
-    const prevStreamingRef = useRef(isStreaming);
-    // Sticky flag: stays true for ~1s after streaming ends so the
-    // persisted model message can appear without re-triggering entrance animation.
-    const recentlyStreamedRef = useRef(false);
+    // Animation tracking — determines whether to skip entrance animation.
+    // Uses React's "adjusting state based on props" pattern (setState during render)
+    // to track previous values without extra render cycles.
+
+    // 1. Reconciliation detection: message count didn't grow (ID swap, not new message)
+    const [prevMsgCount, setPrevMsgCount] = useState(messages.length);
+    let skipAnimateReconciled = false;
+    if (messages.length !== prevMsgCount) {
+        setPrevMsgCount(messages.length);
+    } else if (messages.length > 0) {
+        skipAnimateReconciled = true;
+    }
+
+    // 2. recentlyStreamed: true for ~1s after streaming ends so the persisted
+    // model message appears without entrance animation blink.
+    const [recentlyStreamed, setRecentlyStreamed] = useState(false);
+    const [prevIsStreaming, setPrevIsStreaming] = useState(isStreaming);
+    if (isStreaming !== prevIsStreaming) {
+        setPrevIsStreaming(isStreaming);
+        // Transition: streaming → not streaming → arm the flag
+        if (!isStreaming) {
+            setRecentlyStreamed(true);
+        }
+    }
+    useEffect(() => {
+        if (!recentlyStreamed) return;
+        const timer = setTimeout(() => setRecentlyStreamed(false), 1000);
+        return () => clearTimeout(timer);
+    }, [recentlyStreamed]);
+
     const failedMessageId = useChatStore(s => s.lastFailedRequest?.messageId);
     const retryLastMessage = useChatStore(s => s.retryLastMessage);
     const setEditingMessage = useChatStore(s => s.setEditingMessage);
     const debouncedStreamingText = useDebouncedMarkdown(streamingText, 150);
-
-    // Helper: set scrollTop without triggering handleScroll's away-detection
-    // Uses scrollend event to keep guard up for entire smooth scroll duration
-    const programmaticScroll = useCallback((fn: () => void) => {
-        debug.scroll('programmaticScroll: setting isProgrammatic=true');
-        // Clean up any previous listener
-        scrollEndCleanupRef.current?.();
-        isProgrammaticRef.current = true;
-        fn();
-        const container = containerRef.current;
-        if (container) {
-            const reset = () => {
-                isProgrammaticRef.current = false;
-                const el = containerRef.current;
-                const finalPos = el ? `scrollTop=${el.scrollTop} scrollHeight=${el.scrollHeight} clientHeight=${el.clientHeight}` : 'no container';
-                debug.scroll(`programmaticScroll: reset isProgrammatic=false (scrollend/timeout) ${finalPos}`);
-                clearTimeout(fallback);
-                container.removeEventListener('scrollend', reset);
-                scrollEndCleanupRef.current = null;
-            };
-            container.addEventListener('scrollend', reset, { once: true });
-            const fallback = setTimeout(reset, 1000);
-            scrollEndCleanupRef.current = reset;
-        }
-    }, []);
-
-    // Helper: expand/collapse spacer synchronously via DOM
-    const setSpacer = useCallback((height: number) => {
-        debug.scroll(`setSpacer: ${height}px`);
-        if (spacerRef.current) {
-            spacerRef.current.style.minHeight = height > 0 ? `${height}px` : '0px';
-        }
-    }, []);
-
-    // Single effect: all scroll decisions in one place, clear priority
-    useEffect(() => {
-        const container = containerRef.current;
-        const bottom = bottomRef.current;
-        if (!container || !bottom) return;
-
-        const newCount = messages.length;
-        const prevCount = prevMsgCountRef.current;
-        const streamingJustStarted = isStreaming && !prevStreamingRef.current;
-        const streamingJustEnded = !isStreaming && prevStreamingRef.current;
-
-        debug.scroll(`=== EFFECT === intent=${intentRef.current} msgs=${prevCount}→${newCount} streaming=${isStreaming} justStarted=${streamingJustStarted} justEnded=${streamingJustEnded} streamingText=${streamingText ? streamingText.length + 'chars' : 'null'}`);
-        debug.scroll(`  container: scrollTop=${container.scrollTop} scrollHeight=${container.scrollHeight} clientHeight=${container.clientHeight}`);
-
-        // Update trackers
-        prevMsgCountRef.current = newCount;
-        prevStreamingRef.current = isStreaming;
-
-        // --- Priority 1: Pin-to-top when user sends a new message ---
-        // Skip pin-to-top for the very first message (prevCount === 0): it's
-        // already at the top by default, and expanding the spacer would only
-        // create unwanted scroll room into empty space.
-        if (newCount > prevCount && prevCount > 0 && intentRef.current !== 'away') {
-            const lastMsg = messages[newCount - 1];
-            debug.scroll(`P1 check: newMsg role=${lastMsg?.role}`);
-            if (lastMsg?.role === 'user') {
-                // 1. Expand spacer SYNCHRONOUSLY so scrollTop won't be clamped.
-                // Use remaining space after the user message (not full clientHeight)
-                // to avoid creating excess scroll room when there are few messages.
-                const anchor = pinAnchorRef.current;
-                const lastMsgEl = anchor?.previousElementSibling as HTMLElement | null;
-                const msgHeight = lastMsgEl?.offsetHeight ?? 0;
-                const spacerHeight = Math.max(0, container.clientHeight - msgHeight - 24);
-                setSpacer(spacerHeight);
-                debug.scroll(`P1: spacer expanded to ${spacerHeight}px, scrollHeight now=${container.scrollHeight}`);
-
-                // 2. Smooth scroll to pin user message at top
-                if (anchor) {
-                    if (lastMsgEl) {
-                        const cRect = container.getBoundingClientRect();
-                        const mRect = lastMsgEl.getBoundingClientRect();
-                        const targetScrollTop = container.scrollTop + (mRect.top - cRect.top - 12);
-                        debug.scroll(`P1: pin scroll — current=${container.scrollTop} target=${targetScrollTop} delta=${mRect.top - cRect.top - 12} mRect.top=${mRect.top} cRect.top=${cRect.top}`);
-                        programmaticScroll(() => {
-                            container.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
-                        });
-                    } else {
-                        debug.scroll('P1: no lastMsgEl found (anchor.previousElementSibling is null)');
-                    }
-                } else {
-                    debug.scroll('P1: no pinAnchorRef');
-                }
-
-                intentRef.current = 'pinned';
-                debug.scroll('P1: intent → pinned, returning');
-                return;
-            }
-        }
-
-        // --- Priority 2: During streaming — stay pinned, no auto-scroll ---
-        // Text grows below user message. User scrolls manually if needed.
-        if (isStreaming && intentRef.current !== 'away') {
-            if (streamingJustStarted && intentRef.current === 'idle') {
-                debug.scroll('P2: streaming just started, intent idle → pinned');
-                intentRef.current = 'pinned';
-            }
-            debug.scroll(`P2: streaming active, intent=${intentRef.current}, no scroll`);
-            return;
-        }
-
-        // --- Priority 3: Streaming just ended — shrink spacer, preserve scroll position ---
-        // The spacer was expanded in P1 to pin the user message at the top.
-        // Collapsing it to 0 instantly would clamp scrollTop and cause a jump.
-        // Instead, compute the minimum spacer height that keeps the current
-        // scrollTop valid, then let the spacer fully collapse on next user scroll.
-        if (streamingJustEnded) {
-            const currentScroll = container.scrollTop;
-            const contentH = container.scrollHeight - (spacerRef.current?.offsetHeight ?? 0);
-            const neededScrollH = currentScroll + container.clientHeight;
-            const neededSpacer = Math.max(0, neededScrollH - contentH);
-            debug.scroll(`P3: streaming ended, spacer ${spacerRef.current?.offsetHeight ?? 0}→${neededSpacer}, preserving scrollTop=${currentScroll}`);
-            setSpacer(neededSpacer);
-            intentRef.current = 'idle';
-            return;
-        }
-
-        // --- Priority 4: Initial history load — scroll to bottom ---
-        // Non-initial messages (e.g. AI response persisted after streaming) do NOT
-        // auto-scroll — the user decides when to navigate to the end.
-        if (newCount > prevCount && intentRef.current === 'idle') {
-            const isInitialLoad = prevCount === 0;
-            debug.scroll(`P4: new messages, isInitialLoad=${isInitialLoad}`);
-            if (isInitialLoad) {
-                // Initial load: wait for DOM layout to complete, then instant-scroll to true bottom
-                requestAnimationFrame(() => {
-                    requestAnimationFrame(() => {
-                        const finalScrollHeight = container.scrollHeight;
-                        const target = finalScrollHeight - container.clientHeight;
-                        debug.scroll(`P4 (instant): scrollHeight=${finalScrollHeight} target=${target}`);
-                        container.scrollTop = target;
-                        debug.scroll(`P4 (instant): scrollTop after set=${container.scrollTop}`);
-                    });
-                });
-            }
-        }
-
-        debug.scroll(`=== END === intent=${intentRef.current}`);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [messages.length, streamingText, isStreaming]);
-
-    // Track scroll position for FAB + away detection (ignores programmatic scrolls)
-    const handleScroll = useCallback(() => {
-        if (isProgrammaticRef.current) {
-            debug.scroll('handleScroll: skipped (programmatic)');
-            return;
-        }
-        const el = containerRef.current;
-        if (!el) return;
-        const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-
-        setShowScrollFab(distanceFromBottom > 200);
-
-        if (distanceFromBottom > 80 && intentRef.current === 'pinned') {
-            debug.scroll(`handleScroll: user scrolled away! distance=${distanceFromBottom} intent pinned → away`);
-            intentRef.current = 'away';
-        }
-
-        if (distanceFromBottom <= 80 && intentRef.current === 'away') {
-            debug.scroll(`handleScroll: user scrolled back near bottom, intent away → idle`);
-            intentRef.current = 'idle';
-        }
-
-        // Lazy spacer cleanup: P3 leaves a residual spacer to preserve scroll
-        // position after streaming ends. Once the user scrolls, collapse it —
-        // by now the AI response content has filled the space.
-        const spacerH = spacerRef.current?.offsetHeight ?? 0;
-        if (spacerH > 0 && intentRef.current === 'idle') {
-            debug.scroll(`handleScroll: collapsing residual spacer (${spacerH}px)`);
-            setSpacer(0);
-        }
-    }, [setSpacer]);
-
-    // Auto-scroll when container height shrinks (e.g. context chips appear in ChatInput)
-    useEffect(() => {
-        const el = containerRef.current;
-        if (!el) return;
-        let prevHeight = el.clientHeight;
-        const observer = new ResizeObserver(() => {
-            const newHeight = el.clientHeight;
-            if (newHeight < prevHeight) {
-                // Container shrank — check if user was near bottom before the resize
-                const distFromBottom = el.scrollHeight - el.scrollTop - prevHeight;
-                if (distFromBottom < 80) {
-                    el.scrollTop = el.scrollHeight - newHeight;
-                }
-            }
-            prevHeight = newHeight;
-        });
-        observer.observe(el);
-        return () => observer.disconnect();
-    }, []);
-
-    const scrollToBottom = useCallback(() => {
-        debug.scroll('scrollToBottom clicked');
-        intentRef.current = 'idle';
-        setSpacer(0);
-        programmaticScroll(() => {
-            containerRef.current?.scrollTo({ top: containerRef.current.scrollHeight, behavior: 'smooth' });
-        });
-    }, [setSpacer, programmaticScroll]);
-
-    // Clear the recently-streamed flag after 1s (enough time for Firestore to deliver the message)
-    // Must be before early returns to satisfy Rules of Hooks.
-    useEffect(() => {
-        if (!isStreaming && recentlyStreamedRef.current) {
-            const timer = setTimeout(() => { recentlyStreamedRef.current = false; }, 1000);
-            return () => clearTimeout(timer);
-        }
-    }, [isStreaming]);
 
     if (messages.length === 0 && !isStreaming) {
         return (
@@ -680,19 +509,12 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     }
 
     // --- Skip entrance animation in two cases: ---
-    // 1. Model message that just appeared after streaming ended (recentlyStreamedRef stays
+    // 1. Model message that just appeared after streaming ended (recentlyStreamed stays
     //    true for ~1s after streaming ends so the Firestore message arrives without blink).
-    // 2. User message that was reconciled (optimistic → Firestore): detected when count
+    // 2. User message that was reconciled (optimistic -> Firestore): detected when count
     //    didn't grow (same length = ID swap, not a new message).
     const lastMsgIndex = messages.length - 1;
-    const skipAnimateLastModel = (recentlyStreamedRef.current || isStreaming) && messages[lastMsgIndex]?.role === 'model';
-    const skipAnimateReconciled = messages.length === prevMsgCountRef.current && messages.length > 0;
-
-    // Arm the recently-streamed timer on transition isStreaming → false
-    // (runs during render, synchronously — ref write is intentional)
-    if (!isStreaming && recentlyStreamedRef.current === false && prevStreamingRef.current) {
-        recentlyStreamedRef.current = true;
-    }
+    const skipAnimateLastModel = (recentlyStreamed || isStreaming) && messages[lastMsgIndex]?.role === 'model';
 
     return (
         <div className="chat-messages flex-1 min-h-0 overflow-y-auto px-3.5 pt-3.5 pb-1 flex flex-col gap-3" ref={containerRef} onScroll={handleScroll}>

@@ -22,8 +22,10 @@ export function buildSettingsLayer(
 ): string[] {
     const sections: string[] = [];
 
-    // Current date/time context (LLMs have no built-in clock)
-    sections.push(`Current date and time: ${new Date().toLocaleString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' })}.`);
+    // Date-only (no time): any time component would invalidate Claude's prefix cache
+    // because system prompt is the first segment in the cache prefix.
+    // For YouTube analytics, date awareness is sufficient — hour/minute is irrelevant.
+    sections.push(`Current date: ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`);
 
     // Language instruction
     if (aiSettings.responseLanguage && aiSettings.responseLanguage !== 'auto') {

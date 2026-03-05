@@ -5,7 +5,7 @@
 import { useMemo } from 'react';
 import type { ChatProject, ChatConversation, ChatMessage } from '../../../core/types/chat';
 import { MODEL_REGISTRY, DEFAULT_MODEL, DEFAULT_CONTEXT_LIMIT, resolveModelId } from '../../../core/types/chat';
-import { estimateCostEur, type ModelPricing } from '../../../core/types/chat';
+import { estimateCostEur, estimateCacheSavingsEur, type ModelPricing } from '../../../core/types/chat';
 
 interface UseChatDerivedStateOpts {
     projects: ChatProject[];
@@ -26,6 +26,7 @@ interface UseChatDerivedStateReturn {
     headerTitle: string;
     totalTokens: number;
     totalCostEur: number;
+    totalSavingsEur: number;
     modelPricing: ModelPricing;
     activeModel: string;
     modelLabel: string;
@@ -63,25 +64,26 @@ export function useChatDerivedState(opts: UseChatDerivedStateOpts): UseChatDeriv
         [messages]
     );
 
-    // Total cost (EUR) — per-message model pricing for accuracy across model switches
-    const totalCostEur = useMemo(() =>
-        messages.reduce((sum, m) => {
-            if (m.role !== 'model' || !m.tokenUsage) return sum;
-            const msgModelConfig = (m.model && MODEL_REGISTRY.find(r => r.id === m.model)) || modelConfig;
-            return sum + estimateCostEur(
-                msgModelConfig.pricing,
-                m.tokenUsage.promptTokens,
-                m.tokenUsage.completionTokens,
-            );
-        }, 0),
-        [messages, modelConfig]
-    );
+    // Total cost (EUR) — per-message model pricing, cache-aware
+    const { totalCostEur, totalSavingsEur } = useMemo(() => {
+        const fallbackConfig = MODEL_REGISTRY.find(m => m.id === activeModel) ?? MODEL_REGISTRY[0];
+        return messages.reduce((acc, m) => {
+            if (m.role !== 'model' || !m.tokenUsage) return acc;
+            const msgModelConfig = (m.model && MODEL_REGISTRY.find(r => r.id === m.model)) || fallbackConfig;
+            const { promptTokens, completionTokens, cachedTokens, cacheWriteTokens } = m.tokenUsage;
+            return {
+                totalCostEur: acc.totalCostEur + estimateCostEur(msgModelConfig.pricing, promptTokens, completionTokens, cachedTokens, cacheWriteTokens),
+                totalSavingsEur: acc.totalSavingsEur + estimateCacheSavingsEur(msgModelConfig.pricing, promptTokens, completionTokens, cachedTokens, cacheWriteTokens),
+            };
+        }, { totalCostEur: 0, totalSavingsEur: 0 });
+    }, [messages, activeModel]);
 
     // Context window tracking
     const contextUsed = useMemo(() => {
         for (let i = messages.length - 1; i >= 0; i--) {
             if (messages[i].role === 'model' && messages[i].tokenUsage) {
-                return messages[i].tokenUsage!.promptTokens;
+                const tu = messages[i].tokenUsage!;
+                return tu.promptTokens + (tu.cachedTokens ?? 0) + (tu.cacheWriteTokens ?? 0);
             }
         }
         return 0;
@@ -96,6 +98,7 @@ export function useChatDerivedState(opts: UseChatDerivedStateOpts): UseChatDeriv
         headerTitle,
         totalTokens,
         totalCostEur,
+        totalSavingsEur,
         modelPricing: modelConfig.pricing,
         activeModel,
         modelLabel: modelConfig.label,

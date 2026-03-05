@@ -152,6 +152,8 @@ export interface TokenUsage {
     totalTokens: number;
     /** Tokens served from the provider's context cache (if applicable). */
     cachedTokens?: number;
+    /** Tokens used to create a new cache entry (if applicable). */
+    cacheWriteTokens?: number;
 }
 
 // --- Tool call records ---

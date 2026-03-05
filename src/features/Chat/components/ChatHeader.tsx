@@ -1,6 +1,6 @@
 import React, { useCallback } from 'react';
-import { ArrowLeft, Plus, FolderOpen, X, Zap, Maximize2, Minimize2 } from 'lucide-react';
-import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
+import { ArrowLeft, Plus, FolderOpen, X, Maximize2, Minimize2 } from 'lucide-react';
+import { ChatHeaderStats } from './ChatHeaderStats';
 
 interface ChatHeaderProps {
     view: 'projects' | 'conversations' | 'chat';
@@ -8,6 +8,7 @@ interface ChatHeaderProps {
     totalTokens: number;
     contextUsed: number;
     totalCostEur: number;
+    totalSavingsEur: number;
     contextPercent: number;
     activeProjectId: string | null;
     editingProjectId: string | null;
@@ -26,6 +27,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     totalTokens,
     contextUsed,
     totalCostEur,
+    totalSavingsEur,
     contextPercent,
     activeProjectId,
     editingProjectId,
@@ -63,15 +65,14 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 
             <h3 className="flex-1 text-sm font-semibold m-0 text-text-primary whitespace-nowrap overflow-hidden text-ellipsis">{headerTitle}</h3>
 
-            {view === 'chat' && contextUsed > 0 && (
-                <span className="text-[11px] text-text-tertiary whitespace-nowrap shrink-0 select-none cursor-default inline-flex items-center gap-0.5 hover:text-text-secondary transition-colors">
-                    <Zap size={11} /> {contextUsed.toLocaleString()} ({contextPercent}%)
-                    {totalCostEur > 0 && (
-                        <PortalTooltip content={`Total tokens: ${totalTokens.toLocaleString()}`} enterDelay={300}>
-                            <span className="inline-flex items-center"> • €{totalCostEur.toFixed(4)}</span>
-                        </PortalTooltip>
-                    )}
-                </span>
+            {view === 'chat' && (
+                <ChatHeaderStats
+                    contextUsed={contextUsed}
+                    contextPercent={contextPercent}
+                    totalCostEur={totalCostEur}
+                    totalSavingsEur={totalSavingsEur}
+                    totalTokens={totalTokens}
+                />
             )}
 
             {showProjectsBtn && (

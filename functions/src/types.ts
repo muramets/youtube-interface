@@ -194,6 +194,8 @@ export interface AiUsageLog {
     promptTokens: number;
     completionTokens: number;
     totalTokens: number;
+    cachedTokens?: number;
+    cacheWriteTokens?: number;
     timestamp: FirebaseFirestore.FieldValue;
     type: "chat" | "title" | "memorize" | "summarize";
 }

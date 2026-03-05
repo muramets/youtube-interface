@@ -1,16 +1,36 @@
-# 📊 Suggested Traffic — Feature Doc
+# Suggested Traffic — Feature Doc
 
 ## Текущее состояние
 
-Таб "Suggested Traffic" внутри страницы Video Details. Показывает, **рядом с какими видео YouTube рекомендует твоё видео** (suggested / autoplay). То есть это не "что рекомендуется рядом с тобой", а "где ТЫ появляешься как рекомендация".
+**Stages 1-6 реализованы.** Таб Suggested Traffic внутри Video Details page. CSV upload, smart parsing, YouTube API enrichment, snapshot versioning с delta mode, Smart Assistant (traffic type, viewer type, niche suggestions), Chat Bridge + Canvas Bridge, per-snapshot notes и reactions. AI-анализ on-demand через tool `analyzeSuggestedTraffic` — строит per-video timelines, находит transitions (new/dropped), анализирует контент (shared tags, keywords, channels), определяет self-channel видео.
 
-**Ключевой flow:** Пользователь скачивает CSV из YouTube Analytics → загружает в приложение → парсер извлекает данные → видео обогащаются через YouTube API → сохраняются → отображаются в таблице.
+---
 
-**Enrichment:** Видео из CSV содержат только ID и метрики. Приложение автоматически подтягивает полные данные (title, thumbnail, channelTitle и др.) через YouTube API. Результат кэшируется на уровне канала.
+## Что это
 
-**Smart Assistant:** Автоматическая классификация по правилам — trafficType (autoplay/click определяется по комбинации impressions/views), viewerType (bouncer→core по AVD и watch time), нишевые подсказки (Harmonic Decay scoring по тегам).
+Показывает, **рядом с какими видео YouTube рекомендует твоё видео** (suggested / autoplay). Пользователь скачивает CSV из YouTube Analytics → загружает в приложение → видео обогащаются через YouTube API → отображаются в таблице с классификацией.
 
-**Версионирование:** Каждый CSV-загруз создаёт snapshot, привязанный к packaging version. Delta mode показывает прирост между снапшотами.
+**Ключевой вопрос, на который отвечает:** *"Мое видео показывается рядом с Lofi Girl (500 impressions, CTR 4.2%) и рядом с ChilledCow (200 impressions, CTR 1.1%) — значит YouTube считает меня частью Lofi ниши, и Lofi Girl приносит самый качественный трафик."*
+
+### Отличие от Traffic Sources
+
+| | **Suggested Traffic** | **Traffic Sources** |
+|---|---|---|
+| **Вопрос** | Рядом с какими видео YouTube рекомендует моё? | Откуда приходит трафик? |
+| **Данные** | Конкретные видео (с video ID) | Агрегированные метрики по источникам |
+| **Строк** | 50-500 (каждое видео отдельно) | ~6-8 (Suggested, Browse, Search...) |
+| **Основная ценность** | Анализ конкурентного окружения | Динамика метрик во времени |
+| **AI-тул** | `analyzeSuggestedTraffic` (drill-down) | `analyzeTrafficSources` (gateway) |
+| **Связь** | Вызывается ПОСЛЕ — когда gateway показал, что Suggested доминирует | Вызывается ПЕРВЫМ — показывает общую картину |
+
+### CSV формат
+```
+Traffic source,Views,Watch time (hours),Average view duration,Impressions,Impressions click-through rate (%)
+Total,1200,230.5,0:11:32,28000,4.28
+YT_RELATED.dQw4w9WgXcQ,Rick Astley - Never Gonna Give You Up,450,85.2,0:11:21,12000,3.75
+YT_RELATED.kJQP7kiw5Fk,Luis Fonsi - Despacito,280,52.1,0:11:09,8500,3.29
+...
+```
 
 ---
 
@@ -22,16 +42,16 @@
 | sourceTitle | ✅ (может быть пустым) | ✅ `title` | — |
 | impressions, ctr, views, avgViewDuration, watchTimeHours | ✅ | — | — |
 | thumbnail | — | ✅ | — |
-| channelTitle, channelId | Иногда | ✅ | — |
+| channelTitle, channelId | — | ✅ | — |
 | publishedAt, duration | — | ✅ | — |
 | description, tags | — | ✅ | — |
 | viewCount, likeCount | — | ✅ | — |
-| **subscriberCount** | — | ❌ **не запрашивается** | — |
+| subscriberCount | — | ✅ (`channels.list` batch) | — |
 | trafficType (autoplay/click) | — | — | ✅ |
 | viewerType (bouncer→core) | — | — | ✅ |
 | niche, nicheProperty | — | — | ✅ (+ manual) |
 
-> ⚠️ **subscriberCount канала** не запрашивается при enrichment traffic sources. В Chat Bridge поле передаётся, но только если видео было enriched в другом контексте (например, через Trends). Для большинства traffic sources = `undefined`. Это gap: чтобы AI знал размер канала конкурента, нужно добавить `channels.list` запрос при enrichment (1 unit квоты на канал).
+> Enrichment делает 2 API-вызова на batch (до 50 видео): `videos.list` (title, description, tags, viewCount, duration) + `channels.list` (subscriberCount, channelAvatar). Квота: 2 units на batch. Результат кэшируется в `cached_external_videos` — shared коллекция, доступная всем фичам.
 
 ---
 
@@ -44,11 +64,11 @@
 {
   type: 'suggested-traffic',
   snapshotId, snapshotDate, snapshotLabel,
-  sourceVideo: {                          ← ТВОЁ видео
+  sourceVideo: {                          <- ТВОЁ видео
     videoId, title, description, tags,
     thumbnailUrl, viewCount, publishedAt, duration
   },
-  suggestedVideos: [                      ← ВЫБРАННЫЕ строки
+  suggestedVideos: [                      <- ВЫБРАННЫЕ строки
     {
       videoId, title,
       // CSV metrics (всегда):
@@ -60,11 +80,13 @@
       trafficType, viewerType, niche, nicheProperty
     }
   ],
-  discrepancy?: { reportTotal, tableSum, longTail }  ← Long Tail
+  discrepancy?: { reportTotal, tableSum, longTail }  <- Long Tail
 }
 ```
 
-**Вывод:** В чат улетает **всё** — CSV метрики + enrichment + labels. Это одна из причин раздутого system prompt.
+Bridge встроен inline в TrafficTab.tsx. Контекст попадает в system prompt через `persistentContextLayer.ts`.
+
+> Chat Bridge передает ПОЛНЫЕ данные (CSV + enrichment + labels). Это одна из причин раздутого system prompt при выделении большого количества строк. Альтернатива для AI-анализа — tool `analyzeSuggestedTraffic`, который не раздувает контекст.
 
 ---
 
@@ -85,124 +107,243 @@
   // Context:
   sourceVideoId, sourceVideoTitle,
   snapshotId, snapshotLabel, viewMode,
-  // Enrichment (для chat bridge, не рендерится на canvas):
+  // Enrichment (для canvas → chat bridge, не рендерится на canvas):
   description, tags, viewCount, duration
 }
 ```
 
-**Canvas ноды содержат enrichment data** (description, tags) — они не рендерятся визуально, но используются когда Canvas Bridge передаёт selection в чат.
+Canvas ноды содержат enrichment data (description, tags) — они не рендерятся визуально, но используются когда Canvas Bridge передаёт selection в чат.
 
 ---
 
 ## Roadmap
 
-### Стадия 1 — CSV Import + Table ✅
+### Stage 1 — CSV Import + Table ✅
 - [x] Smart CSV parser с auto-detection колонок
 - [x] Column Mapper fallback (manual mapping)
 - [x] TrafficTable с сортировкой, фильтрами
 - [x] Total Row detection + Long Tail discrepancy
 
-### Стадия 2 — Snapshots + Versioning ✅
+### Stage 2 — Snapshots + Versioning ✅
 - [x] Hybrid storage: CSV → Cloud Storage, metadata → Firestore
 - [x] Snapshot timeline привязана к packaging versions
 - [x] Delta mode (прирост между снапшотами)
 - [x] Packaging snapshot preservation (если version удалена)
 
-### Стадия 3 — Enrichment ✅
-- [x] Pre-upload: patch titles из кэша
+### Stage 3 — Enrichment ✅
+- [x] Pre-upload: patch titles из кэша (`cached_external_videos`)
 - [x] Missing Titles modal + `repairTrafficSources` (YouTube API)
 - [x] CSV regeneration после repair
 - [x] Enrichment cache (React Query, per-channel)
 
-### Стадия 4 — Smart Assistant ✅
+### Stage 4 — Smart Assistant ✅
 - [x] Auto-detect autoplay (0 impressions + >0 views)
-- [x] Viewer Type auto-classify
-- [x] Niche suggestions (Harmonic Decay Scoring)
+- [x] Viewer Type auto-classify (bouncer→core по AVD и watch time)
+- [x] Niche suggestions (Harmonic Decay Scoring по тегам)
 - [x] Cross-tab suggestions (Trends → Traffic niches)
 
-### Стадия 5 — Bridges ✅
+### Stage 5 — Bridges + Edge Data ✅
 - [x] Chat Bridge: SuggestedTrafficContext + full enrichment
 - [x] Canvas Bridge: TrafficSourceCardData + frame grouping
 - [x] Reactions (star/like/dislike) — per-channel
-- [x] Notes — per-snapshot ← YOU ARE HERE
+- [x] Notes — per-video (inline в таблице)
 
-### Стадия 6 — Lightweight Context (будущее)
-Мосты передают только ID вместо полных данных. Gemini сама запрашивает details.
+### Stage 6 — AI Tool (on-demand analysis) ✅
+AI-ассистент анализирует suggested traffic через dedicated tool — полный анализ без раздувания контекста.
+- [x] Server-side tool `analyzeSuggestedTraffic` — Firestore → Cloud Storage → parse → timelines → JSON
+- [x] Server-side CSV parser (RFC 4180, `YT_RELATED.{id}` extraction)
+- [x] Per-video timeline builder с pre-computed deltas
+- [x] Transitions: new/dropped видео между snapshot'ами
+- [x] Content analysis: shared tags, keywords, channel distribution
+- [x] Self-channel detection (видео с собственного канала)
+- [x] Content trajectory (per-snapshot keywords evolution)
+- [x] Depth enum: quick (top 20) / standard (top 50) / detailed (top 100) / deep (all)
+- [x] Enrichment из `cached_external_videos` (Firestore) — tags, description, channelTitle
+
+### Stage 7 — Lightweight Context ← YOU ARE HERE
+Bridge передаёт только IDs вместо полных данных. AI запрашивает details on-demand.
 - [ ] Chat Bridge передаёт `{ videoId, title, impressions, views }` вместо full data
-- [ ] Gemini вызывает `getVideoDetails(id)` для description, tags, thumbnail
+- [ ] AI вызывает `getVideoDetails(id)` для description, tags, thumbnail
 - [ ] 500 traffic sources → 500 IDs (~3K токенов) вместо 500 full descriptions (~140K)
 
-### 🚀 Production
-- [ ] **Архитектура:** Lightweight bridge + Function Calling
-- [ ] **Стоимость:** Прикрепить 500 traffic sources = ~$0.01 (IDs only) вместо ~$2.80 (full data)
-- [ ] **Хранение:** CSV в Cloud Storage (без изменений) + vector embeddings для search
-- [ ] **API:** YouTube Data API (enrichment при добавлении), Embedding API (для vector search)
+### Production
+**User flow:** Пользователь публикует видео. Через неделю загружает CSV. Видео обогащаются через YouTube API. Smart Assistant классифицирует: autoplay/click, bouncer/core, ниша. Через 2 недели — второй CSV. Delta mode показывает: какие видео выросли, какие упали, какие новые. AI анализирует on-demand: *"70% трафика от Lofi каналов, CTR 4.2% — YouTube прочно определил тебя в Lofi нишу. Но 3 новых Jazz видео появились с высоким CTR — возможно, аудитория расширяется."*
+
+- [ ] **Архитектура:** Lightweight bridge + AI tool для deep analysis
+- [ ] **Стоимость:** Bridge: ~$0.01 (IDs only) вместо ~$2.80 (full data). Tool: per-request
+- [x] **Хранение:** CSV в Cloud Storage + Firestore metadata + `cached_external_videos` (enrichment)
+- [x] **API:** YouTube Data API (enrichment при добавлении), AI tools (on-demand analysis)
 
 ---
 
 ## Связанные фичи
-- [Chat](./chat.md) — Traffic Bridge передаёт `SuggestedTrafficContext` в чат
-- [Canvas](./canvas.md) — Traffic nodes на Canvas с frame grouping
-- [Video Details](./video-details.md) — Suggested Traffic живёт как таб внутри Details page
-
-## Technical Implementation
-
-### Data Flow
-
-```mermaid
-graph TD
-    A["YouTube Analytics CSV файл"] -- Drag and Drop --> B["csvParser.ts Smart header detection"]
-    B --> C{"Есть missing titles?"}
-    C -- Нет --> D["Cloud Storage CSV body"]
-    C -- Да --> E["repairTrafficSources YouTube API enrichment"]
-    E -- Regenerate CSV --> D
-    D --> F["Firestore TrafficSnapshot metadata"]
-    F --> G["useTrafficDataLoader Load + Delta calc"]
-    G --> H["TrafficTable Отображение"]
-    H -- Выделение строк --> I["Chat Bridge SuggestedTrafficContext"]
-    H -- Add to Canvas --> J["Canvas TrafficSourceCardData"]
-```
-
-### Хранение данных
-
-| Что | Где | Зачем |
-|-----|-----|-------|
-| **CSV body** (полный файл) | Cloud Storage: `storagePath` | Без лимитов размера, дёшево |
-| **Snapshot metadata** | Firestore: `trafficData.snapshots[]` | Быстрые запросы, версионирование |
-| **Enrichment cache** | React Query: `useExternalVideoLookup` | YouTube API данные, shared per channel |
-| **Edge data** (trafficType, viewerType, notes, reactions) | Firestore: per-snapshot subcollections | Per-snapshot labels |
-| **Niches + assignments** | Firestore: channel-level collections | Cross-snapshot video grouping |
-
-**Firestore path:**
-```
-users/{uid}/channels/{channelId}/videos/{videoId}/trafficData
-  ├── sources[]           — не используется (legacy)
-  ├── snapshots[]         — metadata (timestamp, version, storagePath, label)
-  ├── groups[]            — niche groups (cross-version)
-  └── lastUpdated
-```
-
-### CSV Parsing Pipeline
-
-1. **Drag & Drop** → `TrafficTab` получает File
-2. **`csvParser.ts`** → Smart header detection:
-   - Читает первую строку, матчит заголовки по словарю (`KNOWN_HEADER_NAMES`)
-   - Поддерживает: EN/RU колонки, разные форматы CTR, Total Row detection
-   - Если не удалось → открывает Column Mapper modal
-3. **Pre-upload enrichment:**
-   - Патчит missing titles из кэша — без API вызовов
-   - Если всё ещё есть missing → модал: "Sync data?" → YouTube API batch
-4. **CSV Regeneration** → если данные были patched, генерируется **новый** CSV с актуальными данными
-5. **Upload** → CSV → Cloud Storage, metadata → Firestore `snapshots[]`
+- [Traffic Sources](./traffic-sources.md) — агрегированные метрики по источникам. `analyzeTrafficSources` = gateway, `analyzeSuggestedTraffic` = drill-down
+- [YouTube Research Tools](../chat/tools/youtube-research-tools.md) — `analyzeSuggestedTraffic` входит в Telescope Pattern (Layer 3 — drill-down tool)
+- [analyzeSuggestedTraffic Tool Doc](../chat/tools/analyze-suggested-traffic-tool.md) — подробная документация AI-тула (параметры, output, stages)
+- Chat — Chat Bridge передаёт `SuggestedTrafficContext` через `appContextStore`; `SuggestedTrafficChip` в chat UI
+- Canvas — Traffic nodes с frame grouping по snapshot'ам
+- Video Details — Suggested Traffic живёт как таб `traffic` внутри Details page
 
 ---
 
-## Техническая заметка (для агента)
-**Главный компонент:** `pages/Details/tabs/Traffic/TrafficTab.tsx` (1316 строк, 61KB)
-**Parsing:** `utils/csvParser.ts`, `utils/csvGenerator.ts`
-**Loading:** `hooks/useTrafficDataLoader.ts` (delta calc, snapshot loading)
-**Enrichment:** `hooks/useMissingTitles.ts` (YouTube API repair)
-**Smart Assistant:** `hooks/useSmartTrafficAutoApply.ts`, `useSmartViewerTypeAutoApply.ts`, `useSmartNicheSuggestions.ts`
-**Types:** `core/types/traffic.ts` (TrafficSource, EnrichedTrafficSource, TrafficSnapshot, TrafficData)
-**Storage:** Cloud Storage (CSV body via `storagePath`), Firestore (snapshot metadata)
-**Bridge:** Inline in TrafficTab.tsx (lines 577-676 → chat, lines 969-1060 → canvas)
+## Technical Implementation
+
+### Frontend — Tab & Table
+| Файл | Назначение |
+|------|-----------|
+| `pages/Details/tabs/Traffic/TrafficTab.tsx` | Главный orchestrator: CSV upload, table, bridges (chat + canvas) |
+| `pages/Details/tabs/Traffic/components/TrafficTable.tsx` | Virtualized table: сортировка, фильтры, selection |
+| `pages/Details/tabs/Traffic/components/TrafficRow.tsx` | Строка: title, metrics, badges (traffic type, viewer type, niche, reaction) |
+| `pages/Details/tabs/Traffic/components/TrafficRowBadges.tsx` | Compact badge rendering |
+| `pages/Details/tabs/Traffic/components/TrafficHeader.tsx` | Header с view mode toggle (cumulative/delta) |
+| `pages/Details/tabs/Traffic/components/TrafficFloatingBar.tsx` | Floating action bar для bulk operations |
+| `pages/Details/tabs/Traffic/components/TrafficFilterMenu.tsx` | Filter configuration UI |
+| `pages/Details/tabs/Traffic/components/TrafficFilterChips.tsx` | Active filter chips |
+| `pages/Details/tabs/Traffic/components/TrafficUploader.tsx` | CSV upload UI |
+| `pages/Details/tabs/Traffic/components/TrafficEmptyState.tsx` | Empty state |
+| `pages/Details/tabs/Traffic/components/TrafficErrorState.tsx` | Error display + retry |
+| `pages/Details/tabs/Traffic/components/TrafficModals.tsx` | Modal orchestrator |
+| `pages/Details/tabs/Traffic/components/TrafficCTRConfig.tsx` | CTR color rules config |
+| `pages/Details/tabs/Traffic/components/TrafficPlaylistSelector.tsx` | Playlist assignment |
+| `pages/Details/tabs/Traffic/components/SmartTrafficTooltip.tsx` | Smart suggestion tooltip |
+| `pages/Details/tabs/Traffic/components/VersionPills.tsx` | Version/period pills |
+
+### Frontend — Niches
+| Файл | Назначение |
+|------|-----------|
+| `pages/Details/tabs/Traffic/components/Niches/TrafficNicheSelector.tsx` | Niche picker |
+| `pages/Details/tabs/Traffic/components/Niches/TrafficNicheItem.tsx` | Niche group display |
+| `pages/Details/tabs/Traffic/components/Niches/TrafficNicheContextMenu.tsx` | Right-click menu для niche assignment |
+| `pages/Details/tabs/Traffic/components/Niches/NicheColorPickerGrid.tsx` | Color picker для niches |
+| `pages/Details/tabs/Traffic/components/Niches/TrafficSidebarNicheList.tsx` | Niche list в sidebar |
+
+### Frontend — Modals
+| Файл | Назначение |
+|------|-----------|
+| `pages/Details/tabs/Traffic/modals/ColumnMapperModal.tsx` | Fallback column mapping |
+| `pages/Details/tabs/Traffic/modals/DataRepairModal.tsx` | Missing titles repair via YouTube API |
+| `pages/Details/tabs/Traffic/modals/SnapshotRequestModal.tsx` | Snapshot request UI |
+| `pages/Details/tabs/Traffic/modals/VersionFreezeModal.tsx` | Version freeze confirmation |
+
+### Frontend — Sidebar
+| Файл | Назначение |
+|------|-----------|
+| `pages/Details/Sidebar/Traffic/TrafficNav.tsx` | Sidebar snapshot list |
+| `pages/Details/Sidebar/Traffic/components/SidebarSnapshotItem.tsx` | Single snapshot item |
+| `pages/Details/Sidebar/Traffic/components/PackagingSnapshotTooltip.tsx` | Version tooltip |
+| `pages/Details/Sidebar/Traffic/components/TrafficSidebarNicheList.tsx` | Niche list в sidebar |
+| `pages/Details/Sidebar/Traffic/hooks/useTrafficVersions.ts` | Version resolution |
+| `pages/Details/Sidebar/Traffic/SnapshotContextMenu.tsx` | Right-click on snapshot |
+
+### Frontend — Hooks
+| Файл | Назначение |
+|------|-----------|
+| `pages/Details/tabs/Traffic/hooks/useTrafficData.ts` | Firestore fetch, save, upload |
+| `pages/Details/tabs/Traffic/hooks/useTrafficDataLoader.ts` | Snapshot load + delta calc |
+| `pages/Details/tabs/Traffic/hooks/useExternalVideoLookup.ts` | YouTube API enrichment (React Query cache) |
+| `pages/Details/tabs/Traffic/hooks/useMissingTitles.ts` | Pre-upload title patch + API repair |
+| `pages/Details/tabs/Traffic/hooks/useSmartTrafficAutoApply.ts` | Auto-classify traffic type |
+| `pages/Details/tabs/Traffic/hooks/useSmartViewerTypeAutoApply.ts` | Auto-classify viewer type |
+| `pages/Details/tabs/Traffic/hooks/useSmartNicheSuggestions.ts` | Niche suggestions (Harmonic Decay Scoring) |
+| `pages/Details/tabs/Traffic/hooks/useTrafficFilters.ts` | Filter state management |
+| `pages/Details/tabs/Traffic/hooks/useTrafficSelection.ts` | Row selection state |
+| `pages/Details/tabs/Traffic/hooks/useCTRRules.ts` | CTR coloring rules |
+
+### Frontend — Utils
+| Файл | Назначение |
+|------|-----------|
+| `pages/Details/tabs/Traffic/utils/csvParser.ts` | Client-side CSV parser (auto-detect EN + RU headers) |
+| `pages/Details/tabs/Traffic/utils/csvGenerator.ts` | CSV generation (re-export after enrichment) |
+| `pages/Details/tabs/Traffic/utils/exportTrafficCsv.ts` | Export с discrepancy report |
+| `pages/Details/tabs/Traffic/utils/snapshotLoader.ts` | Cloud Storage download + parse |
+| `pages/Details/tabs/Traffic/utils/snapshotCache.ts` | In-memory LRU cache |
+| `pages/Details/tabs/Traffic/utils/formatters.ts` | Duration, number formatting |
+| `pages/Details/tabs/Traffic/utils/publishDateFormatter.ts` | Date delta ("2 days ago") |
+| `pages/Details/tabs/Traffic/utils/dateUtils.ts` | Date utilities |
+| `pages/Details/tabs/Traffic/utils/constants.ts` | Constants |
+
+### Frontend — Services
+| Файл | Назначение |
+|------|-----------|
+| `core/services/traffic/TrafficDataService.ts` | Firestore CRUD for traffic data |
+| `core/services/traffic/TrafficSnapshotService.ts` | Snapshot creation → Cloud Storage + Firestore |
+| `core/services/traffic/TrafficDeltaService.ts` | Delta computation (current vs previous) |
+| `core/services/TrafficNicheService.ts` | Niche/group CRUD |
+| `core/services/TrafficNoteService.ts` | Per-video notes |
+| `core/services/TrafficTypeService.ts` | Traffic type assignments (autoplay/click) |
+| `core/services/ViewerTypeService.ts` | Viewer type assignments (bouncer→core) |
+| `core/services/VideoReactionService.ts` | Reactions (star/like/dislike) |
+
+### Frontend — Types & Stores
+| Файл | Назначение |
+|------|-----------|
+| `core/types/traffic.ts` | `TrafficSource`, `EnrichedTrafficSource`, `TrafficSnapshot`, `TrafficData` |
+| `core/types/appContext.ts` | `SuggestedTrafficContext`, `SuggestedVideoItem`, `TrafficSourceCardData` |
+| `core/types/suggestedTrafficNiches.ts` | Niche taxonomy |
+| `core/types/videoTrafficType.ts` | `TrafficType` enum |
+| `core/types/viewerType.ts` | `ViewerType` enum |
+| `core/stores/appContextStore.ts` | `setSlot('traffic', context)` — Chat Bridge |
+| `core/stores/trends/useTrafficNicheStore.ts` | Niche assignments |
+| `core/stores/trends/useTrafficTypeStore.ts` | Traffic type labels |
+| `core/stores/trends/useTrafficNoteStore.ts` | Per-video notes |
+| `core/stores/trends/trafficFilterStore.ts` | Traffic filter state |
+
+### Frontend — Chat & Canvas integration
+| Файл | Назначение |
+|------|-----------|
+| `features/Chat/SuggestedTrafficChip.tsx` | Chat input chip (count + thumbnails) |
+| `features/Canvas/nodes/TrafficSourceNode.tsx` | Canvas node (horizontal card layout) |
+| `features/Canvas/hooks/useCanvasContextBridge.ts` | Canvas → Chat bridge |
+| `features/Canvas/frames/SnapshotFrame.tsx` | Frame grouping по snapshot |
+| `core/ai/layers/persistentContextLayer.ts` | System prompt formatter (Bridge → LLM context) |
+
+### Backend (Cloud Functions)
+| Файл | Назначение |
+|------|-----------|
+| `functions/src/services/tools/handlers/analyzeSuggestedTraffic.ts` | Tool handler: Firestore → Cloud Storage → parse → timelines → content analysis → JSON |
+| `functions/src/services/tools/utils/csvParser.ts` | Server-side CSV parser (RFC 4180, `YT_RELATED.{id}` extraction) |
+| `functions/src/services/tools/utils/delta.ts` | Per-video timeline builder + transitions (new/dropped) |
+| `functions/src/services/tools/utils/suggestedAnalysis.ts` | Content analysis: shared tags, keywords, channels, self-channel, trajectory |
+| `functions/src/services/tools/definitions.ts` | Tool declaration (provider-agnostic) |
+| `functions/src/services/tools/executor.ts` | Tool routing |
+
+### Data paths
+```
+Firestore:  users/{uid}/channels/{channelId}/videos/{videoId}/traffic/main
+            users/{uid}/channels/{channelId}/cached_external_videos/{videoId}
+Storage:    users/{uid}/channels/{channelId}/traffic/{videoId}/{snapshotId}.csv
+URL param:  ?tab=traffic
+Tab union:  'packaging' | 'trafficSource' | 'traffic' | 'gallery' | 'editing'
+```
+
+### Data flow
+```
+Upload:
+  User drags CSV → csvParser.ts (auto-detect headers)
+    → useMissingTitles (patch from cached_external_videos)
+    → DataRepairModal (YouTube API batch if still missing)
+    → csvGenerator.ts (regenerate CSV with patched titles)
+    → Cloud Storage upload + Firestore snapshot metadata
+
+View:
+  User clicks snapshot → snapshotLoader.ts (download + parse + cache)
+    → useTrafficDataLoader (delta calc vs previous snapshot)
+    → Smart hooks auto-apply labels (traffic type, viewer type, niches)
+    → TrafficTable renders with enrichment from useExternalVideoLookup
+
+AI Analysis (on-demand):
+  User asks AI → LLM calls analyzeSuggestedTraffic(videoId, depth)
+    → Handler reads traffic/main + downloads all CSVs
+    → csvParser.ts parses → delta.ts builds per-video timelines
+    → suggestedAnalysis.ts: content analysis, self-channel, trajectory
+    → Enrichment from cached_external_videos (tags, description)
+    → Returns structured JSON → LLM interprets
+    → LLM calls mentionVideo + viewThumbnails proactively
+```
+
+### Tests
+| Файл | Кейсов |
+|------|--------|
+| `functions/src/services/tools/utils/__tests__/csvParser.test.ts` | 12 (RFC 4180, Total Row, edge cases) |
+| `functions/src/services/tools/utils/__tests__/delta.test.ts` | 17 (timelines, transitions, new/dropped) |
+| `functions/src/services/tools/utils/__tests__/suggestedAnalysis.test.ts` | 46 (content analysis, self-channel, trajectory, tokenizer) |

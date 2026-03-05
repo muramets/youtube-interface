@@ -4,7 +4,7 @@
 
 import { httpsCallable } from 'firebase/functions';
 import { functions, auth } from '../../config/firebase';
-import type { ToolCallRecord } from '../types/sseEvents';
+import type { AiChatResult } from '../types/chat';
 import { parseSSEEvent } from '../types/sseEvents';
 
 // --- Types ---
@@ -38,18 +38,6 @@ interface StreamChatOpts {
     signal?: AbortSignal;
 }
 
-interface StreamChatResult {
-    text: string;
-    tokenUsage?: {
-        promptTokens: number;
-        completionTokens: number;
-        totalTokens: number;
-    };
-    toolCalls?: ToolCallRecord[];
-    summary?: string;
-    usedSummary?: boolean;
-}
-
 interface GeminiUploadResult {
     uri: string;
     expiryMs: number;
@@ -69,7 +57,7 @@ function getAiChatUrl(): string {
 
 // --- Stream Chat (SSE) ---
 
-export async function streamChat(opts: StreamChatOpts): Promise<StreamChatResult> {
+export async function streamChat(opts: StreamChatOpts): Promise<AiChatResult> {
     const {
         channelId,
         conversationId,
@@ -160,7 +148,7 @@ export async function streamChat(opts: StreamChatOpts): Promise<StreamChatResult
 
     const decoder = new TextDecoder();
     let buffer = '';
-    let result: StreamChatResult = { text: '' };
+    let result: AiChatResult = { text: '' };
     let receivedAnyData = false;
 
     // --- Inactivity timeout: abort reader if no data arrives.

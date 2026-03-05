@@ -16,7 +16,7 @@ import { getVideoCards, getTrafficContexts, getCanvasContexts } from '../../../t
 import { buildSystemPrompt } from '../../../ai/systemPrompt';
 import { useAppContextStore, selectAllItems } from '../../appContextStore';
 import { debug } from '../../../utils/debug';
-import type { ChatMessage, ToolCallRecord } from '../../../types/chat';
+import type { ChatMessage, ToolCallRecord, TokenUsage } from '../../../types/chat';
 import type { ReadyAttachment } from '../../../types/chatAttachment';
 import type { AppContextItem } from '../../../types/appContext';
 import type { ChatState, ActiveToolCall } from '../types';
@@ -61,7 +61,7 @@ async function streamAiResponse(
     largePayloadApproved?: boolean,
     onConfirmLargePayload?: (count: number) => void,
     onRetry?: (attempt: number) => void,
-): Promise<{ text: string; tokenUsage?: { promptTokens: number; completionTokens: number; totalTokens: number }; toolCalls?: ToolCallRecord[]; usedSummary?: boolean }> {
+): Promise<{ text: string; tokenUsage?: TokenUsage; toolCalls?: ToolCallRecord[]; usedSummary?: boolean }> {
     return AiService.sendMessage({
         channelId,
         conversationId: convId,
@@ -116,7 +116,7 @@ async function streamAiResponse(
 async function persistAiResponse(
     userId: string, channelId: string, convId: string,
     responseText: string, model: string,
-    tokenUsage?: { promptTokens: number; completionTokens: number; totalTokens: number },
+    tokenUsage?: TokenUsage,
     toolCalls?: ToolCallRecord[],
 ): Promise<void> {
     await ChatService.addMessage(userId, channelId, convId, { role: 'model', text: responseText, model, tokenUsage, toolCalls });

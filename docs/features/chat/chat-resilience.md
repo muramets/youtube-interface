@@ -8,7 +8,7 @@
 
 1. **Server-side retry (`withStreamRetry()` — shared utility):** каждая итерация agentic loop обёрнута в `withStreamRetry()` (файл `services/ai/retry.ts`). Таймер 90 секунд сбрасывается на каждом чанке. Нет чанков 90 секунд → таймаут → попытка повторяется автоматически (до 2 раз). Используется обоими провайдерами (Gemini и Claude). Если пользователь сам отменил запрос — retry не происходит.
 
-2. **Client-side inactivity guard (src/core/services/aiProxyService.ts):** аналогичный 90-секундный таймер на стороне браузера — защита от ситуации, когда SSE-соединение зависло раньше, чем сервер обнаружил проблему.
+2. **Client-side inactivity guard:** 120-секундный таймер на стороне браузера (30с буфер сверх серверных 90с, чтобы сервер успел отправить retry SSE-событие до клиентского таймаута).
 
 **Frontend progressive status (src/features/Chat/components/StreamingStatusMessage.tsx):**
 - 0–10 сек: ничего не показываем (большинство запросов завершается раньше)
@@ -81,9 +81,20 @@ User sends message
 
 | Константа | Значение | Где определена |
 |---|---|---|
-| `INACTIVITY_TIMEOUT_MS` | 90 000 ms (90 сек) | `functions/src/services/ai/retry.ts` (shared) |
-| `MAX_RETRIES` | 2 (итого 3 попытки) | `functions/src/services/ai/retry.ts` (shared) |
-| `STREAM_TIMEOUT_MS` | 90 000 ms (клиент) | `src/core/services/aiProxyService.ts` |
+| `STREAM_INACTIVITY_TIMEOUT_MS` | 90 000 ms (90 сек) | Provider-specific: передаётся в `withStreamRetry()` из каждого провайдера |
+| `MAX_STREAM_RETRIES` | 2 (итого 3 попытки) | Provider-specific: передаётся в `withStreamRetry()` из каждого провайдера |
+| `STREAM_TIMEOUT_MS` | 120 000 ms (120 сек, клиент) | `src/core/services/aiProxyService.ts` — 30с буфер сверх серверных 90с |
+
+### Различия провайдеров при retry
+
+| Провайдер | Transient errors (retry) | Уникальное |
+|---|---|---|
+| Gemini | 503 (UNAVAILABLE) + inactivity timeout | String fallback: `err.message.includes('503')` |
+| Claude | 529, 500, 503 + inactivity timeout | Также retry на rate limit (529) и server error (500) |
+
+### Client-side HTTP retry (до SSE)
+
+Перед стартом SSE стрима браузер делает обычный HTTP-запрос. При transient ошибке (429, 500, 502, 503) — автоматический retry с exponential backoff (1с → 2с), до 2 попыток.
 
 ---
 
@@ -95,7 +106,7 @@ functions/src/
     ai/
       retry.ts                            ← withStreamRetry() — shared by Gemini & Claude
       __tests__/
-        streamChat.retry.test.ts          ← 3 unit tests (retry logic, cancel, exhaustion)
+        retry.test.ts                     ← unit tests (retry logic, cancel, exhaustion, delay timing)
 
   chat/
     aiChat.ts                             ← onRetry → writeSSE({ type: "retry", attempt })
@@ -108,7 +119,7 @@ src/
     services/
       aiProxyService.ts                   ← inactivity guard + SSE 'retry' handler
     stores/
-      chatStore.ts                        ← retryAttempt state field
+      chat/chatStore.ts                    ← retryAttempt state field (sliced architecture)
   features/
     Chat/
       components/
@@ -131,15 +142,17 @@ src/
 
 Server-side inactivity timeout + per-iteration retry loop + frontend progressive status.
 
-- [x] `GeminiTimeoutError` custom error class
+- [x] `AiStreamTimeoutError` custom error class (shared, provider-agnostic)
 - [x] 90-секундный inactivity timer per attempt (сбрасывается на каждом чанке)
 - [x] `MAX_STREAM_RETRIES = 2` — до 3 попыток total
 - [x] Caller cancel пропускает retry (нет retry на `signal.aborted`)
 - [x] SSE event `{ type: "retry", attempt }` → frontend знает о каждой попытке
 - [x] `chatStore.retryAttempt` + `StreamingStatusMessage`: "Reconnecting (attempt N)..."
 - [x] Reset `streamingText` + `thinkingText` на retry (чистый UI-старт)
-- [x] Client-side inactivity guard (aiProxyService, 90s)
-- [x] Unit tests для retry logic (3 теста)
+- [x] Client-side inactivity guard (aiProxyService, 120s — 30s буфер сверх серверных 90s)
+- [x] Client-side HTTP retry (429, 500, 502, 503 — exponential backoff до SSE стрима)
+- [x] Provider-specific transient detection (Gemini: 503; Claude: 529/500/503)
+- [x] Unit tests для retry logic
 
 ### Стадия 2 — Telemetry & Alerting
 

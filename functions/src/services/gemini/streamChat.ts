@@ -505,14 +505,17 @@ export async function streamChat(
         // Update accumulated state (sum tokens across iterations, not overwrite)
         fullText = iterationResult.fullText;
         if (iterationResult.tokenUsage) {
-            tokenUsage = tokenUsage
-                ? {
+            if (tokenUsage) {
+                const newCached = (tokenUsage.cachedTokens ?? 0) + (iterationResult.tokenUsage.cachedTokens ?? 0);
+                tokenUsage = {
                     promptTokens: tokenUsage.promptTokens + iterationResult.tokenUsage.promptTokens,
                     completionTokens: tokenUsage.completionTokens + iterationResult.tokenUsage.completionTokens,
                     totalTokens: tokenUsage.totalTokens + iterationResult.tokenUsage.totalTokens,
-                    cachedTokens: (tokenUsage.cachedTokens ?? 0) + (iterationResult.tokenUsage.cachedTokens ?? 0) || undefined,
-                }
-                : iterationResult.tokenUsage;
+                    cachedTokens: newCached > 0 ? newCached : undefined,
+                };
+            } else {
+                tokenUsage = iterationResult.tokenUsage;
+            }
         }
 
         console.log(

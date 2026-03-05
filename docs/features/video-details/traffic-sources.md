@@ -1,8 +1,8 @@
-# 📈 Traffic Sources — Feature Doc
+# Traffic Sources — Feature Doc
 
 ## Текущее состояние
 
-**Stage 1 MVP реализован.** Таб Traffic Sources добавлен в Video Details page. CSV upload (drag & drop), auto-naming ("13 hours", "3 days"), sidebar timeline, sortable table с 6 колонками, cumulative/delta toggle. Общие CSV утилиты переиспользуются между Traffic Sources и Suggested Traffic.
+**Stages 1-3 реализованы.** Таб Traffic Sources в Video Details page: CSV upload (drag & drop), auto-naming ("13 hours", "3 days"), sidebar timeline, sortable table с 6 колонками, cumulative/delta toggle. AI-анализ доступен on-demand через tool `analyzeTrafficSources` — AI сам скачивает все snapshot'ы, строит per-source timelines с pre-computed deltas и интерпретирует тренды. Общие CSV утилиты переиспользуются между Traffic Sources и Suggested Traffic.
 
 ---
 
@@ -14,12 +14,14 @@
 
 ### Отличие от Suggested Traffic
 
-| | **Traffic Sources (новая фича)** | **Suggested Traffic (существующая)** |
+| | **Traffic Sources** | **Suggested Traffic** |
 |---|---|---|
 | **Вопрос** | Откуда приходит трафик? | Рядом с какими видео YouTube рекомендует моё? |
 | **Данные** | Агрегированные метрики по источникам | Конкретные видео (с video ID) |
 | **Строк** | ~6-8 (Suggested, Browse, Search...) | 50-500 (каждое видео отдельно) |
 | **Основная ценность** | Динамика метрик во времени | Анализ конкурентного окружения |
+| **AI-тул** | `analyzeTrafficSources` (gateway) | `analyzeSuggestedTraffic` (drill-down) |
+| **Связь** | Вызывается ПЕРВЫМ — показывает общую картину | Вызывается ПОСЛЕ — если Suggested доминирует, AI drill-down'ит в конкретные видео |
 
 ### CSV формат
 ```
@@ -37,33 +39,36 @@ Channel pages,,,,1,0
 
 ## Roadmap
 
-### Стадия 1 — MVP: Upload + Table ✅
+### Stage 1 — MVP: Upload + Table ✅
 Загрузка CSV, отображение в таблице, sidebar с timeline snapshot'ов.
 - [x] Новый таб `trafficSource` в Details page (над `traffic`)
-- [x] CSV parser: `trafficSourceParser.ts` с auto-detect + shared `csvUtils.ts` + Column Mapper fallback
-- [x] Snapshot storage: CSV → Cloud Storage, metadata → Firestore (`trafficSource/main`)
-- [x] Auto-naming: `autoLabel.ts` — parse `publishedAt` → `"13 hours"`, `"3 days"`. Fallback на дату. Rename через sidebar
-- [x] Sidebar: `TrafficSourceNav` — timeline list с inline rename и delete
-- [x] Table View: `TrafficSourceTable` — sortable, 6 колонок, delta badges
+- [x] CSV parser: auto-detect + shared `csvUtils` + Column Mapper fallback
+- [x] Snapshot storage: CSV → Cloud Storage, metadata → Firestore
+- [x] Auto-naming: parse `publishedAt` → `"13 hours"`, `"3 days"`. Fallback на дату. Rename через sidebar
+- [x] Sidebar: timeline list с inline rename и delete
+- [x] Table View: sortable, 6 колонок, delta badges
 - [x] Total Row display (sticky сверху)
 - [x] Cumulative / Delta toggle (delta доступен при 2+ snapshot'ах)
-- [x] Column Mapper modal wiring — `TrafficSourceColumnMapperModal.tsx` (fallback для нестандартных CSV)
-- [x] Shared `CsvDropZone` молекула — `ui/molecules/CsvDropZone.tsx` (используется в TrafficUploader + TrafficSourceTab)
+- [x] Column Mapper modal — fallback для нестандартных CSV
+- [x] Shared `CsvDropZone` молекула — используется в TrafficUploader + TrafficSourceTab
 
-### Стадия 2 — Delta Mode ← YOU ARE HERE
+### Stage 2 — Delta Mode ✅
 Сравнение между snapshot'ами: что изменилось.
-- [x] Toggle cumulative / delta — кнопки в `TrafficSourceTab.tsx`
-- [x] Delta = current snapshot - previous snapshot — `useTrafficSourceDataLoader.ts`
-- [x] Color coding: зелёный = рост, красный = падение — `DeltaBadge` компонент
+- [x] Toggle cumulative / delta
+- [x] Delta = current snapshot - previous snapshot
+- [x] Color coding: зелёный = рост, красный = падение (DeltaBadge + DeltaCell)
 - [x] "First snapshot" handling — `canDelta` делает кнопку delta неактивной при < 2 snapshot'ах
 
-### Стадия 3 — Chat Bridge
-Передача snapshot'ов в AI чат для анализа вместе с контекстом видео.
-- [ ] Bridge: выбранный snapshot → `appContextStore` (новый слот `sources`)
-- [ ] Context включает: дату snapshot, время с публикации, metrics по каждому source
-- [ ] AI может анализировать: *"CTR на Suggested 2.3% — это ниже среднего для music niche, потому что обложка не привлекает внимание"*
+### Stage 3 — AI Tool (on-demand analysis) ✅
+AI-ассистент анализирует traffic sources через dedicated tool — данные не раздувают контекст by default.
+- [x] Server-side tool `analyzeTrafficSources` — читает Firestore, скачивает все CSV'ы, парсит, строит timelines
+- [x] Server-side CSV parser (порт фронтенд-парсера, без browser API)
+- [x] Timeline builder: per-source trajectories с pre-computed deltas между snapshot'ами
+- [x] Gateway-паттерн: AI вызывает `analyzeTrafficSources` ПЕРВЫМ, затем drill-down через `analyzeSuggestedTraffic`
+- [x] Tool registered в definitions.ts + executor.ts (provider-agnostic)
+- [x] Client-side formatter `formatTrafficSourcesCompact` — compact multi-line summary (утилита, не в pipeline)
 
-### Стадия 4 — Charts
+### Stage 4 — Charts ← YOU ARE HERE
 Визуализация динамики метрик по всем snapshot'ам.
 - [ ] Line chart: Impressions over time (ось X = snapshots, Y = impressions)
 - [ ] Line chart: CTR over time
@@ -72,50 +77,90 @@ Channel pages,,,,1,0
 - [ ] Stacked area: breakdown по источникам (Suggested + Browse + Search + ...)
 - [ ] Hover tooltip с деталями snapshot
 
-### Стадия 5 — Full Context Toggle
-Возможность передать ВСЮ историю snapshot'ов в AI chat.
-- [ ] Toggle в ChatInput context: "Включить Traffic Sources history"
-- [ ] При выделении видео на Home/Playlist page → toggle для передачи всех snapshot'ов
-- [ ] AI видит серию snapshot'ов → может анализировать тренды: *"Impressions растут линейно, CTR стабилен → YouTube масштабирует"*
+### Production
+**User flow:** Пользователь публикует видео. Через 13 часов загружает первый Traffic Sources CSV. Через 3 дня — второй. Через неделю — третий. Sidebar показывает: `"13 hours" → "3 days" → "1 week"`. Delta mode показывает рост Impressions и динамику CTR. AI анализирует on-demand: *"YouTube начал давать больше Browse трафика после третьего дня — это знак, что видео попадает в Home feed"*. Charts визуализируют тренды.
 
-### 🚀 Production
-**User flow:** Пользователь публикует видео. Через 13 часов загружает первый Traffic Sources CSV. Через 3 дня — второй. Через неделю — третий. Sidebar показывает: `"13 hours" → "3 days" → "1 week"`. Charts показывают рост Impressions и динамику CTR. AI анализирует: *"YouTube начал давать больше Browse трафика после третьего дня — это знак, что видео попадает в Home feed"*.
-
-- [ ] **Архитектура:** Таб в Details, Cloud Storage + Firestore (по аналогии с Suggested Traffic)
-- [ ] **Стоимость:** Минимальная — CSV upload + Firestore writes. Нет YouTube API calls
-- [ ] **Хранение:** Cloud Storage (CSV body) + Firestore (snapshot metadata + computed time-since-publish)
-- [ ] **API:** Нет внешних API. Только local parsing
 - [ ] **Charts:** Lightweight chart lib (recharts / visx / chart.js)
+- [x] **Архитектура:** Таб в Details (frontend), AI tool (backend), Cloud Storage + Firestore
+- [x] **Стоимость:** Минимальная — CSV upload + Firestore writes. Нет YouTube API calls
+- [x] **Хранение:** Cloud Storage (CSV body) + Firestore (snapshot metadata + computed time-since-publish)
+- [x] **AI:** On-demand через tool — 0 tokens в контексте по умолчанию, полный анализ по запросу
 
 ---
 
-## Что можно переиспользовать от Suggested Traffic
+## Что переиспользуется с Suggested Traffic
 
-| Компонент | Можно переиспользовать? | Адаптация |
+| Компонент | Переиспользуется? | Адаптация |
 |-----------|:-----------------------:|-----------|
-| `csvParser.ts` | ⚡ Частично | Другие колонки, другой формат. Но `detectMapping()` + `parseLine()` переиспользуются |
-| `snapshotLoader.ts` | ✅ Полностью | Тот же Cloud Storage → parse цикл |
-| `snapshotCache.ts` | ✅ Полностью | LRU кэш для immutable snapshots |
-| Sidebar UI (`SidebarNavItem`) | ✅ Полностью | Тот же список snapshot'ов |
-| `useTrafficDataLoader.ts` | ⚡ Частично | Delta calculation переиспользуется, но данные проще |
-| TrafficTable | ⚡ Частично | 6 колонок вместо 10+, нет video IDs, нет enrichment |
-| Chat Bridge pattern | ✅ Полностью | Тот же `setSlot` + sticky behavior |
+| Shared `csvUtils.ts` | ✅ Полностью | `parseCsvLine()`, `detectColumnMapping()`, `cleanCsvField()` |
+| Snapshot loader + LRU cache | ✅ Полностью | Тот же Cloud Storage → parse → cache цикл |
+| Sidebar UI (SidebarNavItem) | ✅ Полностью | Тот же список snapshot'ов |
+| Delta calculation pattern | ✅ Концептуально | Свой `delta.ts`, но тот же подход (current - previous) |
+| AI tool pattern | ✅ Концептуально | Свой handler, но тот же паттерн: Firestore → Cloud Storage → parse → structured JSON |
 | Canvas integration | ❌ Нет | Traffic Sources не имеют video IDs → нет canvas nodes |
 
 ---
 
 ## Связанные фичи
-- [Suggested Traffic](./suggested-traffic.md) — Другой CSV: конкретные видео. Разделяют sidebar UI и Storage паттерн
-- [Chat](./chat.md) — Sources Bridge передаёт snapshot данные в чат (новый слот `sources`)
-- [Video Details](./video-details.md) — Traffic Sources живёт как таб внутри Details page
+- [Suggested Traffic](./suggested-traffic.md) — другой CSV (конкретные видео). Разделяют sidebar UI, Storage паттерн, и AI tool gateway-цепочку
+- [YouTube Research Tools](../chat/tools/youtube-research-tools.md) — `analyzeTrafficSources` входит в Telescope Pattern (Layer 3 — gateway tool)
+- Video Details — Traffic Sources живёт как таб внутри Details page
 
-## Техническая заметка (для агента)
-**Таб:** `pages/Details/tabs/TrafficSource/` — `TrafficSourceTab.tsx`, компоненты, хуки, утилиты
-**Sidebar:** `pages/Details/Sidebar/TrafficSource/TrafficSourceNav.tsx`
-**Service:** `core/services/TrafficSourceService.ts` — Firestore CRUD + Cloud Storage upload
-**Types:** `core/types/trafficSource.ts` — `TrafficSourceMetric`, `TrafficSourceSnapshot`, `TrafficSourceData`
-**Shared CSV:** `core/utils/csvUtils.ts` — `parseCsvLine`, `detectColumnMapping`, `cleanCsvField`
-**URL routing:** `?tab=trafficSource` в `DetailsLayout.tsx`
-**Tab type union:** `'packaging' | 'trafficSource' | 'traffic' | 'gallery' | 'editing'`
-**Firestore path:** `users/{uid}/channels/{channelId}/videos/{videoId}/trafficSource/main`
-**Cloud Storage:** `users/{uid}/channels/{channelId}/videos/{videoId}/trafficSource/{snapshotId}.csv`
+---
+
+## Technical Implementation
+
+### Frontend
+| Файл | Назначение |
+|------|-----------|
+| `pages/Details/tabs/TrafficSource/TrafficSourceTab.tsx` | Главный таб: CSV upload, view mode toggle, table |
+| `pages/Details/tabs/TrafficSource/components/TrafficSourceTable.tsx` | Sortable table: 6 колонок, sticky total, DeltaCell |
+| `pages/Details/tabs/TrafficSource/hooks/useTrafficSourceData.ts` | I/O хук: Firestore fetch, CSV upload, delete, refetch |
+| `pages/Details/tabs/TrafficSource/hooks/useTrafficSourceDataLoader.ts` | Loader: скачивает CSV, парсит, считает delta |
+| `pages/Details/tabs/TrafficSource/modals/TrafficSourceColumnMapperModal.tsx` | Fallback column mapping UI |
+| `pages/Details/Sidebar/TrafficSource/TrafficSourceNav.tsx` | Sidebar: timeline list, inline rename, delete |
+| `core/services/TrafficSourceService.ts` | Firestore CRUD + Cloud Storage upload |
+| `core/types/trafficSource.ts` | `TrafficSourceMetric`, `TrafficSourceSnapshot`, `TrafficSourceData`, `SnapshotWithMetrics` |
+| `core/utils/trafficSource/parser.ts` | Client-side CSV parser (auto-detect EN + RU headers) |
+| `core/utils/trafficSource/snapshotLoader.ts` | Cloud Storage download + LRU cache (max 20) |
+| `core/utils/trafficSource/delta.ts` | Delta calculation + `TrafficSourceDeltaMetric` type |
+| `core/ai/utils/formatTrafficSources.ts` | Compact text formatter для AI context (utility) |
+| `features/Canvas/nodes/TrafficSourceNode.tsx` | Canvas node (инфраструктура, не подключён) |
+
+### Backend (Cloud Functions)
+| Файл | Назначение |
+|------|-----------|
+| `functions/src/services/tools/handlers/analyzeTrafficSources.ts` | Tool handler: Firestore → Cloud Storage → parse → timeline → JSON |
+| `functions/src/services/tools/utils/trafficSourceCsvParser.ts` | Server-side CSV parser (Node.js, порт фронтенд-версии) |
+| `functions/src/services/tools/utils/trafficSourceTimeline.ts` | Timeline builder: per-source trajectories + deltas |
+| `functions/src/services/tools/definitions.ts` | Tool declaration (provider-agnostic) |
+| `functions/src/services/tools/executor.ts` | Tool routing: `ANALYZE_TRAFFIC_SOURCES` → handler |
+
+### Data paths
+```
+Firestore:  users/{uid}/channels/{channelId}/videos/{videoId}/trafficSource/main
+Storage:    users/{uid}/channels/{channelId}/videos/{videoId}/trafficSource/{snapshotId}.csv
+URL param:  ?tab=trafficSource
+Tab union:  'packaging' | 'trafficSource' | 'traffic' | 'gallery' | 'editing'
+```
+
+### AI Tool: `analyzeTrafficSources`
+```
+User asks about traffic → LLM calls analyzeTrafficSources(videoId)
+  → Handler reads trafficSource/main from Firestore
+  → Downloads all snapshot CSVs in parallel from Cloud Storage
+  → parseTrafficSourceCsv() parses each (server-side parser)
+  → buildSourceTimeline() builds per-source trajectories with deltas
+  → Returns structured JSON: { sourceVideo, snapshotTimeline, sources[], totalTimeline[] }
+  → LLM interprets trends and responds
+  → If Suggested dominates → LLM calls analyzeSuggestedTraffic for drill-down
+```
+
+### Tests
+| Файл | Кейсов |
+|------|--------|
+| `functions/src/services/tools/handlers/__tests__/analyzeTrafficSources.test.ts` | 7 (validation, empty data, full pipeline, broken CSV, download failures) |
+| `functions/src/services/tools/utils/__tests__/trafficSourceCsvParser.test.ts` | 10 (standard CSV, edge cases, RU headers, RFC 4180) |
+| `functions/src/services/tools/utils/__tests__/trafficSourceTimeline.test.ts` | Timeline builder (multi-snapshot, deltas, gaps) |
+| `src/core/utils/trafficSource/__tests__/delta.test.ts` | 5 (deltas, new sources, division by zero) |
+| `src/core/ai/utils/__tests__/formatTrafficSources.test.ts` | 13 (empty, single, multi, top-5 cap, large numbers) |

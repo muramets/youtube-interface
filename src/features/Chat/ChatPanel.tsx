@@ -107,7 +107,7 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
 
     const {
         filteredConversations, headerTitle,
-        totalTokens, totalCostEur, modelPricing, activeModel, modelLabel, contextUsed, contextPercent, isContextFull,
+        totalTokens, totalCostEur, totalSavingsEur, modelPricing, activeModel, modelLabel, contextUsed, contextPercent, isContextFull,
     } = useChatDerivedState({
         projects, conversations, messages,
         view, activeProjectId, activeConversationId, editingProject,
@@ -197,6 +197,7 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
                     totalTokens={totalTokens}
                     contextUsed={contextUsed}
                     totalCostEur={totalCostEur}
+                    totalSavingsEur={totalSavingsEur}
                     contextPercent={contextPercent}
                     activeProjectId={activeProjectId}
                     editingProjectId={editingProjectId}

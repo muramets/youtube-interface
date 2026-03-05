@@ -1,8 +1,8 @@
-# 🤖 AI Tool: analyzeSuggestedTraffic — Feature Doc
+# AI Tool: analyzeSuggestedTraffic — Feature Doc
 
 ## Текущее состояние
 
-**Реализовано.** AI вызывает `analyzeSuggestedTraffic` в чате, передаёт `videoId` + `depth`, получает per-video timeline по всем снапшотам с дельтами и transitions между периодами. Определяет self-channel видео, вычисляет content trajectory (эволюция ключевых слов, каналов, тегов по снапшотам).
+**Реализовано.** AI вызывает `analyzeSuggestedTraffic` в чате, передаёт `videoId` + `depth`, получает per-video timeline по всем снапшотам с дельтами и transitions между периодами. Определяет self-channel видео, вычисляет content trajectory (эволюция ключевых слов, каналов, тегов по снапшотам). Enrichment из `cached_external_videos` (tags, channelTitle).
 
 **Ключевые принципы:**
 1. **Deterministic API** — `depth` enum вместо свободного числа
@@ -13,7 +13,9 @@
 
 ## Что это
 
-Инструмент для AI-чата, позволяющий Gemini анализировать данные Suggested Traffic без ручного прикрепления CSV. Пользователь задаёт вопрос вида *"Какие видео YouTube рекомендует рядом с моим?"* — AI сама вызывает инструмент, получает структурированные данные и отвечает с инсайтами.
+Инструмент для AI-чата, позволяющий анализировать данные Suggested Traffic без ручного прикрепления CSV. Пользователь задаёт вопрос вида *"Какие видео YouTube рекомендует рядом с моим?"* — AI сама вызывает инструмент, получает структурированные данные и отвечает с инсайтами.
+
+**Gateway-паттерн:** `analyzeTrafficSources` (aggregate) вызывается ПЕРВЫМ → если Suggested доминирует → `analyzeSuggestedTraffic` (per-video drill-down).
 
 ---
 
@@ -21,28 +23,19 @@
 
 Пользователь в чате спрашивает: *"Проведи глубокий анализ suggested traffic — почему мои видео показываются рядом с нерелевантным контентом?"*
 
-Gemini понимает контекст, выбирает `depth: "detailed"` (топ 100) и вызывает инструмент автономно.
+AI понимает контекст, выбирает `depth: "detailed"` (топ 100) и вызывает инструмент автономно.
 
 Пока инструмент работает, в UI появляется анимированный статус:
 ```
-⟳ Загружаю CSV снапшоты...
-⟳ Строю timeline по всем снапшотам...
-⟳ Анализирую теги и ключевые слова...
+Analyzing suggested traffic...
 ```
 
 Под tool pill:
 ```
-📊 3 snapshots
-📈 495 active sources (detailed analysis: top 100)
+3 snapshots | 495 active sources (detailed analysis: top 100)
 ```
 
-При ховере на pill — PortalTooltip с расшифровкой:
-```
-Timeline:
-Jan 15 (24h after publish): 59 sources
-Jan 22 (1 week): 498 sources (+439 new)
-Feb 15 (1 month): 495 sources (+20 new, -23 dropped)
-```
+При ховере на pill — PortalTooltip с расшифровкой timeline.
 
 ---
 
@@ -50,26 +43,26 @@ Feb 15 (1 month): 495 sources (+20 new, -23 dropped)
 
 ### Шаг 1 — Метаданные
 
-Читаются метаданные снапшотов (список загруженных CSV с датами и labels) и данные исходного видео (title, tags, description).
+Читаются метаданные снапшотов (список загруженных CSV с датами и labels) и данные исходного видео (title, tags, description, channelTitle).
 
 ### Шаг 2 — CSV скачиваются параллельно
 
-Каждый снапшот — CSV-файл. Все скачиваются одновременно. Если файл недоступен — возвращается пустая строка, обработка не падает.
+Каждый снапшот — CSV-файл в Cloud Storage. Все скачиваются одновременно. Если файл недоступен — возвращается пустая строка, обработка не падает.
 
 ### Шаг 3 — Парсинг
 
-Парсер извлекает videoId из формата `YT_RELATED.{videoId}`, читает метрики (views, impressions, CTR, AVD, watch time). CTR = `null` если impressions = 0.
+Парсер извлекает videoId из формата `YT_RELATED.{videoId}`, читает метрики (views, impressions, CTR, AVD, watch time). CTR = `null` если impressions = 0. Фильтруется только `sourceType === "Content"`.
 
-### Шаг 4 — Timeline
+### Шаг 4 — Per-video Timeline
 
 Для каждого видео, которое было в **любом** снапшоте, строит timeline — значения в каждой точке + pre-computed delta от предыдущей точки:
 
 ```typescript
 // Видео "Lofi beats" — было во всех 3 снапшотах:
 timeline: [
-    { date: "2026-01-15", label: "24h", views: 200,  impressions: 3000,  deltaViews: null },    // baseline
-    { date: "2026-01-22", label: "1 week", views: 2800, impressions: 45000, deltaViews: +2600 },   // рост
-    { date: "2026-02-15", label: "1 month", views: 5000, impressions: 80000, deltaViews: +2200 },   // замедление
+    { date: "2026-01-15", label: "24h", views: 200,  impressions: 3000,  deltaViews: null },
+    { date: "2026-01-22", label: "1 week", views: 2800, impressions: 45000, deltaViews: +2600 },
+    { date: "2026-02-15", label: "1 month", views: 5000, impressions: 80000, deltaViews: +2200 },
 ]
 ```
 
@@ -109,28 +102,34 @@ transitions: [
 
 ---
 
-### Шаг 7 — Content analysis (опционально)
+### Шаг 7 — Content analysis (опционально, `includeContentAnalysis`)
 
-Анализирует теги и ключевые слова для топ 30 видео из кэша Firestore:
-- `sharedTags` — совпадающие теги с source video
-- `topKeywordsInSuggestedTitles` — частые слова в заголовках → тематика окружения
+#### 7a — Enrichment из Firestore
+
+Читает enrichment данные из `cached_external_videos` (tags, channelTitle) для:
+- Топ 30 видео (content analysis)
+- ВСЕ видео из всех снапшотов (self-channel + trajectory) — batch по 500
+
+#### 7b — analyzeContent()
+
+Анализирует теги и ключевые слова для топ видео:
+- `sharedTags` — совпадающие теги с source video (case-insensitive)
+- `topKeywordsInSuggestedTitles` — частые слова в заголовках (Unicode-aware tokenizer, stop-word filter)
 - `channelDistribution` — какие каналы чаще появляются
 
----
+#### 7c — computeSelfChannelStats()
 
-### Что получает LLM
+Определяет, сколько suggested traffic приходит от собственного канала пользователя:
+- Matching по `channelTitle` (case-insensitive)
+- selfPercentage + timeline по снапшотам
+- Interpretation guide в `analysisGuidance`: >60% = ecosystem boost, 30-60% = hybrid, <30% = external discovery
 
-| Вопрос | Ответ в JSON |
-|---|---|
-| Кто чаще всего рядом? | `topSources` — топ N по impressions с полным timeline |
-| Как менялась динамика? | `timeline[]` — trajectory каждого видео по всем снапшотам |
-| Как менялся пул? | `transitions` — newCount/droppedCount + примеры за каждый период |
-| По каким тегам ставят? | `contentAnalysis.mostFrequentSharedTags` |
-| Какие каналы-конкуренты? | `contentAnalysis.channelDistribution` |
-| Тематика окружения? | `contentAnalysis.topKeywordsInSuggestedTitles` |
-| Как алгоритм пришёл сюда? | `contentTrajectory` — per-snapshot keywords + channels + top videos + deltas |
-| Сколько трафика от моего канала? | `selfChannelStats` — selfPercentage + timeline |
-| Когда начался ecosystem boost? | `selfChannelStats.timeline` — inflection point |
+#### 7d — computeContentTrajectory()
+
+Per-snapshot эволюция контента:
+- topKeywords, topSharedTags, channelDistribution — для каждого снапшота
+- topVideos (top 10 по impressions) с deltaImpressions — для всех кроме latest (latest покрыт topSources)
+- tailImpressions — размер long tail
 
 ---
 
@@ -142,7 +141,7 @@ transitions: [
 | `depth` | enum | `"standard"` | `quick` (20) / `standard` (50) / `detailed` (100) / `deep` (500) |
 | `minImpressions` | number | — | Фильтр по минимуму impressions |
 | `minViews` | number | — | Фильтр по минимуму views |
-| `includeContentAnalysis` | boolean | true | Включить анализ тегов и ключевых слов |
+| `includeContentAnalysis` | boolean | true | Включить анализ тегов, ключевых слов, self-channel, trajectory |
 
 ---
 
@@ -150,7 +149,7 @@ transitions: [
 
 ```typescript
 {
-    sourceVideo: { videoId, title, description, tags },
+    sourceVideo: { videoId, title, description, tags, channelTitle },
     snapshotTimeline: [{ date, label, totalSources }],
     topSources: [{
         videoId, sourceTitle,
@@ -172,14 +171,15 @@ transitions: [
     contentAnalysis?: {
         perVideoOverlap: [{ videoId, sourceTitle, sharedTags, sharedKeywords }],
         aggregate: {
-            mostFrequentSharedTags,
-            topKeywordsInSuggestedTitles,
-            channelDistribution
+            mostFrequentSharedTags: [{ tag, count }],
+            topKeywordsInSuggestedTitles: [{ keyword, count }],
+            channelDistribution: [{ channelTitle, count }]
         }
     },
     selfChannelStats?: {
         channelTitle, selfCount, totalEnriched, selfPercentage,
-        selfImpressions, selfViews, selfTopVideos: [{ videoId, sourceTitle, impressions, views }],
+        selfImpressions, selfViews,
+        selfTopVideos: [{ videoId, sourceTitle, impressions, views }],
         timeline: [{ date, label, selfCount, totalEnriched, selfPercentage, selfImpressions }]
     },
     contentTrajectory?: [{
@@ -194,90 +194,91 @@ transitions: [
 }
 ```
 
----
+### Что получает LLM
 
-## Pure утилиты (unit-tested)
-
-| Файл | Экспорты | Тесты |
-|---|---|---|
-| `utils/csvParser.ts` | `parseSuggestedTrafficCsv` | 12 тестов |
-| `utils/delta.ts` | `calculateSnapshotDeltas`, `findNewEntries`, `findDroppedEntries`, `buildVideoTimeline`, `getTransitions` | 17 тестов |
-| `utils/suggestedAnalysis.ts` | `aggregateTopSources`, `analyzeContent`, `computeSelfChannelStats`, `computeContentTrajectory`, `tokenizeTitle`, `findSharedTags` | 46 тестов |
-
----
-
-## Data Sources
-
-**Firestore paths:**
-- Snapshot metadata: `users/{uid}/channels/{channelId}/videos/{videoId}/traffic/main` → `snapshots[]`
-- Source video: `users/{uid}/channels/{channelId}/videos/{videoId}`
-- Enrichment cache: `users/{uid}/channels/{channelId}/cached_external_videos/{id}`
-
-**Cloud Storage:** CSV bodies at `storagePath` from each snapshot entry.
+| Вопрос | Ответ в JSON |
+|---|---|
+| Кто чаще всего рядом? | `topSources` — топ N по impressions с полным timeline |
+| Как менялась динамика? | `timeline[]` — trajectory каждого видео по всем снапшотам |
+| Как менялся пул? | `transitions` — newCount/droppedCount + примеры за каждый период |
+| По каким тегам ставят? | `contentAnalysis.mostFrequentSharedTags` |
+| Какие каналы-конкуренты? | `contentAnalysis.channelDistribution` |
+| Тематика окружения? | `contentAnalysis.topKeywordsInSuggestedTitles` |
+| Как алгоритм пришёл сюда? | `contentTrajectory` — per-snapshot keywords + channels + top videos + deltas |
+| Сколько трафика от моего канала? | `selfChannelStats` — selfPercentage + timeline |
+| Когда начался ecosystem boost? | `selfChannelStats.timeline` — inflection point |
 
 ---
-
-## Расположение файлов
-
-```
-functions/src/
-  services/tools/
-    handlers/analyzeSuggestedTraffic.ts   ← main handler
-    utils/
-      csvParser.ts                        ← RFC 4180 parser
-      delta.ts                            ← timeline builder + transitions + snapshot diffing
-      suggestedAnalysis.ts                ← aggregation + content analysis
-      __tests__/
-        csvParser.test.ts
-        delta.test.ts
-        suggestedAnalysis.test.ts
-    definitions.ts                        ← tool declaration (depth enum)
-    executor.ts                           ← tool routing
-
-src/
-  features/Chat/
-    components/ToolCallSummary.tsx        ← AnalysisStats + PortalTooltip
-    utils/toolCallGrouping.ts             ← getGroupLabel для analyzeSuggestedTraffic
-```
-
----
-
-## Связанные фичи
-
-- [Suggested Traffic UI](./suggested-traffic.md) — откуда берутся CSV и данные enrichment
-- [Chat](./chat/) — SSE streaming, tool call pipeline, ToolCallSummary UI
-
----
-
-## ← YOU ARE HERE → v2.3: self-channel detection + content trajectory + per-snapshot topVideos
 
 ## Roadmap
 
-### Stage 3 — Multi-snapshot comparison UI
+### Stage 1 — Multi-snapshot comparison UI ← YOU ARE HERE
 **Бизнес-цель:** пользователь видит ротацию пула suggested видео визуально на странице Traffic, не только через AI.
 
 - [ ] Визуализация transitions на Suggested Traffic page
 - [ ] Timeline view для отдельного source видео
 
-### Stage 3.5 — Self-channel matching по channelId
+### Stage 2 — Self-channel matching по channelId
 **Бизнес-цель:** устранить edge case с совпадающими названиями каналов.
 
-> **Known limitation (v2.1):** `computeSelfChannelStats()` матчит по `channelTitle` (case-insensitive). Совпадение названий каналов — редкий кейс, но `channelId` (YouTube ID `UC...`) — deterministic и неизменен. Переход на `channelId` matching имеет смысл при расширении `EnrichedVideoData` (например, для competitive intelligence).
+> **Known limitation:** `computeSelfChannelStats()` матчит по `channelTitle` (case-insensitive). `channelId` (YouTube ID `UC...`) уже есть в `cached_external_videos`, но `EnrichedVideoData` interface на бэкенде читает только `{ videoId, tags, channelTitle }`. Нужно добавить `channelId` в интерфейс и переключить matching.
 
-- [ ] Добавить `channelId` в `EnrichedVideoData`
-- [ ] Читать `channelId` из `cached_external_videos` при enrichment
+- [ ] Расширить `EnrichedVideoData` на `channelId` (читать из `cached_external_videos`)
 - [ ] Matching по `channelId` вместо `channelTitle` в `computeSelfChannelStats()`
 
-### Stage 4 — Niche correlation
+### Stage 3 — Niche correlation
 **Бизнес-цель:** связать suggested traffic с нишами пользователя, показать какие ниши приносят трафик.
 
 - [ ] Передать niche assignments в handler
 - [ ] Агрегат impressions/views по нишам
 
-### Stage 5 — Market-ready
+### Stage 4 — Market-ready
 **Бизнес-цель:** полная автоматизация аналитики для YouTube-каналов.
 
 - [ ] Scheduled analysis (автоматический отчёт при новом снапшоте)
 - [ ] Cost: ~$0.05-0.10 per analysis (pre-computed JSON vs raw CSV tokens)
-- [ ] API: Gemini 3.1 Pro by default, Cloud Functions 2nd Gen
-- [ ] Storage: Firestore (metadata) + Cloud Storage (CSV bodies)
+
+---
+
+## Связанные фичи
+- [Suggested Traffic UI](../../video-details/suggested-traffic.md) — откуда берутся CSV и данные enrichment
+- [Traffic Sources Tool](../../video-details/traffic-sources.md) — gateway tool (`analyzeTrafficSources`) вызывается перед drill-down
+- [YouTube Research Tools](./youtube-research-tools.md) — Telescope Pattern (Layer 3)
+- Chat — SSE streaming, tool call pipeline, ToolCallSummary UI
+
+---
+
+## Technical Implementation
+
+### Backend
+| Файл | Назначение |
+|------|-----------|
+| `functions/src/services/tools/handlers/analyzeSuggestedTraffic.ts` | Main handler: Firestore → Cloud Storage → parse → timelines → content → JSON |
+| `functions/src/services/tools/utils/csvParser.ts` | Server-side CSV parser (RFC 4180, `YT_RELATED.{id}`, Total row, `sourceType` filter) |
+| `functions/src/services/tools/utils/delta.ts` | `buildVideoTimeline`, `getTransitions`, `calculateSnapshotDeltas`, `findNewEntries`, `findDroppedEntries` |
+| `functions/src/services/tools/utils/suggestedAnalysis.ts` | `analyzeContent`, `computeSelfChannelStats`, `computeContentTrajectory`, `aggregateTopSources`, `tokenizeTitle`, `findSharedTags` |
+| `functions/src/services/tools/definitions.ts` | Tool declaration (depth enum, parameter descriptions) |
+| `functions/src/services/tools/executor.ts` | Tool routing: `ANALYZE_SUGGESTED_TRAFFIC` → handler |
+
+### Frontend (Chat UI)
+| Файл | Назначение |
+|------|-----------|
+| `features/Chat/components/ToolCallSummary.tsx` | AnalysisStats + PortalTooltip для pill |
+| `features/Chat/components/ToolCallBadge.tsx` | Pending/resolved labels |
+| `features/Chat/utils/toolCallGrouping.ts` | `getGroupLabel` + auto-expand logic |
+| `features/Chat/ChatMessageList.tsx` | Dynamic video discovery from tool results |
+
+### Data paths
+```
+Firestore:  users/{uid}/channels/{channelId}/videos/{videoId}/traffic/main → snapshots[]
+            users/{uid}/channels/{channelId}/videos/{videoId} → source video
+            users/{uid}/channels/{channelId}/cached_external_videos/{id} → enrichment
+Storage:    storagePath from each snapshot entry → CSV body
+```
+
+### Tests
+| Файл | Кейсов |
+|------|--------|
+| `functions/src/services/tools/utils/__tests__/csvParser.test.ts` | 12 (RFC 4180, Total row, edge cases) |
+| `functions/src/services/tools/utils/__tests__/delta.test.ts` | 17 (timelines, transitions, new/dropped, gaps) |
+| `functions/src/services/tools/utils/__tests__/suggestedAnalysis.test.ts` | 46 (content analysis, self-channel, trajectory, tokenizer, stop-words) |

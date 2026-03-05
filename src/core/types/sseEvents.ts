@@ -14,13 +14,10 @@ export interface ToolCallRecord {
     result?: Record<string, unknown>;
 }
 
-// --- Token usage (shared with existing types) ---
+// --- Token usage (re-exported from shared SSOT) ---
 
-export interface SSETokenUsage {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
-}
+import type { TokenUsage } from '../../../shared/models';
+export type SSETokenUsage = TokenUsage;
 
 // --- SSE event discriminated union ---
 

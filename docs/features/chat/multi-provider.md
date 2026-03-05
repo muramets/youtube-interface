@@ -10,7 +10,7 @@
 
 ## Текущее состояние ← YOU ARE HERE
 
-**Провайдеры:** Gemini (4 модели) + Anthropic Claude (2 модели) через единый provider router.
+**Провайдеры:** Gemini (4 модели) + Anthropic Claude (3 модели) через единый provider router.
 
 **Что работает:**
 - Provider Router — lazy initialization, model → provider маппинг из `MODEL_REGISTRY`
@@ -88,8 +88,9 @@ User selects model in UI
 | Gemini 3 Flash | gemini | 1M | level: minimal/low/medium/high | $0.50 / $3 |
 | Gemini 2.5 Pro | gemini | 1M | budget: auto/1K/8K/24K | $1.25 / $10 |
 | Gemini 2.5 Flash | gemini | 1M | budget: off/auto/1K/8K/24K | $0.30 / $2.50 |
-| Claude Sonnet 4.6 | anthropic | 200K | budget: off/auto/4K/10K/32K | $3 / $15 |
-| Claude Haiku 4.5 | anthropic | 200K | only off | $1.00 / $5 |
+| Claude Opus 4.6 | anthropic | 200K | adaptive: off/low/medium/high/max | $5 / $25 |
+| Claude Sonnet 4.6 | anthropic | 200K | adaptive: off/low/medium/high/max | $3 / $15 |
+| Claude Haiku 4.5 | anthropic | 200K | only off | $1 / $5 |
 
 ---
 
@@ -115,8 +116,11 @@ gemini/
 ├── streamChat.ts            # Gemini agentic loop (streaming + tools + images)
 ├── factory.ts               # geminiFactory: ProviderFactory
 ├── context.ts               # GeminiProviderContext type + geminiContext() helper
-├── toolAdapter.ts           # toGeminiTools() — ToolDefinition[] → Gemini format
-├── thumbnailMiddleware.ts   # enhanceWithThumbnails() — URL extraction
+├── toolAdapter.ts           # toFunctionDeclarations() — ToolDefinition[] → Gemini format
+├── thumbnailMiddleware.ts   # enhanceWithThumbnails() — approval gate (Gemini only)
+├── thumbnails.ts            # fetchThumbnailParts() — Gemini Files API upload, 47h TTL cache
+├── fileUpload.ts            # reuploadFromStorage() — server-side fallback upload
+├── titleGeneration.ts       # generateTitle() — conversation title via utility model
 ├── index.ts                 # Barrel exports
 └── __tests__/
     ├── streamChat.contract.test.ts  # Contract tests
@@ -157,7 +161,7 @@ services/
 - [x] `executeToolBatch()` — extracted from Gemini streamChat
 - [x] `thumbnailMiddleware` → provider-agnostic `imageUrls[]` (вместо Gemini `Part[]`)
 - [x] `geminiFactory` + `GeminiProviderContext` + `geminiContext()`
-- [x] `toGeminiTools()` adapter (ToolDefinition → Gemini format)
+- [x] `toFunctionDeclarations()` adapter (ToolDefinition → Gemini format)
 - [x] `aiChat.ts` rewired to use provider router
 - [x] 44+ characterization tests (router, retry, toolExecution)
 

@@ -29,6 +29,7 @@ import type {
     TextBlockParam,
     DocumentBlockParam,
     ThinkingConfigParam,
+    CacheControlEphemeral,
 } from "@anthropic-ai/sdk/resources/messages/messages.js";
 import { APIError } from "@anthropic-ai/sdk/error.js";
 
@@ -104,6 +105,9 @@ const DEFAULT_THINKING_BUDGET = 10_240;
  * The API requires budget_tokens >= 1024.
  */
 const MIN_THINKING_BUDGET = 1_024;
+
+/** Cache control directive — 1-hour TTL for analytical conversations. */
+const CACHE_CONTROL: CacheControlEphemeral = { type: "ephemeral", ttl: "1h" };
 
 // =============================================================================
 // Attachment Conversion
@@ -258,6 +262,50 @@ function toClaudeTools(tools: ToolDefinition[]): Tool[] {
 }
 
 // =============================================================================
+// Cache Breakpoints
+// =============================================================================
+
+/**
+ * Apply incremental cache breakpoint (BP3) on the last content block
+ * of the second-to-last message. Returns a new messages array without
+ * mutating the original.
+ *
+ * Skips BP3 if fewer than 2 messages (e.g. first message with no history).
+ */
+function applyCacheBreakpoints(messages: MessageParam[]): MessageParam[] {
+    if (messages.length < 2) return messages;
+
+    const idx = messages.length - 2;
+    const msg = messages[idx];
+    const content = msg.content;
+
+    // String content — wrap in text block with cache_control
+    if (typeof content === "string") {
+        const result = [...messages];
+        result[idx] = {
+            ...msg,
+            content: [{ type: "text" as const, text: content, cache_control: CACHE_CONTROL }],
+        };
+        return result;
+    }
+
+    // Array content — clone last block and add cache_control
+    if (Array.isArray(content) && content.length > 0) {
+        const newContent = [...content];
+        // All Anthropic content block types support optional cache_control
+        newContent[newContent.length - 1] = {
+            ...content[content.length - 1],
+            cache_control: CACHE_CONTROL,
+        } as ContentBlockParam;
+        const result = [...messages];
+        result[idx] = { ...msg, content: newContent };
+        return result;
+    }
+
+    return messages;
+}
+
+// =============================================================================
 // Transient Error Detection
 // =============================================================================
 
@@ -357,6 +405,11 @@ export async function streamChat(
     // --- Tool definitions ---
     const claudeTools = tools.length > 0 && toolContext ? toClaudeTools(tools) : [];
 
+    // Apply cache breakpoint on last tool definition (BP2)
+    if (claudeTools.length > 0) {
+        claudeTools[claudeTools.length - 1].cache_control = CACHE_CONTROL;
+    }
+
     // --- Thinking config ---
     const thinkingResult = buildThinkingConfig(model, thinkingOptionId);
     const thinkingConfig = thinkingResult?.thinking;
@@ -434,14 +487,19 @@ export async function streamChat(
         // Accumulate text + tokens (sum across iterations, not overwrite)
         fullText = iterationResult.fullText;
         if (iterationResult.tokenUsage) {
-            tokenUsage = tokenUsage
-                ? {
+            if (tokenUsage) {
+                const newCached = (tokenUsage.cachedTokens ?? 0) + (iterationResult.tokenUsage.cachedTokens ?? 0);
+                const newCacheWrite = (tokenUsage.cacheWriteTokens ?? 0) + (iterationResult.tokenUsage.cacheWriteTokens ?? 0);
+                tokenUsage = {
                     promptTokens: tokenUsage.promptTokens + iterationResult.tokenUsage.promptTokens,
                     completionTokens: tokenUsage.completionTokens + iterationResult.tokenUsage.completionTokens,
                     totalTokens: tokenUsage.totalTokens + iterationResult.tokenUsage.totalTokens,
-                    cachedTokens: (tokenUsage.cachedTokens ?? 0) + (iterationResult.tokenUsage.cachedTokens ?? 0) || undefined,
-                }
-                : iterationResult.tokenUsage;
+                    cachedTokens: newCached > 0 ? newCached : undefined,
+                    cacheWriteTokens: newCacheWrite > 0 ? newCacheWrite : undefined,
+                };
+            } else {
+                tokenUsage = iterationResult.tokenUsage;
+            }
         }
 
         console.log(
@@ -556,11 +614,14 @@ export async function streamChat(
         `${allToolCalls.length} tool calls, ${fullText.length} chars, ${tEnd - t0}ms total`,
     );
     if (tokenUsage) {
-        const cached = tokenUsage.cachedTokens ? ` cached=${tokenUsage.cachedTokens}` : " cached=0";
         console.log(
             `[claude:streamChat] Tokens: prompt=${tokenUsage.promptTokens}, ` +
             `completion=${tokenUsage.completionTokens}, ` +
-            `total=${tokenUsage.totalTokens}${cached}`,
+            `total=${tokenUsage.totalTokens}`,
+        );
+        console.log(
+            `[claude:streamChat] Cache: ${tokenUsage.cachedTokens ?? 0} read, ` +
+            `${tokenUsage.cacheWriteTokens ?? 0} write tokens`,
         );
     }
 
@@ -659,8 +720,10 @@ async function streamIteration(
         const params: Anthropic.MessageCreateParamsNonStreaming = {
             model,
             max_tokens: maxTokens,
-            messages,
-            ...(systemPrompt ? { system: systemPrompt } : {}),
+            messages: applyCacheBreakpoints(messages),
+            ...(systemPrompt ? {
+                system: [{ type: "text" as const, text: systemPrompt, cache_control: CACHE_CONTROL }],
+            } : {}),
             ...(tools.length > 0 ? { tools } : {}),
             ...(thinkingConfig ? { thinking: thinkingConfig } : {}),
             ...(thinkingEffort ? { output_config: { effort: thinkingEffort as 'low' | 'medium' | 'high' | 'max' } } : {}),
@@ -734,11 +797,13 @@ async function streamIteration(
                 // Extract token usage from the final message
                 if (message.usage) {
                     const cacheRead = message.usage.cache_read_input_tokens ?? 0;
+                    const cacheWrite = message.usage.cache_creation_input_tokens ?? 0;
                     tokenUsage = {
                         promptTokens: message.usage.input_tokens,
                         completionTokens: message.usage.output_tokens,
                         totalTokens: message.usage.input_tokens + message.usage.output_tokens,
                         cachedTokens: cacheRead > 0 ? cacheRead : undefined,
+                        cacheWriteTokens: cacheWrite > 0 ? cacheWrite : undefined,
                     };
                 }
             });

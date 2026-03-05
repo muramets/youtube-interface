@@ -1,10 +1,16 @@
 # 🤖 Agentic Architecture — как работает AI ассистент
 
+## Текущее состояние
+
+**Реализовано.** AI работает как агент с 7 инструментами. Оба провайдера (Gemini и Claude) используют одинаковый agentic loop: до 10 итераций tool calling за один ответ. Shared batch executor (`executeToolBatch`) + provider-specific image delivery. 9 SSE event types для стриминга.
+
+---
+
 ## Простыми словами
 
 Раньше AI работал как **переводчик**: ты даёшь текст → он даёт текст обратно.
 
-Теперь AI работает как **ассистент с набором инструментов**: он может останавливаться посреди ответа, вызывать функции (искать видео, получать данные), видеть результат, и продолжать ответ.
+Теперь AI работает как **ассистент с набором инструментов**: он может останавливаться посреди ответа, вызывать функции (искать видео, получать данные), видеть результат, и продолжать ответ. Это работает одинаково для обоих провайдеров — Gemini и Claude.
 
 ---
 
@@ -19,19 +25,19 @@
   └────────────────────┬────────────────────────┘
                        ▼
   ┌─────────────────────────────────────────────┐
-  │  2. Gemini начинает отвечать                │
+  │  2. AI начинает отвечать                    │
   │     Вместо текста "Видео #1" — вызывает:    │
   │     mentionVideo(videoId: "abc123")         │
   └────────────────────┬────────────────────────┘
                        ▼
   ┌─────────────────────────────────────────────┐
-  │  3. Сервер выполняет tool                   │
+  │  3. Сервер выполняет tool (executeToolBatch)│
   │     → ищет видео в Firestore                │
   │     → возвращает {title: "My Video", ...}   │
   └────────────────────┬────────────────────────┘
                        ▼
   ┌─────────────────────────────────────────────┐
-  │  4. Gemini получает результат и пишет текст │
+  │  4. AI получает результат и пишет текст     │
   │     "[My Video](mention://abc123) имеет     │
   │      CTR 8%, что выше среднего..."          │
   └────────────────────┬────────────────────────┘
@@ -43,7 +49,7 @@
   └─────────────────────────────────────────────┘
 ```
 
-Этот цикл (шаги 2–4) может повторяться до **10 раз** за один ответ — Gemini может вызвать несколько tools подряд.
+Этот цикл (шаги 2–4) может повторяться до **10 раз** за один ответ — AI может вызвать несколько tools подряд. Работает одинаково для Gemini и Claude.
 
 ---
 
@@ -51,8 +57,15 @@
 
 | Tool | Что делает | Когда используется |
 |------|-----------|-------------------|
-| `mentionVideo` | Находит видео по ID, возвращает title + ownership | Каждый раз, когда Gemini ссылается на видео в тексте |
-| `getMultipleVideoDetails` | Batch-запрос: description, tags, views для N видео | Когда Gemini нужна детальная информация (prompt содержит только title + метрики) |
+| `mentionVideo` | Находит видео по ID, возвращает title + ownership | Каждый раз, когда AI ссылается на видео в тексте |
+| `getMultipleVideoDetails` | Batch-запрос: description, tags, views для N видео | Когда AI нужна детальная информация (prompt содержит только title + метрики) |
+| `viewThumbnails` | Показывает обложки видео как изображения | Когда AI анализирует CTR, дизайн обложек или сравнивает визуально |
+| `analyzeTrafficSources` | Анализ источников трафика видео | Когда пользователь спрашивает откуда приходят зрители |
+| `analyzeSuggestedTraffic` | Анализ suggested traffic (рекомендации YouTube) | Когда нужен анализ какие видео приносят suggested views |
+| `getChannelOverview` | Обзор YouTube канала: подписчики, видео, статистика | Когда AI исследует внешний канал (конкурент, источник трафика) |
+| `browseChannelVideos` | Пагинированный список видео канала с метриками | Когда нужен детальный обзор контента канала |
+
+Подробности по каждому tool — в отдельных docs: [viewThumbnails](./tools/view-thumbnails.md), [analyzeSuggestedTraffic](./tools/analyze-suggested-traffic-tool.md), [YouTube Research Tools](./tools/youtube-research-tools.md).
 
 ### Как добавить новый tool:
 1. Описать его в `tools/definitions.ts` (что он делает, какие параметры)
@@ -116,12 +129,14 @@ Frontend парсит mention://abc123 → VideoReferenceTooltip
 
 AI может "думать вслух" перед ответом. Уровень мышления настраивается per-model:
 
-| Модель | Провайдер | Параметр | Опции |
-|--------|-----------|----------|-------|
-| Gemini 3.1 Pro / 3 Flash | Gemini | `thinkingLevel` | Low · Medium · High |
-| Gemini 2.5 Pro | Gemini | `thinkingBudget` | Auto · 1K · 8K · 24K tokens |
-| Gemini 2.5 Flash | Gemini | `thinkingBudget` | Off · Auto · 1K · 8K · 24K tokens |
-| Claude Sonnet 4.6 | Anthropic | `budget_tokens` | Off · Auto · 4K · 10K · 32K tokens |
+| Модель | Провайдер | Режим | Опции |
+|--------|-----------|-------|-------|
+| Gemini 3.1 Pro | Gemini | level | Low · Medium · High |
+| Gemini 3 Flash | Gemini | level | Minimal · Low · Medium · High |
+| Gemini 2.5 Pro | Gemini | budget | Auto · 1K · 8K · 24K tokens |
+| Gemini 2.5 Flash | Gemini | budget | Off · Auto · 1K · 8K · 24K tokens |
+| Claude Opus 4.6 | Anthropic | adaptive | Off · Low · Medium · High · Max |
+| Claude Sonnet 4.6 | Anthropic | adaptive | Off · Low · Medium · High · Max |
 | Claude Haiku 4.5 | Anthropic | — | Только Off (thinking не поддерживается) |
 
 UI dropdown адаптируется автоматически: опции читаются из `MODEL_REGISTRY.thinkingOptions`. Подробнее: [Multi-Provider Architecture](./multi-provider.md).
@@ -142,10 +157,13 @@ UI dropdown адаптируется автоматически: опции чи
 |---------|-----------|-----------|
 | `chunk` | Кусок текста ответа | Текст появляется посимвольно |
 | `thought` | Кусок мышления | ThinkingBubble обновляется |
-| `toolCall` | Gemini вызвал tool | ToolCallSummary обновляет счётчик |
+| `toolCall` | AI вызвал tool | ToolCallSummary показывает pending pill |
 | `toolResult` | Результат tool | ToolCallSummary (resolved, кликабельный) |
+| `toolProgress` | Промежуточный статус выполнения tool | Текст под pill обновляется |
+| `confirmLargePayload` | Большой batch (≥15 обложек) требует подтверждения | ConfirmLargePayloadBanner с кнопками Load/Cancel |
 | `done` | Ответ завершён | Сообщение сохраняется в Firestore |
 | `error` | Ошибка | Сообщение об ошибке |
+| `retry` | Сервер делает retry после transient error | Статус "Retrying..." под сообщением |
 
 ---
 
@@ -153,24 +171,36 @@ UI dropdown адаптируется автоматически: опции чи
 
 ### Backend (`functions/src/`)
 ```
+services/ai/
+├── toolExecution.ts                # executeToolBatch() — shared batch executor + processImages
+├── retry.ts                        # withStreamRetry() — shared retry logic
+├── providerRouter.ts               # model → provider dispatch
+
 services/tools/
-├── definitions.ts                  # Описания tools для Gemini API
-├── executor.ts                     # Диспетчер: call → handler → result
-├── types.ts                        # Общие типы (ToolContext, etc.)
-├── index.ts                        # Barrel export
+├── definitions.ts                  # Описания tools (provider-agnostic, 7 tools)
+├── executor.ts                     # executeTool() — диспетчер: call → handler → result
+├── types.ts                        # ToolContext, ToolResult
 ├── handlers/
 │   ├── mentionVideo.ts             # Поиск видео по ID
-│   └── getMultipleVideoDetails.ts  # Batch fetch из videos/ + cached_suggested/
+│   ├── getMultipleVideoDetails.ts  # Batch fetch из videos/ + cached_external_videos/
+│   ├── viewThumbnails.ts           # Обложки видео (dual-collection lookup)
+│   ├── analyzeTrafficSources.ts    # Анализ источников трафика
+│   ├── analyzeTraffic.ts           # Анализ suggested traffic
+│   ├── getChannelOverview.ts       # Обзор YouTube канала
+│   └── browseChannelVideos.ts      # Список видео канала
 ```
 
 ### Frontend (`src/`)
 ```
-core/types/sseEvents.ts           # Типы SSE событий
-core/services/aiProxyService.ts   # SSE парсер + callbacks
-core/services/aiService.ts        # Фасад (API → store)
-core/stores/chatStore.ts          # Состояние streaming
+core/types/sseEvents.ts                # 9 SSE event types
+core/services/aiProxyService.ts        # SSE парсер + callbacks
+core/services/aiService.ts             # Фасад (API → store)
+core/stores/chat/chatStore.ts          # Состояние streaming + sliced architecture
 
 features/Chat/components/
-├── ToolCallSummary.tsx   # Consolidated pills with video previews
-├── ThinkingBubble.tsx    # Collapsible thinking chain
+├── ToolCallSummary.tsx                # Consolidated pills (7 tool types) + ThumbnailGrid
+├── ThinkingBubble.tsx                 # Collapsible thinking chain
+├── ConfirmLargePayloadBanner.tsx      # Подтверждение большого batch обложек
+features/Chat/utils/
+├── toolCallGrouping.ts                # Группировка tool calls по типу
 ```

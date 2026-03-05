@@ -4,9 +4,8 @@
 // Retains only file validation utilities.
 // =============================================================================
 
-import type { ChatAttachment } from '../types/chat';
+import type { ChatAttachment, AiChatResult } from '../types/chat';
 import { DEFAULT_MODEL } from '../types/chat';
-import type { ToolCallRecord } from '../types/sseEvents';
 import type { AttachmentSupport } from '../../../shared/models';
 import * as AiProxy from './aiProxyService';
 
@@ -67,17 +66,7 @@ export function isAllowedMimeTypeForModel(file: File, support: AttachmentSupport
 
 // --- Types ---
 
-export type AiSendResult = {
-    text: string;
-    tokenUsage?: {
-        promptTokens: number;
-        completionTokens: number;
-        totalTokens: number;
-    };
-    toolCalls?: ToolCallRecord[];
-    summary?: string;
-    usedSummary?: boolean;
-};
+export type AiSendResult = AiChatResult;
 
 // --- Service (delegates to Cloud Functions) ---
 

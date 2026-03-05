@@ -277,3 +277,43 @@ sequenceDiagram
 | `videos/` | Собственные видео | YouTube API (sync) |
 | `cached_external_videos/` | Все внешние видео (suggested traffic + channel discovery + API fallback) | YouTube API (repair, discovery, fallback). Поле `source` отслеживает происхождение: `"suggested_traffic"`, `"channel_discovery"`, `"api_fallback"` |
 | `trendChannels/{id}/videos/` | Видео конкурентов (trend sync) | YouTube API (trend sync) |
+
+---
+
+## Backlog
+
+### `publishedAfter` early stop при пагинации
+
+`publishedAfter` фильтр применяется post-fetch (после загрузки всех страниц из YouTube API). Для каналов с <200 видео (1-4 страницы) это не проблема. Для каналов с 1000+ видео — тратит лишнюю квоту.
+
+**Задача:** передать `publishedAfter` в `YouTubeService.getPlaylistVideos()` и остановить пагинацию, когда `publishedAt` видео становится старше порога. YouTube API возвращает видео в обратном хронологическом порядке — early stop безопасен.
+
+**Затронутые файлы:**
+- `functions/src/services/youtube.ts` — `getPlaylistVideos()`: добавить параметр + early stop логику
+- `functions/src/services/tools/handlers/browseChannelVideos.ts` — передать `publishedAfter` в сервис
+
+### `lookupTrendVideos` — explicit tool для trend cache
+
+После cache consolidation tool handlers не знают про `trendChannels/`. Но trend sync бесплатно скачивает сотни видео конкурентов — эти данные должны быть доступны LLM как explicit capability, а не скрытый fallback.
+
+**Задача:** новый тул `lookupTrendVideos` для явного доступа к trend cache:
+- Параметры: `channelId` (required) — ID tracked конкурента
+- Возвращает: список видео из `trendChannels/{channelId}/videos/`
+- 0 YouTube API quota (всё из кеша)
+- LLM вызывает явно, когда знает что видео от tracked конкурента
+
+**Telescope Pattern integration:**
+```
+getChannelOverview → browseChannelVideos → lookupTrendVideos → getMultipleVideoDetails
+```
+LLM может выбрать `lookupTrendVideos` вместо `browseChannelVideos` если канал уже tracked — экономия квоты.
+
+**Зависит от:** Cache Consolidation Phase 5
+
+**Затронутые файлы (~6):**
+- `functions/src/services/tools/handlers/lookupTrendVideos.ts` — NEW handler
+- `functions/src/services/tools/definitions.ts` — tool definition
+- `functions/src/services/tools/executor.ts` — handler registration
+- `src/features/Chat/utils/toolCallGrouping.ts` — tool label
+- `src/features/Chat/components/ToolCallSummary.tsx` — tool pill
+- `docs/features/chat/tools/youtube-research-tools.md` — architecture update

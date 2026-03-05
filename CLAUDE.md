@@ -95,7 +95,7 @@ functions/src/
 ```
 Browser → Cloud Function (startRender) → Cloud Tasks → Cloud Run Job → ffmpeg → R2 → Firestore status update
 ```
-UI listens for status changes via Firestore `onSnapshot`. Download links come from Cloudflare R2. Full details in `docs/render-pipeline-guide.md`.
+UI listens for status changes via Firestore `onSnapshot`. Download links come from Cloudflare R2. Full details in `docs/features/render/README.md`.
 
 ### Key Conventions
 - ESLint uses flat config (`eslint.config.js`) with TypeScript, React, React Hooks, and React Refresh plugins
@@ -120,6 +120,7 @@ UI listens for status changes via Firestore `onSnapshot`. Download links come fr
 - When creating new files or refactoring imports — additionally run `npm run typecheck`.
 - Fix all lint errors and warnings following industry best practices — no hacks or workarounds. If a fix requires an architectural change, make it.
 - **Always run existing tests before deploying** (`npm run test:run` for frontend, `npx vitest run --project functions` for backend — both from project root). "Lint/typecheck pass" is NOT a substitute for passing tests. If test runner itself fails (timeout, worker crash, config issue) — fix the test infrastructure first, do not deploy with broken tests.
+- When editing files in `docs/features/` — run `npm run check:docs` to verify all markdown links and code file paths are valid. Fix any broken references before finishing.
 
 ### Communication Style
 - The user is a product director / orchestra conductor with no assumed technical background. Always accompany technical explanations with plain, everyday Russian language analogies.
@@ -141,6 +142,13 @@ UI listens for status changes via Firestore `onSnapshot`. Download links come fr
   - `current state` — ≤10 lines; business logic in plain language; separate technical details from business logic.
   - `roadmap` — per-stage description of user flow + checklist; final stage = market-ready vision (architecture, cost, storage, API usage).
 - **Doc structure rule: "why" on top, "how" on bottom.** Top sections (`current state`, `what is this`, `user flow`) must describe business behavior in plain language — what the user sees and why the feature exists. Any reference to a specific file name, Firestore collection, function name, API name, or version number belongs in a dedicated `Technical Implementation` section at the bottom. This prevents documentation from going stale when code is refactored — business intent rarely changes, but file paths and collection names change often.
+
+### Backlog Management (`docs/backlog.md`)
+- `docs/backlog.md` — index (таблица ссылок на feature docs). Не дублировать детали.
+- Детали backlog items живут в feature docs (`docs/features/`). Cross-feature items — в `docs/backlog/`.
+- Добавление: сначала деталь в feature doc → потом строка в index.
+- Завершение: отметить `[x]` в feature doc → удалить строку из index → добавить в `docs/backlog/archive.md`.
+- Done items хранятся в `docs/backlog/archive.md` (одна строка на item).
 
 ### Separation of Concerns
 - When creating a new hook or component, immediately extract pure logic (calculations, transformations, formatting) into a separate `utils` file.

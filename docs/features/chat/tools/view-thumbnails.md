@@ -2,7 +2,7 @@
 
 ## Текущее состояние
 
-**Реализовано (v1.1).** AI может вызвать `viewThumbnails` в чате, чтобы визуально увидеть обложки видео (свои и чужие). Поддерживается поиск по `videoIds` и по `titles` (exact match fallback). Средний batch (< 15) загружается автоматически. Большой batch (≥ 15) требует подтверждения пользователя. Работает с обоими провайдерами (Gemini и Claude), но механизм доставки изображений отличается — подробности в [Technical Implementation](#multi-provider-thumbnails).
+**Реализовано (v1.1).** AI может вызвать `viewThumbnails` в чате, чтобы визуально увидеть обложки видео (свои и чужие). Поддерживается поиск по `videoIds` и по `titles` (exact match fallback). Для Gemini: средний batch (< 15) загружается автоматически, большой batch (≥ 15) требует подтверждения пользователя. Для Claude: все обложки загружаются без подтверждения (approval gate отсутствует). Подробности в [Technical Implementation](#multi-provider-thumbnails).
 
 ---
 
@@ -52,36 +52,41 @@ User message
      ▼
 [streamChat — agentic loop]
   ─ Gemini sees videoIds in context → calls viewThumbnails(videoIds)
-  ─ executeTool() runs handleViewThumbnails()
+  ─ executeToolBatch() (shared, toolExecution.ts) → executeTool() → handleViewThumbnails()
      │
      ▼
 [handleViewThumbnails]
   ─ Firestore getAll() x2 in parallel:
-      videos/{userId}/channels/{channelId}/videos/{id}        ← own videos
-      videos/{userId}/channels/{channelId}/cached_external_videos/{id}  ← external videos
+      users/{userId}/channels/{channelId}/videos/{id}        ← own videos
+      users/{userId}/channels/{channelId}/cached_external_videos/{id}  ← external videos
   ─ own videos preferred; fallback to cached_external if not found
   ─ caps at 50 IDs
   ─ returns { videos: [{videoId, title, thumbnailUrl, ...}], notFound: [], visualContextUrls: [...] }
      │
      ▼
-[thumbnailMiddleware.enhanceWithThumbnails()]
-  ─ no visualContextUrls → no-op, pass through
-  ─ visualContextUrls present → gate check:
-      count < 15  OR largePayloadApproved=true  →  upload to Gemini Files API
+[processImages callback — provider-specific]
+  ─ Gemini: enhanceWithThumbnails() → gate check:
+      count < 15  OR largePayloadApproved=true  →  fetchThumbnailParts() → Gemini Files API
       count >= 15 AND largePayloadApproved=false →  BLOCK, return blockedCount
+  ─ Claude: extractVisualContextUrls() → inline URL image blocks (no gate)
      │
-     ├─ [BLOCKED path]
+     ├─ [BLOCKED path — Gemini only]
      │    ─ cleanedResponse gets _systemNote (tells Gemini what happened)
      │    ─ onLargePayloadBlocked(count) fires
      │    ─ aiChat writes SSE: { type: "confirmLargePayload", count: N }
      │    ─ frontend chatStore sets pendingLargePayloadConfirmation = { count, text, attachments, convId, ... }
      │    ─ ConfirmLargePayloadBanner renders in UI
      │
-     └─ [APPROVED path]
-          ─ fetchThumbnailParts() → Gemini Files API upload (with 47h TTL cache)
-          ─ returns Part[] with fileData references
-          ─ imageParts appended to functionResponseParts alongside JSON result
-          ─ Gemini sees text result + images in the same turn
+     ├─ [APPROVED path — Gemini]
+     │    ─ fetchThumbnailParts() → Gemini Files API upload (with 47h TTL cache)
+     │    ─ returns Part[] with fileData references
+     │    ─ imageParts appended to functionResponseParts alongside JSON result
+     │    ─ Gemini sees text result + images in the same turn
+     │
+     └─ [Claude path — no gate]
+          ─ extractVisualContextUrls() → raw URL strings
+          ─ URLs inlined as { type: "image", source: { type: "url", url } } in tool_result
+          ─ Claude sees text result + images directly (no Files API, no cache)
      │
      ▼
 [Gemini — next iteration]
@@ -190,7 +195,7 @@ ChatMessageList renders <ConfirmLargePayloadBanner count={N} onConfirm={...} onD
 
 | Компонент | Файл | Назначение |
 |---|---|---|
-| `ConfirmLargePayloadBanner` | `Chat/components/ConfirmLargePayloadBanner.tsx` | Янтарный баннер с кнопками Load/Cancel |
+| `ConfirmLargePayloadBanner` | `features/Chat/components/ConfirmLargePayloadBanner.tsx` | Янтарный баннер с кнопками Load/Cancel |
 | `ThumbnailGrid` | внутри `ToolCallSummary.tsx` | 4-колонная сетка превью обложек в expanded pill |
 | Tool pill (amber) | `ToolCallSummary.tsx` | Янтарная пилюля `Images` иконка для viewThumbnails |
 
@@ -198,9 +203,9 @@ ChatMessageList renders <ConfirmLargePayloadBanner count={N} onConfirm={...} onD
 
 ## Multi-provider thumbnails
 
-**Gemini:** `viewThumbnails` handler возвращает URLs → `thumbnailMiddleware` загружает изображения в Gemini Files API (47h TTL cache) → image Parts добавляются к tool result.
+**Gemini:** `viewThumbnails` handler возвращает URLs → `enhanceWithThumbnails()` проверяет approval gate (порог = 15) → при одобрении `fetchThumbnailParts()` загружает в Gemini Files API (47h TTL cache) → image Parts добавляются к tool result.
 
-**Claude:** Thumbnails из контекста передаются как inline image URL блоки (`{ type: "image", source: { type: "url", url } }`) — без Files API upload. Claude видит обложки автоматически.
+**Claude:** `extractVisualContextUrls()` извлекает URLs → инлайнятся как `{ type: "image", source: { type: "url", url } }` в `tool_result` content blocks. **Approval gate отсутствует** — все обложки загружаются без подтверждения и без лимита. Claude не использует Files API и thumbnail cache.
 
 ---
 
@@ -209,16 +214,22 @@ ChatMessageList renders <ConfirmLargePayloadBanner count={N} onConfirm={...} onD
 ```
 functions/src/
   services/
+    ai/
+      toolExecution.ts                             ← shared batch executor + processImages callback
     tools/
       handlers/
         viewThumbnails.ts                          ← Firestore lookup, dual-collection
         __tests__/
-          viewThumbnails.handler.test.ts           ← 8 tests
+          viewThumbnails.handler.test.ts           ← 12 tests
           getMultipleVideoDetails.bugfix.test.ts   ← 2 tests (thumbnail field bugfix)
     gemini/
-      thumbnailMiddleware.ts                       ← approval gate, Gemini Files API upload
+      thumbnailMiddleware.ts                       ← approval gate (Gemini only)
+      thumbnails.ts                                ← fetchThumbnailParts, Gemini Files API upload, 47h TTL cache
+      context.ts                                   ← GeminiProviderContext (largePayloadApproved, onLargePayloadBlocked)
       __tests__/
-        thumbnailMiddleware.test.ts                ← 7 tests
+        thumbnailMiddleware.test.ts                ← 6 tests
+    claude/
+      streamChat.ts                                ← extractVisualContextUrls, inline URL image blocks
 
 src/
   core/
@@ -243,8 +254,8 @@ src/
 
 ## Связанные фичи
 
-- [Agentic Architecture](./agentic-architecture.md) — общая архитектура agentic loop
-- [analyzeSuggestedTraffic](../analyze-suggested-traffic-tool.md) — другой AI инструмент с визуальным UI
+- [Agentic Architecture](../agentic-architecture.md) — общая архитектура agentic loop
+- [analyzeSuggestedTraffic](./analyze-suggested-traffic-tool.md) — другой AI инструмент с визуальным UI
 
 ---
 
