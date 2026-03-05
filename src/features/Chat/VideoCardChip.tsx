@@ -3,7 +3,6 @@ import { X, BarChart3 } from 'lucide-react';
 import type { VideoCardContext } from '../../core/types/appContext';
 import { formatDuration, formatViewCount } from '../../core/utils/formatUtils';
 import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
-import { useAppContextStore } from '../../core/stores/appContextStore';
 
 // ---------------------------------------------------------------------------
 // Module-level state for cross-chip tooltip handoff.
@@ -45,18 +44,8 @@ export const VideoCardChip: React.FC<VideoCardChipProps> = React.memo(({ video, 
         setEnterDelay(elapsed < HANDOFF_WINDOW_MS ? 0 : 500);
     }, []);
 
-    // Traffic sources toggle — only for own videos
-    const isOwnVideo = video.ownership === 'own-published' || video.ownership === 'own-draft';
-    const updateItem = useAppContextStore(s => s.updateItem);
-
-    const handleToggleTrafficSources = useCallback((e: React.MouseEvent) => {
-        e.stopPropagation();
-        const newValue = !video.includeTrafficSources;
-        updateItem(
-            (item): item is VideoCardContext => item.type === 'video-card' && item.videoId === video.videoId,
-            { includeTrafficSources: newValue },
-        );
-    }, [video.videoId, video.includeTrafficSources, updateItem]);
+    // Read-only indicator: own published videos have traffic data accessible via AI tool
+    const isOwnPublished = video.ownership === 'own-published';
 
     return (
         <div
@@ -74,19 +63,6 @@ export const VideoCardChip: React.FC<VideoCardChipProps> = React.memo(({ video, 
             {/* Action buttons — overlayed top-right */}
             {!compact && (
                 <div className="absolute top-1 right-1 z-10 flex gap-0.5 opacity-0 group-hover/chip:opacity-100 transition-opacity">
-                    {/* Traffic sources toggle — own videos only */}
-                    {isOwnVideo && (
-                        <button
-                            className={`w-5 h-5 rounded-full flex items-center justify-center border-none cursor-pointer transition-colors ${video.includeTrafficSources
-                                ? 'bg-emerald-500/90 text-white'
-                                : 'bg-black/60 text-white/70 hover:text-emerald-400 hover:bg-black/80'
-                                }`}
-                            onClick={handleToggleTrafficSources}
-                            title={video.includeTrafficSources ? 'Traffic Sources: included in context' : 'Include Traffic Sources in AI context'}
-                        >
-                            <BarChart3 size={10} />
-                        </button>
-                    )}
                     {/* Remove button */}
                     {onRemove && (
                         <button
@@ -100,9 +76,9 @@ export const VideoCardChip: React.FC<VideoCardChipProps> = React.memo(({ video, 
                 </div>
             )}
 
-            {/* Traffic sources active indicator — always visible when toggle is on */}
-            {!compact && video.includeTrafficSources && (
-                <div className="absolute top-1 right-1 z-[5] w-5 h-5 rounded-full bg-emerald-500/90 flex items-center justify-center group-hover/chip:opacity-0 transition-opacity">
+            {/* Traffic data indicator — read-only, shows own published videos have traffic data available via AI tool */}
+            {!compact && isOwnPublished && (
+                <div className="absolute top-1 right-1 z-[5] w-5 h-5 rounded-full bg-emerald-500/90 flex items-center justify-center group-hover/chip:opacity-0 transition-opacity" title="Traffic data available via AI tool">
                     <BarChart3 size={10} className="text-white" />
                 </div>
             )}

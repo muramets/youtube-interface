@@ -11,6 +11,9 @@ import { handleMentionVideo } from "./handlers/mentionVideo.js";
 import { handleGetMultipleVideoDetails } from "./handlers/getMultipleVideoDetails.js";
 import { handleAnalyzeSuggestedTraffic } from "./handlers/analyzeSuggestedTraffic.js";
 import { handleViewThumbnails } from "./handlers/viewThumbnails.js";
+import { handleGetChannelOverview } from "./handlers/getChannelOverview.js";
+import { handleBrowseChannelVideos } from "./handlers/browseChannelVideos.js";
+import { handleAnalyzeTrafficSources } from "./handlers/analyzeTrafficSources.js";
 
 // --- Handler registry ---
 
@@ -19,6 +22,9 @@ const HANDLERS: Record<ToolName, ToolHandler> = {
     [TOOL_NAMES.GET_MULTIPLE_VIDEO_DETAILS]: handleGetMultipleVideoDetails,
     [TOOL_NAMES.ANALYZE_SUGGESTED_TRAFFIC]: handleAnalyzeSuggestedTraffic,
     [TOOL_NAMES.VIEW_THUMBNAILS]: handleViewThumbnails,
+    [TOOL_NAMES.GET_CHANNEL_OVERVIEW]: handleGetChannelOverview,
+    [TOOL_NAMES.BROWSE_CHANNEL_VIDEOS]: handleBrowseChannelVideos,
+    [TOOL_NAMES.ANALYZE_TRAFFIC_SOURCES]: handleAnalyzeTrafficSources,
 };
 
 // --- Dispatcher ---

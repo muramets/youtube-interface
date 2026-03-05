@@ -6,7 +6,7 @@ import {
     collection,
 } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
-import { getVideosPath, getSuggestedVideosPath } from '../../../core/services/videoService';
+import { getVideosPath, getExternalVideosPath } from '../../../core/services/videoService';
 
 /**
  * MIGRATION SCRIPT: Move Suggested Videos
@@ -19,7 +19,7 @@ export const migrateSuggestedVideos = async (userId: string, channelId: string) 
 
     try {
         const videosPath = getVideosPath(userId, channelId);
-        const suggestedPath = getSuggestedVideosPath(userId, channelId);
+        const suggestedPath = getExternalVideosPath(userId, channelId);
 
         // 1. Fetch ALL videos (we filter in memory to be safe, or use query)
         // Using query to only get videos where channelId != currentChannelId is better,

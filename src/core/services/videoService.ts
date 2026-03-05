@@ -16,8 +16,8 @@ import { deleteCsvSnapshot } from './storageService';
 export const getVideosPath = (userId: string, channelId: string): string =>
     `users/${userId}/channels/${channelId}/videos`;
 
-export const getSuggestedVideosPath = (userId: string, channelId: string): string =>
-    `users/${userId}/channels/${channelId}/cached_suggested_traffic_videos`;
+export const getExternalVideosPath = (userId: string, channelId: string): string =>
+    `users/${userId}/channels/${channelId}/cached_external_videos`;
 
 interface BatchUpdateItem {
     videoId: string;
@@ -49,10 +49,6 @@ const cleanupTrafficData = async (trafficPath: string): Promise<void> => {
 export const VideoService = {
     fetchVideos: async (userId: string, channelId: string): Promise<VideoDetails[]> => {
         return fetchCollection<VideoDetails>(getVideosPath(userId, channelId));
-    },
-
-    fetchSuggestedVideos: async (userId: string, channelId: string): Promise<VideoDetails[]> => {
-        return fetchCollection<VideoDetails>(getSuggestedVideosPath(userId, channelId));
     },
 
     getVideoDocRef(userId: string, channelId: string, videoId: string) {
@@ -111,13 +107,13 @@ export const VideoService = {
         await batch.commit();
     },
 
-    batchUpdateSuggestedVideos: async (
+    batchUpdateExternalVideos: async (
         userId: string,
         channelId: string,
         updates: BatchUpdateItem[]
     ): Promise<void> => {
         const batch = writeBatch(db);
-        const path = getSuggestedVideosPath(userId, channelId);
+        const path = getExternalVideosPath(userId, channelId);
         updates.forEach(({ videoId, data }) => {
             const docRef = doc(db, path, videoId);
             batch.set(docRef, data, { merge: true });

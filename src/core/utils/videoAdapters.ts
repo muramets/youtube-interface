@@ -43,7 +43,6 @@ export const trendVideoToVideoCardContext = (
         ...(video.publishedAt ? { publishedAt: video.publishedAt } : {}),
         ...(video.duration ? { duration: video.duration } : {}),
         ...(!isOwnChannel && video.channelTitle ? { channelTitle: video.channelTitle } : {}),
-        ...(isOwnChannel ? { includeTrafficSources: true } : {}),
     };
 };
 
@@ -80,6 +79,5 @@ export const videoToCardContext = (
         ...(publishedAt && ownership !== 'own-draft' ? { publishedAt } : {}),
         ...(duration ? { duration } : {}),
         ...(video.channelTitle ? { channelTitle: video.channelTitle } : {}),
-        ...(ownership === 'own-published' ? { includeTrafficSources: true } : {}),
     };
 };

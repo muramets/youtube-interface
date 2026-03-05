@@ -22,6 +22,9 @@ export const TOOL_NAMES = {
     GET_MULTIPLE_VIDEO_DETAILS: "getMultipleVideoDetails",
     ANALYZE_SUGGESTED_TRAFFIC: "analyzeSuggestedTraffic",
     VIEW_THUMBNAILS: "viewThumbnails",
+    GET_CHANNEL_OVERVIEW: "getChannelOverview",
+    BROWSE_CHANNEL_VIDEOS: "browseChannelVideos",
+    ANALYZE_TRAFFIC_SOURCES: "analyzeTrafficSources",
 } as const;
 
 export type ToolName = (typeof TOOL_NAMES)[keyof typeof TOOL_NAMES];
@@ -150,6 +153,86 @@ const viewThumbnails: ToolDefinition = {
     },
 };
 
+const getChannelOverview: ToolDefinition = {
+    name: TOOL_NAMES.GET_CHANNEL_OVERVIEW,
+    description:
+        "Look up a YouTube channel by URL, @handle, or channel ID. " +
+        "Returns channel metadata (title, subscriberCount, videoCount) and uploadsPlaylistId. " +
+        "Always safe — costs 1-2 API units. " +
+        "IMPORTANT: always call this BEFORE browseChannelVideos. " +
+        "The response includes a quota estimate — ask the user to approve before proceeding to browseChannelVideos.",
+    parametersJsonSchema: {
+        type: "object",
+        properties: {
+            channelId: {
+                type: "string",
+                description:
+                    "YouTube channel URL (youtube.com/@handle, youtube.com/channel/UCxxx), " +
+                    "@handle, or raw channel ID.",
+            },
+        },
+        required: ["channelId"],
+    },
+};
+
+const browseChannelVideos: ToolDefinition = {
+    name: TOOL_NAMES.BROWSE_CHANNEL_VIDEOS,
+    description:
+        "Fetch the video list from a YouTube channel's uploads playlist. " +
+        "Requires uploadsPlaylistId from a prior getChannelOverview call — " +
+        "do NOT call this tool without calling getChannelOverview first and getting user approval for the quota cost. " +
+        "Returns a compact chronological list (videoId, title, publishedAt, viewCount, thumbnailUrl). " +
+        "Use publishedAfter to narrow the time range and save quota. " +
+        "Pass channelId from getChannelOverview to enable trend channel caching (saves quota if channel is tracked). " +
+        "When browsing the user's own channel, the response includes ownChannelSync (inApp vs onYouTube vs notInApp) — " +
+        "highlight this sync comparison to help the user see which videos are missing from the app. " +
+        "After browsing, use getMultipleVideoDetails for full metadata (description, tags) on specific videos " +
+        "— the data is already cached, so it costs 0 quota units.",
+    parametersJsonSchema: {
+        type: "object",
+        properties: {
+            uploadsPlaylistId: {
+                type: "string",
+                description:
+                    "The uploadsPlaylistId from getChannelOverview response. Required.",
+            },
+            channelId: {
+                type: "string",
+                description:
+                    "The channelId from getChannelOverview response. Optional — enables trend channel caching " +
+                    "to save quota if this channel is tracked in Trends.",
+            },
+            publishedAfter: {
+                type: "string",
+                description:
+                    "ISO date string (e.g. '2024-10-01'). Only return videos published after this date. " +
+                    "Saves quota for large channels by narrowing the fetch window.",
+            },
+        },
+        required: ["uploadsPlaylistId"],
+    },
+};
+
+const analyzeTrafficSources: ToolDefinition = {
+    name: TOOL_NAMES.ANALYZE_TRAFFIC_SOURCES,
+    description:
+        "Analyze WHERE a video's traffic comes from (Browse, Suggested, Search, External, etc.). " +
+        "Returns a per-source breakdown with timeline and pre-computed deltas across snapshots. " +
+        "Use this tool BEFORE analyzeSuggestedTraffic — it's the gateway: " +
+        "if Suggested traffic dominates, THEN drill down with analyzeSuggestedTraffic to see the specific videos. " +
+        "Requires the video to have Traffic Source CSV data imported by the user (📊 icon on the video card).",
+    parametersJsonSchema: {
+        type: "object",
+        properties: {
+            videoId: {
+                type: "string",
+                description: "The video ID to analyze traffic sources for.",
+            },
+        },
+        required: ["videoId"],
+    },
+};
+
 // --- Exported registry ---
 
 export const TOOL_DECLARATIONS: ToolDefinition[] = [
@@ -157,4 +240,7 @@ export const TOOL_DECLARATIONS: ToolDefinition[] = [
     getMultipleVideoDetails,
     analyzeSuggestedTraffic,
     viewThumbnails,
+    getChannelOverview,
+    browseChannelVideos,
+    analyzeTrafficSources,
 ];

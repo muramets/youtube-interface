@@ -35,13 +35,7 @@ export function groupToolCalls(toolCalls: ToolCallRecord[]): ToolCallGroup[] {
     const groups: ToolCallGroup[] = [];
 
     for (const [toolName, records] of map) {
-        const videoIds = toolName === 'mentionVideo'
-            ? extractMentionVideoIds(records)
-            : toolName === 'getMultipleVideoDetails'
-                ? extractDetailVideoIds(records)
-                : toolName === 'viewThumbnails'
-                    ? extractViewThumbnailVideoIds(records)
-                    : [];
+        const videoIds = extractVideoIdsForTool(toolName, records);
 
         groups.push({
             toolName,
@@ -53,6 +47,16 @@ export function groupToolCalls(toolCalls: ToolCallRecord[]): ToolCallGroup[] {
     }
 
     return groups;
+}
+
+/** Route to the correct video ID extractor by tool name. */
+function extractVideoIdsForTool(toolName: string, records: ToolCallRecord[]): string[] {
+    switch (toolName) {
+        case 'mentionVideo': return extractMentionVideoIds(records);
+        case 'getMultipleVideoDetails': return extractDetailVideoIds(records);
+        case 'viewThumbnails': return extractViewThumbnailVideoIds(records);
+        default: return [];
+    }
 }
 
 // --- Video ID extraction ---
@@ -136,6 +140,32 @@ export function getGroupLabel(group: ToolCallGroup): string {
             : `Loading thumbnails...`;
     }
 
+    if (group.toolName === 'getChannelOverview') {
+        if (group.hasErrors) return "Couldn't load channel info";
+        if (!group.allResolved) return 'Loading channel info...';
+        const result = group.records[0]?.result;
+        const channelTitle = result?.channelTitle as string ?? '';
+        return channelTitle ? `Channel: ${channelTitle}` : 'Channel info loaded';
+    }
+
+    if (group.toolName === 'browseChannelVideos') {
+        if (group.hasErrors) return "Couldn't browse channel";
+        if (!group.allResolved) return 'Browsing channel...';
+        const result = group.records[group.records.length - 1]?.result;
+        const videoCount = (result?.videos as unknown[] | undefined)?.length;
+        if (videoCount != null) {
+            return `Browsed ${videoCount} videos`;
+        }
+        return 'Channel videos loaded';
+    }
+
+    if (group.toolName === 'analyzeTrafficSources') {
+        if (group.hasErrors) return "Couldn't analyze traffic sources";
+        return group.allResolved
+            ? 'Traffic Source Analysis'
+            : 'Analyzing traffic sources...';
+    }
+
     // Fallback for unknown tools
     return group.allResolved ? group.toolName : `Running ${group.toolName}...`;
 }
@@ -145,12 +175,27 @@ export function isExpandable(group: ToolCallGroup): boolean {
     if (group.videoIds.length > 0) return true;
     // Analysis tools are expandable when resolved (show summary stats)
     if (group.toolName === 'analyzeSuggestedTraffic' && group.allResolved) return true;
+    if (group.toolName === 'analyzeTrafficSources' && group.allResolved) return true;
+    if (group.toolName === 'getChannelOverview' && group.allResolved) return true;
+    if (group.toolName === 'browseChannelVideos' && group.allResolved) return true;
     return false;
 }
 
 /** Whether a group is thumbnail-related (drives amber color scheme). */
 export function isThumbnailTool(group: ToolCallGroup): boolean {
     return group.toolName === 'viewThumbnails';
+}
+
+// --- Quota ---
+
+/** Extract total quotaUsed from all records in a group. */
+export function getGroupQuota(group: ToolCallGroup): number {
+    let total = 0;
+    for (const r of group.records) {
+        const q = r.result?.quotaUsed;
+        if (typeof q === 'number') total += q;
+    }
+    return total;
 }
 
 // --- Helpers ---

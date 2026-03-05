@@ -5,10 +5,9 @@
 // Pipeline step: enrich raw context → merge with existing → persist.
 // =============================================================================
 
-import type { AppContextItem, VideoCardContext } from '../../types/appContext';
+import type { AppContextItem } from '../../types/appContext';
 import { mergeContextItems } from '../../types/appContext';
 import { enrichContextWithDeltas } from './enrichContextWithDeltas';
-import { enrichContextWithTrafficSources } from './enrichContextWithTrafficSources';
 import { ChatService } from '../../services/chatService';
 import { debug } from '../../utils/debug';
 
@@ -17,8 +16,6 @@ export interface PreparedContext {
     appContext: AppContextItem[] | undefined;
     /** Merged persisted context (accumulated from all conversation messages) */
     persistedContext: AppContextItem[] | undefined;
-    /** Video titles where traffic sources toggle was on but enrichment failed */
-    failedTrafficVideos: string[];
 }
 
 /**
@@ -41,24 +38,10 @@ export async function prepareContext(
 ): Promise<PreparedContext> {
     // 1. Enrich (runs in background while user sees dots)
     let enrichedItems = rawItems;
-    let failedTrafficVideos: string[] = [];
 
     if (enrichedItems.length > 0) {
         enrichedItems = await enrichContextWithDeltas(enrichedItems, userId);
-        enrichedItems = await enrichContextWithTrafficSources(enrichedItems, userId);
-
-        // Detect failed traffic sources enrichment
-        failedTrafficVideos = enrichedItems
-            .filter((i): i is VideoCardContext =>
-                i.type === 'video-card' &&
-                i.includeTrafficSources === true &&
-                !i.trafficSourcesSummary,
-            )
-            .map(v => v.title);
-
-        if (failedTrafficVideos.length > 0) {
-            console.warn('[enrichment] Traffic Sources failed for:', failedTrafficVideos);
-        }
+        // Traffic sources enrichment removed — now handled by analyzeTrafficSources tool
     }
 
     const appContext = enrichedItems.length > 0 ? enrichedItems : undefined;
@@ -75,5 +58,5 @@ export async function prepareContext(
             .catch((err: unknown) => debug.chat('⚠️ Failed to persist context:', err));
     }
 
-    return { appContext, persistedContext, failedTrafficVideos };
+    return { appContext, persistedContext };
 }

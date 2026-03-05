@@ -214,7 +214,7 @@ export async function handleAnalyzeSuggestedTraffic(
 
         const topVideoIds = topSources.slice(0, 30).map((s) => s.videoId);
         const cachedRefs = topVideoIds.map((id) =>
-            db.doc(`${basePath}/cached_suggested_traffic_videos/${id}`),
+            db.doc(`${basePath}/cached_external_videos/${id}`),
         );
         const cachedSnaps = await db.getAll(...cachedRefs);
 
@@ -266,7 +266,7 @@ export async function handleAnalyzeSuggestedTraffic(
             for (let b = 0; b < missingIds.length; b += BATCH_SIZE) {
                 const batch = missingIds.slice(b, b + BATCH_SIZE);
                 const refs = batch.map(id =>
-                    db.doc(`${basePath}/cached_suggested_traffic_videos/${id}`),
+                    db.doc(`${basePath}/cached_external_videos/${id}`),
                 );
                 const snaps = await db.getAll(...refs);
                 for (let j = 0; j < batch.length; j++) {

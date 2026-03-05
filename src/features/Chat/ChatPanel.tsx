@@ -48,8 +48,8 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
     );
 
     // --- Store: UI state (changes on error / pagination) ---
-    const { error, lastFailedRequest, hasMoreMessages, hasMoreConversations, enrichmentWarning } = useChatStore(
-        useShallow(s => ({ error: s.error, lastFailedRequest: s.lastFailedRequest, hasMoreMessages: s.hasMoreMessages, hasMoreConversations: s.hasMoreConversations, enrichmentWarning: s.enrichmentWarning }))
+    const { error, lastFailedRequest, hasMoreMessages, hasMoreConversations } = useChatStore(
+        useShallow(s => ({ error: s.error, lastFailedRequest: s.lastFailedRequest, hasMoreMessages: s.hasMoreMessages, hasMoreConversations: s.hasMoreConversations }))
     );
 
     // --- Store: actions (stable references — never cause re-renders) ---
@@ -74,8 +74,6 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
     const loadOlderMessages = useChatStore(s => s.loadOlderMessages);
     const loadOlderConversations = useChatStore(s => s.loadOlderConversations);
     const retryLastMessage = useChatStore(s => s.retryLastMessage);
-    const retryEnrichment = useChatStore(s => s.retryEnrichment);
-    const dismissEnrichment = useChatStore(s => s.dismissEnrichment);
     const stopGeneration = useChatStore(s => s.stopGeneration);
     const setConversationModel = useChatStore(s => s.setConversationModel);
     const setPendingModel = useChatStore(s => s.setPendingModel);
@@ -235,26 +233,6 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
                     onDismiss={clearError}
                 />
 
-                {/* Enrichment warning — amber, with retry/dismiss for traffic sources failure */}
-                {enrichmentWarning && (
-                    <div className="mx-3 mt-1.5 mb-1.5 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs flex items-center gap-2 min-w-0 overflow-hidden">
-                        <span className="flex-1 min-w-0 truncate">{enrichmentWarning.message}</span>
-                        <div className="flex items-center gap-1.5 ml-auto shrink-0">
-                            <button
-                                className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[11px] font-medium border-none cursor-pointer hover:bg-amber-500/30 transition-colors"
-                                onClick={() => retryEnrichment()}
-                            >
-                                Retry
-                            </button>
-                            <button
-                                className="px-2 py-0.5 rounded bg-white/5 text-white/60 text-[11px] font-medium border-none cursor-pointer hover:bg-white/10 transition-colors"
-                                onClick={() => dismissEnrichment()}
-                            >
-                                Send without
-                            </button>
-                        </div>
-                    </div>
-                )}
 
                 {/* Content views */}
                 {editingProject && (

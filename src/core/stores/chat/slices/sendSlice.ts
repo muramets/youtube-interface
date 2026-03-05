@@ -19,7 +19,7 @@ import { debug } from '../../../utils/debug';
 import type { ChatMessage, ToolCallRecord } from '../../../types/chat';
 import type { ReadyAttachment } from '../../../types/chatAttachment';
 import type { AppContextItem } from '../../../types/appContext';
-import type { ChatState, ActiveToolCall, PendingSend, EnrichmentWarning } from '../types';
+import type { ChatState, ActiveToolCall } from '../types';
 import { session, startStreamingSession, cacheSessionThinking } from '../session';
 import { requireContext, resolveModel, rebuildPersistedContext } from '../helpers';
 
@@ -153,8 +153,8 @@ async function resumeSendFlow(
 ): Promise<void> {
     const { aiSettings, projects, activeProjectId, messages, memories } = get();
 
-    // Re-activate streaming UI (may have been paused by enrichment warning)
-    set({ isStreaming: true, streamingText: '', enrichmentWarning: null });
+    // Re-activate streaming UI
+    set({ isStreaming: true, streamingText: '' });
 
     const thumbnailUrls = extractThumbnails(persistedContext ?? appContext);
     const activeConv = get().conversations.find(c => c.id === convId);
@@ -216,14 +216,11 @@ export function createSendSlice(
     ChatState,
     | 'error'
     | 'lastFailedRequest'
-    | 'enrichmentWarning'
     | 'pendingLargePayloadConfirmation'
     | 'clearError'
     | 'sendMessage'
     | 'editMessage'
     | 'retryLastMessage'
-    | 'retryEnrichment'
-    | 'dismissEnrichment'
     | 'confirmLargePayload'
     | 'dismissLargePayload'
 > {
@@ -231,7 +228,6 @@ export function createSendSlice(
         // State
         error: null,
         lastFailedRequest: null,
-        enrichmentWarning: null as EnrichmentWarning | null,
         pendingLargePayloadConfirmation: null,
 
         // Actions
@@ -280,27 +276,10 @@ export function createSendSlice(
                 // 3. Context pipeline: enrich → merge → persist (user sees dots)
                 const existingConv = get().conversations.find(c => c.id === convId);
                 const existingPersisted = existingConv?.persistedContext ?? [];
-                const { appContext, persistedContext, failedTrafficVideos } = await prepareContext(
+                const { appContext, persistedContext } = await prepareContext(
                     rawContextItems, userId, channelId, convId!,
                     existingPersisted,
                 );
-
-                // 3a. Enrichment failed? → pause and show warning
-                if (failedTrafficVideos.length > 0) {
-                    const pending: PendingSend = {
-                        text, attachments, convId: convId!, rawContextItems, existingPersisted,
-                        nonce: myNonce, abortController: myAbortController,
-                    };
-                    set({
-                        enrichmentWarning: {
-                            message: `Traffic Sources failed to load for: ${failedTrafficVideos.join(', ')}`,
-                            failedVideos: failedTrafficVideos,
-                            pendingSend: pending,
-                        },
-                        isStreaming: false, streamingText: '',
-                    });
-                    return; // Paused — user chooses Retry or Dismiss
-                }
 
                 // 4. Continue to Gemini
                 await resumeSendFlow(get, set, convId!, text, attachments, appContext, persistedContext, myNonce, myAbortController, largePayloadApproved, isFirstExchange);
@@ -441,59 +420,5 @@ export function createSendSlice(
             }
         },
 
-        retryEnrichment: async () => {
-            const warning = get().enrichmentWarning;
-            if (!warning) return;
-
-            const { text, attachments, convId, rawContextItems, existingPersisted, nonce, abortController } = warning.pendingSend;
-            const { userId, channelId } = requireContext(get);
-
-            set({ enrichmentWarning: null, isStreaming: true, streamingText: '' });
-
-            try {
-                const { appContext, persistedContext, failedTrafficVideos } = await prepareContext(
-                    rawContextItems, userId, channelId, convId, existingPersisted,
-                );
-
-                // Still failing? Show warning again
-                if (failedTrafficVideos.length > 0) {
-                    set({
-                        enrichmentWarning: {
-                            message: `Traffic Sources still failing for: ${failedTrafficVideos.join(', ')}`,
-                            failedVideos: failedTrafficVideos,
-                            pendingSend: warning.pendingSend,
-                        },
-                        isStreaming: false, streamingText: '',
-                    });
-                    return;
-                }
-
-                await resumeSendFlow(get, set, convId, text, attachments, appContext, persistedContext, nonce, abortController);
-            } catch (err) {
-                const errorMessage = err instanceof Error ? err.message : 'Enrichment retry failed';
-                set({ error: errorMessage, isStreaming: false, streamingText: '', enrichmentWarning: null });
-            } finally {
-                if (session.streamingNonce === nonce) set({ isStreaming: false });
-            }
-        },
-
-        dismissEnrichment: async () => {
-            const warning = get().enrichmentWarning;
-            if (!warning) return;
-
-            const { text, attachments, convId, existingPersisted, nonce, abortController } = warning.pendingSend;
-
-            // Skip enrichment — use existing persisted context only (no new enriched data)
-            const persistedContext = existingPersisted.length > 0 ? existingPersisted : undefined;
-
-            try {
-                await resumeSendFlow(get, set, convId, text, attachments, undefined, persistedContext, nonce, abortController);
-            } catch (err) {
-                const errorMessage = err instanceof Error ? err.message : 'Failed to send message';
-                set({ error: errorMessage, isStreaming: false, streamingText: '', enrichmentWarning: null });
-            } finally {
-                if (session.streamingNonce === nonce) set({ isStreaming: false });
-            }
-        },
     };
 }

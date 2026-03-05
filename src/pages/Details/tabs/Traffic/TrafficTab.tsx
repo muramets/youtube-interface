@@ -13,7 +13,7 @@ import { findPreviousSnapshot } from './hooks/useTrafficDataLoader';
 import { generateTrafficCsv } from './utils/csvGenerator';
 import { exportTrafficCsv, downloadCsv, generateExportFilename, generateDiscrepancyReport } from './utils/exportTrafficCsv';
 import { useApiKey } from '../../../../core/hooks/useApiKey';
-import { useSuggestedVideoLookup } from './hooks/useSuggestedVideoLookup';
+import { useExternalVideoLookup } from './hooks/useExternalVideoLookup';
 import { useAppContextStore } from '../../../../core/stores/appContextStore';
 import type { SuggestedTrafficContext, SuggestedVideoItem, TrafficSourceCardData, TrafficDiscrepancy } from '../../../../core/types/appContext';
 import { useCanvasStore } from '../../../../core/stores/canvas/canvasStore';
@@ -165,8 +165,8 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
             .filter((id): id is string => !!id);
     }, [displayedSources]);
 
-    // Fetch only the needed suggested videos (not the entire 4650-doc collection)
-    const { videoMap: suggestedVideoMap } = useSuggestedVideoLookup(
+    // Fetch only the needed external videos (not the entire collection)
+    const { videoMap: suggestedVideoMap } = useExternalVideoLookup(
         sourceVideoIds,
         user?.uid || '',
         currentChannel?.id || ''

@@ -228,6 +228,12 @@ export const aiChat = onRequest(
                     },
                 });
 
+            // --- Read user's YouTube API key for tool calls ---
+            const userSettingsSnap = await db.doc(`users/${userId}/settings/general`).get();
+            const userYoutubeApiKey = userSettingsSnap.exists
+                ? (userSettingsSnap.data()?.apiKey as string | undefined)
+                : undefined;
+
             // --- Provider-agnostic stream call via router ---
             const result = await router.streamChat({
                 model,
@@ -237,7 +243,7 @@ export const aiChat = onRequest(
                 attachments: currentAttachments,
                 imageUrls: body.thumbnailUrls,
                 tools: TOOL_DECLARATIONS,
-                toolContext: { userId, channelId: body.channelId },
+                toolContext: { userId, channelId: body.channelId, youtubeApiKey: userYoutubeApiKey },
                 thinkingOptionId,
                 callbacks,
                 providerContext,

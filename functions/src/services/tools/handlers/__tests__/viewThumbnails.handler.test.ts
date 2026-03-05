@@ -165,6 +165,6 @@ describe('handleViewThumbnails', () => {
         await handleViewThumbnails({ videoIds: ids }, CTX);
 
         expect(mockDoc).toHaveBeenCalledWith(`${BASE}/videos/vid1`);
-        expect(mockDoc).toHaveBeenCalledWith(`${BASE}/cached_suggested_traffic_videos/vid1`);
+        expect(mockDoc).toHaveBeenCalledWith(`${BASE}/cached_external_videos/vid1`);
     });
 });

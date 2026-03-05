@@ -1,5 +1,5 @@
 import axios from "axios";
-import { YouTubePlaylistResponse, YouTubeVideoResponse, YouTubePlaylistItem, YouTubeVideoItem } from "../types";
+import { YouTubePlaylistResponse, YouTubeVideoResponse, YouTubeChannelResponse, YouTubePlaylistItem, YouTubeVideoItem } from "../types";
 
 export class YouTubeService {
     constructor(private apiKey: string) { }
@@ -82,6 +82,130 @@ export class YouTubeService {
         }
 
         return { videos, quotaUsed };
+    }
+
+    /**
+     * Fetches channel info: title, subscriber count, video count, uploads playlist ID.
+     * Uses channels.list with snippet + statistics + contentDetails (1 quota unit).
+     */
+    async getChannelInfo(channelId: string): Promise<{
+        id: string;
+        title: string;
+        handle?: string;
+        subscriberCount: number;
+        videoCount: number;
+        uploadsPlaylistId: string;
+        avatarUrl?: string;
+        quotaUsed: number;
+    }> {
+        const res: axios.AxiosResponse<YouTubeChannelResponse> = await axios.get(
+            `https://www.googleapis.com/youtube/v3/channels`,
+            {
+                params: {
+                    part: "snippet,statistics,contentDetails",
+                    id: channelId,
+                    key: this.apiKey,
+                },
+            },
+        );
+
+        const item = res.data.items?.[0];
+        if (!item) {
+            throw new Error(`Channel not found: ${channelId}`);
+        }
+
+        return {
+            id: item.id,
+            title: item.snippet.title,
+            handle: item.snippet.customUrl,
+            subscriberCount: parseInt(item.statistics.subscriberCount ?? "0", 10),
+            videoCount: parseInt(item.statistics.videoCount ?? "0", 10),
+            uploadsPlaylistId: item.contentDetails.relatedPlaylists.uploads,
+            avatarUrl: item.snippet.thumbnails?.medium?.url ?? item.snippet.thumbnails?.default?.url,
+            quotaUsed: 1,
+        };
+    }
+
+    /**
+     * Resolves a YouTube channel URL, @handle, or raw channel ID to a channelId.
+     *
+     * Supported formats:
+     * - youtube.com/channel/UCxxx → extract from URL (0 API units)
+     * - youtube.com/@handle, @handle → channels.list(forHandle) (1 unit)
+     * - youtube.com/c/Name, youtube.com/user/Name → treated as handle (1 unit)
+     * - Raw UCxxx (≥20 chars starting with UC) → returned as-is (0 units)
+     * - Bare string → treated as handle (1 unit)
+     */
+    async resolveChannelId(input: string): Promise<{ channelId: string; quotaUsed: number }> {
+        const trimmed = input.trim();
+        if (!trimmed) throw new Error("Empty channel input");
+
+        let channelId = "";
+        let handle = "";
+
+        // Try to parse as URL
+        try {
+            const url = new URL(trimmed.startsWith("http") ? trimmed : `https://${trimmed}`);
+            const pathname = url.pathname;
+
+            // @handle format: youtube.com/@handle
+            const handleMatch = pathname.match(/\/@([^/]+)/);
+            if (handleMatch) {
+                handle = "@" + handleMatch[1];
+            }
+            // Channel ID format: youtube.com/channel/UCxxx
+            else if (pathname.includes("/channel/")) {
+                const idMatch = pathname.match(/\/channel\/(UC[a-zA-Z0-9_-]+)/);
+                if (idMatch) channelId = idMatch[1];
+            }
+            // Custom URL: youtube.com/c/Name
+            else if (pathname.includes("/c/")) {
+                const customMatch = pathname.match(/\/c\/([^/]+)/);
+                if (customMatch) handle = "@" + customMatch[1];
+            }
+            // User format: youtube.com/user/Name
+            else if (pathname.includes("/user/")) {
+                const userMatch = pathname.match(/\/user\/([^/]+)/);
+                if (userMatch) handle = "@" + userMatch[1];
+            }
+        } catch {
+            // Not a valid URL — fall through to direct parsing
+        }
+
+        // Direct input fallback
+        if (!channelId && !handle) {
+            if (trimmed.startsWith("@")) {
+                handle = trimmed;
+            } else if (trimmed.startsWith("UC") && trimmed.length >= 20) {
+                channelId = trimmed;
+            } else {
+                handle = "@" + trimmed;
+            }
+        }
+
+        // If we already have a channelId, return immediately (0 units)
+        if (channelId) {
+            return { channelId, quotaUsed: 0 };
+        }
+
+        // Resolve handle via YouTube API (1 unit)
+        const res: axios.AxiosResponse<YouTubeChannelResponse> = await axios.get(
+            `https://www.googleapis.com/youtube/v3/channels`,
+            {
+                params: {
+                    part: "id",
+                    forHandle: handle,
+                    key: this.apiKey,
+                },
+            },
+        );
+
+        const resolved = res.data.items?.[0]?.id;
+        if (!resolved) {
+            throw new Error(`Channel not found for handle: ${handle}`);
+        }
+
+        return { channelId: resolved, quotaUsed: 1 };
     }
 
     /**

@@ -2,14 +2,12 @@
 
 ## Текущее состояние
 
-**Реализовано (v2.3).** Gemini вызывает `analyzeSuggestedTraffic` в чате, передаёт `videoId` + `depth`, получает **per-video timeline по всем снапшотам** с pre-computed дельтами и transitions между периодами. **Self-channel detection**: тул определяет self-channel видео и вычисляет `selfChannelStats` с per-snapshot timeline. **Content trajectory**: per-snapshot `topKeywords` + `channelDistribution` + `topSharedTags` + `topVideos[10]` с `deltaImpressions` — фильм эволюции контента. Latest snapshot пропускает topVideos (покрыт `topSources`). LLM получает промпт для reconstruction algorithm journey.
+**Реализовано.** AI вызывает `analyzeSuggestedTraffic` в чате, передаёт `videoId` + `depth`, получает per-video timeline по всем снапшотам с дельтами и transitions между периодами. Определяет self-channel видео, вычисляет content trajectory (эволюция ключевых слов, каналов, тегов по снапшотам).
 
-**Ключевые принципы (Elite Senior Dev Lens):**
+**Ключевые принципы:**
 1. **Deterministic API** — `depth` enum вместо свободного числа
-2. **Code = math, LLM = patterns** — handler считает дельты, self-channel stats, content trajectory; LLM интерпретирует
+2. **Code = math, LLM = patterns** — handler считает дельты и статистику; LLM интерпретирует паттерны
 3. **Full trajectory** — ни один снапшот не выбрасывается, labels сохраняются
-4. **No bias** — AVD передаётся как raw метрика без навязанной классификации
-5. **No duplication** — latest snapshot topVideos не дублируют topSources
 
 ---
 
@@ -50,40 +48,19 @@ Feb 15 (1 month): 495 sources (+20 new, -23 dropped)
 
 ## Как собираются данные: шаг за шагом
 
-### Шаг 1 — Firestore: metadata + source video
+### Шаг 1 — Метаданные
 
-Из Firestore читается два документа:
+Читаются метаданные снапшотов (список загруженных CSV с датами и labels) и данные исходного видео (title, tags, description).
 
-**`traffic/main`** — список снапшотов:
-```
-snapshots: [
-  { timestamp: 1706000000, storagePath: "users/.../snapshot_1.csv", label: "24h" },
-  { timestamp: 1706300000, storagePath: "users/.../snapshot_2.csv", label: "1 week" },
-]
-```
+### Шаг 2 — CSV скачиваются параллельно
 
-**`videos/{videoId}`** — данные ролика автора (title, tags, description).
+Каждый снапшот — CSV-файл. Все скачиваются одновременно. Если файл недоступен — возвращается пустая строка, обработка не падает.
 
----
+### Шаг 3 — Парсинг
 
-### Шаг 2 — Скачиваем все CSV параллельно
+Парсер извлекает videoId из формата `YT_RELATED.{videoId}`, читает метрики (views, impressions, CTR, AVD, watch time). CTR = `null` если impressions = 0.
 
-Каждый снапшот — CSV-файл в Cloud Storage. Все скачиваются одновременно. Если файл недоступен — возвращается пустая строка, обработка не падает.
-
----
-
-### Шаг 3 — Парсим CSV
-
-Парсер извлекает из `YT_RELATED.{videoId}` → videoId, читает метрики. CTR = `null` если impressions = 0.
-
-Каждый снапшот → `VideoSnapshotEntry[]`:
-```
-[{ videoId, sourceTitle, views, impressions, ctr, avgViewDuration, watchTimeHours }]
-```
-
----
-
-### Шаг 4 — buildVideoTimeline()
+### Шаг 4 — Timeline
 
 Для каждого видео, которое было в **любом** снапшоте, строит timeline — значения в каждой точке + pre-computed delta от предыдущей точки:
 
@@ -229,6 +206,17 @@ transitions: [
 
 ---
 
+## Data Sources
+
+**Firestore paths:**
+- Snapshot metadata: `users/{uid}/channels/{channelId}/videos/{videoId}/traffic/main` → `snapshots[]`
+- Source video: `users/{uid}/channels/{channelId}/videos/{videoId}`
+- Enrichment cache: `users/{uid}/channels/{channelId}/cached_external_videos/{id}`
+
+**Cloud Storage:** CSV bodies at `storagePath` from each snapshot entry.
+
+---
+
 ## Расположение файлов
 
 ```
@@ -277,7 +265,7 @@ src/
 > **Known limitation (v2.1):** `computeSelfChannelStats()` матчит по `channelTitle` (case-insensitive). Совпадение названий каналов — редкий кейс, но `channelId` (YouTube ID `UC...`) — deterministic и неизменен. Переход на `channelId` matching имеет смысл при расширении `EnrichedVideoData` (например, для competitive intelligence).
 
 - [ ] Добавить `channelId` в `EnrichedVideoData`
-- [ ] Читать `channelId` из `cached_suggested_traffic_videos` при enrichment
+- [ ] Читать `channelId` из `cached_external_videos` при enrichment
 - [ ] Matching по `channelId` вместо `channelTitle` в `computeSelfChannelStats()`
 
 ### Stage 4 — Niche correlation

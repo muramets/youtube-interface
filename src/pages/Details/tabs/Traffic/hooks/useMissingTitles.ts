@@ -8,7 +8,7 @@ import { TrafficSnapshotService } from '../../../../../core/services/traffic/Tra
 import { generateTrafficCsv } from '../utils/csvGenerator';
 import { assistantLogger } from '../../../../../core/utils/logger';
 import { debug } from '../../../../../core/utils/debug';
-import { suggestedVideoQueryPrefix } from './useSuggestedVideoLookup';
+import { externalVideoQueryPrefix } from './useExternalVideoLookup';
 
 interface UseMissingTitlesProps {
     displayedSources: TrafficSource[];
@@ -80,13 +80,14 @@ export const repairTrafficSources = async (
                 videoId: video.id,
                 data: {
                     ...cleanData,
+                    source: "suggested_traffic",
                     lastUpdated: Date.now()
                 }
             };
         });
 
         if (batchWrites.length > 0) {
-            await VideoService.batchUpdateSuggestedVideos(userId, channelId, batchWrites);
+            await VideoService.batchUpdateExternalVideos(userId, channelId, batchWrites);
         }
     }
 
@@ -237,8 +238,8 @@ export const useMissingTitles = ({
             // because `repairTrafficSources` fetches everything not in cache.
             const updatedSources = await repairTrafficSources(sourcesToRepair, userId, channelId, apiKey, cachedVideos);
 
-            // Invalidate cached per-document suggestedVideo queries so useSuggestedVideoLookup picks up enriched data
-            queryClient.invalidateQueries({ queryKey: suggestedVideoQueryPrefix(userId, channelId) });
+            // Invalidate cached per-document external video queries so useExternalVideoLookup picks up enriched data
+            queryClient.invalidateQueries({ queryKey: externalVideoQueryPrefix(userId, channelId) });
 
             assistantLogger.info('Repaired sources successfully', {
                 originalCount: sourcesToRepair.length,

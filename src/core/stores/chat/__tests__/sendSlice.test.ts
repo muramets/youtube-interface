@@ -186,7 +186,6 @@ describe('sendMessage — happy path', () => {
         mockPrepareContext.mockResolvedValueOnce({
             appContext: [],
             persistedContext: [],
-            failedTrafficVideos: [],
         });
 
         mockAiService.sendMessage.mockResolvedValueOnce({

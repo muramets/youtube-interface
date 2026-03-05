@@ -1,41 +1,41 @@
 import { useQueries } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { getDocument } from '../../../../../core/services/firestore';
-import { getSuggestedVideosPath } from '../../../../../core/services/videoService';
+import { getExternalVideosPath } from '../../../../../core/services/videoService';
 import type { VideoDetails } from '../../../../../core/utils/youtubeApi';
 
 /**
- * Query-on-demand hook for suggested video metadata.
+ * Query-on-demand hook for external video metadata.
  *
- * Instead of fetching the entire suggestedVideos collection (4650 docs, 3.7s Firestore SDK freeze),
+ * Instead of fetching the entire external videos collection,
  * this hook fetches ONLY the individual documents needed — based on videoIds from displayedSources.
  *
  * Each document is cached independently via React Query:
- *   queryKey: ['suggestedVideo', userId, channelId, videoId]
+ *   queryKey: ['externalVideo', userId, channelId, videoId]
  *   staleTime: Infinity — once fetched, never refetched unless invalidated
  *
  * When switching snapshots: only NEW videoIds trigger fetches; previously seen videos come from cache.
  */
 
 /** Stable query key builder for external invalidation */
-export const suggestedVideoQueryKey = (userId: string, channelId: string, videoId: string) =>
-    ['suggestedVideo', userId, channelId, videoId];
+export const externalVideoQueryKey = (userId: string, channelId: string, videoId: string) =>
+    ['externalVideo', userId, channelId, videoId];
 
-/** Invalidate ALL cached suggested videos for a channel */
-export const suggestedVideoQueryPrefix = (userId: string, channelId: string) =>
-    ['suggestedVideo', userId, channelId];
+/** Invalidate ALL cached external videos for a channel */
+export const externalVideoQueryPrefix = (userId: string, channelId: string) =>
+    ['externalVideo', userId, channelId];
 
 /** Stable empty Map returned when no videoIds are requested — prevents re-render loops */
 const EMPTY_MAP = new Map<string, VideoDetails>();
 
-export const useSuggestedVideoLookup = (
+export const useExternalVideoLookup = (
     videoIds: string[],
     userId: string,
     channelId: string
 ) => {
     const enabled = !!userId && !!channelId;
     const basePath = useMemo(
-        () => enabled ? getSuggestedVideosPath(userId, channelId) : '',
+        () => enabled ? getExternalVideosPath(userId, channelId) : '',
         [userId, channelId, enabled]
     );
 
@@ -48,7 +48,7 @@ export const useSuggestedVideoLookup = (
     // Per-document queries — each cached independently
     const queries = useQueries({
         queries: uniqueIds.map(videoId => ({
-            queryKey: suggestedVideoQueryKey(userId, channelId, videoId),
+            queryKey: externalVideoQueryKey(userId, channelId, videoId),
             queryFn: async (): Promise<VideoDetails | null> => {
                 return getDocument<VideoDetails>(`${basePath}/${videoId}`);
             },

@@ -2,10 +2,10 @@
 // Memory Layer 1: Persistent Context
 //
 // Attached videos, traffic sources, and canvas nodes persisted for the
-// conversation lifetime. Gemini sees these in every message of the conversation.
+// conversation lifetime. LLM sees these in every message of the conversation.
 //
 // Format helpers (formatVideoContext, formatCanvasContext, etc.) are private
-// to this layer — they produce the Markdown that Gemini reads.
+// to this layer — they produce the Markdown that LLM reads.
 // =============================================================================
 
 import type { AppContextItem, VideoCardContext, SuggestedTrafficContext, CanvasSelectionContext, VideoContextNode, TrafficSourceContextNode, StickyNoteContextNode, ImageContextNode, SnapshotFrameContextNode, TrafficDiscrepancy } from '../../types/appContext';
@@ -111,13 +111,6 @@ function formatSingleVideo(lines: string[], v: VideoCardContext): void {
     if (v.duration) metrics.push(`Duration: ${v.duration}`);
     const metricsStr = metrics.length > 0 ? ` — ${metrics.join(' | ')}` : '';
     lines.push(`- ${prefix}: "${v.title}" [id: ${v.videoId}]${channel}${metricsStr}`);
-    // Traffic Sources summary (enriched by middleware, per-video toggle)
-    if (v.trafficSourcesSummary) {
-        // Indent each line under the video entry
-        v.trafficSourcesSummary.split('\n').forEach(line => {
-            lines.push(`  ${line}`);
-        });
-    }
 }
 
 /** Compact delta formatting: +1200 → "+1.2K", -300 → "-300" */

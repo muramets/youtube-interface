@@ -140,6 +140,7 @@ UI listens for status changes via Firestore `onSnapshot`. Download links come fr
 - **Doc template (Russian, compact)**:
   - `current state` — ≤10 lines; business logic in plain language; separate technical details from business logic.
   - `roadmap` — per-stage description of user flow + checklist; final stage = market-ready vision (architecture, cost, storage, API usage).
+- **Doc structure rule: "why" on top, "how" on bottom.** Top sections (`current state`, `what is this`, `user flow`) must describe business behavior in plain language — what the user sees and why the feature exists. Any reference to a specific file name, Firestore collection, function name, API name, or version number belongs in a dedicated `Technical Implementation` section at the bottom. This prevents documentation from going stale when code is refactored — business intent rarely changes, but file paths and collection names change often.
 
 ### Separation of Concerns
 - When creating a new hook or component, immediately extract pure logic (calculations, transformations, formatting) into a separate `utils` file.

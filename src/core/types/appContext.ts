@@ -31,10 +31,6 @@ export interface VideoCardContext {
     delta24h?: number | null;
     delta7d?: number | null;
     delta30d?: number | null;
-    /** Toggle: include Traffic Sources data in AI context (per-video, own videos only) */
-    includeTrafficSources?: boolean;
-    /** Pre-formatted Traffic Sources summary (enriched by middleware before sending to AI) */
-    trafficSourcesSummary?: string;
 }
 
 /**

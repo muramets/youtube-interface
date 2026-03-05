@@ -2,9 +2,7 @@
 
 ## Текущее состояние
 
-**Реализовано (v1.1).** AI может вызвать `viewThumbnails` в чате, чтобы визуально увидеть обложки видео (свои и чужие). Поддерживается поиск по `videoIds` и по `titles` (exact match fallback). Средний batch (< 15) загружается автоматически. Большой batch (≥ 15) требует подтверждения пользователя. Tool descriptions обновлены — AI знает, что может работать с конкурентными видео из suggested traffic.
-
-> **Multi-provider note:** `viewThumbnails` tool использует **Gemini Files API** для загрузки изображений — это Gemini-specific flow. Для Claude thumbnails из контекста передаются как inline image URL блоки (без Files API upload). Claude видит обложки в контексте автоматически через `imageUrls` → `{ type: "image", source: { type: "url", url } }`.
+**Реализовано (v1.1).** AI может вызвать `viewThumbnails` в чате, чтобы визуально увидеть обложки видео (свои и чужие). Поддерживается поиск по `videoIds` и по `titles` (exact match fallback). Средний batch (< 15) загружается автоматически. Большой batch (≥ 15) требует подтверждения пользователя. Работает с обоими провайдерами (Gemini и Claude), но механизм доставки изображений отличается — подробности в [Technical Implementation](#multi-provider-thumbnails).
 
 ---
 
@@ -21,7 +19,7 @@
 1. Пользователь пишет: *«Сравни обложки моих последних 5 видео»*
 2. Gemini понимает, что нужны картинки, и вызывает инструмент `viewThumbnails`
 3. В UI появляется статус-пилюля с иконкой изображений (янтарного цвета): **Loading thumbnails...**
-4. Сервер скачивает обложки из Firestore, загружает в Gemini Files API
+4. Сервер находит обложки и передаёт AI-модели
 5. Пилюля меняется на **Viewed 5 videos** + превью сетка из 4 обложек
 6. Gemini видит картинки и отвечает с визуальным анализом
 
@@ -60,8 +58,8 @@ User message
 [handleViewThumbnails]
   ─ Firestore getAll() x2 in parallel:
       videos/{userId}/channels/{channelId}/videos/{id}        ← own videos
-      videos/{userId}/channels/{channelId}/cached_suggested_traffic_videos/{id}  ← competitor videos
-  ─ own videos preferred; fallback to cached_suggested if not found
+      videos/{userId}/channels/{channelId}/cached_external_videos/{id}  ← external videos
+  ─ own videos preferred; fallback to cached_external if not found
   ─ caps at 50 IDs
   ─ returns { videos: [{videoId, title, thumbnailUrl, ...}], notFound: [], visualContextUrls: [...] }
      │
@@ -195,6 +193,14 @@ ChatMessageList renders <ConfirmLargePayloadBanner count={N} onConfirm={...} onD
 | `ConfirmLargePayloadBanner` | `Chat/components/ConfirmLargePayloadBanner.tsx` | Янтарный баннер с кнопками Load/Cancel |
 | `ThumbnailGrid` | внутри `ToolCallSummary.tsx` | 4-колонная сетка превью обложек в expanded pill |
 | Tool pill (amber) | `ToolCallSummary.tsx` | Янтарная пилюля `Images` иконка для viewThumbnails |
+
+---
+
+## Multi-provider thumbnails
+
+**Gemini:** `viewThumbnails` handler возвращает URLs → `thumbnailMiddleware` загружает изображения в Gemini Files API (47h TTL cache) → image Parts добавляются к tool result.
+
+**Claude:** Thumbnails из контекста передаются как inline image URL блоки (`{ type: "image", source: { type: "url", url } }`) — без Files API upload. Claude видит обложки автоматически.
 
 ---
 

@@ -3,7 +3,7 @@
 //
 // Searches in two collections (same as getMultipleVideoDetails):
 //   1. videos/{videoId}                          — own/competitor videos
-//   2. cached_suggested_traffic_videos/{videoId}  — suggested traffic
+//   2. cached_external_videos/{videoId}  — suggested traffic
 //
 // Accepts videoIds directly OR titles for lookup (fallback when IDs are unknown).
 // Returns visualContextUrls for thumbnailMiddleware to process.
@@ -28,7 +28,7 @@ async function resolveVideoIdsByTitle(
     const queries = titles.map(async (title) => {
         const [videoSnap, suggestedSnap] = await Promise.all([
             db.collection(`${basePath}/videos`).where("title", "==", title).limit(1).get(),
-            db.collection(`${basePath}/cached_suggested_traffic_videos`).where("title", "==", title).limit(1).get(),
+            db.collection(`${basePath}/cached_external_videos`).where("title", "==", title).limit(1).get(),
         ]);
 
         // Prefer main videos/ collection
@@ -83,7 +83,7 @@ export async function handleViewThumbnails(
 
     // --- Phase 3: Standard batch lookup by videoId ---
     const videoRefs = allIds.map(id => db.doc(`${basePath}/videos/${id}`));
-    const suggestedRefs = allIds.map(id => db.doc(`${basePath}/cached_suggested_traffic_videos/${id}`));
+    const suggestedRefs = allIds.map(id => db.doc(`${basePath}/cached_external_videos/${id}`));
 
     const [videoSnaps, suggestedSnaps] = await Promise.all([
         db.getAll(...videoRefs),

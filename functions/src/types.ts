@@ -70,6 +70,38 @@ export interface YouTubeVideoResponse {
     items?: YouTubeVideoItem[];
 }
 
+export interface YouTubeChannelSnippet {
+    title: string;
+    customUrl?: string;
+    thumbnails?: {
+        default?: { url: string };
+        medium?: { url: string };
+    };
+}
+
+export interface YouTubeChannelStatistics {
+    subscriberCount?: string;
+    videoCount?: string;
+    viewCount?: string;
+}
+
+export interface YouTubeChannelContentDetails {
+    relatedPlaylists: {
+        uploads: string;
+    };
+}
+
+export interface YouTubeChannelItem {
+    id: string;
+    snippet: YouTubeChannelSnippet;
+    statistics: YouTubeChannelStatistics;
+    contentDetails: YouTubeChannelContentDetails;
+}
+
+export interface YouTubeChannelResponse {
+    items?: YouTubeChannelItem[];
+}
+
 export interface ProcessStats {
     videosProcessed: number;
     quotaList: number;

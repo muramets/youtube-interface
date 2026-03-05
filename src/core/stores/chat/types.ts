@@ -21,24 +21,6 @@ export interface ActiveToolCall extends ToolCallRecord {
     _callIndex: number;
 }
 
-/** Pending send data — stashed when enrichment fails so retry/dismiss can resume. */
-export interface PendingSend {
-    text: string;
-    attachments: ReadyAttachment[] | undefined;
-    convId: string;
-    rawContextItems: AppContextItem[];
-    existingPersisted: AppContextItem[];
-    nonce: number;
-    abortController: AbortController;
-}
-
-/** Warning shown when traffic sources enrichment fails. */
-export interface EnrichmentWarning {
-    message: string;
-    failedVideos: string[];
-    pendingSend: PendingSend;
-}
-
 export interface ChatState {
     // Context (set once via setContext)
     userId: string | null;
@@ -67,7 +49,6 @@ export interface ChatState {
     hasMoreMessages: boolean;
     hasMoreConversations: boolean;
     lastFailedRequest: { text: string; attachments?: ReadyAttachment[]; messageId?: string } | null;
-    enrichmentWarning: EnrichmentWarning | null;
     pendingModel: string | null; // model override for not-yet-created conversations
     pendingThinkingOptionId: string | null; // thinking depth override (resets on model change)
     editingMessage: ChatMessage | null; // message being edited (user clicks pencil)
@@ -126,8 +107,6 @@ export interface ChatState {
     confirmLargePayload: () => Promise<void>;
     dismissLargePayload: () => void;
     retryLastMessage: () => Promise<void>;
-    retryEnrichment: () => Promise<void>;
-    dismissEnrichment: () => Promise<void>;
     stopGeneration: () => void;
     saveAiSettings: (settings: Partial<AiAssistantSettings>) => Promise<void>;
     memorizeConversation: (guidance?: string) => Promise<{ memoryId: string; content: string }>;

@@ -16,11 +16,11 @@ export async function handleMentionVideo(
 
     const basePath = `users/${ctx.userId}/channels/${ctx.channelId}`;
 
-    // Search in videos/ first, fallback to cached_suggested_traffic_videos/
+    // Search in videos/ first, fallback to cached_external_videos/
     const videoSnap = await db.doc(`${basePath}/videos/${videoId}`).get();
     const snap = videoSnap.exists
         ? videoSnap
-        : await db.doc(`${basePath}/cached_suggested_traffic_videos/${videoId}`).get();
+        : await db.doc(`${basePath}/cached_external_videos/${videoId}`).get();
 
     if (!snap.exists) {
         return { found: false, videoId, error: "Video not found in database" };

@@ -2,7 +2,7 @@
 
 ## Текущее состояние
 
-**Stage 1 MVP реализован.** Таб `trafficSource` добавлен в Video Details page. CSV upload (drag & drop), auto-naming ("13 hours", "3 days"), sidebar timeline, sortable table с 6 колонками, cumulative/delta toggle. Общие CSV утилиты вынесены в `core/utils/csvUtils.ts`.
+**Stage 1 MVP реализован.** Таб Traffic Sources добавлен в Video Details page. CSV upload (drag & drop), auto-naming ("13 hours", "3 days"), sidebar timeline, sortable table с 6 колонками, cumulative/delta toggle. Общие CSV утилиты переиспользуются между Traffic Sources и Suggested Traffic.
 
 ---
 

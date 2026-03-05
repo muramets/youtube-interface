@@ -2,69 +2,15 @@
 
 ## Текущее состояние
 
-Таб "Suggested Traffic" внутри страницы Video Details. Показывает, **рядом с какими видео YouTube рекомендует твоё видео** (suggested / autoplay). То есть это не "что рекомендуется рядом с тобой", а "где ТЫ появляешься как рекомендация". Данные загружаются из CSV-отчёта YouTube Analytics.
+Таб "Suggested Traffic" внутри страницы Video Details. Показывает, **рядом с какими видео YouTube рекомендует твоё видео** (suggested / autoplay). То есть это не "что рекомендуется рядом с тобой", а "где ТЫ появляешься как рекомендация".
 
-**Ключевой flow:** Пользователь скачивает CSV из YouTube Analytics → загружает в приложение → парсер извлекает данные → видео обогащаются через YouTube API → данные хранятся в Cloud Storage (CSV) + Firestore (metadata) → отображаются в таблице.
+**Ключевой flow:** Пользователь скачивает CSV из YouTube Analytics → загружает в приложение → парсер извлекает данные → видео обогащаются через YouTube API → сохраняются → отображаются в таблице.
 
-**Enrichment:** Видео из CSV содержат только ID и метрики. Приложение автоматически подтягивает: title, thumbnail, channelTitle, channelId, publishedAt, duration, description, tags, viewCount, likeCount, subscriberCount через YouTube API. Кэшируются на уровне канала.
+**Enrichment:** Видео из CSV содержат только ID и метрики. Приложение автоматически подтягивает полные данные (title, thumbnail, channelTitle и др.) через YouTube API. Результат кэшируется на уровне канала.
 
-**Smart Assistant:** AI-аналитика поверх данных — автоматическое определение trafficType (autoplay/click), viewerType (bouncer→core), нишевые подсказки (Harmonic Decay).
+**Smart Assistant:** Автоматическая классификация по правилам — trafficType (autoplay/click определяется по комбинации impressions/views), viewerType (bouncer→core по AVD и watch time), нишевые подсказки (Harmonic Decay scoring по тегам).
 
 **Версионирование:** Каждый CSV-загруз создаёт snapshot, привязанный к packaging version. Delta mode показывает прирост между снапшотами.
-
----
-
-## Data Flow: от CSV до чата
-
-```mermaid
-graph TD
-    A["YouTube Analytics CSV файл"] -- Drag and Drop --> B["csvParser.ts Smart header detection"]
-    B --> C{"Есть missing titles?"}
-    C -- Нет --> D["Cloud Storage CSV body"]
-    C -- Да --> E["repairTrafficSources YouTube API enrichment"]
-    E -- Regenerate CSV --> D
-    D --> F["Firestore TrafficSnapshot metadata"]
-    F --> G["useTrafficDataLoader Load + Delta calc"]
-    G --> H["TrafficTable Отображение"]
-    H -- Выделение строк --> I["Chat Bridge SuggestedTrafficContext"]
-    H -- Add to Canvas --> J["Canvas TrafficSourceCardData"]
-```
-
----
-
-## Хранение данных
-
-| Что | Где | Зачем |
-|-----|-----|-------|
-| **CSV body** (полный файл) | Cloud Storage: `storagePath` | Без лимитов размера, дёшево |
-| **Snapshot metadata** | Firestore: `trafficData.snapshots[]` | Быстрые запросы, версионирование |
-| **Enrichment cache** | React Query: `useSuggestedVideoLookup` | YouTube API данные, shared per channel |
-| **Edge data** (trafficType, viewerType, notes, reactions) | Firestore: per-snapshot subcollections | Per-snapshot labels |
-| **Niches + assignments** | Firestore: channel-level collections | Cross-snapshot video grouping |
-
-**Firestore path:**
-```
-users/{uid}/channels/{channelId}/videos/{videoId}/trafficData
-  ├── sources[]           — не используется (legacy)  
-  ├── snapshots[]         — metadata (timestamp, version, storagePath, label)
-  ├── groups[]            — niche groups (cross-version)
-  └── lastUpdated
-```
-
----
-
-## CSV Parsing Pipeline
-
-1. **Drag & Drop** → `TrafficTab` получает File
-2. **`csvParser.ts`** → Smart header detection:
-   - Читает первую строку, матчит заголовки по словарю (`KNOWN_HEADER_NAMES`)
-   - Поддерживает: EN/RU колонки, разные форматы CTR, Total Row detection
-   - Если не удалось → открывает Column Mapper modal
-3. **Pre-upload enrichment:**
-   - Патчит missing titles из кэша (`allVideos`) — без API вызовов
-   - Если всё ещё есть missing → модал: "Sync data?" → `repairTrafficSources()` → YouTube API batch
-4. **CSV Regeneration** → если данные были patched, генерируется **новый** CSV с актуальными данными
-5. **Upload** → CSV → Cloud Storage, metadata → Firestore `snapshots[]`
 
 ---
 
@@ -198,6 +144,58 @@ users/{uid}/channels/{channelId}/videos/{videoId}/trafficData
 - [Chat](./chat.md) — Traffic Bridge передаёт `SuggestedTrafficContext` в чат
 - [Canvas](./canvas.md) — Traffic nodes на Canvas с frame grouping
 - [Video Details](./video-details.md) — Suggested Traffic живёт как таб внутри Details page
+
+## Technical Implementation
+
+### Data Flow
+
+```mermaid
+graph TD
+    A["YouTube Analytics CSV файл"] -- Drag and Drop --> B["csvParser.ts Smart header detection"]
+    B --> C{"Есть missing titles?"}
+    C -- Нет --> D["Cloud Storage CSV body"]
+    C -- Да --> E["repairTrafficSources YouTube API enrichment"]
+    E -- Regenerate CSV --> D
+    D --> F["Firestore TrafficSnapshot metadata"]
+    F --> G["useTrafficDataLoader Load + Delta calc"]
+    G --> H["TrafficTable Отображение"]
+    H -- Выделение строк --> I["Chat Bridge SuggestedTrafficContext"]
+    H -- Add to Canvas --> J["Canvas TrafficSourceCardData"]
+```
+
+### Хранение данных
+
+| Что | Где | Зачем |
+|-----|-----|-------|
+| **CSV body** (полный файл) | Cloud Storage: `storagePath` | Без лимитов размера, дёшево |
+| **Snapshot metadata** | Firestore: `trafficData.snapshots[]` | Быстрые запросы, версионирование |
+| **Enrichment cache** | React Query: `useExternalVideoLookup` | YouTube API данные, shared per channel |
+| **Edge data** (trafficType, viewerType, notes, reactions) | Firestore: per-snapshot subcollections | Per-snapshot labels |
+| **Niches + assignments** | Firestore: channel-level collections | Cross-snapshot video grouping |
+
+**Firestore path:**
+```
+users/{uid}/channels/{channelId}/videos/{videoId}/trafficData
+  ├── sources[]           — не используется (legacy)
+  ├── snapshots[]         — metadata (timestamp, version, storagePath, label)
+  ├── groups[]            — niche groups (cross-version)
+  └── lastUpdated
+```
+
+### CSV Parsing Pipeline
+
+1. **Drag & Drop** → `TrafficTab` получает File
+2. **`csvParser.ts`** → Smart header detection:
+   - Читает первую строку, матчит заголовки по словарю (`KNOWN_HEADER_NAMES`)
+   - Поддерживает: EN/RU колонки, разные форматы CTR, Total Row detection
+   - Если не удалось → открывает Column Mapper modal
+3. **Pre-upload enrichment:**
+   - Патчит missing titles из кэша — без API вызовов
+   - Если всё ещё есть missing → модал: "Sync data?" → YouTube API batch
+4. **CSV Regeneration** → если данные были patched, генерируется **новый** CSV с актуальными данными
+5. **Upload** → CSV → Cloud Storage, metadata → Firestore `snapshots[]`
+
+---
 
 ## Техническая заметка (для агента)
 **Главный компонент:** `pages/Details/tabs/Traffic/TrafficTab.tsx` (1316 строк, 61KB)

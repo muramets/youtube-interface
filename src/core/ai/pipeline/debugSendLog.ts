@@ -69,7 +69,6 @@ export function debugSendLog(params: DebugSendLogParams): void {
                 if (v.delta7d != null) deltaParts.push(`7d: ${v.delta7d >= 0 ? '+' : ''}${v.delta7d}`);
                 if (v.delta30d != null) deltaParts.push(`30d: ${v.delta30d >= 0 ? '+' : ''}${v.delta30d}`);
                 console.log(`      desc: ${v.description ? `✓ (${v.description.length}ch, not in prompt — available via tool)` : '—'} | tags: ${v.tags && v.tags.length > 0 ? `${v.tags.length} (not in prompt — available via tool)` : '—'}${deltaParts.length > 0 ? ` | Δ: ${deltaParts.join(' / ')}` : ''}`);
-                console.log(`      📊 traffic sources: ${v.includeTrafficSources ? (v.trafficSourcesSummary ? `✓ (${v.trafficSourcesSummary.length}ch)` : 'toggled on, no data') : 'off'}`);
 
             } else if (item.type === 'suggested-traffic') {
                 const sv = item.sourceVideo;

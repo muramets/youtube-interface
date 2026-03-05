@@ -131,7 +131,7 @@ AI → продолжает ответ с полными данными
 ```
 
 ### Шаг 2: Batch tool `getMultipleVideoDetails`
-Gemini вызывает `getMultipleVideoDetails(videoIds[])` когда нужны полные данные. Ищет в двух коллекциях: `videos/` + `cached_suggested_traffic_videos/`.
+Gemini вызывает `getMultipleVideoDetails(videoIds[])` когда нужны полные данные. Ищет в двух коллекциях: `videos/` + `cached_external_videos/`, с YouTube API fallback.
 
 ### Шаг 3: Prompt instructions
 `VIDEO_CONTEXT_PREAMBLE` и `TRAFFIC_SUGGESTED_HEADER` обновлены — Gemini знает, что description/tags доступны только через tool.

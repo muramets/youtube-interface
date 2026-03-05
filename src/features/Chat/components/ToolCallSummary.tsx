@@ -11,10 +11,10 @@
 // =============================================================================
 
 import React, { useState } from 'react';
-import { Loader2, Check, AlertCircle, ChevronDown, BarChart3, TrendingUp, Images } from 'lucide-react';
+import { Loader2, Check, AlertCircle, ChevronDown, BarChart3, TrendingUp, Images, Satellite, Globe, PieChart } from 'lucide-react';
 import type { ToolCallRecord } from '../../../core/types/chat';
 import type { VideoCardContext } from '../../../core/types/appContext';
-import { groupToolCalls, getGroupLabel, isExpandable, isThumbnailTool } from '../utils/toolCallGrouping';
+import { groupToolCalls, getGroupLabel, isExpandable, isThumbnailTool, getGroupQuota } from '../utils/toolCallGrouping';
 import type { ToolCallGroup } from '../utils/toolCallGrouping';
 import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
 import { VideoTooltipContent } from './VideoTooltipContent';
@@ -146,6 +146,92 @@ const ThumbnailGrid: React.FC<{ group: ToolCallGroup }> = ({ group }) => {
     );
 };
 
+/** Compact stats for analyzeTrafficSources expanded view. */
+const TrafficSourceStats: React.FC<{ result: Record<string, unknown> }> = ({ result }) => {
+    const sources = result.sources as Array<{ source: string; views: number }> | undefined;
+    const timeline = result.snapshotTimeline as Array<{ date: string; label: string; totalSources: number }> | undefined;
+    const sourceVideo = result.sourceVideo as { title?: string } | undefined;
+
+    const sourceCount = sources?.length ?? 0;
+    const snapshotCount = timeline?.length ?? 0;
+    const topSources = sources?.slice(0, 5) ?? [];
+
+    return (
+        <div className="flex flex-col gap-1.5 px-2 py-1.5 rounded-md bg-white/[0.03] text-[11px] text-text-secondary">
+            {sourceVideo?.title && (
+                <span className="text-text-primary text-[10px] font-medium truncate">{sourceVideo.title}</span>
+            )}
+            <span className="inline-flex items-center gap-1.5">
+                <PieChart size={11} className="shrink-0 opacity-60" />
+                {sourceCount} traffic {sourceCount === 1 ? 'source' : 'sources'} across {snapshotCount} {snapshotCount === 1 ? 'snapshot' : 'snapshots'}
+            </span>
+            {topSources.length > 0 && (
+                <div className="flex flex-col gap-0.5 text-[10px] text-text-tertiary">
+                    {topSources.map(s => (
+                        <span key={s.source} className="truncate">
+                            {s.source}: {s.views.toLocaleString()} views
+                        </span>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
+/** Compact stats for getChannelOverview expanded view (quota gate). */
+const ChannelOverviewStats: React.FC<{ result: Record<string, unknown> }> = ({ result }) => {
+    return (
+        <div className="flex flex-col gap-1 px-2 py-1.5 rounded-md bg-white/[0.03] text-[11px] text-text-secondary">
+            <span className="inline-flex items-center gap-1.5">
+                <Globe size={11} className="shrink-0 opacity-60" />
+                {result.channelTitle as string}
+                {result.handle ? ` (${result.handle as string})` : null}
+                {result.subscriberCount ? ` — ${(result.subscriberCount as number).toLocaleString()} subs` : null}
+            </span>
+            <span className="text-[10px] text-text-tertiary">
+                {(result.videoCount as number).toLocaleString()} videos · Estimated cost: ~{result.quotaCost as number} quota units
+            </span>
+        </div>
+    );
+};
+
+/** Compact stats for browseChannelVideos expanded view. */
+const BrowseChannelStats: React.FC<{ result: Record<string, unknown> }> = ({ result }) => {
+    const videos = result.videos as unknown[] | undefined;
+    const totalOnYT = result.totalVideosOnYouTube as number | undefined;
+    const cached = result.alreadyCached as number | undefined;
+    const fetched = result.fetchedFromYouTube as number | undefined;
+    const quotaUsed = result.quotaUsed as number | undefined;
+    const sync = result.ownChannelSync as { inApp: number; onYouTube: number; notInApp: number } | undefined;
+
+    return (
+        <div className="flex flex-col gap-1 px-2 py-1.5 rounded-md bg-white/[0.03] text-[11px] text-text-secondary">
+            <span className="text-[10px] text-text-tertiary">
+                {videos?.length ?? 0} videos returned
+                {totalOnYT != null && ` (${totalOnYT} on YouTube)`}
+                {cached != null && fetched != null && ` · ${cached} cached, ${fetched} fetched`}
+                {quotaUsed != null && quotaUsed > 0 && ` · ${quotaUsed} quota units`}
+            </span>
+            {sync && (
+                <span className="text-[10px] text-text-tertiary">
+                    {sync.inApp} in app · {sync.onYouTube} on YouTube · {sync.notInApp} not imported
+                </span>
+            )}
+        </div>
+    );
+};
+
+/** Quota badge — shows API cost when a tool used YouTube quota. */
+const QuotaBadge: React.FC<{ quota: number }> = ({ quota }) => {
+    if (quota <= 0) return null;
+    return (
+        <span className="inline-flex items-center gap-0.5 ml-1 text-[9px] text-text-tertiary opacity-70">
+            <Satellite size={9} className="shrink-0" />
+            {quota}
+        </span>
+    );
+};
+
 /** Single consolidated pill for a tool call group. */
 const GroupPill: React.FC<{
     group: ToolCallGroup;
@@ -190,11 +276,17 @@ const GroupPill: React.FC<{
                 onClick={() => expandable && setExpanded(v => !v)}
                 disabled={!expandable}
             >
-                {/* Status icon — @ for mentions, Images for thumbnails, standard icons for others */}
+                {/* Status icon — specialized icons per tool when resolved */}
                 {isMention && group.allResolved && !group.hasErrors ? (
                     <span className="text-[12px] font-semibold shrink-0">@</span>
                 ) : isThumbnail && group.allResolved && !group.hasErrors ? (
                     <Images size={12} className="shrink-0" />
+                ) : group.toolName === 'getChannelOverview' && group.allResolved && !group.hasErrors ? (
+                    <Globe size={12} className="shrink-0" />
+                ) : group.toolName === 'browseChannelVideos' && group.allResolved && !group.hasErrors ? (
+                    <Globe size={12} className="shrink-0" />
+                ) : group.toolName === 'analyzeTrafficSources' && group.allResolved && !group.hasErrors ? (
+                    <PieChart size={12} className="shrink-0" />
                 ) : (
                     <StatusIcon
                         size={12}
@@ -202,6 +294,7 @@ const GroupPill: React.FC<{
                     />
                 )}
                 <span className="truncate">{label}</span>
+                {group.allResolved && <QuotaBadge quota={getGroupQuota(group)} />}
                 {expandable && group.allResolved && (
                     <ChevronDown
                         size={10}
@@ -213,9 +306,20 @@ const GroupPill: React.FC<{
             {/* Expanded content */}
             {expanded && group.allResolved && (
                 <div className="mt-1.5 flex flex-col gap-1 w-full">
-                    {/* Analysis tool: compact stats summary */}
+                    {/* Analysis tools: compact stats summaries */}
                     {group.toolName === 'analyzeSuggestedTraffic' && group.records[0]?.result && (
                         <AnalysisStats result={group.records[0].result} />
+                    )}
+                    {group.toolName === 'analyzeTrafficSources' && group.records[0]?.result && (
+                        <TrafficSourceStats result={group.records[0].result} />
+                    )}
+                    {/* Channel overview: quota gate stats */}
+                    {group.toolName === 'getChannelOverview' && group.records[0]?.result && (
+                        <ChannelOverviewStats result={group.records[0].result} />
+                    )}
+                    {/* Browse channel: video stats */}
+                    {group.toolName === 'browseChannelVideos' && group.records[group.records.length - 1]?.result && (
+                        <BrowseChannelStats result={group.records[group.records.length - 1].result!} />
                     )}
                     {/* Thumbnail tool: image grid */}
                     {isThumbnail && <ThumbnailGrid group={group} />}
