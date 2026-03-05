@@ -212,6 +212,29 @@ Per-snapshot эволюция контента:
 
 ---
 
+## Known Issues
+
+### 1. Теги из описаний не анализируются
+`findSharedTags()` сравнивает только явные YouTube-теги (`tags[]` из `cached_external_videos`). Если создатель вшивает теги/хештеги в description (распространённая SEO-практика на YouTube), они полностью игнорируются при content analysis. Это значит, что `sharedTags` и `mostFrequentSharedTags` дают неполную картину тематического пересечения.
+
+**Решение:** парсить description на хештеги (#tag) и ключевые слова, включать их в анализ наравне с явными тегами.
+
+### 2. Tool не передаёт вручную размеченные данные (viewer type, traffic type)
+В Suggested Traffic таблице пользователь может вручную (или через smart assistant) проставить для каждого suggested видео: viewer type (new/returning) и traffic type. Эти данные хранятся в Firestore, но `analyzeSuggestedTraffic` handler их не читает и не включает в response.
+
+LLM анализирует "слепо" — не знает, какой тип зрителя и трафика стоит за каждым suggested видео.
+
+**Важно:** эти данные — субъективная оценка пользователя, не объективная метрика YouTube. Tool должен явно маркировать их как `userAnnotation` / `subjective`, чтобы LLM учитывал это при интерпретации.
+
+### 3. Tool не передаёт пользовательские ниши suggested видео
+Пользователь может вручную проставить принадлежность к нише для каждого suggested видео в Suggested Traffic таблице. Эти данные уже хранятся в Firestore, но handler их не читает.
+
+Это связано со Stage 3 (Niche correlation) в Roadmap, но отличается: Stage 3 предполагает передачу ниш **пользователя** (его канала) в handler. Здесь речь о нишах, проставленных **на suggested видео** — субъективная классификация того, к какой нише относится каждое рекомендуемое видео.
+
+**Важно:** как и viewer type / traffic type — это субъективная оценка пользователя (`userAnnotation`).
+
+---
+
 ## Roadmap
 
 ### Stage 1 — Multi-snapshot comparison UI ← YOU ARE HERE
