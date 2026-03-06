@@ -58,12 +58,14 @@ export interface ModelConfig {
     thinkingMode: 'level' | 'budget' | 'adaptive';
     /** Which attachment types this model supports natively */
     attachmentSupport: AttachmentSupport;
+    /** Fixed tokens per image for this model (Gemini only; Claude uses tile formula) */
+    imageTokensPerImage?: number;
 }
 
 // Fixed EUR/USD rate — approximate, updated manually as needed
 export const USD_TO_EUR = 0.92;
 
-const LONG_CONTEXT_THRESHOLD = 200_000;
+export const LONG_CONTEXT_THRESHOLD = 200_000;
 
 /**
  * Estimate cost in EUR for a single API call.
@@ -165,6 +167,7 @@ export const MODEL_REGISTRY: ModelConfig[] = [
         thinkingDefault: 'high',
         thinkingMode: 'level',
         attachmentSupport: GEMINI_ATTACHMENT_SUPPORT,
+        imageTokensPerImage: 1090,
     },
     {
         id: 'gemini-3-flash-preview', label: 'Gemini 3 Flash', provider: 'gemini', contextLimit: 1_000_000,
@@ -178,6 +181,7 @@ export const MODEL_REGISTRY: ModelConfig[] = [
         thinkingDefault: 'low',
         thinkingMode: 'level',
         attachmentSupport: GEMINI_ATTACHMENT_SUPPORT,
+        imageTokensPerImage: 1090,
     },
     {
         id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', provider: 'gemini', contextLimit: 1_000_000, isDefault: true,
@@ -191,6 +195,7 @@ export const MODEL_REGISTRY: ModelConfig[] = [
         thinkingDefault: 'auto',
         thinkingMode: 'budget',
         attachmentSupport: GEMINI_ATTACHMENT_SUPPORT,
+        imageTokensPerImage: 258,
     },
     {
         id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', provider: 'gemini', contextLimit: 1_000_000,
@@ -205,6 +210,7 @@ export const MODEL_REGISTRY: ModelConfig[] = [
         thinkingDefault: 'auto',
         thinkingMode: 'budget',
         attachmentSupport: GEMINI_ATTACHMENT_SUPPORT,
+        imageTokensPerImage: 258,
     },
     {
         id: 'claude-opus-4-6', label: 'Claude Opus 4.6', provider: 'anthropic', contextLimit: 200_000,
@@ -245,3 +251,168 @@ export const MODEL_REGISTRY: ModelConfig[] = [
         attachmentSupport: CLAUDE_ATTACHMENT_SUPPORT,
     },
 ];
+
+// ---------------------------------------------------------------------------
+// Token Transparency — data model + cost calculation
+// ---------------------------------------------------------------------------
+
+/** History gets at most 60% of model context; rest reserved for response + system prompt. */
+export const HISTORY_BUDGET_RATIO = 0.6;
+
+/** Provider identifier as stored in normalized usage (Gemini maps to 'google'). */
+export type NormalizedProvider = 'anthropic' | 'google';
+
+/** Per-iteration token counts (input/output breakdown). */
+export interface IterationSnapshot {
+    input: { total: number; fresh: number; cached: number; cacheWrite: number };
+    output: { total: number; thinking: number };
+    cost: IterationCost;
+}
+
+/** Per-iteration USD cost breakdown. */
+export interface IterationCost {
+    input: number;
+    cached: number;
+    cacheWrite: number;
+    output: number;
+    total: number;
+    /** Hypothetical cost if all input tokens were at full price (no cache). */
+    withoutCache: number;
+    /** Subset of output cost attributable to thinking tokens (NOT additive). */
+    thinkingSubset: number;
+}
+
+/** Provider-agnostic normalized token usage for a message. */
+export interface NormalizedTokenUsage {
+    contextWindow: {
+        inputTokens: number;
+        outputTokens: number;
+        thinkingTokens: number;
+        limit: number;
+        /** inputTokens / limit * 100 — FLOAT, NOT rounded. */
+        percent: number;
+    };
+    billing: {
+        input: { total: number; fresh: number; cached: number; cacheWrite: number };
+        output: { total: number; thinking: number };
+        iterations: number;
+        cost: {
+            input: number;
+            cached: number;
+            cacheWrite: number;
+            output: number;
+            total: number;
+            withoutCache: number;
+            thinkingSubset: number;
+        };
+    };
+    iterationDetails?: IterationSnapshot[];
+    provider: NormalizedProvider;
+    model: string;
+    partial?: boolean;
+}
+
+/** Raw char sizes of context components (text in chars, images in tokens). */
+export interface ContextBreakdown {
+    systemPrompt: number;
+    toolDefinitions: number;
+    history: number;
+    memory: number;
+    currentMessage: number;
+    toolResults: number;
+    /** Estimated image tokens (not chars). */
+    imageTokens: number;
+    imageCount: number;
+    historyMessageCount: number;
+    usedSummary: boolean;
+    triggeredAuxiliary?: string[];
+}
+
+/** Auxiliary cost entry (summary, title, memorize). */
+export interface AuxiliaryCost {
+    id: string;
+    type: 'summary' | 'title' | 'memorize' | 'thumbnail_upload';
+    model: string;
+    costUsd: number;
+    tokens?: { input: number; output: number };
+    triggeredByMessageId?: string;
+    createdAt?: unknown;
+}
+
+/**
+ * Compute USD cost for a single API iteration.
+ * This is the ONLY place that knows about ModelPricing — aggregateIterations only sums.
+ */
+export function computeIterationCost(
+    pricing: ModelPricing,
+    tokens: Pick<IterationSnapshot, 'input' | 'output'>,
+): IterationCost {
+    const isLong = tokens.input.total > LONG_CONTEXT_THRESHOLD;
+    const inputRate = (isLong && pricing.inputPerMillionLong != null)
+        ? pricing.inputPerMillionLong : pricing.inputPerMillion;
+    const outputRate = (isLong && pricing.outputPerMillionLong != null)
+        ? pricing.outputPerMillionLong : pricing.outputPerMillion;
+    const cacheReadRate = inputRate * (pricing.cacheReadMultiplier ?? 1);
+    const cacheWriteRate = inputRate * (pricing.cacheWriteMultiplier ?? 1);
+
+    const input = (tokens.input.fresh / 1_000_000) * inputRate;
+    const cached = (tokens.input.cached / 1_000_000) * cacheReadRate;
+    const cacheWrite = (tokens.input.cacheWrite / 1_000_000) * cacheWriteRate;
+    const output = (tokens.output.total / 1_000_000) * outputRate;
+    const total = input + cached + cacheWrite + output;
+
+    const withoutCache = (tokens.input.total / 1_000_000) * inputRate + output;
+    const thinkingSubset = tokens.output.thinking > 0
+        ? (tokens.output.thinking / 1_000_000) * outputRate
+        : 0;
+
+    return { input, cached, cacheWrite, output, total, withoutCache, thinkingSubset };
+}
+
+/**
+ * Aggregate multiple iteration snapshots into NormalizedTokenUsage.
+ * Only sums — no pricing logic here.
+ */
+export function aggregateIterations(
+    snapshots: IterationSnapshot[],
+    model: Pick<ModelConfig, 'id' | 'provider' | 'contextLimit'>,
+): NormalizedTokenUsage {
+    const billing = {
+        input: { total: 0, fresh: 0, cached: 0, cacheWrite: 0 },
+        output: { total: 0, thinking: 0 },
+        iterations: snapshots.length,
+        cost: { input: 0, cached: 0, cacheWrite: 0, output: 0, total: 0, withoutCache: 0, thinkingSubset: 0 },
+    };
+
+    for (const s of snapshots) {
+        billing.input.total += s.input.total;
+        billing.input.fresh += s.input.fresh;
+        billing.input.cached += s.input.cached;
+        billing.input.cacheWrite += s.input.cacheWrite;
+        billing.output.total += s.output.total;
+        billing.output.thinking += s.output.thinking;
+        billing.cost.input += s.cost.input;
+        billing.cost.cached += s.cost.cached;
+        billing.cost.cacheWrite += s.cost.cacheWrite;
+        billing.cost.output += s.cost.output;
+        billing.cost.total += s.cost.total;
+        billing.cost.withoutCache += s.cost.withoutCache;
+        billing.cost.thinkingSubset += s.cost.thinkingSubset;
+    }
+
+    const last = snapshots[snapshots.length - 1];
+
+    return {
+        contextWindow: {
+            inputTokens: last.input.total,
+            outputTokens: last.output.total,
+            thinkingTokens: last.output.thinking,
+            limit: model.contextLimit,
+            percent: (last.input.total / model.contextLimit) * 100,
+        },
+        billing,
+        iterationDetails: snapshots.length > 1 ? snapshots : undefined,
+        provider: model.provider === 'gemini' ? 'google' : 'anthropic',
+        model: model.id,
+    };
+}

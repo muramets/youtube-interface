@@ -226,6 +226,7 @@ export async function streamChat(opts: StreamChatOpts): Promise<AiChatResult> {
                         result = {
                             text: sseEvent.text,
                             tokenUsage: sseEvent.tokenUsage,
+                            normalizedUsage: sseEvent.normalizedUsage,
                             toolCalls: sseEvent.toolCalls,
                             summary: sseEvent.summary,
                             usedSummary: sseEvent.usedSummary,

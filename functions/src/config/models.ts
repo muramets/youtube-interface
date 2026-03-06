@@ -6,7 +6,7 @@
 
 import { MODEL_REGISTRY, DEPRECATED_MODEL_MAP } from '../shared/models.js';
 export type { ModelConfig } from '../shared/models.js';
-export { MODEL_REGISTRY, DEPRECATED_MODEL_MAP } from '../shared/models.js';
+export { MODEL_REGISTRY, DEPRECATED_MODEL_MAP, HISTORY_BUDGET_RATIO } from '../shared/models.js';
 
 // --- Derived helpers (used server-side) ---
 

@@ -46,6 +46,12 @@ import { AiStreamTimeoutError, withStreamRetry } from "../ai/retry.js";
 import { executeToolBatch } from "../ai/toolExecution.js";
 import { formatContextLabel } from "../memory.js";
 import { MODEL_REGISTRY } from "../../config/models.js";
+import {
+    computeIterationCost,
+    aggregateIterations,
+    type IterationSnapshot,
+    type NormalizedTokenUsage,
+} from "../../shared/models.js";
 import type { ToolContext } from "../tools/types.js";
 
 // =============================================================================
@@ -72,6 +78,7 @@ export interface ClaudeStreamChatOpts {
 export interface ClaudeStreamChatResult {
     text: string;
     tokenUsage?: TokenUsage;
+    normalizedUsage?: NormalizedTokenUsage;
     toolCalls?: ToolCallRecord[];
 }
 
@@ -410,6 +417,9 @@ export async function streamChat(
         claudeTools[claudeTools.length - 1].cache_control = CACHE_CONTROL;
     }
 
+    // --- Model config (for pricing + normalization) ---
+    const modelConfig = MODEL_REGISTRY.find(m => m.id === model);
+
     // --- Thinking config ---
     const thinkingResult = buildThinkingConfig(model, thinkingOptionId);
     const thinkingConfig = thinkingResult?.thinking;
@@ -442,6 +452,7 @@ export async function streamChat(
     let fullText = "";
     let tokenUsage: TokenUsage | undefined;
     const allToolCalls: ToolCallRecord[] = [];
+    const iterationSnapshots: IterationSnapshot[] = [];
     let iteration = 0;
 
     // Mutable messages list — we append tool results within the loop
@@ -487,18 +498,42 @@ export async function streamChat(
         // Accumulate text + tokens (sum across iterations, not overwrite)
         fullText = iterationResult.fullText;
         if (iterationResult.tokenUsage) {
+            // Build per-iteration snapshot for normalized usage
+            // Claude: input_tokens EXCLUDES cached, so total = input + cache_read + cache_write
+            const tu = iterationResult.tokenUsage;
+            const cached = tu.cachedTokens ?? 0;
+            const cacheWrite = tu.cacheWriteTokens ?? 0;
+            const thinkingTokens = Math.ceil(iterationResult.thinkingChars / 4);
+            const snapshotTokens = {
+                input: {
+                    total: tu.promptTokens + cached + cacheWrite,
+                    fresh: tu.promptTokens,
+                    cached,
+                    cacheWrite,
+                },
+                output: {
+                    total: tu.completionTokens,
+                    thinking: thinkingTokens,
+                },
+            };
+            iterationSnapshots.push({
+                ...snapshotTokens,
+                cost: computeIterationCost(modelConfig!.pricing, snapshotTokens),
+            });
+
+            // Legacy accumulation (unchanged for backward compat)
             if (tokenUsage) {
-                const newCached = (tokenUsage.cachedTokens ?? 0) + (iterationResult.tokenUsage.cachedTokens ?? 0);
-                const newCacheWrite = (tokenUsage.cacheWriteTokens ?? 0) + (iterationResult.tokenUsage.cacheWriteTokens ?? 0);
+                const newCached = (tokenUsage.cachedTokens ?? 0) + (tu.cachedTokens ?? 0);
+                const newCacheWrite = (tokenUsage.cacheWriteTokens ?? 0) + (tu.cacheWriteTokens ?? 0);
                 tokenUsage = {
-                    promptTokens: tokenUsage.promptTokens + iterationResult.tokenUsage.promptTokens,
-                    completionTokens: tokenUsage.completionTokens + iterationResult.tokenUsage.completionTokens,
-                    totalTokens: tokenUsage.totalTokens + iterationResult.tokenUsage.totalTokens,
+                    promptTokens: tokenUsage.promptTokens + tu.promptTokens,
+                    completionTokens: tokenUsage.completionTokens + tu.completionTokens,
+                    totalTokens: tokenUsage.totalTokens + tu.totalTokens,
                     cachedTokens: newCached > 0 ? newCached : undefined,
                     cacheWriteTokens: newCacheWrite > 0 ? newCacheWrite : undefined,
                 };
             } else {
-                tokenUsage = iterationResult.tokenUsage;
+                tokenUsage = tu;
             }
         }
 
@@ -625,9 +660,16 @@ export async function streamChat(
         );
     }
 
+    // Aggregate iteration snapshots into normalizedUsage
+    let normalizedUsage: NormalizedTokenUsage | undefined;
+    if (iterationSnapshots.length > 0 && modelConfig) {
+        normalizedUsage = aggregateIterations(iterationSnapshots, modelConfig);
+    }
+
     return {
         text: fullText,
         tokenUsage,
+        normalizedUsage,
         toolCalls: allToolCalls.length > 0 ? allToolCalls : undefined,
     };
 }
@@ -657,6 +699,8 @@ interface StreamIterationResult {
     fullText: string;
     /** Token usage from this iteration. */
     tokenUsage?: TokenUsage;
+    /** Approximate thinking token count (chars / 4). */
+    thinkingChars: number;
     /** Tool use blocks from the model response (empty if none). */
     toolUseBlocks: Array<{ id: string; name: string; input: unknown }>;
     /**
@@ -693,6 +737,7 @@ async function streamIteration(
     let iterationText = "";
     let fullText = fullTextBefore;
     let tokenUsage: TokenUsage | undefined;
+    let thinkingChars = 0;
     const toolUseBlocks: Array<{ id: string; name: string; input: unknown }> = [];
     const assistantBlocks: ContentBlockParam[] = [];
 
@@ -750,6 +795,8 @@ async function streamIteration(
 
             stream.on("thinking", (thinkingDelta) => {
                 resetTimer();
+                // Count thinking chars for approximate token estimation (chars / 4, ~±15%)
+                thinkingChars += (thinkingDelta as string).length;
                 // Thinking tokens — emit via callback but DO NOT include in response text
                 callbacks.onThought?.(thinkingDelta);
             });
@@ -827,6 +874,7 @@ async function streamIteration(
         iterationText,
         fullText,
         tokenUsage,
+        thinkingChars,
         toolUseBlocks,
         assistantBlocks,
     };

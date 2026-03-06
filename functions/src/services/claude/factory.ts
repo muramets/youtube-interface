@@ -49,6 +49,7 @@ export const claudeFactory: ProviderFactory = (config: Record<string, unknown>):
             return {
                 text: result.text,
                 tokenUsage: result.tokenUsage,
+                normalizedUsage: result.normalizedUsage,
                 toolCalls: result.toolCalls,
             };
         },

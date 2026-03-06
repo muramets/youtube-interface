@@ -141,11 +141,13 @@ vi.mock("../../ai/toolExecution.js", () => ({
     executeToolBatch: vi.fn(),
 }));
 
-// Mock model registry — provide a Claude-style model config with thinking options
+// Mock model registry — provide a Claude-style model config with thinking options + pricing
 vi.mock("../../../config/models.js", () => ({
     MODEL_REGISTRY: [
         {
             id: "test-claude-model",
+            provider: "anthropic",
+            contextLimit: 200_000,
             thinkingMode: "budget",
             thinkingOptions: [
                 { id: "off", value: 0 },
@@ -154,6 +156,12 @@ vi.mock("../../../config/models.js", () => ({
                 { id: "high", value: 8192 },
             ],
             thinkingDefault: "default",
+            pricing: {
+                inputPerMillion: 5.00,
+                outputPerMillion: 25.00,
+                cacheReadMultiplier: 0.1,
+                cacheWriteMultiplier: 2.0,
+            },
         },
     ],
 }));
@@ -625,6 +633,68 @@ describe("Claude streamChat — agentic loop (tool calling)", () => {
 
         expect(result.text).toBe("Both referenced");
         expect(result.toolCalls).toHaveLength(2);
+    });
+
+    it("sums tokenUsage across agentic iterations (baseline for token transparency)", async () => {
+        // Iteration 1: tool call with usage
+        // Iteration 2: final text with usage
+        mockClientStreams(
+            {
+                events: [
+                    toolUseEvent("call-1", "mentionVideo", { videoId: "v1" }),
+                    finalMessageEvent({
+                        input_tokens: 20,
+                        output_tokens: 10,
+                        cache_read_input_tokens: 5,
+                    }),
+                ],
+            },
+            {
+                events: [
+                    ...textEvents("Done"),
+                    finalMessageEvent({
+                        input_tokens: 30,
+                        output_tokens: 15,
+                        cache_read_input_tokens: 8,
+                    }),
+                ],
+            },
+        );
+
+        mockExecuteToolBatch.mockResolvedValueOnce({
+            results: [
+                {
+                    name: "mentionVideo",
+                    args: { videoId: "v1" },
+                    result: { success: true },
+                },
+            ],
+        });
+
+        const result = await streamChat(
+            makeOptsWithCallbacks({}, { toolContext, tools }),
+        );
+
+        // Current behavior: tokens are SUMMED across iterations
+        expect(result.tokenUsage).toEqual<TokenUsage>({
+            promptTokens: 50,      // 20 + 30
+            completionTokens: 25,  // 10 + 15
+            totalTokens: 75,       // 50 + 25
+            cachedTokens: 13,      // 5 + 8
+            cacheWriteTokens: undefined,
+        });
+    });
+
+    it("throws on abort error — tokenUsage lost because finalMessage never fires (baseline for Task D)", async () => {
+        mockClientStreams({
+            events: [
+                { event: "text", data: "partial response" },
+                { event: "contentBlock", data: { type: "text", text: "partial response" } },
+                { event: "error", data: new DOMException("The operation was aborted", "AbortError") },
+            ],
+        });
+
+        await expect(streamChat(makeOpts())).rejects.toThrow();
     });
 });
 
@@ -1253,5 +1323,138 @@ describe("Claude streamChat — prompt caching (cache_control breakpoints)", () 
         // Accumulated: 80 + 30 = 110 write, 0 + 80 = 80 read
         expect(result.tokenUsage?.cacheWriteTokens).toBe(110);
         expect(result.tokenUsage?.cachedTokens).toBe(80);
+    });
+});
+
+// =============================================================================
+// Suite G: Normalized Usage (Token Transparency — Wave 2)
+// =============================================================================
+
+describe("Claude streamChat — normalizedUsage", () => {
+    it("returns normalizedUsage for single iteration", () => {
+        const mockStream = buildMockStream([
+            ...textEvents("Hello"),
+            finalMessageEvent({
+                input_tokens: 5_000,
+                output_tokens: 1_000,
+                cache_read_input_tokens: 3_000,
+                cache_creation_input_tokens: 500,
+            }),
+        ]);
+
+        mockGetClaudeClient.mockReturnValue({
+            messages: {
+                stream: vi.fn(() => {
+                    mockStream._run();
+                    return mockStream;
+                }),
+            },
+        } as unknown as ReturnType<typeof getClaudeClient>);
+
+        return streamChat(makeOpts()).then((result) => {
+            expect(result.normalizedUsage).toBeDefined();
+            const nu = result.normalizedUsage!;
+
+            // Claude: input.total = input_tokens + cache_read + cache_write
+            expect(nu.contextWindow.inputTokens).toBe(5_000 + 3_000 + 500);
+            // input.fresh = input_tokens (Claude excludes cached from input_tokens)
+            expect(nu.billing.input.fresh).toBe(5_000);
+            expect(nu.billing.input.cached).toBe(3_000);
+            expect(nu.billing.input.cacheWrite).toBe(500);
+            expect(nu.billing.output.total).toBe(1_000);
+            expect(nu.billing.iterations).toBe(1);
+            expect(nu.iterationDetails).toBeUndefined(); // single iteration
+            expect(nu.provider).toBe("anthropic");
+            expect(nu.model).toBe("test-claude-model");
+            expect(nu.contextWindow.limit).toBe(200_000);
+            // percent is float
+            const expectedPercent = (8_500 / 200_000) * 100;
+            expect(nu.contextWindow.percent).toBeCloseTo(expectedPercent, 6);
+        });
+    });
+
+    it("contextWindow uses last iteration, billing sums all", async () => {
+        const tools = [
+            { name: "testTool", description: "test", parametersJsonSchema: { type: "object" } },
+        ];
+        const toolContext = { userId: "u1", channelId: "ch1" };
+
+        // Iteration 1: tool call → iteration 2: final text
+        mockClientStreams(
+            {
+                events: [
+                    toolUseEvent("tu-1", "testTool", { x: 1 }),
+                    finalMessageEvent({
+                        input_tokens: 5_000,
+                        output_tokens: 500,
+                    }),
+                ],
+            },
+            {
+                events: [
+                    ...textEvents("Result"),
+                    finalMessageEvent({
+                        input_tokens: 8_000,
+                        output_tokens: 1_000,
+                        cache_read_input_tokens: 4_000,
+                    }),
+                ],
+            },
+        );
+
+        mockExecuteToolBatch.mockResolvedValueOnce({
+            results: [{ name: "testTool", args: { x: 1 }, result: { ok: true } }],
+        });
+
+        const result = await streamChat(
+            makeOptsWithCallbacks({}, { tools, toolContext }),
+        );
+
+        expect(result.normalizedUsage).toBeDefined();
+        const nu = result.normalizedUsage!;
+
+        // contextWindow from last iteration (iteration 2)
+        expect(nu.contextWindow.inputTokens).toBe(8_000 + 4_000); // 12_000
+        // billing sums both iterations
+        expect(nu.billing.iterations).toBe(2);
+        expect(nu.billing.input.total).toBe(5_000 + 12_000); // 17_000
+        expect(nu.billing.output.total).toBe(500 + 1_000); // 1_500
+        expect(nu.iterationDetails).toHaveLength(2);
+    });
+
+    it("counts thinking tokens from thinking_delta chars / 4", () => {
+        const thinkingText = "a".repeat(400); // 400 chars → ~100 tokens
+
+        const mockStream = buildMockStream([
+            ...thinkingEvents(thinkingText),
+            ...textEvents("Answer"),
+            finalMessageEvent({
+                input_tokens: 5_000,
+                output_tokens: 2_000,
+            }),
+        ]);
+
+        mockGetClaudeClient.mockReturnValue({
+            messages: {
+                stream: vi.fn(() => {
+                    mockStream._run();
+                    return mockStream;
+                }),
+            },
+        } as unknown as ReturnType<typeof getClaudeClient>);
+
+        return streamChat(
+            makeOptsWithCallbacks({ thinkingOptionId: "default" }),
+        ).then((result) => {
+            expect(result.normalizedUsage).toBeDefined();
+            const nu = result.normalizedUsage!;
+
+            // thinking chars = 400, tokens = ceil(400/4) = 100
+            expect(nu.billing.output.thinking).toBe(100);
+            expect(nu.contextWindow.thinkingTokens).toBe(100);
+            // thinking is subset of output, not additive
+            expect(nu.billing.cost.thinkingSubset).toBeGreaterThan(0);
+            expect(nu.billing.cost.thinkingSubset).toBeLessThan(nu.billing.cost.output);
+        });
     });
 });

@@ -269,6 +269,44 @@ describe('parseSSEEvent — done', () => {
         expect(result.summary).toBeUndefined();
         expect(result.usedSummary).toBeUndefined();
     });
+
+    it('passes normalizedUsage through without dropping it', () => {
+        const normalizedUsage = {
+            contextWindow: {
+                inputTokens: 10_000,
+                outputTokens: 2_000,
+                thinkingTokens: 0,
+                limit: 200_000,
+                percent: 5.0,
+            },
+            billing: {
+                input: { total: 10_000, fresh: 7_000, cached: 3_000, cacheWrite: 0 },
+                output: { total: 2_000, thinking: 0 },
+                iterations: 1,
+                cost: { input: 0.02, cached: 0.003, cacheWrite: 0, output: 0.03, total: 0.053, withoutCache: 0.05, thinkingSubset: 0 },
+            },
+            provider: 'anthropic' as const,
+            model: 'claude-sonnet-4-20250514',
+        };
+        const data = JSON.stringify({
+            type: 'done',
+            text: 'Response',
+            normalizedUsage,
+        });
+        const result = parseSSEEvent(data) as SSEDoneEvent;
+
+        expect(result.normalizedUsage).toBeDefined();
+        expect(result.normalizedUsage!.contextWindow.inputTokens).toBe(10_000);
+        expect(result.normalizedUsage!.billing.iterations).toBe(1);
+        expect(result.normalizedUsage!.provider).toBe('anthropic');
+    });
+
+    it('returns undefined normalizedUsage when not present in payload', () => {
+        const data = JSON.stringify({ type: 'done', text: 'No usage.' });
+        const result = parseSSEEvent(data) as SSEDoneEvent;
+
+        expect(result.normalizedUsage).toBeUndefined();
+    });
 });
 
 // ===========================================================================

@@ -4,7 +4,7 @@
 
 import { useMemo } from 'react';
 import type { ChatProject, ChatConversation, ChatMessage } from '../../../core/types/chat/chat';
-import { MODEL_REGISTRY, DEFAULT_MODEL, DEFAULT_CONTEXT_LIMIT, resolveModelId } from '../../../core/types/chat/chat';
+import { MODEL_REGISTRY, DEFAULT_MODEL, DEFAULT_CONTEXT_LIMIT, HISTORY_BUDGET_RATIO, resolveModelId } from '../../../core/types/chat/chat';
 import { estimateCostEur, estimateCacheSavingsEur, type ModelPricing } from '../../../core/types/chat/chat';
 
 interface UseChatDerivedStateOpts {
@@ -32,6 +32,8 @@ interface UseChatDerivedStateReturn {
     modelLabel: string;
     contextUsed: number;
     contextPercent: number;
+    contextLimit: number;
+    modelContextLimit: number;
     isContextFull: boolean;
 }
 
@@ -56,7 +58,8 @@ export function useChatDerivedState(opts: UseChatDerivedStateOpts): UseChatDeriv
     // Model pricing
     const activeModel = resolveModelId(pendingModel || activeConversation?.model || activeProject?.model || defaultModel || DEFAULT_MODEL, MODEL_REGISTRY);
     const modelConfig = MODEL_REGISTRY.find(m => m.id === activeModel) ?? MODEL_REGISTRY[0];
-    const contextLimit = modelConfig.contextLimit ?? DEFAULT_CONTEXT_LIMIT;
+    const modelContextLimit = modelConfig.contextLimit ?? DEFAULT_CONTEXT_LIMIT;
+    const contextLimit = modelContextLimit * HISTORY_BUDGET_RATIO;
 
     // Token usage (model responses only — user messages don't have tokenUsage)
     const totalTokens = useMemo(() =>
@@ -81,9 +84,17 @@ export function useChatDerivedState(opts: UseChatDerivedStateOpts): UseChatDeriv
     // Context window tracking
     const contextUsed = useMemo(() => {
         for (let i = messages.length - 1; i >= 0; i--) {
-            if (messages[i].role === 'model' && messages[i].tokenUsage) {
-                const tu = messages[i].tokenUsage!;
-                return tu.promptTokens + (tu.cachedTokens ?? 0) + (tu.cacheWriteTokens ?? 0);
+            const msg = messages[i];
+            if (msg.role === 'model') {
+                // Prefer normalizedUsage (accurate, provider-agnostic)
+                if (msg.normalizedUsage) {
+                    return msg.normalizedUsage.contextWindow.inputTokens;
+                }
+                // Fallback to legacy formula
+                if (msg.tokenUsage) {
+                    const tu = msg.tokenUsage;
+                    return tu.promptTokens + (tu.cachedTokens ?? 0) + (tu.cacheWriteTokens ?? 0);
+                }
             }
         }
         return 0;
@@ -104,6 +115,8 @@ export function useChatDerivedState(opts: UseChatDerivedStateOpts): UseChatDeriv
         modelLabel: modelConfig.label,
         contextUsed,
         contextPercent,
+        contextLimit,
+        modelContextLimit,
         isContextFull,
     };
 }

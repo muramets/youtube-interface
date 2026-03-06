@@ -9,6 +9,7 @@
 // =============================================================================
 
 import type { ToolContext } from "../tools/types.js";
+import type { NormalizedTokenUsage } from "../../shared/models.js";
 
 // --- Core provider interface (Strategy Pattern) ---
 
@@ -134,6 +135,8 @@ export interface StreamResult {
     text: string;
     /** Token usage statistics (if provided by the provider). */
     tokenUsage?: TokenUsage;
+    /** Provider-agnostic normalized token usage (per-iteration cost, context window). */
+    normalizedUsage?: NormalizedTokenUsage;
     /** Tool calls executed during the agentic loop. */
     toolCalls?: ToolCallRecord[];
     /**

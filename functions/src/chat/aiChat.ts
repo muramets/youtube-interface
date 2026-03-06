@@ -140,7 +140,8 @@ export const aiChat = onRequest(
             const { UTILITY_MODEL_ID } = await import("../config/models.js");
             const memory = await buildMemory({
                 apiKey,
-                model: UTILITY_MODEL_ID,
+                chatModel: model,
+                summaryModel: UTILITY_MODEL_ID,
                 allMessages,
                 existingSummary: convData?.summary,
                 existingSummarizedUpTo: convData?.summarizedUpTo,
@@ -251,7 +252,7 @@ export const aiChat = onRequest(
             });
 
             // Unpack provider-agnostic result
-            const { text: responseText, tokenUsage, toolCalls, providerMeta } = result;
+            const { text: responseText, tokenUsage, normalizedUsage, toolCalls, providerMeta } = result;
             const updatedThumbnailCache = providerMeta?.updatedThumbnailCache as ThumbnailCache | undefined;
 
             // --- Production logging: response metrics ---
@@ -270,6 +271,7 @@ export const aiChat = onRequest(
                 type: "done",
                 text: responseText,
                 tokenUsage,
+                normalizedUsage,
                 toolCalls,
                 usedSummary: memory.usedSummary,
                 summary: memory.newSummary,

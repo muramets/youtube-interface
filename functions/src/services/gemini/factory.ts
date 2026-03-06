@@ -82,6 +82,7 @@ export const geminiFactory: ProviderFactory = (config: Record<string, unknown>):
             return {
                 text: result.text,
                 tokenUsage: result.tokenUsage,
+                normalizedUsage: result.normalizedUsage,
                 toolCalls: result.toolCalls,
                 providerMeta: result.updatedThumbnailCache
                     ? { updatedThumbnailCache: result.updatedThumbnailCache }

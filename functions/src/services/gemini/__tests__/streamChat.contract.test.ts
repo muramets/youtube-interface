@@ -29,6 +29,7 @@ type ChunkShape = {
         candidatesTokenCount?: number;
         totalTokenCount?: number;
         cachedContentTokenCount?: number;
+        thoughtsTokenCount?: number;
     };
 };
 
@@ -106,9 +107,17 @@ vi.mock('../../../config/models.js', () => ({
     MODEL_REGISTRY: [
         {
             id: 'test-model',
+            provider: 'gemini',
+            contextLimit: 1_000_000,
             thinkingMode: 'budget',
             thinkingOptions: [{ id: 'default', value: 1024 }],
             thinkingDefault: 'default',
+            pricing: {
+                inputPerMillion: 1.25,
+                outputPerMillion: 10.00,
+                inputPerMillionLong: 2.50,
+                outputPerMillionLong: 15.00,
+            },
         },
     ],
 }));
@@ -736,5 +745,153 @@ describe('streamChat — thinking (thought leak protection)', () => {
 
         // Final text has no thought leaks
         expect(result.text).toBe('Here is the video');
+    });
+});
+
+// ===========================================================================
+// Suite D: Abort behavior — token usage on stream interruption
+// ===========================================================================
+
+describe('streamChat — abort behavior', () => {
+    it('throws on abort — usageMetadata captured per-chunk but lost to caller (baseline for Task D)', async () => {
+        // Create a generator that yields a chunk with usage, then throws
+        async function* abortingStream() {
+            yield textChunk('partial text', {
+                promptTokenCount: 100,
+                candidatesTokenCount: 50,
+                totalTokenCount: 150,
+            });
+            throw new DOMException('The operation was aborted', 'AbortError');
+        }
+
+        const mockGen = vi.fn().mockImplementation(async () => abortingStream());
+        mockGetClient.mockResolvedValue({
+            models: { generateContentStream: mockGen },
+        } as never);
+
+        await expect(streamChat(makeOpts())).rejects.toThrow();
+        // tokenUsage IS captured from the chunk internally (usageMetadata on each chunk),
+        // but the function throws before returning it.
+        // Task D will fix this: catch abort and return partial result with tokenUsage.
+    });
+});
+
+// ===========================================================================
+// Suite E: Normalized Usage (Token Transparency — Wave 2)
+// ===========================================================================
+
+describe('streamChat — normalizedUsage', () => {
+    it('returns normalizedUsage for single iteration with correct Gemini mapping', async () => {
+        mockStreamResponse(
+            () => makeChunks(
+                textChunk('Hello', {
+                    promptTokenCount: 10_000,
+                    candidatesTokenCount: 2_000,
+                    totalTokenCount: 12_000,
+                    cachedContentTokenCount: 3_000,
+                }),
+            ),
+        );
+
+        const result = await streamChat(makeOpts());
+
+        expect(result.normalizedUsage).toBeDefined();
+        const nu = result.normalizedUsage!;
+
+        // Gemini: promptTokenCount INCLUDES cached → inputTokens = promptTokenCount
+        expect(nu.contextWindow.inputTokens).toBe(10_000);
+        // fresh = promptTokenCount - cachedContentTokenCount
+        expect(nu.billing.input.fresh).toBe(10_000 - 3_000);
+        expect(nu.billing.input.cached).toBe(3_000);
+        expect(nu.billing.input.cacheWrite).toBe(0); // Gemini has no cache write
+        // output = candidatesTokenCount + thoughtsTokenCount (0 here)
+        expect(nu.billing.output.total).toBe(2_000);
+        expect(nu.billing.output.thinking).toBe(0);
+        expect(nu.billing.iterations).toBe(1);
+        expect(nu.iterationDetails).toBeUndefined(); // single iteration
+        expect(nu.provider).toBe('google');
+        expect(nu.model).toBe('test-model');
+        expect(nu.contextWindow.limit).toBe(1_000_000);
+        // percent is float, not rounded
+        const expectedPercent = (10_000 / 1_000_000) * 100;
+        expect(nu.contextWindow.percent).toBeCloseTo(expectedPercent, 6);
+    });
+
+    it('contextWindow uses last iteration, billing sums all', async () => {
+        const toolContext = { userId: 'u1', channelId: 'c1' };
+
+        // Iteration 1: tool call + usage; Iteration 2: text + usage
+        mockStreamResponse(
+            () => makeChunks(
+                functionCallChunk('mentionVideo', { videoId: 'v1' }),
+                textChunk('', {
+                    promptTokenCount: 5_000,
+                    candidatesTokenCount: 500,
+                    totalTokenCount: 5_500,
+                }),
+            ),
+            () => makeChunks(
+                textChunk('Result', {
+                    promptTokenCount: 8_000,
+                    candidatesTokenCount: 1_000,
+                    totalTokenCount: 9_000,
+                    cachedContentTokenCount: 4_000,
+                }),
+            ),
+        );
+
+        mockExecuteTool.mockResolvedValueOnce({
+            name: 'mentionVideo',
+            response: { success: true },
+        });
+        mockEnhance.mockReturnValueOnce({
+            imageUrls: [],
+            cleanedResponse: { success: true },
+            blockedCount: undefined,
+        });
+
+        const result = await streamChat(makeOpts({ toolContext }));
+
+        expect(result.normalizedUsage).toBeDefined();
+        const nu = result.normalizedUsage!;
+
+        // contextWindow from LAST iteration (iteration 2)
+        expect(nu.contextWindow.inputTokens).toBe(8_000);
+        expect(nu.contextWindow.outputTokens).toBe(1_000); // no thinking
+        // billing sums both iterations
+        expect(nu.billing.iterations).toBe(2);
+        expect(nu.billing.input.total).toBe(5_000 + 8_000);
+        expect(nu.billing.output.total).toBe(500 + 1_000);
+        expect(nu.billing.input.cached).toBe(0 + 4_000);
+        expect(nu.iterationDetails).toHaveLength(2);
+    });
+
+    it('reads thoughtsTokenCount from usageMetadata (exact, not approximate)', async () => {
+        // Gemini reports thinking tokens separately and exactly
+        mockStreamResponse(
+            () => makeChunks(
+                thoughtChunk('Let me reason about this...'),
+                textChunk('Answer', {
+                    promptTokenCount: 5_000,
+                    candidatesTokenCount: 800,
+                    totalTokenCount: 6_000,
+                    thoughtsTokenCount: 150,
+                }),
+            ),
+        );
+
+        const result = await streamChat(makeOpts());
+
+        expect(result.normalizedUsage).toBeDefined();
+        const nu = result.normalizedUsage!;
+
+        // Gemini: exact thoughtsTokenCount from usageMetadata
+        expect(nu.billing.output.thinking).toBe(150);
+        expect(nu.contextWindow.thinkingTokens).toBe(150);
+        // output.total = candidatesTokenCount + thoughtsTokenCount
+        expect(nu.billing.output.total).toBe(800 + 150);
+        // thinking cost is subset of output cost
+        expect(nu.billing.cost.thinkingSubset).toBeGreaterThan(0);
+        expect(nu.billing.cost.thinkingSubset).toBeLessThan(nu.billing.cost.output);
     });
 });

@@ -39,6 +39,12 @@ import { TOOL_DECLARATIONS } from "../tools/index.js";
 import type { ToolContext } from "../tools/index.js";
 import { toFunctionDeclarations } from "./toolAdapter.js";
 import { MODEL_REGISTRY } from "../../config/models.js";
+import {
+    computeIterationCost,
+    aggregateIterations,
+    type IterationSnapshot,
+    type NormalizedTokenUsage,
+} from "../../shared/models.js";
 
 // --- StreamChat options ---
 
@@ -213,6 +219,8 @@ interface GeminiIterationResult {
     iterationText: string;
     fullText: string;
     tokenUsage?: TokenUsage;
+    /** Exact thinking token count from Gemini usageMetadata.thoughtsTokenCount. */
+    thoughtsTokenCount: number;
     functionCalls: Array<{ name: string; args: Record<string, unknown> }>;
     /** Raw model parts preserving thought_signature for agentic loop history. */
     rawModelParts: Part[];
@@ -240,6 +248,7 @@ async function geminiStreamIteration(
     let iterationText = "";
     let fullText = fullTextBefore;
     let tokenUsage: TokenUsage | undefined;
+    let thoughtsTokenCount = 0;
     const functionCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
     const rawModelParts: Part[] = [];
     let chunkCount = 0;
@@ -342,6 +351,8 @@ async function geminiStreamIteration(
                     totalTokens: usageMetadata.totalTokenCount ?? 0,
                     cachedTokens: usageMetadata.cachedContentTokenCount as number | undefined,
                 };
+                // Gemini reports thinking tokens separately (exact, not approximate)
+                thoughtsTokenCount = (usageMetadata.thoughtsTokenCount as number) ?? 0;
             }
         }
 
@@ -363,14 +374,14 @@ async function geminiStreamIteration(
         signal?.removeEventListener("abort", handleCallerAbort);
     }
 
-    return { iterationText, fullText, tokenUsage, functionCalls, rawModelParts };
+    return { iterationText, fullText, tokenUsage, thoughtsTokenCount, functionCalls, rawModelParts };
 }
 
 // --- Main streaming function ---
 
 export async function streamChat(
     opts: StreamChatOpts
-): Promise<{ text: string; tokenUsage?: TokenUsage; toolCalls?: ToolCallRecord[]; updatedThumbnailCache?: ThumbnailCache }> {
+): Promise<{ text: string; tokenUsage?: TokenUsage; normalizedUsage?: NormalizedTokenUsage; toolCalls?: ToolCallRecord[]; updatedThumbnailCache?: ThumbnailCache }> {
     const {
         apiKey,
         model,
@@ -464,6 +475,7 @@ export async function streamChat(
     let fullText = "";
     let tokenUsage: TokenUsage | undefined;
     const allToolCalls: ToolCallRecord[] = [];
+    const iterationSnapshots: IterationSnapshot[] = [];
     let iteration = 0;
 
     // Mutable contents — we append function responses within the loop
@@ -505,16 +517,42 @@ export async function streamChat(
         // Update accumulated state (sum tokens across iterations, not overwrite)
         fullText = iterationResult.fullText;
         if (iterationResult.tokenUsage) {
+            // Build per-iteration snapshot for normalized usage
+            // Gemini: promptTokenCount INCLUDES cached, so fresh = prompt - cached
+            const tu = iterationResult.tokenUsage;
+            const cached = tu.cachedTokens ?? 0;
+            const thoughts = iterationResult.thoughtsTokenCount;
+            const snapshotTokens = {
+                input: {
+                    total: tu.promptTokens,
+                    fresh: tu.promptTokens - cached,
+                    cached,
+                    cacheWrite: 0, // Gemini has no cache write concept
+                },
+                output: {
+                    // Gemini: candidatesTokenCount EXCLUDES thinking, so total = candidates + thoughts
+                    total: tu.completionTokens + thoughts,
+                    thinking: thoughts,
+                },
+            };
+            if (modelConfig) {
+                iterationSnapshots.push({
+                    ...snapshotTokens,
+                    cost: computeIterationCost(modelConfig.pricing, snapshotTokens),
+                });
+            }
+
+            // Legacy accumulation (unchanged for backward compat)
             if (tokenUsage) {
-                const newCached = (tokenUsage.cachedTokens ?? 0) + (iterationResult.tokenUsage.cachedTokens ?? 0);
+                const newCached = (tokenUsage.cachedTokens ?? 0) + (tu.cachedTokens ?? 0);
                 tokenUsage = {
-                    promptTokens: tokenUsage.promptTokens + iterationResult.tokenUsage.promptTokens,
-                    completionTokens: tokenUsage.completionTokens + iterationResult.tokenUsage.completionTokens,
-                    totalTokens: tokenUsage.totalTokens + iterationResult.tokenUsage.totalTokens,
+                    promptTokens: tokenUsage.promptTokens + tu.promptTokens,
+                    completionTokens: tokenUsage.completionTokens + tu.completionTokens,
+                    totalTokens: tokenUsage.totalTokens + tu.totalTokens,
                     cachedTokens: newCached > 0 ? newCached : undefined,
                 };
             } else {
-                tokenUsage = iterationResult.tokenUsage;
+                tokenUsage = tu;
             }
         }
 
@@ -633,9 +671,16 @@ export async function streamChat(
         const cached = tokenUsage.cachedTokens ? ` cached=${tokenUsage.cachedTokens}` : ' cached=0';
         console.log(`[gemini:streamChat] Tokens: prompt=${tokenUsage.promptTokens}, completion=${tokenUsage.completionTokens}, total=${tokenUsage.totalTokens}${cached}`);
     }
+    // Aggregate iteration snapshots into normalizedUsage
+    let normalizedUsage: NormalizedTokenUsage | undefined;
+    if (iterationSnapshots.length > 0 && modelConfig) {
+        normalizedUsage = aggregateIterations(iterationSnapshots, modelConfig);
+    }
+
     return {
         text: fullText,
         tokenUsage,
+        normalizedUsage,
         toolCalls: allToolCalls.length > 0 ? allToolCalls : undefined,
         // Return the fully accumulated cache (initial upload + any mid-conversation fetches)
         updatedThumbnailCache: currentThumbnailCache,

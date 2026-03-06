@@ -54,6 +54,7 @@ export interface ChatMessage {
     appContext?: AppContextItem[]; // Video card / page context snapshot at send time
     model?: string;               // Model used to generate this response (for accurate cost tracking)
     tokenUsage?: TokenUsage;
+    normalizedUsage?: NormalizedTokenUsage;
     toolCalls?: ToolCallRecord[];   // Structured tool calls from agentic mode (Stage 5+)
     overrides?: Record<string, string>; // Tier 3: Manual overrides for hallucinated references (e.g. { "4": "competitor-4" })
     createdAt: Timestamp;
@@ -63,6 +64,7 @@ export interface ChatMessage {
 export interface AiChatResult {
     text: string;
     tokenUsage?: TokenUsage;
+    normalizedUsage?: NormalizedTokenUsage;
     toolCalls?: ToolCallRecord[];
     summary?: string;
     usedSummary?: boolean;
@@ -92,9 +94,9 @@ export type ChatView = 'projects' | 'conversations' | 'chat';
 
 // --- Model config (imported from shared SSOT) ---
 
-export type { ModelConfig, ModelPricing, AttachmentSupport, TokenUsage } from '../../../../shared/models';
-export { MODEL_REGISTRY, estimateCostEur, estimateCacheSavingsEur, resolveModelId, getAcceptedMimeTypes, type ThinkingOption } from '../../../../shared/models';
-import { MODEL_REGISTRY, type TokenUsage } from '../../../../shared/models';
+export type { ModelConfig, ModelPricing, AttachmentSupport, TokenUsage, NormalizedTokenUsage } from '../../../../shared/models';
+export { MODEL_REGISTRY, HISTORY_BUDGET_RATIO, estimateCostEur, estimateCacheSavingsEur, resolveModelId, getAcceptedMimeTypes, type ThinkingOption } from '../../../../shared/models';
+import { MODEL_REGISTRY, type TokenUsage, type NormalizedTokenUsage } from '../../../../shared/models';
 
 export const DEFAULT_MODEL = MODEL_REGISTRY.find(m => m.isDefault)?.id ?? MODEL_REGISTRY[0].id;
 export const DEFAULT_CONTEXT_LIMIT = (MODEL_REGISTRY.find(m => m.isDefault) ?? MODEL_REGISTRY[0]).contextLimit;

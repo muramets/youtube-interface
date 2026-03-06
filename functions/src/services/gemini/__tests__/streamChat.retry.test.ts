@@ -72,14 +72,22 @@ vi.mock('../../tools/executor.js', () => ({
     executeTool: vi.fn(),
 }));
 
-// Mock model registry — return a minimal config so thinkingConfig branch works
+// Mock model registry — return a minimal config so thinkingConfig + pricing works
 vi.mock('../../../config/models.js', () => ({
     MODEL_REGISTRY: [
         {
             id: 'test-model',
+            provider: 'gemini',
+            contextLimit: 1_000_000,
             thinkingMode: 'budget',
             thinkingOptions: [{ id: 'default', value: 1024 }],
             thinkingDefault: 'default',
+            pricing: {
+                inputPerMillion: 1.25,
+                outputPerMillion: 10.00,
+                inputPerMillionLong: 2.50,
+                outputPerMillionLong: 15.00,
+            },
         },
     ],
 }));

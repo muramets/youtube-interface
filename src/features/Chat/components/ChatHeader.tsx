@@ -10,6 +10,8 @@ interface ChatHeaderProps {
     totalCostEur: number;
     totalSavingsEur: number;
     contextPercent: number;
+    contextLimit: number;
+    modelContextLimit: number;
     activeProjectId: string | null;
     editingProjectId: string | null;
     onBack: () => void;
@@ -29,6 +31,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     totalCostEur,
     totalSavingsEur,
     contextPercent,
+    contextLimit,
+    modelContextLimit,
     activeProjectId,
     editingProjectId,
     onBack,
@@ -69,6 +73,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 <ChatHeaderStats
                     contextUsed={contextUsed}
                     contextPercent={contextPercent}
+                    contextLimit={contextLimit}
+                    modelContextLimit={modelContextLimit}
                     totalCostEur={totalCostEur}
                     totalSavingsEur={totalSavingsEur}
                     totalTokens={totalTokens}

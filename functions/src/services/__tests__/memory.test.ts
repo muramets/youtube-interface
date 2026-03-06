@@ -17,12 +17,15 @@ vi.mock('../gemini/index.js', () => ({
     getClient: vi.fn(),
 }));
 
-// Mock MODEL_CONTEXT_LIMITS — deterministic budget for tests
+// Mock MODEL_CONTEXT_LIMITS + HISTORY_BUDGET_RATIO — deterministic budget for tests
 vi.mock('../../config/models.js', () => ({
     MODEL_CONTEXT_LIMITS: {
         'test-model': 1_000,         // tiny: 1000 tokens total → 600 budget
         'test-model-large': 100_000, // large enough that short convos fit
+        'claude-opus-4-6': 200_000,  // Claude context for Task B tests
+        'gemini-2.5-pro': 1_000_000, // Gemini context for Task B tests
     } as Record<string, number>,
+    HISTORY_BUDGET_RATIO: 0.6,
 }));
 
 // ---------------------------------------------------------------------------
@@ -309,7 +312,8 @@ describe('buildMemory', () => {
 
         const result = await buildMemory({
             apiKey: 'test-key',
-            model: 'test-model-large', // 100K limit → 60K budget
+            chatModel: 'test-model-large',
+            summaryModel: 'test-summary-model', // 100K limit → 60K budget
             allMessages: messages,
         });
 
@@ -328,7 +332,8 @@ describe('buildMemory', () => {
 
         const result = await buildMemory({
             apiKey: 'test-key',
-            model: 'test-model-large',
+            chatModel: 'test-model-large',
+            summaryModel: 'test-summary-model',
             allMessages: messages,
         });
 
@@ -341,7 +346,8 @@ describe('buildMemory', () => {
 
         const result = await buildMemory({
             apiKey: 'test-key',
-            model: 'test-model-large',
+            chatModel: 'test-model-large',
+            summaryModel: 'test-summary-model',
             allMessages: messages,
         });
 
@@ -358,7 +364,8 @@ describe('buildMemory', () => {
 
         const result = await buildMemory({
             apiKey: 'test-key',
-            model: 'test-model',
+            chatModel: 'test-model',
+            summaryModel: 'test-summary-model',
             allMessages: messages,
         });
 
@@ -375,7 +382,8 @@ describe('buildMemory', () => {
 
         const result = await buildMemory({
             apiKey: 'test-key',
-            model: 'test-model',
+            chatModel: 'test-model',
+            summaryModel: 'test-summary-model',
             allMessages: messages,
         });
 
@@ -393,7 +401,8 @@ describe('buildMemory', () => {
 
         const result = await buildMemory({
             apiKey: 'test-key',
-            model: 'test-model',
+            chatModel: 'test-model',
+            summaryModel: 'test-summary-model',
             allMessages: messages,
         });
 
@@ -421,7 +430,8 @@ describe('buildMemory', () => {
 
         const result = await buildMemory({
             apiKey: 'test-key',
-            model: 'test-model',
+            chatModel: 'test-model',
+            summaryModel: 'test-summary-model',
             allMessages: messages,
             existingSummary: 'Previous summary content',
             existingSummarizedUpTo: 'msg-4',
@@ -449,7 +459,8 @@ describe('buildMemory', () => {
         setupMockGenerateContent('Initial summary');
         const firstResult = await buildMemory({
             apiKey: 'test-key',
-            model: 'test-model',
+            chatModel: 'test-model',
+            summaryModel: 'test-summary-model',
             allMessages: messages,
         });
 
@@ -462,7 +473,8 @@ describe('buildMemory', () => {
 
         const result = await buildMemory({
             apiKey: 'test-key',
-            model: 'test-model',
+            chatModel: 'test-model',
+            summaryModel: 'test-summary-model',
             allMessages: messages,
             existingSummary: 'Cached summary',
             existingSummarizedUpTo: firstResult.summarizedUpTo,
@@ -481,7 +493,8 @@ describe('buildMemory', () => {
 
         const result = await buildMemory({
             apiKey: 'test-key',
-            model: 'test-model',
+            chatModel: 'test-model',
+            summaryModel: 'test-summary-model',
             allMessages: messages,
         });
 
@@ -511,7 +524,8 @@ describe('buildMemory', () => {
 
         const result = await buildMemory({
             apiKey: 'test-key',
-            model: 'test-model-large',
+            chatModel: 'test-model-large',
+            summaryModel: 'test-summary-model',
             allMessages: messages,
         });
 
@@ -536,7 +550,8 @@ describe('buildMemory', () => {
 
         const result = await buildMemory({
             apiKey: 'test-key',
-            model: 'test-model',
+            chatModel: 'test-model',
+            summaryModel: 'test-summary-model',
             allMessages: messages,
         });
 
@@ -550,7 +565,8 @@ describe('buildMemory', () => {
 
         const result = await buildMemory({
             apiKey: 'test-key',
-            model: 'test-model',
+            chatModel: 'test-model',
+            summaryModel: 'test-summary-model',
             allMessages: messages,
         });
 
@@ -561,14 +577,15 @@ describe('buildMemory', () => {
         });
     });
 
-    it('falls back to 1_000_000 context limit for unknown model', async () => {
-        // Unknown model → 1M limit → 600K budget
+    it('falls back to 200_000 context limit for unknown model', async () => {
+        // Unknown model → 200K limit → 120K budget
         // Small conversation should fit easily
         const messages = makeConversation(4, 50);
 
         const result = await buildMemory({
             apiKey: 'test-key',
-            model: 'unknown-model',
+            chatModel: 'unknown-model',
+            summaryModel: 'test-summary-model',
             allMessages: messages,
         });
 
@@ -583,7 +600,8 @@ describe('buildMemory', () => {
 
         const result = await buildMemory({
             apiKey: 'test-key',
-            model: 'test-model',
+            chatModel: 'test-model',
+            summaryModel: 'test-summary-model',
             allMessages: messages,
         });
 
@@ -618,7 +636,8 @@ describe('buildMemory', () => {
 
         const result = await buildMemory({
             apiKey: 'test-key',
-            model: 'test-model',
+            chatModel: 'test-model',
+            summaryModel: 'test-summary-model',
             allMessages: messages,
         });
 
@@ -641,7 +660,8 @@ describe('buildMemory', () => {
 
         const result = await buildMemory({
             apiKey: 'test-key',
-            model: 'test-model',
+            chatModel: 'test-model',
+            summaryModel: 'test-summary-model',
             allMessages: messages,
             existingSummary: 'Fallback summary',
         });
@@ -668,7 +688,8 @@ describe('buildMemory', () => {
 
         const result = await buildMemory({
             apiKey: 'test-key',
-            model: 'test-model',
+            chatModel: 'test-model',
+            summaryModel: 'test-summary-model',
             allMessages: messages,
         });
 
@@ -676,5 +697,88 @@ describe('buildMemory', () => {
         // Recent window should have at least 10 messages
         const recentCount = result.history.length - 1;
         expect(recentCount).toBeGreaterThanOrEqual(10);
+    });
+
+    it("uses chatModel's context limit for budget, summaryModel for API call", async () => {
+        const mockGenerateContent = vi.fn().mockResolvedValue({
+            text: 'Budget test summary',
+            usageMetadata: {
+                promptTokenCount: 100,
+                candidatesTokenCount: 50,
+                totalTokenCount: 150,
+            },
+        });
+        mockGetClient.mockResolvedValue({
+            models: { generateContent: mockGenerateContent },
+        } as never);
+
+        // 15 messages × 200 chars = 3000 chars → ~750 tokens
+        // test-model: 1000 limit → 600 budget → 750 > 600 → SUMMARIZES
+        // test-model-large: 100K limit → 60K budget → 750 < 60K → would NOT summarize
+        const messages = makeConversation(15, 200);
+
+        // With test-model (small chatModel): triggers summarization
+        const smallResult = await buildMemory({
+            apiKey: 'test-key',
+            chatModel: 'test-model',
+            summaryModel: 'test-summary-model',
+            allMessages: messages,
+        });
+        expect(smallResult.usedSummary).toBe(true);
+
+        // Verify summaryModel is passed to generateSummary (not chatModel)
+        const callArgs = mockGenerateContent.mock.calls[0][0];
+        expect(callArgs.model).toBe('test-summary-model');
+
+        // With test-model-large (large chatModel): no summarization needed
+        vi.clearAllMocks();
+        const largeResult = await buildMemory({
+            apiKey: 'test-key',
+            chatModel: 'test-model-large',
+            summaryModel: 'test-summary-model',
+            allMessages: messages,
+        });
+        expect(largeResult.usedSummary).toBe(false);
+    });
+
+    it('Claude budget = 200K × 0.6 = 120K, Gemini budget = 1M × 0.6 = 600K', async () => {
+        setupMockGenerateContent('Claude budget test');
+
+        // ~30K tokens worth of messages (120K chars / 4 chars per token)
+        // Claude budget: 200K × 0.6 = 120K → 30K < 120K → fits
+        // But if we use 500K chars → 125K tokens > 120K budget → summarizes
+        const longMessages = makeConversation(20, 25_000); // 20 × 25K = 500K chars → ~125K tokens
+
+        const claudeResult = await buildMemory({
+            apiKey: 'test-key',
+            chatModel: 'claude-opus-4-6',
+            summaryModel: 'test-summary-model',
+            allMessages: longMessages,
+        });
+        expect(claudeResult.usedSummary).toBe(true);
+
+        // Same messages with Gemini: 125K < 600K → fits
+        const geminiResult = await buildMemory({
+            apiKey: 'test-key',
+            chatModel: 'gemini-2.5-pro',
+            summaryModel: 'test-summary-model',
+            allMessages: longMessages,
+        });
+        expect(geminiResult.usedSummary).toBe(false);
+    });
+
+    it('unknown model falls back to 200K context (conservative default)', async () => {
+        setupMockGenerateContent('Unknown model summary');
+
+        // 125K tokens (500K chars) > 200K × 0.6 = 120K → should summarize
+        const longMessages = makeConversation(20, 25_000);
+
+        const result = await buildMemory({
+            apiKey: 'test-key',
+            chatModel: 'unknown-model',
+            summaryModel: 'test-summary-model',
+            allMessages: longMessages,
+        });
+        expect(result.usedSummary).toBe(true);
     });
 });

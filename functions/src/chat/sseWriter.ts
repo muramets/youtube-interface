@@ -6,6 +6,7 @@
 // =============================================================================
 
 import type { ToolCallRecord, TokenUsage } from "../services/ai/types.js";
+import type { NormalizedTokenUsage } from "../shared/models.js";
 
 // --- SSE event types (server-side mirror of client SSEEvent union) ---
 
@@ -17,6 +18,7 @@ type SSEDoneEvent = {
     type: "done";
     text: string;
     tokenUsage?: TokenUsage;
+    normalizedUsage?: NormalizedTokenUsage;
     toolCalls?: ToolCallRecord[];
     summary?: string;
     usedSummary?: boolean;

@@ -6,7 +6,7 @@
 // =============================================================================
 
 import type { HistoryMessage } from "./ai/types.js";
-import { MODEL_CONTEXT_LIMITS } from "../config/models.js";
+import { MODEL_CONTEXT_LIMITS, HISTORY_BUDGET_RATIO } from "../config/models.js";
 
 // --- Token estimation ---
 
@@ -16,8 +16,7 @@ const CHARS_PER_TOKEN = 4;
 /** Tokens allocated to each file/image attachment in the estimate. */
 const ATTACHMENT_TOKEN_ESTIMATE = 1500;
 
-/** History gets at most 60% of model context; rest is reserved for response + system prompt. */
-const HISTORY_BUDGET_RATIO = 0.6;
+// HISTORY_BUDGET_RATIO imported from config/models (shared/models.ts SSOT)
 
 /** Minimum # of recent messages to always keep verbatim in the sliding window. */
 const MIN_RECENT_MESSAGES = 10;
@@ -177,15 +176,16 @@ export interface MemoryResult {
 
 export async function buildMemory(opts: {
     apiKey: string;
-    model: string;
+    chatModel: string;
+    summaryModel: string;
     allMessages: HistoryMessage[];
     existingSummary?: string;
     existingSummarizedUpTo?: string;
 }): Promise<MemoryResult> {
-    const { apiKey, model, allMessages, existingSummary, existingSummarizedUpTo } = opts;
+    const { apiKey, chatModel, summaryModel, allMessages, existingSummary, existingSummarizedUpTo } = opts;
 
     const totalTokens = estimateTokens(allMessages);
-    const budget = (MODEL_CONTEXT_LIMITS[model] || 1_000_000) * HISTORY_BUDGET_RATIO;
+    const budget = (MODEL_CONTEXT_LIMITS[chatModel] || 200_000) * HISTORY_BUDGET_RATIO;
 
     // If everything fits — use full history, no summarization needed
     if (totalTokens <= budget) {
@@ -240,7 +240,7 @@ export async function buildMemory(opts: {
                 : messagesToSummarize;
 
             if (newMessages.length > 0) {
-                const result = await generateSummary(apiKey, newMessages, existingSummary, model);
+                const result = await generateSummary(apiKey, newMessages, existingSummary, summaryModel);
                 summary = result.text;
                 summaryTokenUsage = result.tokenUsage;
                 newSummary = summary;

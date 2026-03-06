@@ -145,6 +145,67 @@ UI listens for status changes via Firestore `onSnapshot`. Download links come fr
   - `roadmap` — per-stage description of user flow + checklist; final stage = market-ready vision (architecture, cost, storage, API usage).
 - **Doc structure rule: "why" on top, "how" on bottom.** Top sections (`current state`, `what is this`, `user flow`) must describe business behavior in plain language — what the user sees and why the feature exists. Any reference to a specific file name, Firestore collection, function name, API name, or version number belongs in a dedicated `Technical Implementation` section at the bottom. This prevents documentation from going stale when code is refactored — business intent rarely changes, but file paths and collection names change often.
 
+### Agentic Task Documents (`docs/features/*-tasks.md`)
+
+For multi-phase features requiring coordinated agent execution across sessions, create a **task document** alongside the feature doc. The task doc is the orchestration blueprint — optimized for agents that may lose context between sessions.
+
+**Reference implementation:** `docs/features/video-view-deltas-tasks.md` (battle-tested, fully executed).
+
+#### Required sections (in order):
+
+**1. Quick Context Recovery** (top of file)
+- Ordered list of 3-5 files to read when context is lost
+- Starts with the task doc itself, then feature doc, then key source files
+- Agent reads these in order and recovers full context without asking questions
+
+**2. Key Decisions (carry forward)**
+- 3-7 critical architectural decisions that MUST survive context loss
+- Each: what was decided + why (rejected alternative optional but valuable)
+- These are the "if you forget everything else, remember THIS" items
+
+**3. Agent Orchestration Strategy**
+- Who is executor (main context) vs subagent (reviews, parallel work)
+- Explicit statement: "Main context = executor + orchestrator"
+
+**4. Phase/Wave Status table** — one-line status per phase (TODO / IN PROGRESS / DONE)
+
+**5. Current Test Count** — running total updated after every phase
+
+**6. Per-phase sections** — each phase contains:
+- **Goal**: one sentence
+- **Critical Context**: gotchas, prerequisites, ⚠️ warnings about traps
+- **Tasks** with checkboxes:
+  - Exact file paths to create/modify (with line numbers when relevant)
+  - Mock targets for tests
+  - Edge cases to cover
+  - ⚠️ warnings about provider-specific traps
+- **Parallelization plan** (ASCII diagram within each phase):
+  ```
+  T3.1 — SEQUENTIAL FIRST (foundation)
+  T3.2 + T3.3 + T3.4 — PARALLEL subagents
+  T3.6 — SEQUENTIAL LAST
+  ```
+- **Verification**: exact shell commands to run
+- **MANDATORY: Update this file before proceeding** — checklist: mark tasks, update status table, record test count
+
+**7. Review Gates** — after each phase:
+- Full **prompt** for review agent (specific questions, not just a checklist)
+- "Fix all findings before moving to next phase"
+
+**8. FINAL phase**: Double review-fix cycle (R1 Architecture + R2 Production Readiness)
+
+#### Separation: Feature Doc vs Task Doc
+- **Feature doc** (`feature-name.md`): business goal, user flow, roadmap, current state, technical implementation. Lives forever, updated incrementally.
+- **Task doc** (`feature-name-tasks.md`): execution plan, phases, agent assignments, test counts, review gates. Created before implementation, becomes historical reference after completion.
+- Feature doc = "what and why". Task doc = "how and in what order".
+
+#### Pattern Promotion Rule
+After completing a multi-phase feature, review the task doc for patterns that worked well:
+- If a pattern improved agent efficiency or reduced errors → add it to this CLAUDE.md section
+- If a pattern caused confusion or was ignored by agents → remove or rephrase it
+- Update the reference implementation pointer if the new doc is better than the current reference
+- This is how the agentic workflow improves over time: each completed feature teaches the next one
+
 ### Backlog Management (`docs/backlog.md`)
 - `docs/backlog.md` — index (таблица ссылок на feature docs). Не дублировать детали.
 - Детали backlog items живут в feature docs (`docs/features/`). Cross-feature items — в `docs/backlog/`.
