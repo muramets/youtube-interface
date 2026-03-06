@@ -72,11 +72,14 @@ export async function resolveVideosByIds(
     if (youtubeVideoIds.length === 0) return { resolved, missingIds: [] };
 
     // --- Step 1: Direct document lookup by ID ---
-    const stillMissing = await resolveByDocumentId(basePath, youtubeVideoIds, resolved, options);
+    const { missing: stillMissing, externalOnly } = await resolveByDocumentId(basePath, youtubeVideoIds, resolved, options);
 
     // --- Step 2: Reverse lookup via publishedVideoId for remaining misses ---
-    if (stillMissing.length > 0) {
-        await resolveByPublishedVideoId(basePath, stillMissing, resolved);
+    // Also check externalOnly IDs — custom videos (doc ID "custom-XXX") may exist
+    // in videos/ under a different ID but were shadowed by cached_external_videos/.
+    const needsReverseLookup = [...stillMissing, ...externalOnly];
+    if (needsReverseLookup.length > 0) {
+        await resolveByPublishedVideoId(basePath, needsReverseLookup, resolved);
     }
 
     // Whatever is still not in `resolved` is truly missing
@@ -94,8 +97,9 @@ async function resolveByDocumentId(
     videoIds: string[],
     resolved: Map<string, ResolvedVideo>,
     options?: ResolveOptions,
-): Promise<string[]> {
+): Promise<{ missing: string[]; externalOnly: string[] }> {
     const missing: string[] = [];
+    const externalOnly: string[] = [];
 
     for (let i = 0; i < videoIds.length; i += DOC_BATCH_SIZE) {
         const batch = videoIds.slice(i, i + DOC_BATCH_SIZE);
@@ -142,6 +146,7 @@ async function resolveByDocumentId(
                         data: ext.data() as Record<string, unknown>,
                         source: "external_cache",
                     });
+                    externalOnly.push(batch[j]);
                 } else {
                     missing.push(batch[j]);
                 }
@@ -149,7 +154,7 @@ async function resolveByDocumentId(
         }
     }
 
-    return missing;
+    return { missing, externalOnly };
 }
 
 // ---------------------------------------------------------------------------
@@ -173,8 +178,9 @@ async function resolveByPublishedVideoId(
             const data = doc.data() as Record<string, unknown>;
             const publishedId = data.publishedVideoId as string;
 
-            // Only add if we haven't already resolved this ID (defensive)
-            if (publishedId && !resolved.has(publishedId)) {
+            // Add if not yet resolved, or upgrade from external_cache to video_grid
+            // (custom videos in videos/ may have been shadowed by cached_external_videos/)
+            if (publishedId && (!resolved.has(publishedId) || resolved.get(publishedId)!.source === "external_cache")) {
                 resolved.set(publishedId, {
                     requestedId: publishedId,
                     docId: doc.id,

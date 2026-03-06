@@ -142,11 +142,15 @@ functions/src/services/tools/utils/resolveVideos.ts
 
 **Проблема:** Custom videos имеют document ID `custom-XXXXX`, но YouTube video ID хранится в поле `publishedVideoId`. Прямой lookup по document ID их не находит.
 
-**Решение — 2-step resolution:**
+**Решение — 2-step resolution + source upgrade:**
 1. **Direct lookup** — `db.getAll()` по document ID в `videos/` и `cached_external_videos/`
-2. **Reverse lookup** — `where('publishedVideoId', 'in', missingIds)` для оставшихся промахов
+2. **Reverse lookup** — `where('publishedVideoId', 'in', ids)` для промахов **и** IDs найденных только в `cached_external_videos/`
 
-Step 2 выполняется только если есть промахи. Для каналов без custom videos — zero overhead.
+Step 2 обслуживает два сценария:
+- **Missing IDs** — видео нет ни в одной коллекции по прямому ID, но может быть в `videos/` под `custom-XXXXX`
+- **Source upgrade** — видео найдено в `cached_external_videos/`, но может также существовать в `videos/` как custom video. Если найдено — source повышается с `external_cache` до `video_grid` (важно для корректного подсчёта `ownChannelSync.inApp`)
+
+Для каналов без custom videos и без external cache — zero overhead.
 
 Все 6 tool handlers используют `resolveVideosByIds()` вместо прямых `db.doc()` вызовов:
 - `browseChannelVideos` — batch, обе коллекции
