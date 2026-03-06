@@ -63,7 +63,7 @@ export const generateChatTitle = onCall(
                 tokens: { input: result.tokenUsage.promptTokens, output: result.tokenUsage.completionTokens },
                 createdAt: Date.now(),
             };
-            const convPath = `channels/${channelId}/conversations/${conversationId}`;
+            const convPath = `users/${request.auth.uid}/channels/${channelId}/chatConversations/${conversationId}`;
             db.doc(convPath).update({
                 auxiliaryCosts: admin.firestore.FieldValue.arrayUnion(titleCost),
             }).catch(err => console.warn('[generateChatTitle] Failed to persist title auxiliary cost', err));
