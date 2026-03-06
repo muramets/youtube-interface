@@ -93,6 +93,15 @@ Custom videos создаются с document ID `custom-XXXXX`, а YouTube video
 | `functions/src/services/tools/definitions.ts` | Tool declaration |
 | `functions/src/services/youtube.ts` | `getPlaylistVideos()`, `getVideoDetails()` |
 
+### Diagnostic Logging
+
+**Resolver** (`resolveVideos.ts`):
+- `[resolveVideos] Step 1:` — breakdown после direct lookup: сколько `video_grid`, `external_cache`, `missing`, `externalOnly`
+- `[resolveVideos] Step 2:` — результат reverse lookup: сколько upgraded до `video_grid`
+
+**Handler** (`browseChannelVideos.ts`):
+- `[browseChannelVideos] ownChannelSync:` — `targetChannelId`, количество `video_grid` записей, `channelId` match count, список уникальных `channelId` значений в video_grid (помогает выявить data quality issues — например, видео с app channel ID вместо YouTube channel ID)
+
 ### Tests
 
 | Файл | Кейсов |

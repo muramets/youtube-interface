@@ -142,9 +142,18 @@ export async function handleBrowseChannelVideos(
     // Show inApp vs onYouTube delta when browsing the user's own channel.
     // Detection: videos in videos/ collection have a channelId field — match against targetChannelId.
     // Requires targetChannelId to be passed (from getChannelOverview response).
-    const inApp = targetChannelId
-        ? [...cachedVideoData.values()].filter(v => v._source === "video_grid" && v.channelId === targetChannelId).length
-        : 0;
+    const allVideoGridEntries = targetChannelId
+        ? [...cachedVideoData.values()].filter(v => v._source === "video_grid")
+        : [];
+    const inApp = allVideoGridEntries.filter(v => v.channelId === targetChannelId).length;
+
+    if (targetChannelId) {
+        const channelIdValues = allVideoGridEntries
+            .map(v => v.channelId as string | undefined)
+            .filter(Boolean);
+        const uniqueChannelIds = [...new Set(channelIdValues)];
+        console.log(`[browseChannelVideos] ownChannelSync: targetChannelId=${targetChannelId}, video_grid=${allVideoGridEntries.length}, channelId match=${inApp}, unique channelIds in video_grid=${JSON.stringify(uniqueChannelIds)}`);
+    }
 
     return {
         videos,

@@ -74,12 +74,19 @@ export async function resolveVideosByIds(
     // --- Step 1: Direct document lookup by ID ---
     const { missing: stillMissing, externalOnly } = await resolveByDocumentId(basePath, youtubeVideoIds, resolved, options);
 
+    const step1VideoGrid = [...resolved.values()].filter(v => v.source === "video_grid").length;
+    const step1ExternalCache = [...resolved.values()].filter(v => v.source === "external_cache").length;
+    console.log(`[resolveVideos] Step 1: ${youtubeVideoIds.length} requested → ${step1VideoGrid} video_grid, ${step1ExternalCache} external_cache, ${stillMissing.length} missing, ${externalOnly.length} externalOnly`);
+
     // --- Step 2: Reverse lookup via publishedVideoId for remaining misses ---
     // Also check externalOnly IDs — custom videos (doc ID "custom-XXX") may exist
     // in videos/ under a different ID but were shadowed by cached_external_videos/.
     const needsReverseLookup = [...stillMissing, ...externalOnly];
     if (needsReverseLookup.length > 0) {
         await resolveByPublishedVideoId(basePath, needsReverseLookup, resolved);
+        const step2VideoGrid = [...resolved.values()].filter(v => v.source === "video_grid").length;
+        const upgraded = step2VideoGrid - step1VideoGrid;
+        console.log(`[resolveVideos] Step 2: ${needsReverseLookup.length} checked → ${upgraded} upgraded to video_grid, ${step2VideoGrid} total video_grid`);
     }
 
     // Whatever is still not in `resolved` is truly missing
