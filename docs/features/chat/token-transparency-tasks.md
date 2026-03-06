@@ -1,6 +1,6 @@
 # Token Transparency — Tasks
 
-## Current Wave: 4 (Core System Review)
+## Current Wave: 5 (Visualization + Audit)
 <!-- Update this line when moving to next wave -->
 
 ## Overview
@@ -90,7 +90,7 @@ Wave 7:  [Rev] R3 Full System -> Fix -> R4 Final -> Fix
 | 1 | Foundation (data model + memory bugfix) | DONE |
 | 2 | Integration (providers + frontend header) | DONE |
 | 3 | Features (stopped msgs + auxiliary costs + tooltip) | DONE |
-| 4 | Core System Review (R1 + R2) | TODO |
+| 4 | Core System Review (R1 + R2) | DONE |
 | 5 | Visualization + Audit (breakdown panel + CLI) | TODO |
 | 6 | Cost Alerts (warnings + model recommendations) | TODO |
 | 7 | Final System Review (R3 + R4) | TODO |
@@ -107,7 +107,7 @@ Wave 7:  [Rev] R3 Full System -> Fix -> R4 Final -> Fix
 | 1 | 199 | 375 | 574 | +30 |
 | 2 | 583 | 381 | 964 | +390 |
 | 3 | 220 | 387 | 607 | +22 |
-| 4 | TBD | TBD | TBD | +TBD |
+| 4 | 220 | 387 | 607 | +0 |
 | 5 | TBD | TBD | TBD | +TBD |
 | 6 | TBD | TBD | TBD | +TBD |
 | 7 | TBD | TBD | TBD | +TBD |
@@ -655,8 +655,8 @@ Fix all review findings before moving to Wave 4.
 
 ### Tasks
 
-- [ ] **Rev R1** — Architecture Review (core system)
-- [ ] **Rev R2** — Production Readiness Review
+- [x] **Rev R1** — Architecture Review (core system)
+- [x] **Rev R2** — Production Readiness Review
 
 #### Rev R1: Architecture Review
 
@@ -703,6 +703,24 @@ Spawn a review agent:
 
 **If issues found:** fix -> re-run -> re-check.
 
+### Review Findings
+
+#### R1 Architecture Review — all 11 checks PASS
+No issues found. Architecture is clean.
+
+#### R2 Production Readiness — 2 issues found, 1 fixed
+
+**FIXED: Wrong Firestore path for title AuxiliaryCost**
+`generateChatTitle.ts` wrote to `channels/${channelId}/conversations/${conversationId}` instead of `users/${uid}/channels/${channelId}/chatConversations/${conversationId}`. Title costs were silently lost. Fixed in commit `8d344d3`.
+
+**DEFERRED: 28 `console.log` in streaming files (pre-existing)**
+`functions/src/services/claude/streamChat.ts` (11 calls) and `functions/src/services/gemini/streamChat.ts` (17 calls) use `console.log` for operational/diagnostic logging instead of `console.info`. These are all pre-existing (not introduced by token-transparency changes). Gemini file has a `TODO` at line 445: "Consider switching to `console.debug()` or gating behind a flag to reduce Cloud Logging costs at scale (OBS-5)". **Recommendation:** address in a dedicated cleanup pass outside token-transparency scope.
+
+#### Review Gate 3 — 1 issue found, fixed
+
+**FIXED: `generateChatTitle` missing `AuxiliaryCost` persistence**
+The function called `logAiUsage` but did not persist `AuxiliaryCost` on the conversation doc via `arrayUnion`. Fixed in commit `5a9b25a` by adding `AuxiliaryCost` with `type: 'title'` persisted to conversation doc.
+
 ---
 
 ### Verification
@@ -716,11 +734,11 @@ npm run check:docs                            # doc links
 ```
 
 **MANDATORY: Update this file before proceeding (wave is NOT done until all boxes checked):**
-- [ ] Mark Rev R1, Rev R2 tasks above as done
-- [ ] Update Wave Status table: Wave 4 → DONE
-- [ ] Update "Current Test Count" table row for Wave 4
-- [ ] Update "Current Wave" pointer at top of file: `## Current Wave: 5 (Visualization + Audit)`
-- [ ] Implementation continues — Waves 5-7 begin immediately
+- [x] Mark Rev R1, Rev R2 tasks above as done
+- [x] Update Wave Status table: Wave 4 → DONE
+- [x] Update "Current Test Count" table row for Wave 4
+- [x] Update "Current Wave" pointer at top of file: `## Current Wave: 5 (Visualization + Audit)`
+- [x] Implementation continues — Waves 5-7 begin immediately
 
 ---
 
