@@ -93,6 +93,8 @@ export interface AiChatResult {
     summary?: string;
     usedSummary?: boolean;
     contextBreakdown?: import('../../../../shared/models').ContextBreakdown;
+    status?: 'complete' | 'stopped';
+    partial?: boolean;
 }
 
 /** Layer 4: A saved memory (insight) from a concluded conversation. */

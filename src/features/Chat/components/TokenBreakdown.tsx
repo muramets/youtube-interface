@@ -6,14 +6,7 @@
 import React, { useMemo } from 'react';
 import type { ContextBreakdown } from '../../../../shared/models';
 import type { NormalizedTokenUsage } from '../../../../shared/models';
-import { scaleBreakdown, type ScaledBreakdown } from '../utils/tokenDisplay';
-
-/** Format token count as compact string: 120000 → "120K". */
-function fmtTokens(n: number): string {
-    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-    return n.toLocaleString();
-}
+import { scaleBreakdown, fmtTokens, type ScaledBreakdown } from '../utils/tokenDisplay';
 
 /** Component label + color mapping. */
 const COMPONENTS: { key: keyof ScaledBreakdown; label: string; color: string }[] = [
@@ -127,6 +120,23 @@ export const TokenBreakdown: React.FC<TokenBreakdownProps> = ({
                             </div>
                         )}
                     </div>
+                </div>
+            )}
+
+            {/* === Thinking tokens (if present) === */}
+            {normalizedUsage?.contextWindow?.thinkingTokens != null &&
+             normalizedUsage.contextWindow.thinkingTokens > 0 && (
+                <div className="text-[10px] text-text-secondary flex justify-between">
+                    <span>Thinking tokens</span>
+                    <span>
+                        {fmtTokens(normalizedUsage.contextWindow.thinkingTokens)}
+                        {normalizedUsage.billing?.cost?.thinkingSubset != null &&
+                         normalizedUsage.billing.cost.thinkingSubset > 0 && (
+                            <span className="text-text-tertiary ml-1">
+                                (${normalizedUsage.billing.cost.thinkingSubset.toFixed(4)})
+                            </span>
+                        )}
+                    </span>
                 </div>
             )}
 

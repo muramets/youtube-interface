@@ -1542,6 +1542,50 @@ describe("Claude streamChat — abort handling (stopped messages)", () => {
         expect(result.normalizedUsage!.partial).toBe(true);
     });
 
+    it("captures cache tokens from message event on abort", async () => {
+        const abortError = new Error("This operation was aborted");
+        abortError.name = "AbortError";
+
+        const abortController = new AbortController();
+
+        const mockStream = vi.fn().mockImplementationOnce(() => {
+            const stream = buildMockStream([
+                // "message" event with cache fields
+                { event: "message", data: { usage: {
+                    input_tokens: 500,
+                    cache_read_input_tokens: 4000,
+                    cache_creation_input_tokens: 1000,
+                } } },
+                { event: "text", data: "Cached abort" },
+                { event: "error", data: abortError },
+            ]);
+            abortController.abort();
+            stream._run();
+            return stream;
+        });
+
+        mockGetClaudeClient.mockReturnValue({
+            messages: { stream: mockStream },
+        } as never);
+
+        const result = await streamChat(makeOpts({ signal: abortController.signal }));
+
+        expect(result.partial).toBe(true);
+        expect(result.tokenUsage).toBeDefined();
+        expect(result.tokenUsage!.promptTokens).toBe(500);
+        expect(result.tokenUsage!.cachedTokens).toBe(4000);
+        expect(result.tokenUsage!.cacheWriteTokens).toBe(1000);
+        // total = input + cached + cacheWrite + output
+        const expectedOutput = Math.ceil("Cached abort".length / 4);
+        expect(result.tokenUsage!.totalTokens).toBe(500 + 4000 + 1000 + expectedOutput);
+
+        // normalizedUsage should reflect cache too
+        expect(result.normalizedUsage).toBeDefined();
+        expect(result.normalizedUsage!.billing.input.cached).toBe(4000);
+        expect(result.normalizedUsage!.billing.input.cacheWrite).toBe(1000);
+        expect(result.normalizedUsage!.billing.input.total).toBe(500 + 4000 + 1000);
+    });
+
     it("preserves accumulated text on abort", async () => {
         const abortError = new Error("This operation was aborted");
         abortError.name = "AbortError";

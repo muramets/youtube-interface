@@ -228,4 +228,34 @@ describe('useChatDerivedState — context tracking', () => {
         // Legacy: 10_000 + 3_000 + 500 = 13_500
         expect(result.current.contextUsed).toBe(13_500);
     });
+
+    it('computes totalCost from mixed legacy + normalized messages', () => {
+        const legacyMsg = makeMessage('model', {
+            promptTokens: 10_000,
+            completionTokens: 2_000,
+            totalTokens: 12_000,
+        }, 'gemini-2.5-pro');
+        const normalizedMsg = makeMessage('model', undefined, 'claude-sonnet-4-6', {
+            contextWindow: { inputTokens: 50_000, outputTokens: 3_000, thinkingTokens: 0, limit: 200_000, percent: 25 },
+            billing: {
+                input: { total: 50_000, fresh: 40_000, cached: 10_000, cacheWrite: 0 },
+                output: { total: 3_000, thinking: 0 },
+                iterations: 1,
+                cost: { input: 0.20, cached: 0.005, cacheWrite: 0, output: 0.075, total: 0.28, withoutCache: 0.35, thinkingSubset: 0 },
+            },
+            provider: 'anthropic',
+            model: 'claude-sonnet-4-6',
+        });
+
+        const messages: ChatMessage[] = [makeMessage('user'), legacyMsg, makeMessage('user'), normalizedMsg];
+
+        const { result } = renderHook(() =>
+            useChatDerivedState(makeOpts({ messages, defaultModel: 'claude-sonnet-4-6' })),
+        );
+
+        // totalCost includes both: legacy cost + normalized $0.28
+        expect(result.current.totalCost).toBeGreaterThan(0.28);
+        // contextUsed from last model message (normalizedMsg)
+        expect(result.current.contextUsed).toBe(50_000);
+    });
 });

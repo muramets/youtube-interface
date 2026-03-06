@@ -232,7 +232,7 @@ function normalizeGeminiIteration(usage: GeminiUsage, thinkingTokens: number, pr
 
 #### Extraction patterns
 
-**Claude:** Usage only arrives in `finalMessage` (not fired on abort). Fix: add `stream.on("message", ...)` handler — fires **before content generation starts**, contains `usage.input_tokens`. This means input_tokens is always available, even on immediate abort. On abort: **input = exact** (from API's `message` event), **output = approximate** (chars received so far / 4, ~+/-15% accuracy).
+**Claude:** Usage only arrives in `finalMessage` (not fired on abort). Fix: add `stream.on("message", ...)` handler — fires **before content generation starts**, contains full usage including `input_tokens`, `cache_read_input_tokens`, `cache_creation_input_tokens`. This means input + cache billing is always available, even on immediate abort. On abort: **input = exact** (from API's `message` event, including cache), **output = approximate** (chars received so far / 4, ~+/-15% accuracy).
 
 **Gemini:** `usageMetadata` updates on every chunk. On abort: `tokenUsage` from last chunk — already works. Just catch `AbortError` and return with `partial: true`.
 
@@ -364,11 +364,11 @@ Expandable panel triggered by clicking the header stats. Shows context compositi
 
 **Context section:** Each bar = one `ContextBreakdown` component, scaled proportionally via `scaleBreakdown()`. Text components (chars) are scaled to fit `actualTotal - imageTokens`. Rounding remainder absorbed by largest component — guarantees sum = actualTotal.
 
-**Billing section:** Per-message cost from `normalizedUsage.billing.cost`, cache savings when `withoutCache - total > 0.0001`. Shows "Summarized history" indicator when `contextBreakdown.usedSummary` is true.
+**Billing section:** Per-message cost from `normalizedUsage.billing.cost`, cache savings when `withoutCache - total > 0.0001`. Shows "Summarized history" indicator when `contextBreakdown.usedSummary` is true. Shows thinking tokens + cost when `thinkingTokens > 0`.
 
 **Files:**
 - `src/features/Chat/components/TokenBreakdown.tsx` — panel component
-- `src/features/Chat/utils/tokenDisplay.ts` — `scaleBreakdown()`, `getEffectiveDisplayLevel()`
+- `src/features/Chat/utils/tokenDisplay.ts` — `scaleBreakdown()`, `getEffectiveDisplayLevel()`, `fmtTokens()`
 - `src/features/Chat/ChatPanel.tsx` — toggle state, passes data
 
 ---

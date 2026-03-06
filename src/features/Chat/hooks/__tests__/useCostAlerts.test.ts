@@ -87,5 +87,44 @@ describe('Cost Alerts', () => {
             // Double should be ~2x single (same token structure)
             expect(doubleCost).toBeCloseTo(singleCost * 2, 5);
         });
+
+        it('uses iterationDetails when present (multi-iteration)', () => {
+            const iter1 = {
+                input: { total: 10_000, fresh: 8_000, cached: 2_000, cacheWrite: 0 },
+                output: { total: 1_000, thinking: 0 },
+                cost: { input: 0.04, cached: 0.001, cacheWrite: 0, output: 0.025, total: 0.066, withoutCache: 0.08, thinkingSubset: 0 },
+            };
+            const iter2 = {
+                input: { total: 15_000, fresh: 5_000, cached: 10_000, cacheWrite: 0 },
+                output: { total: 2_000, thinking: 500 },
+                cost: { input: 0.025, cached: 0.005, cacheWrite: 0, output: 0.05, total: 0.08, withoutCache: 0.1, thinkingSubset: 0.0125 },
+            };
+
+            const msg: ChatMessage = {
+                id: 'multi-iter',
+                role: 'model',
+                text: 'response',
+                createdAt: Date.now(),
+                normalizedUsage: {
+                    provider: 'anthropic',
+                    model: 'test-model',
+                    billing: {
+                        input: { total: 25_000, fresh: 13_000, cached: 12_000, cacheWrite: 0 },
+                        output: { total: 3_000, thinking: 500 },
+                        iterations: 2,
+                        cost: { total: 0.146, withoutCache: 0.18, thinkingSubset: 0.0125 },
+                    },
+                    contextWindow: { inputTokens: 15_000, limit: 200_000, percent: 7.5 },
+                    iterationDetails: [iter1, iter2],
+                } as NormalizedTokenUsage,
+            } as unknown as ChatMessage;
+
+            const costCheap = estimateAlternativeCost([msg], cheapPricing);
+            const costExpensive = estimateAlternativeCost([msg], expensivePricing);
+
+            // Should compute per-iteration, not per-aggregate
+            expect(costCheap).toBeGreaterThan(0);
+            expect(costExpensive).toBeGreaterThan(costCheap);
+        });
     });
 });

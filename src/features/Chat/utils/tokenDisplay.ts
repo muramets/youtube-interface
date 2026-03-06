@@ -29,6 +29,17 @@ export function getEffectiveDisplayLevel(
 }
 
 // =============================================================================
+// Token Formatting
+// =============================================================================
+
+/** Format token count as compact string: 120000 → "120.0K", 1500000 → "1.5M". */
+export function fmtTokens(n: number): string {
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+    return n.toLocaleString();
+}
+
+// =============================================================================
 // Context Breakdown Scaling — chars → proportional tokens
 // =============================================================================
 

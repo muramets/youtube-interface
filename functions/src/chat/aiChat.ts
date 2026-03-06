@@ -328,6 +328,10 @@ export const aiChat = onRequest(
                 contextBreakdown,
             });
 
+            // Cache summary + log usage + clear error BEFORE ending response
+            // (CF runtime may be deallocated after res.end())
+            const afterTasks: Promise<unknown>[] = [];
+
             // Persist stopped messages directly to Firestore (SSE may not reach client)
             if (partial && responseText) {
                 const stoppedMsg: Record<string, unknown> = {
@@ -341,14 +345,12 @@ export const aiChat = onRequest(
                 if (normalizedUsage) stoppedMsg.normalizedUsage = normalizedUsage;
                 if (toolCalls) stoppedMsg.toolCalls = toolCalls;
                 stoppedMsg.contextBreakdown = contextBreakdown;
-                db.collection(messagesPath).add(stoppedMsg)
-                    .then(() => console.info(`[aiChat] Persisted stopped message for conv=${body.conversationId}`))
-                    .catch(err => console.warn(`[aiChat] Failed to persist stopped message`, err));
+                afterTasks.push(
+                    db.collection(messagesPath).add(stoppedMsg)
+                        .then(() => console.info(`[aiChat] Persisted stopped message for conv=${body.conversationId}`))
+                        .catch(err => console.warn(`[aiChat] Failed to persist stopped message`, err))
+                );
             }
-
-            // Cache summary + log usage + clear error BEFORE ending response
-            // (CF runtime may be deallocated after res.end())
-            const afterTasks: Promise<unknown>[] = [];
 
             // Always clear lastError on success
             const convUpdate: Record<string, unknown> = { lastError: admin.firestore.FieldValue.delete() };
@@ -377,6 +379,9 @@ export const aiChat = onRequest(
                 );
                 // Persist summary as AuxiliaryCost on conversation doc
                 const utilityConfig = MODEL_REGISTRY.find(m => m.id === UTILITY_MODEL_ID);
+                if (!utilityConfig?.pricing) {
+                    console.error(`[aiChat] UTILITY_MODEL_ID="${UTILITY_MODEL_ID}" not found in MODEL_REGISTRY — summary cost will be $0`);
+                }
                 const summaryCostUsd = utilityConfig?.pricing
                     ? (memory.summaryTokenUsage.promptTokens / 1_000_000 * utilityConfig.pricing.inputPerMillion) +
                       (memory.summaryTokenUsage.completionTokens / 1_000_000 * utilityConfig.pricing.outputPerMillion)

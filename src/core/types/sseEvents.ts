@@ -65,6 +65,8 @@ export interface SSEDoneEvent {
     summary?: string;
     usedSummary?: boolean;
     contextBreakdown?: ContextBreakdown;
+    status?: 'complete' | 'stopped';
+    partial?: boolean;
 }
 
 export interface SSEToolProgressEvent {
@@ -129,6 +131,8 @@ export function parseSSEEvent(data: string): SSEEvent | null {
                     summary: parsed.summary as string | undefined,
                     usedSummary: parsed.usedSummary as boolean | undefined,
                     contextBreakdown: parsed.contextBreakdown as ContextBreakdown | undefined,
+                    status: parsed.status as 'complete' | 'stopped' | undefined,
+                    partial: parsed.partial as boolean | undefined,
                 };
             case 'toolProgress':
                 return {

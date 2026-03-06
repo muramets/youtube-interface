@@ -289,4 +289,92 @@ describe('aggregateIterations', () => {
         expect(result.provider).toBe('google');
         expect(result.model).toBe('gemini-2.5-pro');
     });
+
+    it('includes iterationDetails only when >1 iteration', () => {
+        const s1 = makeSnapshot(
+            { total: 10_000, fresh: 10_000, cached: 0, cacheWrite: 0 },
+            { total: 1_000, thinking: 0 },
+            CLAUDE_PRICING,
+        );
+        const s2 = makeSnapshot(
+            { total: 15_000, fresh: 10_000, cached: 5_000, cacheWrite: 0 },
+            { total: 2_000, thinking: 500 },
+            CLAUDE_PRICING,
+        );
+
+        // Single → no details
+        const single = aggregateIterations([s1], claudeModel);
+        expect(single.iterationDetails).toBeUndefined();
+
+        // Two → has details
+        const multi = aggregateIterations([s1, s2], claudeModel);
+        expect(multi.iterationDetails).toHaveLength(2);
+        expect(multi.iterationDetails![0]).toBe(s1);
+        expect(multi.iterationDetails![1]).toBe(s2);
+    });
+});
+
+// =============================================================================
+// computeIterationCost — cache multiplier edge cases
+// =============================================================================
+
+describe('computeIterationCost — cache multiplier edge cases', () => {
+    it('cacheReadMultiplier=1.0 means no discount (same as input rate)', () => {
+        const pricing: ModelPricing = {
+            inputPerMillion: 2.00,
+            outputPerMillion: 10.00,
+            cacheReadMultiplier: 1.0,
+            cacheWriteMultiplier: 1.0,
+        };
+        const tokens = {
+            input: { total: 20_000, fresh: 5_000, cached: 15_000, cacheWrite: 0 },
+            output: { total: 1_000, thinking: 0 },
+        };
+        const cost = computeIterationCost(pricing, tokens);
+
+        // cached at 1.0x = same as fresh: 15K / 1M * $2 = $0.03
+        expect(cost.cached).toBeCloseTo(0.03, 6);
+        // fresh: 5K / 1M * $2 = $0.01
+        expect(cost.input).toBeCloseTo(0.01, 6);
+        // withoutCache: all 20K at input rate = $0.04 + output
+        expect(cost.withoutCache).toBeCloseTo(0.04 + cost.output, 6);
+    });
+
+    it('undefined cache multipliers default to 1.0', () => {
+        const pricing: ModelPricing = {
+            inputPerMillion: 1.00,
+            outputPerMillion: 5.00,
+            // no cacheReadMultiplier, no cacheWriteMultiplier
+        };
+        const tokens = {
+            input: { total: 30_000, fresh: 10_000, cached: 10_000, cacheWrite: 10_000 },
+            output: { total: 500, thinking: 0 },
+        };
+        const cost = computeIterationCost(pricing, tokens);
+
+        // All at $1/M: cached = $0.01, cacheWrite = $0.01
+        expect(cost.cached).toBeCloseTo(0.01, 6);
+        expect(cost.cacheWrite).toBeCloseTo(0.01, 6);
+    });
+
+    it('long context pricing applies to cache multipliers too', () => {
+        const pricing: ModelPricing = {
+            inputPerMillion: 1.25,
+            outputPerMillion: 10.00,
+            inputPerMillionLong: 2.50,
+            outputPerMillionLong: 15.00,
+            cacheReadMultiplier: 0.1,
+        };
+        const tokens = {
+            input: { total: 250_000, fresh: 50_000, cached: 200_000, cacheWrite: 0 },
+            output: { total: 1_000, thinking: 0 },
+        };
+        const cost = computeIterationCost(pricing, tokens);
+
+        // Long context: inputRate = $2.50
+        // cached: 200K / 1M * ($2.50 * 0.1) = 200K / 1M * $0.25 = $0.05
+        expect(cost.cached).toBeCloseTo(0.05, 6);
+        // fresh: 50K / 1M * $2.50 = $0.125
+        expect(cost.input).toBeCloseTo(0.125, 6);
+    });
 });

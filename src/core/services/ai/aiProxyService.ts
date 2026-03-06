@@ -231,6 +231,8 @@ export async function streamChat(opts: StreamChatOpts): Promise<AiChatResult> {
                             summary: sseEvent.summary,
                             usedSummary: sseEvent.usedSummary,
                             contextBreakdown: sseEvent.contextBreakdown,
+                            status: sseEvent.status,
+                            partial: sseEvent.partial,
                         };
                         break;
                     case 'confirmLargePayload':

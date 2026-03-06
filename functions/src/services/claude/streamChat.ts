@@ -764,8 +764,10 @@ async function streamIteration(
     const toolUseBlocks: Array<{ id: string; name: string; input: unknown }> = [];
     const assistantBlocks: ContentBlockParam[] = [];
     let partial = false;
-    // Early input tokens from "message" event (fires before content, available even on abort)
+    // Early usage from "message" event (fires before content, available even on abort)
     let earlyInputTokens: number | undefined;
+    let earlyCacheRead: number | undefined;
+    let earlyCacheWrite: number | undefined;
 
     // Inactivity timeout
     let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
@@ -818,6 +820,10 @@ async function streamIteration(
                 resetTimer();
                 if (message.usage) {
                     earlyInputTokens = message.usage.input_tokens;
+                    // Cache fields available in message.usage but not in SDK types
+                    const usage = message.usage as unknown as Record<string, unknown>;
+                    earlyCacheRead = usage.cache_read_input_tokens as number | undefined;
+                    earlyCacheWrite = usage.cache_creation_input_tokens as number | undefined;
                 }
             });
 
@@ -909,10 +915,14 @@ async function streamIteration(
         );
         if (isAbort && earlyInputTokens != null) {
             const approxOutput = Math.ceil(iterationText.length / 4);
+            const cached = earlyCacheRead ?? 0;
+            const cacheWrite = earlyCacheWrite ?? 0;
             tokenUsage = {
                 promptTokens: earlyInputTokens,
                 completionTokens: approxOutput,
-                totalTokens: earlyInputTokens + approxOutput,
+                totalTokens: earlyInputTokens + cached + cacheWrite + approxOutput,
+                cachedTokens: cached > 0 ? cached : undefined,
+                cacheWriteTokens: cacheWrite > 0 ? cacheWrite : undefined,
             };
             partial = true;
             console.log(

@@ -3,9 +3,30 @@ import {
     getEffectiveDisplayLevel,
     LEVEL_RANK,
     scaleBreakdown,
+    fmtTokens,
     type TokenDisplayLevel,
 } from '../tokenDisplay';
 import type { ContextBreakdown } from '../../../../../shared/models';
+
+describe('fmtTokens', () => {
+    it('formats millions with 1 decimal', () => {
+        expect(fmtTokens(1_500_000)).toBe('1.5M');
+        expect(fmtTokens(1_000_000)).toBe('1.0M');
+        expect(fmtTokens(2_350_000)).toBe('2.4M'); // .35 rounds to .4
+    });
+
+    it('formats thousands with 1 decimal', () => {
+        expect(fmtTokens(120_000)).toBe('120.0K');
+        expect(fmtTokens(1_500)).toBe('1.5K');
+        expect(fmtTokens(999)).toBe('999');
+        expect(fmtTokens(1_000)).toBe('1.0K');
+    });
+
+    it('returns locale string for < 1000', () => {
+        expect(fmtTokens(500)).toBe('500');
+        expect(fmtTokens(0)).toBe('0');
+    });
+});
 
 describe('tokenDisplay', () => {
     describe('LEVEL_RANK', () => {

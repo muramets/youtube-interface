@@ -51,6 +51,9 @@ export const generateChatTitle = onCall(
 
             // Persist title cost as AuxiliaryCost on conversation doc
             const utilityConfig = MODEL_REGISTRY.find(m => m.id === UTILITY_MODEL_ID);
+            if (!utilityConfig?.pricing) {
+                console.error(`[generateChatTitle] UTILITY_MODEL_ID="${UTILITY_MODEL_ID}" not found in MODEL_REGISTRY — title cost will be $0`);
+            }
             const costUsd = utilityConfig?.pricing
                 ? (result.tokenUsage.promptTokens / 1_000_000 * utilityConfig.pricing.inputPerMillion) +
                   (result.tokenUsage.completionTokens / 1_000_000 * utilityConfig.pricing.outputPerMillion)

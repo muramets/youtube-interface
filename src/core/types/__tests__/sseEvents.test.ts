@@ -307,6 +307,60 @@ describe('parseSSEEvent — done', () => {
 
         expect(result.normalizedUsage).toBeUndefined();
     });
+
+    it('passes status field through parser', () => {
+        const data = JSON.stringify({ type: 'done', text: 'Stopped.', status: 'stopped' });
+        const result = parseSSEEvent(data) as SSEDoneEvent;
+
+        expect(result.status).toBe('stopped');
+    });
+
+    it('passes partial=true through parser', () => {
+        const data = JSON.stringify({ type: 'done', text: 'Partial.', partial: true });
+        const result = parseSSEEvent(data) as SSEDoneEvent;
+
+        expect(result.partial).toBe(true);
+    });
+
+    it('returns undefined status/partial when not present', () => {
+        const data = JSON.stringify({ type: 'done', text: 'Normal.' });
+        const result = parseSSEEvent(data) as SSEDoneEvent;
+
+        expect(result.status).toBeUndefined();
+        expect(result.partial).toBeUndefined();
+    });
+
+    it('passes normalizedUsage with iterationDetails through parser', () => {
+        const normalizedUsage = {
+            contextWindow: {
+                inputTokens: 50_000, outputTokens: 5_000, thinkingTokens: 1_000,
+                limit: 200_000, percent: 25.0,
+            },
+            billing: {
+                input: { total: 80_000, fresh: 30_000, cached: 40_000, cacheWrite: 10_000 },
+                output: { total: 8_000, thinking: 3_000 },
+                iterations: 2,
+                cost: { input: 0.1, cached: 0.02, cacheWrite: 0.05, output: 0.2, total: 0.37, withoutCache: 0.5, thinkingSubset: 0.075 },
+            },
+            iterationDetails: [
+                { input: { total: 30_000, fresh: 20_000, cached: 10_000, cacheWrite: 0 }, output: { total: 3_000, thinking: 1_000 }, cost: { input: 0.05, cached: 0.005, cacheWrite: 0, output: 0.075, total: 0.13, withoutCache: 0.2, thinkingSubset: 0.025 } },
+                { input: { total: 50_000, fresh: 10_000, cached: 30_000, cacheWrite: 10_000 }, output: { total: 5_000, thinking: 2_000 }, cost: { input: 0.05, cached: 0.015, cacheWrite: 0.05, output: 0.125, total: 0.24, withoutCache: 0.3, thinkingSubset: 0.05 } },
+            ],
+            partial: true,
+            provider: 'anthropic' as const,
+            model: 'claude-opus-4-6',
+        };
+        const data = JSON.stringify({
+            type: 'done', text: 'Multi-iteration.', normalizedUsage,
+            status: 'complete', partial: false,
+        });
+        const result = parseSSEEvent(data) as SSEDoneEvent;
+
+        expect(result.normalizedUsage!.iterationDetails).toHaveLength(2);
+        expect(result.normalizedUsage!.partial).toBe(true);
+        expect(result.status).toBe('complete');
+        expect(result.partial).toBe(false);
+    });
 });
 
 // ===========================================================================
