@@ -11,6 +11,7 @@
 // =============================================================================
 
 import { db } from "../../../shared/db.js";
+import { resolveVideosByIds } from "../utils/resolveVideos.js";
 import type { ToolContext } from "../types.js";
 
 /**
@@ -81,39 +82,26 @@ export async function handleViewThumbnails(
         return { error: "No videos found for the given titles", notFoundTitles: unresolvedTitles };
     }
 
-    // --- Phase 3: Standard batch lookup by videoId ---
-    const videoRefs = allIds.map(id => db.doc(`${basePath}/videos/${id}`));
-    const suggestedRefs = allIds.map(id => db.doc(`${basePath}/cached_external_videos/${id}`));
-
-    const [videoSnaps, suggestedSnaps] = await Promise.all([
-        db.getAll(...videoRefs),
-        db.getAll(...suggestedRefs),
-    ]);
+    // --- Phase 3: Resolve videos (direct + publishedVideoId reverse lookup) ---
+    const { resolved, missingIds: resolverMissing } = await resolveVideosByIds(basePath, allIds);
 
     const videos: Array<{ videoId: string; title: string; thumbnailUrl: string }> = [];
-    const notFound: string[] = [];
+    const notFound: string[] = [...resolverMissing];
     const visualContextUrls: string[] = [];
 
-    for (let i = 0; i < allIds.length; i++) {
-        const videoId = allIds[i];
-        const snap = videoSnaps[i].exists ? videoSnaps[i] : suggestedSnaps[i];
+    for (const id of allIds) {
+        const entry = resolved.get(id);
+        if (!entry) continue;
 
-        if (!snap.exists) {
-            notFound.push(videoId);
-            continue;
-        }
-
-        const data = snap.data()!;
-        const thumbnail = data.thumbnail as string | undefined;
-
+        const thumbnail = entry.data.thumbnail as string | undefined;
         if (!thumbnail) {
-            notFound.push(videoId);
+            notFound.push(id);
             continue;
         }
 
         videos.push({
-            videoId,
-            title: data.title as string || "(untitled)",
+            videoId: id,
+            title: entry.data.title as string || "(untitled)",
             thumbnailUrl: thumbnail,
         });
         visualContextUrls.push(thumbnail);

@@ -20,6 +20,9 @@ vi.mock("../../../../shared/db.js", () => ({
             set: mockBatchSet,
             commit: mockBatchCommit,
         }),
+        collection: () => ({
+            where: () => ({ get: () => Promise.resolve({ docs: [] }) }),
+        }),
     },
 }));
 

@@ -14,6 +14,7 @@
 // =============================================================================
 
 import { db, admin } from "../../../shared/db.js";
+import { resolveVideosByIds } from "../utils/resolveVideos.js";
 import { parseSuggestedTrafficCsv } from "../utils/csvParser.js";
 import {
     buildVideoTimeline,
@@ -77,16 +78,17 @@ export async function handleAnalyzeSuggestedTraffic(
         typeof args.minViews === "number" ? args.minViews : undefined;
     const includeContentAnalysis = args.includeContentAnalysis !== false; // default true
 
-    // --- Step 1: Firestore — read snapshot metadata + source video ----------
+    // --- Step 1: Resolve video document + read snapshot metadata --------
+    // Uses resolver to handle custom videos (custom-XXXX → publishedVideoId).
+    // skipExternal: traffic data only exists on own videos.
 
     const basePath = `users/${ctx.userId}/channels/${ctx.channelId}`;
-    const trafficDocRef = db.doc(`${basePath}/videos/${videoId}/traffic/main`);
-    const videoDocRef = db.doc(`${basePath}/videos/${videoId}`);
+    const { resolved } = await resolveVideosByIds(basePath, [videoId], { skipExternal: true });
+    const entry = resolved.get(videoId);
 
-    const [trafficSnap, videoSnap] = await Promise.all([
-        trafficDocRef.get(),
-        videoDocRef.get(),
-    ]);
+    // Use resolved docId for subcollection access (may differ from YouTube videoId)
+    const docId = entry?.docId ?? videoId;
+    const trafficSnap = await db.doc(`${basePath}/videos/${docId}/traffic/main`).get();
 
     if (!trafficSnap.exists) {
         return { error: "No traffic data found for this video" };
@@ -100,7 +102,7 @@ export async function handleAnalyzeSuggestedTraffic(
     // Sort ascending by timestamp so index 0 = oldest
     snapshots.sort((a, b) => a.timestamp - b.timestamp);
 
-    const videoData = videoSnap.exists ? videoSnap.data()! : {};
+    const videoData = entry?.data ?? {};
     const sourceVideo = {
         videoId,
         title: String(videoData.title ?? ""),

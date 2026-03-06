@@ -55,10 +55,14 @@ Side effects:
 
 ---
 
-## Smart Caching (2-level)
+## Smart Caching (2-level + reverse lookup)
 
-1. **`videos/` + `cached_external_videos/`** — parallel batch reads (0 API cost)
-2. **YouTube API** — только для truly missing videoIds
+Использует shared `resolveVideosByIds()` для поиска видео:
+1. **Direct lookup** — `videos/` + `cached_external_videos/` по document ID (0 API cost)
+2. **Reverse lookup** — `videos/` по полю `publishedVideoId` для custom videos (`custom-XXXXX`)
+3. **YouTube API** — только для truly missing videoIds
+
+Custom videos создаются с document ID `custom-XXXXX`, а YouTube video ID хранится в поле `publishedVideoId`. Reverse lookup находит их и корректно учитывает в `ownChannelSync`.
 
 Для каналов <100 видео → загружаем всё за ~2 unit'а.
 
@@ -66,7 +70,7 @@ Side effects:
 
 ## Own Channel Sync
 
-Когда пользователь просматривает свой канал, ответ включает `ownChannelSync` — сколько видео в приложении vs на YouTube. LLM акцентирует внимание на разнице.
+Когда пользователь просматривает свой канал, ответ включает `ownChannelSync` — сколько видео в приложении vs на YouTube. LLM акцентирует внимание на разнице. Custom videos, у которых есть `publishedVideoId`, корректно учитываются как "in app".
 
 ---
 
@@ -82,7 +86,8 @@ Side effects:
 
 | Файл | Назначение |
 |------|-----------|
-| `functions/src/services/tools/handlers/browseChannelVideos.ts` | Handler: playlist fetch, 2-level cache, own channel sync |
+| `functions/src/services/tools/handlers/browseChannelVideos.ts` | Handler: playlist fetch, cache + resolver, own channel sync |
+| `functions/src/services/tools/utils/resolveVideos.ts` | Shared video resolution (direct + publishedVideoId lookup) |
 | `functions/src/services/tools/definitions.ts` | Tool declaration |
 | `functions/src/services/youtube.ts` | `getPlaylistVideos()`, `getVideoDetails()` |
 

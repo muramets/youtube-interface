@@ -17,6 +17,9 @@ vi.mock("../../../../shared/db.js", () => ({
     db: {
         doc: () => ({ get: mockDocGet, path: "mock" }),
         getAll: (...refs: unknown[]) => mockGetAll(...refs),
+        collection: () => ({
+            where: () => ({ get: () => Promise.resolve({ docs: [] }) }),
+        }),
     },
     admin: {
         storage: () => ({
@@ -65,20 +68,19 @@ const CTX: ToolContext = { userId: "user1", channelId: "ch1" };
 const NOW = Date.now();
 
 function setupBaseMocks() {
-    // Traffic doc + video doc — two sequential .get() calls
-    mockDocGet
-        .mockResolvedValueOnce({
-            exists: true,
-            data: () => ({
-                snapshots: [{ id: "s1", timestamp: NOW, storagePath: "path/csv1.csv" }],
-            }),
-        })
-        .mockResolvedValueOnce({
-            exists: true,
-            data: () => ({
-                title: "Source Video", channelTitle: "MyCh", tags: [],
-            }),
-        });
+    // Resolver: video found by docId (getAll, 1st call)
+    mockGetAll.mockResolvedValueOnce([{
+        exists: true,
+        data: () => ({ title: "Source Video", channelTitle: "MyCh", tags: [] }),
+    }]);
+
+    // Handler: traffic/main (single .get() call)
+    mockDocGet.mockResolvedValueOnce({
+        exists: true,
+        data: () => ({
+            snapshots: [{ id: "s1", timestamp: NOW, storagePath: "path/csv1.csv" }],
+        }),
+    });
 
     // CSV download
     mockFileDownload.mockResolvedValue([Buffer.from("fake csv")]);
@@ -114,8 +116,8 @@ describe("analyzeSuggestedTraffic — view deltas enrichment", () => {
     it("populates viewDelta fields when trend data is available", async () => {
         setupBaseMocks();
 
-        // cached_external_videos → channelId hints
-        mockGetAll.mockResolvedValue([
+        // cached_external_videos → channelId hints (2nd getAll call, after resolver)
+        mockGetAll.mockResolvedValueOnce([
             { exists: true, data: () => ({ channelId: "UCext1" }) },
             { exists: true, data: () => ({ channelId: "UCext2" }) },
         ]);
@@ -148,8 +150,8 @@ describe("analyzeSuggestedTraffic — view deltas enrichment", () => {
     it("returns null viewDeltas when no trend data exists", async () => {
         setupBaseMocks();
 
-        // cached_external_videos → no channelId
-        mockGetAll.mockResolvedValue([
+        // cached_external_videos → no channelId (2nd getAll call)
+        mockGetAll.mockResolvedValueOnce([
             { exists: false, data: () => ({}) },
             { exists: false, data: () => ({}) },
         ]);
@@ -171,7 +173,8 @@ describe("analyzeSuggestedTraffic — view deltas enrichment", () => {
     it("handles view delta enrichment failure gracefully", async () => {
         setupBaseMocks();
 
-        mockGetAll.mockResolvedValue([
+        // cached_external_videos → channelId hints (2nd getAll call)
+        mockGetAll.mockResolvedValueOnce([
             { exists: true, data: () => ({ channelId: "UCext1" }) },
         ]);
 

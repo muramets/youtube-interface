@@ -56,8 +56,8 @@ User message
      │
      ▼
 [handleViewThumbnails]
-  ─ Firestore getAll() x2 in parallel:
-      users/{userId}/channels/{channelId}/videos/{id}        ← own videos
+  ─ resolveVideosByIds(): direct lookup + publishedVideoId reverse lookup for custom videos
+      users/{userId}/channels/{channelId}/videos/{id}        ← own videos (direct + custom)
       users/{userId}/channels/{channelId}/cached_external_videos/{id}  ← external videos
   ─ own videos preferred; fallback to cached_external if not found
   ─ caps at 50 IDs
@@ -218,7 +218,7 @@ functions/src/
       toolExecution.ts                             ← shared batch executor + processImages callback
     tools/
       handlers/
-        viewThumbnails.ts                          ← Firestore lookup, dual-collection
+        viewThumbnails.ts                          ← Firestore lookup via resolveVideosByIds
         __tests__/
           viewThumbnails.handler.test.ts           ← 12 tests
           getMultipleVideoDetails.bugfix.test.ts   ← 2 tests (thumbnail field bugfix)

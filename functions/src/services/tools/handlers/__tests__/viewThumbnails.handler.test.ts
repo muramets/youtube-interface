@@ -11,6 +11,9 @@ vi.mock('../../../../shared/db.js', () => ({
     db: {
         doc: (path: string) => mockDoc(path),
         getAll: (..._refs: unknown[]) => mockGetAll(..._refs),
+        collection: () => ({
+            where: () => ({ get: () => Promise.resolve({ docs: [] }) }),
+        }),
     },
 }));
 

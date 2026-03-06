@@ -11,6 +11,7 @@
 
 import { db } from "../../../shared/db.js";
 import { YouTubeService } from "../../youtube.js";
+import { resolveVideosByIds } from "../utils/resolveVideos.js";
 import { getViewDeltas } from "../../trendSnapshotService.js";
 import type { ToolContext } from "../types.js";
 
@@ -27,37 +28,17 @@ export async function handleGetMultipleVideoDetails(
     const ids = videoIds.slice(0, 20);
     const basePath = `users/${ctx.userId}/channels/${ctx.channelId}`;
 
-    // --- Step 1: Batch read both Firestore collections in parallel ---
-    const videoRefs = ids.map(id => db.doc(`${basePath}/videos/${id}`));
-    const externalRefs = ids.map(id => db.doc(`${basePath}/cached_external_videos/${id}`));
-
-    const [videoSnaps, externalSnaps] = await Promise.all([
-        db.getAll(...videoRefs),
-        db.getAll(...externalRefs),
-    ]);
+    // --- Step 1: Resolve videos from Firestore (direct + publishedVideoId) ---
+    const { resolved, missingIds: notFoundIds } = await resolveVideosByIds(basePath, ids);
 
     const videos: Record<string, unknown>[] = [];
-    const notFoundIds: string[] = [];
+    for (const id of ids) {
+        const entry = resolved.get(id);
+        if (!entry) continue;
 
-    for (let i = 0; i < ids.length; i++) {
-        const videoId = ids[i];
-        // Priority: own videos → external cache
-        let snap;
-        let collectionSource: CollectionSource = "own";
-        if (videoSnaps[i].exists) {
-            snap = videoSnaps[i];
-            collectionSource = "own";
-        } else if (externalSnaps[i].exists) {
-            snap = externalSnaps[i];
-            collectionSource = "external_cache";
-        }
-
-        if (!snap?.exists) {
-            notFoundIds.push(videoId);
-            continue;
-        }
-
-        videos.push(formatVideoData(videoId, snap.data()!, collectionSource));
+        const collectionSource: CollectionSource =
+            entry.source === "video_grid" ? "own" : "external_cache";
+        videos.push(formatVideoData(id, entry.data, collectionSource));
     }
 
     // --- Step 2: YouTube API fallback for remaining IDs ---

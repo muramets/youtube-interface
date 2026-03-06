@@ -13,6 +13,7 @@
 // =============================================================================
 
 import { db, admin } from "../../../shared/db.js";
+import { resolveVideosByIds } from "../utils/resolveVideos.js";
 import { parseTrafficSourceCsv } from "../utils/trafficSourceCsvParser.js";
 import { buildSourceTimeline } from "../utils/trafficSourceTimeline.js";
 import type { ToolContext } from "../types.js";
@@ -43,15 +44,16 @@ export async function handleAnalyzeTrafficSources(
     const videoId = args.videoId;
     if (!/^[\w-]{1,64}$/.test(videoId)) return { error: "Invalid videoId format" };
 
-    // --- Step 1: Firestore — read snapshot metadata + source video ---
+    // --- Step 1: Resolve video document + read snapshot metadata ---
+    // Uses resolver to handle custom videos (custom-XXXX → publishedVideoId lookup).
+    // skipExternal: traffic source data only exists on own videos.
     const basePath = `users/${ctx.userId}/channels/${ctx.channelId}`;
-    const trafficSourceDocRef = db.doc(`${basePath}/videos/${videoId}/trafficSource/main`);
-    const videoDocRef = db.doc(`${basePath}/videos/${videoId}`);
+    const { resolved } = await resolveVideosByIds(basePath, [videoId], { skipExternal: true });
+    const entry = resolved.get(videoId);
 
-    const [trafficSourceSnap, videoSnap] = await Promise.all([
-        trafficSourceDocRef.get(),
-        videoDocRef.get(),
-    ]);
+    // Use resolved docId for subcollection access (may differ from YouTube videoId)
+    const docId = entry?.docId ?? videoId;
+    const trafficSourceSnap = await db.doc(`${basePath}/videos/${docId}/trafficSource/main`).get();
 
     if (!trafficSourceSnap.exists) {
         return { error: "No traffic source data found for this video. The user needs to import Traffic Source CSV data first." };
@@ -66,7 +68,7 @@ export async function handleAnalyzeTrafficSources(
     // Sort ascending by timestamp (oldest first)
     snapshots.sort((a, b) => a.timestamp - b.timestamp);
 
-    const videoData = videoSnap.exists ? videoSnap.data()! : {};
+    const videoData = entry?.data ?? {};
     const sourceVideo = {
         videoId,
         title: String(videoData.title ?? ""),

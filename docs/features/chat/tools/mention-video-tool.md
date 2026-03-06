@@ -16,7 +16,7 @@
 
 1. LLM анализирует данные и хочет упомянуть конкретное видео
 2. Вызывает `mentionVideo(videoId)`
-3. Handler ищет видео в `videos/` → `cached_external_videos/`
+3. Handler ищет видео через `resolveVideosByIds` (direct + publishedVideoId reverse lookup для custom videos)
 4. Возвращает метаданные для badge
 5. LLM пишет в тексте: `[Video Title](mention://videoId)`
 6. UI рендерит интерактивный badge
@@ -59,5 +59,6 @@
 
 | Файл | Назначение |
 |------|-----------|
-| `functions/src/services/tools/handlers/mentionVideo.ts` | Handler: dual-collection lookup |
+| `functions/src/services/tools/handlers/mentionVideo.ts` | Handler: video resolution via resolveVideosByIds |
+| `functions/src/services/tools/utils/resolveVideos.ts` | Shared video resolution (direct + publishedVideoId lookup) |
 | `functions/src/services/tools/definitions.ts` | Tool declaration |

@@ -17,6 +17,7 @@ const mockGetAll = vi.fn();
 const mockBatchSet = vi.fn();
 const mockBatchCommit = vi.fn();
 const mockDocGet = vi.fn();
+const mockCollectionWhereGet = vi.fn().mockResolvedValue({ docs: [] });
 
 vi.mock("../../../../shared/db.js", () => ({
     db: {
@@ -25,6 +26,9 @@ vi.mock("../../../../shared/db.js", () => ({
         batch: () => ({
             set: mockBatchSet,
             commit: mockBatchCommit,
+        }),
+        collection: () => ({
+            where: () => ({ get: () => mockCollectionWhereGet() }),
         }),
     },
 }));
@@ -301,5 +305,56 @@ describe("handleBrowseChannelVideos", () => {
         expect(result.channel).toBeUndefined();
         expect(result.channelTitle).toBeUndefined();
         expect(result._systemNote).toBeUndefined();
+    });
+
+    // --- Custom video resolution via publishedVideoId ---
+
+    it("counts custom videos (matched via publishedVideoId) in ownChannelSync", async () => {
+        // YouTube channel has 2 videos: ytId1 and ytId2
+        mockGetPlaylistVideos.mockResolvedValueOnce({ videoIds: ["ytId1", "ytId2"], quotaUsed: 1 });
+
+        // Step 1: direct lookup — neither found by doc ID
+        mockGetAll
+            .mockResolvedValueOnce([makeSnap(false), makeSnap(false)])  // videos/
+            .mockResolvedValueOnce([makeSnap(false), makeSnap(false)]); // cached_external_videos/
+
+        // Step 2: reverse lookup — both found as custom videos
+        mockCollectionWhereGet.mockResolvedValueOnce({
+            docs: [
+                {
+                    id: "custom-111",
+                    data: () => ({
+                        title: "Custom Video 1", publishedVideoId: "ytId1",
+                        channelId: "UCown", publishedAt: "2024-01-01", viewCount: 1000,
+                        isCustom: true,
+                    }),
+                },
+                {
+                    id: "custom-222",
+                    data: () => ({
+                        title: "Custom Video 2", publishedVideoId: "ytId2",
+                        channelId: "UCown", publishedAt: "2024-02-01", viewCount: 2000,
+                        isCustom: true,
+                    }),
+                },
+            ],
+        });
+
+        const result = await handleBrowseChannelVideos(
+            { uploadsPlaylistId: "UUtest", channelId: "UCown" },
+            CTX,
+        );
+
+        // Both custom videos should be counted as "in app"
+        const sync = result.ownChannelSync as { inApp: number; onYouTube: number; notInApp: number };
+        expect(sync).toBeDefined();
+        expect(sync.inApp).toBe(2);
+        expect(sync.onYouTube).toBe(2);
+        expect(sync.notInApp).toBe(0);
+
+        // Videos should appear in the response
+        const videos = result.videos as Array<{ videoId: string; title: string }>;
+        expect(videos).toHaveLength(2);
+        expect(videos[0].title).toBe("Custom Video 1");
     });
 });

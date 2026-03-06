@@ -2,7 +2,7 @@
 // mentionVideo handler — looks up a video by ID for structured mentions
 // =============================================================================
 
-import { db } from "../../../shared/db.js";
+import { resolveVideosByIds } from "../utils/resolveVideos.js";
 import type { ToolContext } from "../types.js";
 
 export async function handleMentionVideo(
@@ -16,20 +16,18 @@ export async function handleMentionVideo(
 
     const basePath = `users/${ctx.userId}/channels/${ctx.channelId}`;
 
-    // Search in videos/ first, fallback to cached_external_videos/
-    const videoSnap = await db.doc(`${basePath}/videos/${videoId}`).get();
-    const snap = videoSnap.exists
-        ? videoSnap
-        : await db.doc(`${basePath}/cached_external_videos/${videoId}`).get();
+    const { resolved } = await resolveVideosByIds(basePath, [videoId]);
+    const entry = resolved.get(videoId);
 
-    if (!snap.exists) {
+    if (!entry) {
         return { found: false, videoId, error: "Video not found in database" };
     }
 
-    const data = snap.data()!;
-    // Build standard YouTube thumbnail URL from videoId as fallback
+    const data = entry.data;
+    // Build standard YouTube thumbnail URL from videoId as fallback.
+    // Custom videos (docId starts with "custom-") don't have YouTube CDN thumbnails.
     const thumbnailUrl = data.thumbnailUrl
-        || (videoId.startsWith('custom-') ? '' : `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`);
+        || (entry.docId.startsWith('custom-') ? '' : `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`);
     return {
         found: true,
         videoId,

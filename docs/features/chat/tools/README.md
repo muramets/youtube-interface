@@ -130,7 +130,33 @@ sequenceDiagram
 
 ---
 
-## Data Layer: Unified External Cache
+## Data Layer: Video Resolution
+
+### resolveVideosByIds (shared utility)
+
+Все tool handlers используют единый resolver для поиска видео в Firestore:
+
+```
+functions/src/services/tools/utils/resolveVideos.ts
+```
+
+**Проблема:** Custom videos имеют document ID `custom-XXXXX`, но YouTube video ID хранится в поле `publishedVideoId`. Прямой lookup по document ID их не находит.
+
+**Решение — 2-step resolution:**
+1. **Direct lookup** — `db.getAll()` по document ID в `videos/` и `cached_external_videos/`
+2. **Reverse lookup** — `where('publishedVideoId', 'in', missingIds)` для оставшихся промахов
+
+Step 2 выполняется только если есть промахи. Для каналов без custom videos — zero overhead.
+
+Все 6 tool handlers используют `resolveVideosByIds()` вместо прямых `db.doc()` вызовов:
+- `browseChannelVideos` — batch, обе коллекции
+- `getMultipleVideoDetails` — batch, обе коллекции
+- `viewThumbnails` — batch, обе коллекции
+- `mentionVideo` — single video, обе коллекции
+- `analyzeTrafficSources` — single video, `skipExternal: true` + `docId` для подколлекций
+- `analyzeSuggestedTraffic` — single video, `skipExternal: true` + `docId` для подколлекций
+
+### Unified External Cache
 
 **Коллекция: `cached_external_videos/`**
 
@@ -143,9 +169,9 @@ sequenceDiagram
 }
 ```
 
-**`getMultipleVideoDetails`** ищет в двух коллекциях + YouTube API fallback:
+**`getMultipleVideoDetails`** cascade (cheapest → most expensive):
 ```
-videos/ → cached_external_videos/ → YouTube API
+videos/ (direct + publishedVideoId) → cached_external_videos/ → YouTube API
 ```
 
 ### Firebase Collections

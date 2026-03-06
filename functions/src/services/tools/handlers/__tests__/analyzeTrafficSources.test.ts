@@ -9,12 +9,18 @@ const mockDownload = vi.fn();
 const mockFile = vi.fn(() => ({ download: mockDownload }));
 const mockBucket = vi.fn(() => ({ file: mockFile }));
 
+const mockGetAll = vi.fn();
+
 vi.mock("../../../../shared/db.js", () => ({
     db: {
         doc: (path: string) => {
             mockDoc(path);
             return { get: mockGet, path };
         },
+        getAll: (...refs: unknown[]) => mockGetAll(...refs),
+        collection: () => ({
+            where: () => ({ get: () => Promise.resolve({ docs: [] }) }),
+        }),
     },
     admin: {
         storage: () => ({ bucket: mockBucket }),
@@ -52,18 +58,20 @@ describe("handleAnalyzeTrafficSources", () => {
     });
 
     it("returns error when no traffic source data exists", async () => {
-        mockGet
-            .mockResolvedValueOnce(makeSnap(false)) // trafficSource/main
-            .mockResolvedValueOnce(makeSnap(false)); // video doc
+        // Resolver: video not found by docId
+        mockGetAll.mockResolvedValueOnce([makeSnap(false)]);
+        // Handler: trafficSource/main
+        mockGet.mockResolvedValueOnce(makeSnap(false));
 
         const result = await handleAnalyzeTrafficSources({ videoId: "vid1" }, CTX);
         expect(result.error).toContain("No traffic source data");
     });
 
     it("returns error when snapshots array is empty", async () => {
-        mockGet
-            .mockResolvedValueOnce(makeSnap(true, { snapshots: [] }))
-            .mockResolvedValueOnce(makeSnap(false));
+        // Resolver: video not found by docId
+        mockGetAll.mockResolvedValueOnce([makeSnap(false)]);
+        // Handler: trafficSource/main
+        mockGet.mockResolvedValueOnce(makeSnap(true, { snapshots: [] }));
 
         const result = await handleAnalyzeTrafficSources({ videoId: "vid1" }, CTX);
         expect(result.error).toContain("No CSV snapshots");
@@ -81,15 +89,15 @@ describe("handleAnalyzeTrafficSources", () => {
             "Browse features,450,22.0,0:03:15,2000,5.2",
         ]);
 
-        // Firestore: trafficSource/main then video doc
-        mockGet
-            .mockResolvedValueOnce(makeSnap(true, {
-                snapshots: [
-                    { id: "s1", timestamp: 1704067200000, storagePath: "path/s1.csv", autoLabel: "Day 1" },
-                    { id: "s2", timestamp: 1704672000000, storagePath: "path/s2.csv", autoLabel: "Day 7" },
-                ],
-            }))
-            .mockResolvedValueOnce(makeSnap(true, { title: "My Video" }));
+        // Resolver: video found by docId
+        mockGetAll.mockResolvedValueOnce([makeSnap(true, { title: "My Video" })]);
+        // Handler: trafficSource/main
+        mockGet.mockResolvedValueOnce(makeSnap(true, {
+            snapshots: [
+                { id: "s1", timestamp: 1704067200000, storagePath: "path/s1.csv", autoLabel: "Day 1" },
+                { id: "s2", timestamp: 1704672000000, storagePath: "path/s2.csv", autoLabel: "Day 7" },
+            ],
+        }));
 
         // Storage downloads
         mockDownload
@@ -125,13 +133,14 @@ describe("handleAnalyzeTrafficSources", () => {
     });
 
     it("handles broken CSV gracefully (empty metrics)", async () => {
-        mockGet
-            .mockResolvedValueOnce(makeSnap(true, {
-                snapshots: [
-                    { id: "s1", timestamp: 1704067200000, storagePath: "path/s1.csv", autoLabel: "v1" },
-                ],
-            }))
-            .mockResolvedValueOnce(makeSnap(false));
+        // Resolver: video not found by docId
+        mockGetAll.mockResolvedValueOnce([makeSnap(false)]);
+        // Handler: trafficSource/main
+        mockGet.mockResolvedValueOnce(makeSnap(true, {
+            snapshots: [
+                { id: "s1", timestamp: 1704067200000, storagePath: "path/s1.csv", autoLabel: "v1" },
+            ],
+        }));
 
         // Broken CSV
         mockDownload.mockResolvedValueOnce([Buffer.from("garbage,data\nfoo,bar")]);
@@ -142,13 +151,14 @@ describe("handleAnalyzeTrafficSources", () => {
     });
 
     it("handles CSV download failure gracefully", async () => {
-        mockGet
-            .mockResolvedValueOnce(makeSnap(true, {
-                snapshots: [
-                    { id: "s1", timestamp: 1704067200000, storagePath: "path/missing.csv", autoLabel: "v1" },
-                ],
-            }))
-            .mockResolvedValueOnce(makeSnap(false));
+        // Resolver: video not found by docId
+        mockGetAll.mockResolvedValueOnce([makeSnap(false)]);
+        // Handler: trafficSource/main
+        mockGet.mockResolvedValueOnce(makeSnap(true, {
+            snapshots: [
+                { id: "s1", timestamp: 1704067200000, storagePath: "path/missing.csv", autoLabel: "v1" },
+            ],
+        }));
 
         mockDownload.mockRejectedValueOnce(new Error("File not found"));
 
@@ -158,29 +168,31 @@ describe("handleAnalyzeTrafficSources", () => {
     });
 
     it("uses correct Firestore path (trafficSource/main, NOT traffic/main)", async () => {
-        mockGet
-            .mockResolvedValueOnce(makeSnap(false))
-            .mockResolvedValueOnce(makeSnap(false));
+        // Resolver: video not found by docId
+        mockGetAll.mockResolvedValueOnce([makeSnap(false)]);
+        // Handler: trafficSource/main
+        mockGet.mockResolvedValueOnce(makeSnap(false));
 
         await handleAnalyzeTrafficSources({ videoId: "vid1" }, CTX);
 
-        // First call = trafficSource/main
-        expect(mockDoc).toHaveBeenCalledWith(`${BASE}/videos/vid1/trafficSource/main`);
-        // Second call = video doc
+        // Resolver creates ref for videos/vid1
         expect(mockDoc).toHaveBeenCalledWith(`${BASE}/videos/vid1`);
+        // Handler reads trafficSource/main
+        expect(mockDoc).toHaveBeenCalledWith(`${BASE}/videos/vid1/trafficSource/main`);
     });
 
     it("reports progress via ctx.reportProgress", async () => {
         const progress = vi.fn();
         const ctxWithProgress: ToolContext = { ...CTX, reportProgress: progress };
 
-        mockGet
-            .mockResolvedValueOnce(makeSnap(true, {
-                snapshots: [
-                    { id: "s1", timestamp: 1704067200000, storagePath: "path/s1.csv", autoLabel: "v1" },
-                ],
-            }))
-            .mockResolvedValueOnce(makeSnap(false));
+        // Resolver: video not found by docId
+        mockGetAll.mockResolvedValueOnce([makeSnap(false)]);
+        // Handler: trafficSource/main
+        mockGet.mockResolvedValueOnce(makeSnap(true, {
+            snapshots: [
+                { id: "s1", timestamp: 1704067200000, storagePath: "path/s1.csv", autoLabel: "v1" },
+            ],
+        }));
 
         mockDownload.mockResolvedValueOnce([Buffer.from(csvContent([
             "Suggested videos,100,5.0,0:02:00,500,4.0",

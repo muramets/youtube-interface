@@ -12,6 +12,7 @@
 
 import { db } from "../../../shared/db.js";
 import { YouTubeService } from "../../youtube.js";
+import { resolveVideosByIds } from "../utils/resolveVideos.js";
 import type { ToolContext } from "../types.js";
 import type { YouTubeVideoItem } from "../../../types.js";
 
@@ -58,40 +59,21 @@ export async function handleBrowseChannelVideos(
     }
 
     // --- Smart cache check — find what we already have ---
+    // Uses resolveVideosByIds which handles both direct doc IDs and
+    // custom videos (custom-XXXX) matched via publishedVideoId field.
     ctx.reportProgress?.("Checking cache for existing videos...");
 
     const basePath = `users/${ctx.userId}/channels/${ctx.channelId}`;
-    const BATCH_SIZE = 100; // Firestore getAll limit is 500, but 100 is practical
 
-    // Check own videos + cached external videos in parallel batches
+    const { resolved, missingIds } = await resolveVideosByIds(basePath, allVideoIds);
+
     const cachedVideoData = new Map<string, Record<string, unknown>>();
-    const missingIds: string[] = [];
-
-    for (let i = 0; i < allVideoIds.length; i += BATCH_SIZE) {
-        const batch = allVideoIds.slice(i, i + BATCH_SIZE);
-        const ownRefs = batch.map(id => db.doc(`${basePath}/videos/${id}`));
-        const extRefs = batch.map(id => db.doc(`${basePath}/cached_external_videos/${id}`));
-
-        const [ownSnaps, extSnaps] = await Promise.all([
-            db.getAll(...ownRefs),
-            db.getAll(...extRefs),
-        ]);
-
-        for (let j = 0; j < batch.length; j++) {
-            const own = ownSnaps[j];
-            const ext = extSnaps[j];
-            const snap = own.exists ? own : ext.exists ? ext : null;
-
-            if (snap) {
-                cachedVideoData.set(batch[j], {
-                    ...(snap.data() as Record<string, unknown>),
-                    _cached: true,
-                    _source: own.exists ? "video_grid" : "external_cache",
-                });
-            } else {
-                missingIds.push(batch[j]);
-            }
-        }
+    for (const [ytId, entry] of resolved) {
+        cachedVideoData.set(ytId, {
+            ...entry.data,
+            _cached: true,
+            _source: entry.source,
+        });
     }
 
     // --- Fetch missing videos from YouTube API (level 2) ---
