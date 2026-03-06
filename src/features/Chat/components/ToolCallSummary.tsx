@@ -169,7 +169,7 @@ const TrafficSourceStats: React.FC<{ result: Record<string, unknown> }> = ({ res
                 <div className="flex flex-col gap-0.5 text-[10px] text-text-tertiary">
                     {topSources.map(s => (
                         <span key={s.source} className="truncate">
-                            {s.source}: {s.views.toLocaleString()} views
+                            {s.source}: {s.views?.toLocaleString() ?? '—'} views
                         </span>
                     ))}
                 </div>
@@ -189,7 +189,8 @@ const ChannelOverviewStats: React.FC<{ result: Record<string, unknown> }> = ({ r
                 {result.subscriberCount ? ` — ${(result.subscriberCount as number).toLocaleString()} subs` : null}
             </span>
             <span className="text-[10px] text-text-tertiary">
-                {(result.videoCount as number).toLocaleString()} videos · Estimated cost: ~{result.quotaCost as number} quota units
+                {(result.videoCount as number | undefined)?.toLocaleString() ?? '—'} videos
+                {result.quotaCost != null && ` · Estimated cost: ~${result.quotaCost as number} quota units`}
             </span>
         </div>
     );
@@ -304,7 +305,7 @@ const GroupPill: React.FC<{
             </button>
 
             {/* Expanded content */}
-            {expanded && group.allResolved && (
+            {expanded && group.allResolved && !group.hasErrors && (
                 <div className="mt-1.5 flex flex-col gap-1 w-full">
                     {/* Analysis tools: compact stats summaries */}
                     {group.toolName === 'analyzeSuggestedTraffic' && group.records[0]?.result && (

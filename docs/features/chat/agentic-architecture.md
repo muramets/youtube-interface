@@ -171,6 +171,9 @@ UI dropdown адаптируется автоматически: опции чи
 
 ### Backend (`functions/src/`)
 ```
+chat/
+├── aiChat.ts                       # SSE endpoint — assembles ToolContext (reads youtubeApiKey from channel settings)
+
 services/ai/
 ├── toolExecution.ts                # executeToolBatch() — shared batch executor + processImages
 ├── retry.ts                        # withStreamRetry() — shared retry logic

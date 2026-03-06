@@ -4,6 +4,8 @@
 
 **Реализовано.** Telescope Pattern Layer 1 — resolve. LLM передаёт URL, @handle или channel ID → получает метаданные канала + `uploadsPlaylistId` для `browseChannelVideos`. Всегда безопасен (1-2 API units). Содержит QUOTA_GATE `_systemNote`, указывающий LLM спросить пользователя перед дорогими операциями.
 
+**Зависимость:** Требует YouTube Data API key, сохранённый в Settings → API Key. Ключ читается из channel-scoped настроек: `users/{uid}/channels/{channelId}/settings/general` → поле `apiKey`. Без ключа handler вернёт ошибку, а pill покажет красный статус "Couldn't load channel info".
+
 ---
 
 ## Что это
@@ -62,6 +64,8 @@
 | `functions/src/services/tools/handlers/getChannelOverview.ts` | Handler: resolve + channel info + quota estimate |
 | `functions/src/services/tools/definitions.ts` | Tool declaration |
 | `functions/src/services/youtube.ts` | `resolveChannelId()`, `getChannelInfo()` |
+| `functions/src/chat/aiChat.ts` | Собирает `ToolContext` (читает `youtubeApiKey` из channel settings) |
+| `src/features/Chat/components/ToolCallSummary.tsx` | `ChannelOverviewStats` — pill stats (defensive rendering при ошибках) |
 
 ### Tests
 

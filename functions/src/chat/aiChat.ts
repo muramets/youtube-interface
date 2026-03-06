@@ -229,7 +229,8 @@ export const aiChat = onRequest(
                 });
 
             // --- Read user's YouTube API key for tool calls ---
-            const userSettingsSnap = await db.doc(`users/${userId}/settings/general`).get();
+            // Settings are stored per-channel: users/{uid}/channels/{channelId}/settings/general
+            const userSettingsSnap = await db.doc(`users/${userId}/channels/${body.channelId}/settings/general`).get();
             const userYoutubeApiKey = userSettingsSnap.exists
                 ? (userSettingsSnap.data()?.apiKey as string | undefined)
                 : undefined;
