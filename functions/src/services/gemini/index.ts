@@ -25,3 +25,4 @@ export type { StreamChatOpts } from "./streamChat.js";
 
 // Title generation
 export { generateTitle } from "./titleGeneration.js";
+export type { TitleResult } from "./titleGeneration.js";

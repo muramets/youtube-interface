@@ -1,6 +1,6 @@
 # Token Transparency — Tasks
 
-## Current Wave: 3 (Features)
+## Current Wave: 4 (Core System Review)
 <!-- Update this line when moving to next wave -->
 
 ## Overview
@@ -89,7 +89,7 @@ Wave 7:  [Rev] R3 Full System -> Fix -> R4 Final -> Fix
 | 0 | Regression tests (lock existing behavior) | DONE |
 | 1 | Foundation (data model + memory bugfix) | DONE |
 | 2 | Integration (providers + frontend header) | DONE |
-| 3 | Features (stopped msgs + auxiliary costs + tooltip) | TODO |
+| 3 | Features (stopped msgs + auxiliary costs + tooltip) | DONE |
 | 4 | Core System Review (R1 + R2) | TODO |
 | 5 | Visualization + Audit (breakdown panel + CLI) | TODO |
 | 6 | Cost Alerts (warnings + model recommendations) | TODO |
@@ -104,7 +104,7 @@ Wave 7:  [Rev] R3 Full System -> Fix -> R4 Final -> Fix
 | 0 | 171 | 373 | 544 | +7 |
 | 1 | 199 | 375 | 574 | +30 |
 | 2 | 583 | 381 | 964 | +390 |
-| 3 | TBD | TBD | TBD | +TBD |
+| 3 | 220 | 387 | 607 | +22 |
 | 4 | TBD | TBD | TBD | +TBD |
 | 5 | TBD | TBD | TBD | +TBD |
 | 6 | TBD | TBD | TBD | +TBD |
@@ -489,9 +489,9 @@ D (stopped messages: backend + frontend) || E (auxiliary costs: backend) || G (t
 
 ### Tasks
 
-- [ ] **D** — Stopped messages persistence
-- [ ] **E** — Auxiliary costs + context breakdown
-- [ ] **G** — Frontend per-message tooltip
+- [x] **D** — Stopped messages persistence
+- [x] **E** — Auxiliary costs + context breakdown
+- [x] **G** — Frontend per-message tooltip
 
 #### D: Stopped messages persistence
 
@@ -620,10 +620,10 @@ npm run typecheck                             # clean
 ```
 
 **MANDATORY: Update this file before proceeding (wave is NOT done until all boxes checked):**
-- [ ] Mark D, E, G tasks above as done
-- [ ] Update Wave Status table: Wave 3 → DONE
-- [ ] Update "Current Test Count" table row for Wave 3
-- [ ] Update "Current Wave" pointer at top of file: `## Current Wave: 4 (Core System Review)`
+- [x] Mark D, E, G tasks above as done
+- [x] Update Wave Status table: Wave 3 → DONE
+- [x] Update "Current Test Count" table row for Wave 3
+- [x] Update "Current Wave" pointer at top of file: `## Current Wave: 4 (Core System Review)`
 
 ### Review Gate 3
 

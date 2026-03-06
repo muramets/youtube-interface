@@ -12,6 +12,10 @@ export interface StagedFile {
     status: 'uploading' | 'ready' | 'error';
     error?: string;
     result?: ReadyAttachment;
+    /** Image width in pixels (captured via Image.onload at staging time). */
+    width?: number;
+    /** Image height in pixels (captured via Image.onload at staging time). */
+    height?: number;
 }
 
 /**
@@ -26,4 +30,8 @@ export interface ReadyAttachment {
     mimeType: string;
     fileRef?: string;
     fileRefExpiry?: number;
+    /** Image width in pixels (for token estimation). */
+    width?: number;
+    /** Image height in pixels (for token estimation). */
+    height?: number;
 }

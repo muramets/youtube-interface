@@ -28,7 +28,7 @@ interface MockStream {
 }
 
 interface StreamEvent {
-    event: "text" | "thinking" | "contentBlock" | "finalMessage" | "error" | "end";
+    event: "text" | "thinking" | "contentBlock" | "finalMessage" | "message" | "error" | "end";
     data: unknown;
 }
 
@@ -107,6 +107,11 @@ function toolUseEvent(
         event: "contentBlock",
         data: { type: "tool_use", id, name, input },
     };
+}
+
+/** Create a "message" event (fires before content — carries input_tokens). */
+function messageEvent(usage: { input_tokens: number }): StreamEvent {
+    return { event: "message", data: { usage } };
 }
 
 /** Create a finalMessage event with usage data. */
@@ -1456,5 +1461,112 @@ describe("Claude streamChat — normalizedUsage", () => {
             expect(nu.billing.cost.thinkingSubset).toBeGreaterThan(0);
             expect(nu.billing.cost.thinkingSubset).toBeLessThan(nu.billing.cost.output);
         });
+    });
+});
+
+// ===========================================================================
+// Suite F: Abort handling — partial usage on stopped messages
+// ===========================================================================
+
+describe("Claude streamChat — abort handling (stopped messages)", () => {
+    it("returns partial=true and partial usage when aborted with earlyInputTokens", async () => {
+        // Build a stream that emits "message" (earlyInputTokens), text, then AbortError
+        const abortError = new Error("This operation was aborted");
+        abortError.name = "AbortError";
+
+        const abortController = new AbortController();
+
+        const mockStream = vi.fn().mockImplementationOnce(() => {
+            const stream = buildMockStream([
+                // "message" event fires before content — carries input_tokens
+                messageEvent({ input_tokens: 500 }),
+                // Some text before abort
+                { event: "text", data: "Hello partial" },
+                // AbortError interrupts the stream
+                { event: "error", data: abortError },
+            ]);
+            // Abort the signal before running — simulates client disconnect
+            abortController.abort();
+            stream._run();
+            return stream;
+        });
+
+        mockGetClaudeClient.mockReturnValue({
+            messages: { stream: mockStream },
+        } as never);
+
+        const result = await streamChat(makeOpts({ signal: abortController.signal }));
+
+        // Should be marked as partial
+        expect(result.partial).toBe(true);
+
+        // Token usage should be built from earlyInputTokens
+        expect(result.tokenUsage).toBeDefined();
+        expect(result.tokenUsage!.promptTokens).toBe(500);
+
+        // Output is approximate: ceil(text.length / 4)
+        // "Hello partial" = 13 chars → ceil(13/4) = 4
+        expect(result.tokenUsage!.completionTokens).toBe(Math.ceil("Hello partial".length / 4));
+
+        // Total = input + output
+        expect(result.tokenUsage!.totalTokens).toBe(
+            result.tokenUsage!.promptTokens + result.tokenUsage!.completionTokens,
+        );
+    });
+
+    it("sets normalizedUsage.partial=true on abort", async () => {
+        const abortError = new Error("This operation was aborted");
+        abortError.name = "AbortError";
+
+        const abortController = new AbortController();
+
+        const mockStream = vi.fn().mockImplementationOnce(() => {
+            const stream = buildMockStream([
+                messageEvent({ input_tokens: 1000 }),
+                { event: "text", data: "Partial response text here" },
+                { event: "error", data: abortError },
+            ]);
+            abortController.abort();
+            stream._run();
+            return stream;
+        });
+
+        mockGetClaudeClient.mockReturnValue({
+            messages: { stream: mockStream },
+        } as never);
+
+        const result = await streamChat(makeOpts({ signal: abortController.signal }));
+
+        expect(result.partial).toBe(true);
+        expect(result.normalizedUsage).toBeDefined();
+        expect(result.normalizedUsage!.partial).toBe(true);
+    });
+
+    it("preserves accumulated text on abort", async () => {
+        const abortError = new Error("This operation was aborted");
+        abortError.name = "AbortError";
+
+        const abortController = new AbortController();
+
+        const mockStream = vi.fn().mockImplementationOnce(() => {
+            const stream = buildMockStream([
+                messageEvent({ input_tokens: 100 }),
+                { event: "text", data: "First " },
+                { event: "text", data: "Second" },
+                { event: "error", data: abortError },
+            ]);
+            abortController.abort();
+            stream._run();
+            return stream;
+        });
+
+        mockGetClaudeClient.mockReturnValue({
+            messages: { stream: mockStream },
+        } as never);
+
+        const result = await streamChat(makeOpts({ signal: abortController.signal }));
+
+        expect(result.text).toBe("First Second");
+        expect(result.partial).toBe(true);
     });
 });

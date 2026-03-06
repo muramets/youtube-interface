@@ -19,6 +19,8 @@ import { claudeFactory } from "../services/claude/factory.js";
 import { TOOL_DECLARATIONS } from "../services/tools/definitions.js";
 import type { StreamCallbacks, AttachmentRef } from "../services/ai/types.js";
 import { writeSSE } from "./sseWriter.js";
+import type { ContextBreakdown, AuxiliaryCost } from "../shared/models.js";
+import { estimateImageTokens } from "../shared/imageTokens.js";
 
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
 // NOTE: buildMemory always uses Gemini Flash for summarization. GEMINI_API_KEY required regardless of provider.
@@ -106,6 +108,14 @@ export const aiChat = onRequest(
         const convPath = `users/${userId}/channels/${body.channelId}/chatConversations/${body.conversationId}`;
         const requestStart = Date.now();
 
+        // --- Abort controller: fires when client disconnects (Stop button) ---
+        const abortController = new AbortController();
+        res.on('close', () => {
+            if (!abortController.signal.aborted) {
+                abortController.abort();
+            }
+        });
+
         // --- Production logging: request context ---
         const ctx = body.contextMeta;
         console.info(`[aiChat] ── Request ── conv=${body.conversationId} model=${model}` +
@@ -121,16 +131,23 @@ export const aiChat = onRequest(
                 db.collection(messagesPath).orderBy("createdAt", "asc").get(),
                 db.doc(convPath).get(),
             ]);
-            const allMessages = messagesSnap.docs.map(doc => {
-                const data = doc.data();
-                return {
-                    id: doc.id,
-                    role: data.role as "user" | "model",
-                    text: data.text as string,
-                    attachments: data.attachments,
-                    appContext: data.appContext,
-                };
-            });
+            const allMessages = messagesSnap.docs
+                .filter(doc => {
+                    // Only complete and legacy (undefined) messages sent to AI.
+                    // Stopped/deleted/error messages excluded from history.
+                    const status = doc.data().status as string | undefined;
+                    return !status || status === 'complete';
+                })
+                .map(doc => {
+                    const data = doc.data();
+                    return {
+                        id: doc.id,
+                        role: data.role as "user" | "model",
+                        text: data.text as string,
+                        attachments: data.attachments,
+                        appContext: data.appContext,
+                    };
+                });
             const convData = convDoc.data();
 
             // Build optimal memory: full history or summary + recent window
@@ -236,6 +253,33 @@ export const aiChat = onRequest(
                 ? (userSettingsSnap.data()?.apiKey as string | undefined)
                 : undefined;
 
+            // --- Context breakdown: measure char sizes before API call ---
+            const historyChars = memory.history.reduce((sum, m) => sum + m.text.length, 0);
+            const imageAttachmentCount = (body.attachments ?? [])
+                .filter(att => att.mimeType?.startsWith('image/')).length;
+            const thumbnailCount = body.thumbnailUrls?.length ?? 0;
+            const allImages: Array<{ width?: number; height?: number }> = [
+                // Attachments: no dimensions available server-side (captured on client only)
+                ...Array.from({ length: imageAttachmentCount }, () => ({ width: undefined, height: undefined })),
+                // YouTube thumbnails: hardcoded 1280x720
+                ...Array.from({ length: thumbnailCount }, () => ({ width: 1280, height: 720 })),
+            ];
+            const contextBreakdown: ContextBreakdown = {
+                systemPrompt: body.systemPrompt?.length ?? 0,
+                toolDefinitions: JSON.stringify(TOOL_DECLARATIONS).length,
+                history: historyChars,
+                memory: memory.usedSummary
+                    ? (memory.newSummary?.length ?? (convData?.summary as string)?.length ?? 0)
+                    : 0,
+                currentMessage: body.text.length,
+                toolResults: 0, // First iteration has no tool results
+                imageTokens: estimateImageTokens(model, allImages),
+                imageCount: allImages.length,
+                historyMessageCount: allMessages.length,
+                usedSummary: memory.usedSummary,
+                ...(memory.newSummary ? { triggeredAuxiliary: ['summary'] } : {}),
+            };
+
             // --- Provider-agnostic stream call via router ---
             const result = await router.streamChat({
                 model,
@@ -249,10 +293,11 @@ export const aiChat = onRequest(
                 thinkingOptionId,
                 callbacks,
                 providerContext,
+                signal: abortController.signal,
             });
 
             // Unpack provider-agnostic result
-            const { text: responseText, tokenUsage, normalizedUsage, toolCalls, providerMeta } = result;
+            const { text: responseText, tokenUsage, normalizedUsage, toolCalls, providerMeta, partial } = result;
             const updatedThumbnailCache = providerMeta?.updatedThumbnailCache as ThumbnailCache | undefined;
 
             // --- Production logging: response metrics ---
@@ -266,6 +311,9 @@ export const aiChat = onRequest(
                 ` historyLen=${allMessages.length} usedSummary=${memory.usedSummary} newSummary=${!!memory.newSummary}` +
                 ` duration=${durationMs}ms`);
 
+            // Determine message status (immutable after write)
+            const messageStatus = partial ? 'stopped' as const : 'complete' as const;
+
             // Final event with complete response + token usage + summary status
             writeSSE(res, {
                 type: "done",
@@ -275,7 +323,29 @@ export const aiChat = onRequest(
                 toolCalls,
                 usedSummary: memory.usedSummary,
                 summary: memory.newSummary,
+                status: messageStatus,
+                partial,
+                contextBreakdown,
             });
+
+            // Persist stopped messages directly to Firestore (SSE may not reach client)
+            if (partial && responseText) {
+                const messagesPath = `${convPath}/messages`;
+                const stoppedMsg: Record<string, unknown> = {
+                    role: 'model',
+                    text: responseText,
+                    model,
+                    status: 'stopped',
+                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                };
+                if (tokenUsage) stoppedMsg.tokenUsage = tokenUsage;
+                if (normalizedUsage) stoppedMsg.normalizedUsage = normalizedUsage;
+                if (toolCalls) stoppedMsg.toolCalls = toolCalls;
+                stoppedMsg.contextBreakdown = contextBreakdown;
+                db.collection(messagesPath).add(stoppedMsg)
+                    .then(() => console.info(`[aiChat] Persisted stopped message for conv=${body.conversationId}`))
+                    .catch(err => console.warn(`[aiChat] Failed to persist stopped message`, err));
+            }
 
             // Cache summary + log usage + clear error BEFORE ending response
             // (CF runtime may be deallocated after res.end())
@@ -305,6 +375,29 @@ export const aiChat = onRequest(
             if (memory.summaryTokenUsage) {
                 afterTasks.push(
                     logAiUsage(userId, body.channelId, body.conversationId, model, memory.summaryTokenUsage, "summarize").catch(err => console.warn('[aiChat] Failed to log summary usage', err))
+                );
+                // Persist summary as AuxiliaryCost on conversation doc
+                const { UTILITY_MODEL_ID } = await import("../config/models.js");
+                const utilityConfig = MODEL_REGISTRY.find(m => m.id === UTILITY_MODEL_ID);
+                const summaryCostUsd = utilityConfig?.pricing
+                    ? (memory.summaryTokenUsage.promptTokens / 1_000_000 * utilityConfig.pricing.inputPerMillion) +
+                      (memory.summaryTokenUsage.completionTokens / 1_000_000 * utilityConfig.pricing.outputPerMillion)
+                    : 0;
+                const summaryCost: AuxiliaryCost = {
+                    id: `summary-${Date.now()}`,
+                    type: 'summary',
+                    model: UTILITY_MODEL_ID,
+                    costUsd: summaryCostUsd,
+                    tokens: {
+                        input: memory.summaryTokenUsage.promptTokens,
+                        output: memory.summaryTokenUsage.completionTokens,
+                    },
+                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                };
+                afterTasks.push(
+                    db.doc(convPath).update({
+                        auxiliaryCosts: admin.firestore.FieldValue.arrayUnion(summaryCost),
+                    }).catch(err => console.warn('[aiChat] Failed to persist summary auxiliary cost', err))
                 );
             }
             await Promise.allSettled(afterTasks);

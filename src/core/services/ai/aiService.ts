@@ -134,7 +134,7 @@ export const AiService = {
     /**
      * Generate a short title for a conversation via Cloud Function.
      */
-    async generateTitle(firstMessage: string, model?: string): Promise<string> {
-        return AiProxy.generateChatTitle(firstMessage, model);
+    async generateTitle(firstMessage: string, model?: string, channelId?: string, conversationId?: string): Promise<string> {
+        return AiProxy.generateChatTitle(firstMessage, model, channelId, conversationId);
     },
 };

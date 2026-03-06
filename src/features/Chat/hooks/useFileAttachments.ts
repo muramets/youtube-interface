@@ -9,6 +9,24 @@ import { getAttachmentType, isAllowedMimeType, isFileWithinLimit, getFileSizeLab
 import { uploadChatAttachment, deleteStagingAttachment } from '../../../core/services/storageService';
 import { useUIStore } from '../../../core/stores/uiStore';
 
+/** Capture image dimensions via Image.onload. Returns {width, height} or undefined for non-images. */
+function captureImageDimensions(file: File): Promise<{ width: number; height: number } | undefined> {
+    if (!file.type.startsWith('image/')) return Promise.resolve(undefined);
+    return new Promise((resolve) => {
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => {
+            URL.revokeObjectURL(url);
+            resolve({ width: img.naturalWidth, height: img.naturalHeight });
+        };
+        img.onerror = () => {
+            URL.revokeObjectURL(url);
+            resolve(undefined);
+        };
+        img.src = url;
+    });
+}
+
 export function useFileAttachments(userId?: string, channelId?: string, conversationId?: string, modelProvider?: 'gemini' | 'anthropic') {
     const [stagedFiles, setStagedFiles] = useState<StagedFile[]>([]);
     const stagedFilesRef = useRef(stagedFiles);
@@ -19,7 +37,7 @@ export function useFileAttachments(userId?: string, channelId?: string, conversa
     /**
      * Upload a single file: first to Firebase Storage, then conditionally to Gemini via CF.
      */
-    const uploadFile = useCallback(async (id: string, file: File, uid: string, chId: string, convId: string) => {
+    const uploadFile = useCallback(async (id: string, file: File, uid: string, chId: string, convId: string, dims?: { width: number; height: number }) => {
         try {
             // Step 1: Upload to Firebase Storage (conversation-scoped path)
             const { storagePath, downloadUrl } = await uploadChatAttachment(uid, chId, convId, file);
@@ -42,6 +60,7 @@ export function useFileAttachments(userId?: string, channelId?: string, conversa
                 mimeType: file.type,
                 fileRef,
                 fileRefExpiry,
+                ...(dims ? { width: dims.width, height: dims.height } : {}),
             };
 
             setStagedFiles((prev) =>
@@ -92,8 +111,16 @@ export function useFileAttachments(userId?: string, channelId?: string, conversa
         setStagedFiles((prev) => [...prev, ...newEntries]);
 
         // Start uploads in parallel (fire-and-forget per file)
+        // Capture image dimensions concurrently with upload start
         for (const entry of newEntries) {
-            uploadFile(entry.id, entry.file, userId, channelId, conversationId);
+            captureImageDimensions(entry.file).then((dims) => {
+                if (dims) {
+                    setStagedFiles((prev) =>
+                        prev.map((f) => (f.id === entry.id ? { ...f, width: dims.width, height: dims.height } : f))
+                    );
+                }
+                uploadFile(entry.id, entry.file, userId, channelId, conversationId, dims);
+            });
         }
     }, [userId, channelId, conversationId, showToast, uploadFile]);
 

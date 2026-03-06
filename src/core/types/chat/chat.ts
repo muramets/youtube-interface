@@ -46,6 +46,9 @@ export interface ChatAttachment {
     fileRefExpiry?: number;    // Expiration timestamp (ms since epoch)
 }
 
+/** Message status (immutable after write). */
+export type MessageStatus = 'complete' | 'stopped' | 'deleted' | 'error';
+
 export interface ChatMessage {
     id: string;
     role: 'user' | 'model';
@@ -57,7 +60,28 @@ export interface ChatMessage {
     normalizedUsage?: NormalizedTokenUsage;
     toolCalls?: ToolCallRecord[];   // Structured tool calls from agentic mode (Stage 5+)
     overrides?: Record<string, string>; // Tier 3: Manual overrides for hallucinated references (e.g. { "4": "competitor-4" })
+    /** Immutable message status. undefined = legacy (always visible). */
+    status?: MessageStatus;
+    /** Context breakdown: char sizes of components sent to the model. */
+    contextBreakdown?: import('../../../../shared/models').ContextBreakdown;
     createdAt: Timestamp;
+}
+
+/**
+ * Pure render function: determines whether a message should be visible.
+ * Status is written once and never mutated. Visibility computed at render time.
+ */
+export function shouldShowMessage(msg: ChatMessage, allMessages: ChatMessage[]): boolean {
+    if (!msg.status || msg.status === 'complete') return true;
+    if (msg.status === 'deleted' || msg.status === 'error') return false;
+    if (msg.status === 'stopped') {
+        // Stopped visible when it's the last model message (no newer complete model message)
+        return !allMessages.some(m =>
+            m.createdAt > msg.createdAt && m.role === 'model'
+            && (!m.status || m.status === 'complete')
+        );
+    }
+    return true;
 }
 
 /** Result of a streaming AI chat call (shared between proxy/service layers). */
@@ -68,6 +92,7 @@ export interface AiChatResult {
     toolCalls?: ToolCallRecord[];
     summary?: string;
     usedSummary?: boolean;
+    contextBreakdown?: import('../../../../shared/models').ContextBreakdown;
 }
 
 /** Layer 4: A saved memory (insight) from a concluded conversation. */
@@ -94,7 +119,7 @@ export type ChatView = 'projects' | 'conversations' | 'chat';
 
 // --- Model config (imported from shared SSOT) ---
 
-export type { ModelConfig, ModelPricing, AttachmentSupport, TokenUsage, NormalizedTokenUsage } from '../../../../shared/models';
+export type { ModelConfig, ModelPricing, AttachmentSupport, TokenUsage, NormalizedTokenUsage, ContextBreakdown } from '../../../../shared/models';
 export { MODEL_REGISTRY, HISTORY_BUDGET_RATIO, estimateCostEur, estimateCacheSavingsEur, resolveModelId, getAcceptedMimeTypes, type ThinkingOption } from '../../../../shared/models';
 import { MODEL_REGISTRY, type TokenUsage, type NormalizedTokenUsage } from '../../../../shared/models';
 

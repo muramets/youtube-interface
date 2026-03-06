@@ -45,10 +45,12 @@ SyntaxHighlighter.registerLanguage('html', markup);
 SyntaxHighlighter.registerLanguage('xml', markup);
 SyntaxHighlighter.registerLanguage('svg', markup);
 import type { ChatMessage } from '../../core/types/chat/chat';
+import { shouldShowMessage } from '../../core/types/chat/chat';
 import { getVideoCards, getTrafficContexts, getCanvasContexts } from '../../core/types/appContext';
 import type { VideoCardContext } from '../../core/types/appContext';
 import { buildVideoIdMap } from '../../core/utils/buildReferenceMap';
 import { estimateCostEur, estimateCacheSavingsEur, type ModelPricing } from '../../core/types/chat/chat';
+import { getEffectiveDisplayLevel } from './utils/tokenDisplay';
 import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
 import { MemoryCheckpoint } from './components/MemoryCheckpoint';
 import { FileAudio, FileVideo, File, Copy, Check, ArrowDown, RotateCcw, MessageCircle, Pencil, Square } from 'lucide-react';
@@ -270,8 +272,45 @@ const MessageItem: React.FC<MessageItemProps> = React.memo(({ msg, modelPricing,
     }, [msg.createdAt]);
 
     // Pre-compute cache-aware cost for model messages (avoids IIFE in JSX)
+    // Reads normalizedUsage (accurate, provider-agnostic) with fallback to legacy tokenUsage
     const messageCost = useMemo(() => {
-        if (msg.role !== 'model' || !msg.tokenUsage || !modelPricing) return null;
+        if (msg.role !== 'model') return null;
+        const nu = msg.normalizedUsage;
+        // Current: hardcoded debug level (solo user). Future: from user settings + subscription tier.
+        const level = getEffectiveDisplayLevel('debug', 'debug');
+
+        if (nu) {
+            // --- Normalized path (new) ---
+            const costTotal = nu.billing.cost.total;
+            const cachedTokens = nu.billing.input.cached;
+            const totalInput = nu.billing.input.total;
+            const cachedPct = totalInput > 0 && cachedTokens > 0
+                ? Math.round((cachedTokens / totalInput) * 100) : 0;
+
+            const lines: string[] = [];
+
+            // minimal: cost only
+            lines.push(`Cost: $${costTotal.toFixed(4)}${nu.billing.cost.withoutCache > costTotal ? ` (without cache: $${nu.billing.cost.withoutCache.toFixed(4)})` : ''}`);
+
+            // standard+: input/output/cache
+            if (level !== 'minimal') {
+                lines.unshift(
+                    `Input: ${nu.contextWindow.inputTokens.toLocaleString()} tokens${cachedTokens ? ` (${cachedTokens.toLocaleString()} cached)` : ''}`,
+                    `Output: ${nu.contextWindow.outputTokens.toLocaleString()} tokens${nu.contextWindow.thinkingTokens > 0 && level === 'detailed' || level === 'debug' ? ` (${nu.contextWindow.thinkingTokens.toLocaleString()} thinking)` : ''}`,
+                );
+            }
+
+            // detailed+: thinking, iterations, tool calls
+            if ((level === 'detailed' || level === 'debug') && nu.billing.iterations > 1) {
+                const toolCount = msg.toolCalls?.length ?? 0;
+                lines.push(`Tool calls: ${toolCount} (${nu.billing.iterations} iterations)`);
+            }
+
+            return { cost: costTotal, cachedPct, tooltip: lines.join('\n'), isUsd: true };
+        }
+
+        // --- Legacy fallback (pre-normalization messages) ---
+        if (!msg.tokenUsage || !modelPricing) return null;
         const { promptTokens, completionTokens, cachedTokens, cacheWriteTokens } = msg.tokenUsage;
         const totalInput = promptTokens + (cachedTokens ?? 0) + (cacheWriteTokens ?? 0);
         const cost = estimateCostEur(modelPricing, promptTokens, completionTokens, cachedTokens, cacheWriteTokens);
@@ -282,8 +321,8 @@ const MessageItem: React.FC<MessageItemProps> = React.memo(({ msg, modelPricing,
             `Output: ${completionTokens.toLocaleString()} tokens`,
             `Cost: €${cost.toFixed(4)}${savings > 0 ? ` (without cache: €${(cost + savings).toFixed(4)})` : ''}`,
         ].join('\n');
-        return { cost, cachedPct, tooltip };
-    }, [msg.role, msg.tokenUsage, modelPricing]);
+        return { cost, cachedPct, tooltip, isUsd: false };
+    }, [msg.role, msg.tokenUsage, msg.normalizedUsage, msg.toolCalls, modelPricing]);
 
     return (
         <div ref={itemRef} data-message-id={msg.id} data-message-role={msg.role} className={`chat-message flex flex-col max-w-[85%] ${skipAnimation ? '' : 'animate-message-in'} ${msg.role === 'user' ? 'self-end' : 'self-start'}`}>
@@ -365,7 +404,7 @@ const MessageItem: React.FC<MessageItemProps> = React.memo(({ msg, modelPricing,
                 {messageCost && (
                     <PortalTooltip content={messageCost.tooltip} enterDelay={300}>
                         <span className="text-[10px] text-text-tertiary select-none cursor-default inline-flex items-center gap-0.5 hover:text-text-secondary transition-colors">
-                            €{messageCost.cost.toFixed(4)}
+                            {messageCost.isUsd ? '$' : '€'}{messageCost.cost.toFixed(4)}
                             {messageCost.cachedPct > 0 && <span className="ml-0.5" style={{ color: 'var(--color-success)' }}>↓{messageCost.cachedPct}%</span>}
                         </span>
                     </PortalTooltip>
@@ -480,6 +519,13 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     const setEditingMessage = useChatStore(s => s.setEditingMessage);
     const debouncedStreamingText = useDebouncedMarkdown(streamingText, 150);
 
+    // Filter out hidden messages (deleted, error, superseded stopped)
+    // Must be before early return to comply with Rules of Hooks
+    const visibleMessages = useMemo(() =>
+        messages.filter(msg => shouldShowMessage(msg, messages)),
+        [messages]
+    );
+
     if (messages.length === 0 && !isStreaming) {
         return (
             <div className="chat-messages flex-1 min-h-0 overflow-y-auto px-3.5 pt-3.5 pb-1 flex flex-col gap-3">
@@ -496,19 +542,19 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     //    true for ~1s after streaming ends so the Firestore message arrives without blink).
     // 2. User message that was reconciled (optimistic -> Firestore): detected when count
     //    didn't grow (same length = ID swap, not a new message).
-    const lastMsgIndex = messages.length - 1;
-    const skipAnimateLastModel = (recentlyStreamed || isStreaming) && messages[lastMsgIndex]?.role === 'model';
+    const lastMsgIndex = visibleMessages.length - 1;
+    const skipAnimateLastModel = (recentlyStreamed || isStreaming) && visibleMessages[lastMsgIndex]?.role === 'model';
 
     return (
         <div className="chat-messages flex-1 min-h-0 overflow-y-auto px-3.5 pt-3.5 pb-1 flex flex-col gap-3" ref={containerRef} onScroll={handleScroll}>
-            {messages.map((msg, idx) => {
+            {visibleMessages.map((msg, idx) => {
                 // Render memory checkpoints between messages (by timestamp)
                 const checkpointsBefore = conversationMemories.filter(m => {
                     if (!m.createdAt?.toMillis || !msg.createdAt?.toMillis) return false;
                     const memTime = m.createdAt.toMillis();
                     const msgTime = msg.createdAt.toMillis();
                     const prevTime = idx > 0
-                        ? messages[idx - 1].createdAt?.toMillis() ?? 0
+                        ? visibleMessages[idx - 1].createdAt?.toMillis() ?? 0
                         : 0;
                     return memTime > prevTime && memTime <= msgTime;
                 });
@@ -546,8 +592,8 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
 
             {/* Checkpoints after last message */}
             {conversationMemories.filter(m => {
-                if (!m.createdAt?.toMillis || messages.length === 0) return false;
-                const lastMsg = messages[messages.length - 1];
+                if (!m.createdAt?.toMillis || visibleMessages.length === 0) return false;
+                const lastMsg = visibleMessages[visibleMessages.length - 1];
                 return m.createdAt.toMillis() > (lastMsg.createdAt?.toMillis() ?? 0);
             }).map(mem => (
                 <MemoryCheckpoint

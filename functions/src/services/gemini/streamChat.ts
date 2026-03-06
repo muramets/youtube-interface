@@ -224,6 +224,8 @@ interface GeminiIterationResult {
     functionCalls: Array<{ name: string; args: Record<string, unknown> }>;
     /** Raw model parts preserving thought_signature for agentic loop history. */
     rawModelParts: Part[];
+    /** True when stream was aborted — usage from last received chunk. */
+    partial?: boolean;
 }
 
 // --- Single streaming iteration (wrapped by withStreamRetry) ---
@@ -368,6 +370,15 @@ async function geminiStreamIteration(
         if (abortReason instanceof GeminiTimeoutError) {
             throw abortReason; // Re-throw as GeminiTimeoutError for isGeminiTransient()
         }
+        // Caller-initiated abort: return partial usage from last chunk
+        const isCallerAbort = signal?.aborted === true;
+        if (isCallerAbort && tokenUsage) {
+            console.log(
+                `[gemini:streamChat] Abort — partial usage: prompt=${tokenUsage.promptTokens}, ` +
+                `completion=${tokenUsage.completionTokens}`,
+            );
+            return { iterationText, fullText, tokenUsage, thoughtsTokenCount, functionCalls, rawModelParts, partial: true };
+        }
         throw err;
     } finally {
         if (inactivityTimer) clearTimeout(inactivityTimer);
@@ -381,7 +392,7 @@ async function geminiStreamIteration(
 
 export async function streamChat(
     opts: StreamChatOpts
-): Promise<{ text: string; tokenUsage?: TokenUsage; normalizedUsage?: NormalizedTokenUsage; toolCalls?: ToolCallRecord[]; updatedThumbnailCache?: ThumbnailCache }> {
+): Promise<{ text: string; tokenUsage?: TokenUsage; normalizedUsage?: NormalizedTokenUsage; toolCalls?: ToolCallRecord[]; updatedThumbnailCache?: ThumbnailCache; partial?: boolean }> {
     const {
         apiKey,
         model,
@@ -559,8 +570,14 @@ export async function streamChat(
         console.log(
             `[gemini:streamChat] Iteration ${iteration} done — ` +
             `${iterationResult.iterationText.length} chars text, ` +
-            `${iterationResult.functionCalls.length} function calls`,
+            `${iterationResult.functionCalls.length} function calls` +
+            `${iterationResult.partial ? ' (PARTIAL — aborted)' : ''}`,
         );
+
+        // If aborted, stop the agentic loop — usage is partial
+        if (iterationResult.partial) {
+            break;
+        }
 
         // If no function calls, we're done — Gemini returned a final text response
         if (iterationResult.functionCalls.length === 0) {
@@ -673,8 +690,12 @@ export async function streamChat(
     }
     // Aggregate iteration snapshots into normalizedUsage
     let normalizedUsage: NormalizedTokenUsage | undefined;
+    const wasAborted = signal?.aborted === true;
     if (iterationSnapshots.length > 0 && modelConfig) {
         normalizedUsage = aggregateIterations(iterationSnapshots, modelConfig);
+        if (wasAborted) {
+            normalizedUsage.partial = true;
+        }
     }
 
     return {
@@ -684,5 +705,6 @@ export async function streamChat(
         toolCalls: allToolCalls.length > 0 ? allToolCalls : undefined,
         // Return the fully accumulated cache (initial upload + any mid-conversation fetches)
         updatedThumbnailCache: currentThumbnailCache,
+        partial: wasAborted,
     };
 }

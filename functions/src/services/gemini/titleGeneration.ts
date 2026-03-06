@@ -4,11 +4,16 @@
 
 import { getClient } from "./client.js";
 
+export interface TitleResult {
+    title: string;
+    tokenUsage?: { promptTokens: number; completionTokens: number; totalTokens: number };
+}
+
 export async function generateTitle(
     apiKey: string,
     firstMessage: string,
     model: string
-): Promise<string> {
+): Promise<TitleResult> {
     try {
         const ai = await getClient(apiKey);
         const response = await ai.models.generateContent({
@@ -24,10 +29,19 @@ export async function generateTitle(
                 },
             ],
         });
-        return sanitizeTitle(response.text?.trim());
+        const usage = (response as Record<string, unknown>).usageMetadata as
+            { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number } | undefined;
+        return {
+            title: sanitizeTitle(response.text?.trim()),
+            tokenUsage: usage ? {
+                promptTokens: usage.promptTokenCount ?? 0,
+                completionTokens: usage.candidatesTokenCount ?? 0,
+                totalTokens: usage.totalTokenCount ?? 0,
+            } : undefined,
+        };
     } catch (err) {
         console.warn(`[generateTitle] Failed to generate title via ${model}:`, err);
-        return "New Chat";
+        return { title: "New Chat" };
     }
 }
 

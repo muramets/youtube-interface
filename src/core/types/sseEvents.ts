@@ -16,7 +16,7 @@ export interface ToolCallRecord {
 
 // --- Token usage (re-exported from shared SSOT) ---
 
-import type { TokenUsage, NormalizedTokenUsage } from '../../../shared/models';
+import type { TokenUsage, NormalizedTokenUsage, ContextBreakdown } from '../../../shared/models';
 export type SSETokenUsage = TokenUsage;
 
 // --- SSE event discriminated union ---
@@ -64,6 +64,7 @@ export interface SSEDoneEvent {
     toolCalls?: ToolCallRecord[];
     summary?: string;
     usedSummary?: boolean;
+    contextBreakdown?: ContextBreakdown;
 }
 
 export interface SSEToolProgressEvent {
@@ -127,6 +128,7 @@ export function parseSSEEvent(data: string): SSEEvent | null {
                     toolCalls: parsed.toolCalls as ToolCallRecord[] | undefined,
                     summary: parsed.summary as string | undefined,
                     usedSummary: parsed.usedSummary as boolean | undefined,
+                    contextBreakdown: parsed.contextBreakdown as ContextBreakdown | undefined,
                 };
             case 'toolProgress':
                 return {

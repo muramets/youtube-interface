@@ -7,6 +7,7 @@ import { Plus, Send, X, FileAudio, FileVideo, File, Image, Square, Loader2, Chec
 import { MODEL_REGISTRY, getAcceptedMimeTypes, type ThinkingOption } from '../../core/types/chat/chat';
 import { getAttachmentType, isAllowedMimeTypeForModel } from '../../core/services/ai/aiService';
 import type { StagedFile, ReadyAttachment } from '../../core/types/chat/chatAttachment';
+import { estimateImageTokens } from '../../../shared/imageTokens';
 import { useChatStore } from '../../core/stores/chat/chatStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useAppContextStore, selectAllItems } from '../../core/stores/appContextStore';
@@ -253,6 +254,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 <div className="flex flex-wrap gap-1.5 mb-2">
                     {stagedFiles.map((staged) => {
                         const type = getAttachmentType(staged.file.type);
+                        // Estimate image tokens for the active model
+                        const imageTokenEstimate = type === 'image' && activeModel
+                            ? estimateImageTokens(activeModel, [{ width: staged.width, height: staged.height }])
+                            : 0;
                         return (
                             <div
                                 key={staged.id}
@@ -288,6 +293,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                         ? staged.file.name.slice(0, 17) + '...'
                                         : staged.file.name}
                                 </span>
+                                {imageTokenEstimate > 0 && (
+                                    <span className="text-text-tertiary">~{imageTokenEstimate.toLocaleString()} tokens</span>
+                                )}
                                 <button className="bg-transparent border-none p-1 rounded text-text-tertiary cursor-pointer flex text-sm leading-none hover:bg-hover-bg hover:text-[var(--danger-color,#cc0000)] transition-colors" onClick={() => onRemoveFile(staged.id)} title="Remove">
                                     <X size={12} />
                                 </button>

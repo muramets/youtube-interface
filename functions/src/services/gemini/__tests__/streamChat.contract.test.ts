@@ -895,3 +895,98 @@ describe('streamChat — normalizedUsage', () => {
         expect(nu.billing.cost.thinkingSubset).toBeLessThan(nu.billing.cost.output);
     });
 });
+
+// ===========================================================================
+// Suite D: Abort handling — partial usage on stopped messages
+// ===========================================================================
+
+describe('Gemini streamChat — abort handling (stopped messages)', () => {
+    it('returns partial=true and usage from last chunk on caller abort', async () => {
+        const abortController = new AbortController();
+
+        // Build an async iterable that yields chunks, then aborts and throws
+        async function* abortingChunks() {
+            // First chunk with text + usage
+            yield textChunk('Hello ', {
+                promptTokenCount: 800,
+                candidatesTokenCount: 10,
+                totalTokenCount: 810,
+            });
+            // Second chunk updates usage
+            yield textChunk('partial', {
+                promptTokenCount: 800,
+                candidatesTokenCount: 20,
+                totalTokenCount: 820,
+            });
+            // Simulate abort — signal fires, then iteration throws
+            abortController.abort();
+            throw new DOMException('The operation was aborted', 'AbortError');
+        }
+
+        const mockGenerateContentStream = vi.fn().mockImplementationOnce(
+            async () => abortingChunks(),
+        );
+        mockGetClient.mockResolvedValue({
+            models: { generateContentStream: mockGenerateContentStream },
+        } as never);
+
+        const result = await streamChat(makeOpts({ signal: abortController.signal }));
+
+        // Should be marked as partial
+        expect(result.partial).toBe(true);
+
+        // Token usage from last received chunk
+        expect(result.tokenUsage).toBeDefined();
+        expect(result.tokenUsage!.promptTokens).toBe(800);
+        expect(result.tokenUsage!.completionTokens).toBe(20);
+
+        // Text accumulated before abort
+        expect(result.text).toBe('Hello partial');
+    });
+
+    it('sets normalizedUsage.partial=true on abort', async () => {
+        const abortController = new AbortController();
+
+        async function* abortingChunks() {
+            yield textChunk('Some text', {
+                promptTokenCount: 1000,
+                candidatesTokenCount: 50,
+                totalTokenCount: 1050,
+            });
+            abortController.abort();
+            throw new DOMException('The operation was aborted', 'AbortError');
+        }
+
+        const mockGenerateContentStream = vi.fn().mockImplementationOnce(
+            async () => abortingChunks(),
+        );
+        mockGetClient.mockResolvedValue({
+            models: { generateContentStream: mockGenerateContentStream },
+        } as never);
+
+        const result = await streamChat(makeOpts({ signal: abortController.signal }));
+
+        expect(result.partial).toBe(true);
+        expect(result.normalizedUsage).toBeDefined();
+        expect(result.normalizedUsage!.partial).toBe(true);
+    });
+
+    it('rethrows non-abort errors even with usage present', async () => {
+        const mockGenerateContentStream = vi.fn().mockImplementationOnce(async () => {
+            async function* failingChunks() {
+                yield textChunk('text', {
+                    promptTokenCount: 100,
+                    candidatesTokenCount: 5,
+                    totalTokenCount: 105,
+                });
+                throw new Error('Network failure');
+            }
+            return failingChunks();
+        });
+        mockGetClient.mockResolvedValue({
+            models: { generateContentStream: mockGenerateContentStream },
+        } as never);
+
+        await expect(streamChat(makeOpts())).rejects.toThrow('Network failure');
+    });
+});

@@ -92,6 +92,10 @@ export interface AttachmentRef {
     mimeType: string;
     /** Human-readable file name. */
     name: string;
+    /** Image width in pixels (captured at upload time for token estimation). */
+    width?: number;
+    /** Image height in pixels (captured at upload time for token estimation). */
+    height?: number;
 }
 
 // --- Tool definitions ---
@@ -144,6 +148,8 @@ export interface StreamResult {
      * Typed at consumption site via per-provider helpers.
      */
     providerMeta?: Record<string, unknown>;
+    /** True when the stream was aborted by the caller — usage is partial. */
+    partial?: boolean;
 }
 
 // --- Token usage ---

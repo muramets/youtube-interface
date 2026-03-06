@@ -16,7 +16,7 @@ import { getVideoCards, getTrafficContexts, getCanvasContexts } from '../../../t
 import { buildSystemPrompt } from '../../../ai/systemPrompt';
 import { useAppContextStore, selectAllItems } from '../../appContextStore';
 import { debug } from '../../../utils/debug';
-import type { ChatMessage, ToolCallRecord, TokenUsage, NormalizedTokenUsage } from '../../../types/chat/chat';
+import type { ChatMessage, ToolCallRecord, TokenUsage, NormalizedTokenUsage, MessageStatus } from '../../../types/chat/chat';
 import type { ReadyAttachment } from '../../../types/chat/chatAttachment';
 import type { AppContextItem } from '../../../types/appContext';
 import type { ChatState, ActiveToolCall } from '../types';
@@ -61,7 +61,7 @@ async function streamAiResponse(
     largePayloadApproved?: boolean,
     onConfirmLargePayload?: (count: number) => void,
     onRetry?: (attempt: number) => void,
-): Promise<{ text: string; tokenUsage?: TokenUsage; normalizedUsage?: NormalizedTokenUsage; toolCalls?: ToolCallRecord[]; usedSummary?: boolean }> {
+): Promise<{ text: string; tokenUsage?: TokenUsage; normalizedUsage?: NormalizedTokenUsage; toolCalls?: ToolCallRecord[]; usedSummary?: boolean; contextBreakdown?: import('../../../../../shared/models').ContextBreakdown }> {
     return AiService.sendMessage({
         channelId,
         conversationId: convId,
@@ -119,8 +119,10 @@ async function persistAiResponse(
     tokenUsage?: TokenUsage,
     normalizedUsage?: NormalizedTokenUsage,
     toolCalls?: ToolCallRecord[],
+    status?: MessageStatus,
+    contextBreakdown?: import('../../../../../shared/models').ContextBreakdown,
 ): Promise<void> {
-    await ChatService.addMessage(userId, channelId, convId, { role: 'model', text: responseText, model, tokenUsage, normalizedUsage, toolCalls });
+    await ChatService.addMessage(userId, channelId, convId, { role: 'model', text: responseText, model, tokenUsage, normalizedUsage, toolCalls, status: status ?? 'complete', contextBreakdown });
 }
 
 /** Auto-generate title for the first exchange (fire-and-forget). */
@@ -129,7 +131,7 @@ function maybeAutoTitle(
     text: string, model: string, isFirstExchange: boolean,
 ): void {
     if (!isFirstExchange) return;
-    AiService.generateTitle(text, model)
+    AiService.generateTitle(text, model, channelId, convId)
         .then(title => ChatService.updateConversation(userId, channelId, convId, { title }))
         .catch(() => { });
 }
@@ -176,7 +178,7 @@ async function resumeSendFlow(
         if (session.streamingNonce === nonce) set(partial);
     };
 
-    const { text: responseText, tokenUsage, normalizedUsage, toolCalls, usedSummary } = await streamAiResponse(
+    const { text: responseText, tokenUsage, normalizedUsage, toolCalls, usedSummary, contextBreakdown } = await streamAiResponse(
         channelId, convId, model, systemPrompt,
         text, attachments, thumbnailUrls, contextMeta, scopedSet, get, abortController.signal,
         get().pendingThinkingOptionId,
@@ -190,7 +192,7 @@ async function resumeSendFlow(
     const finalThinkingText = get().thinkingText;
     if (session.streamingNonce === nonce) set({ isStreaming: false, streamingText: '' });
 
-    await persistAiResponse(userId, channelId, convId, responseText, model, tokenUsage, normalizedUsage, toolCalls);
+    await persistAiResponse(userId, channelId, convId, responseText, model, tokenUsage, normalizedUsage, toolCalls, undefined, contextBreakdown);
 
     if (finalThinkingText) {
         const msgs = get().messages;

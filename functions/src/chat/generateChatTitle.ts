@@ -4,6 +4,7 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { UTILITY_MODEL_ID } from "../config/models.js";
+import { logAiUsage } from "./helpers.js";
 
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
 
@@ -17,8 +18,10 @@ export const generateChatTitle = onCall(
             throw new HttpsError("unauthenticated", "Authentication required.");
         }
 
-        const { firstMessage } = request.data as {
+        const { firstMessage, channelId, conversationId } = request.data as {
             firstMessage: string;
+            channelId?: string;
+            conversationId?: string;
         };
         if (!firstMessage) {
             throw new HttpsError("invalid-argument", "firstMessage is required.");
@@ -30,7 +33,20 @@ export const generateChatTitle = onCall(
         }
 
         const { generateTitle } = await import("../services/gemini/index.js");
-        const title = await generateTitle(apiKey, firstMessage, UTILITY_MODEL_ID);
-        return { title };
+        const result = await generateTitle(apiKey, firstMessage, UTILITY_MODEL_ID);
+
+        // Log usage if channelId/conversationId provided (fire-and-forget)
+        if (result.tokenUsage && channelId && conversationId) {
+            logAiUsage(
+                request.auth.uid,
+                channelId,
+                conversationId,
+                UTILITY_MODEL_ID,
+                result.tokenUsage,
+                "title",
+            ).catch(err => console.warn('[generateChatTitle] Failed to log usage', err));
+        }
+
+        return { title: result.title };
     }
 );

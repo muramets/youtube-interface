@@ -230,6 +230,7 @@ export async function streamChat(opts: StreamChatOpts): Promise<AiChatResult> {
                             toolCalls: sseEvent.toolCalls,
                             summary: sseEvent.summary,
                             usedSummary: sseEvent.usedSummary,
+                            contextBreakdown: sseEvent.contextBreakdown,
                         };
                         break;
                     case 'confirmLargePayload':
@@ -281,14 +282,16 @@ export async function uploadFile(
 
 export async function generateChatTitle(
     firstMessage: string,
-    model?: string
+    model?: string,
+    channelId?: string,
+    conversationId?: string,
 ): Promise<string> {
     const callable = httpsCallable<
-        { firstMessage: string; model?: string },
+        { firstMessage: string; model?: string; channelId?: string; conversationId?: string },
         { title: string }
     >(functions, 'generateChatTitle');
 
-    const result = await callable({ firstMessage, model });
+    const result = await callable({ firstMessage, model, channelId, conversationId });
     return result.data.title;
 }
 

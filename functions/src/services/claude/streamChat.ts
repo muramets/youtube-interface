@@ -80,6 +80,8 @@ export interface ClaudeStreamChatResult {
     tokenUsage?: TokenUsage;
     normalizedUsage?: NormalizedTokenUsage;
     toolCalls?: ToolCallRecord[];
+    /** True when the stream was aborted — usage is partial. */
+    partial?: boolean;
 }
 
 // =============================================================================
@@ -540,8 +542,14 @@ export async function streamChat(
         console.log(
             `[claude:streamChat] Iteration ${iteration} done — ` +
             `${iterationResult.iterationText.length} chars text, ` +
-            `${iterationResult.toolUseBlocks.length} tool_use blocks`,
+            `${iterationResult.toolUseBlocks.length} tool_use blocks` +
+            `${iterationResult.partial ? ' (PARTIAL — aborted)' : ''}`,
         );
+
+        // If aborted, stop the agentic loop — usage is partial
+        if (iterationResult.partial) {
+            break;
+        }
 
         // If no tool_use blocks, we're done
         if (iterationResult.toolUseBlocks.length === 0) {
@@ -662,8 +670,13 @@ export async function streamChat(
 
     // Aggregate iteration snapshots into normalizedUsage
     let normalizedUsage: NormalizedTokenUsage | undefined;
+    // Detect if any iteration was aborted (partial usage)
+    const wasAborted = signal?.aborted === true;
     if (iterationSnapshots.length > 0 && modelConfig) {
         normalizedUsage = aggregateIterations(iterationSnapshots, modelConfig);
+        if (wasAborted) {
+            normalizedUsage.partial = true;
+        }
     }
 
     return {
@@ -671,6 +684,7 @@ export async function streamChat(
         tokenUsage,
         normalizedUsage,
         toolCalls: allToolCalls.length > 0 ? allToolCalls : undefined,
+        partial: wasAborted,
     };
 }
 
@@ -709,6 +723,8 @@ interface StreamIterationResult {
      * Includes text, thinking, and tool_use blocks.
      */
     assistantBlocks: ContentBlockParam[];
+    /** True when stream was aborted — usage is partial (input exact, output approximate). */
+    partial?: boolean;
 }
 
 /**
@@ -740,6 +756,9 @@ async function streamIteration(
     let thinkingChars = 0;
     const toolUseBlocks: Array<{ id: string; name: string; input: unknown }> = [];
     const assistantBlocks: ContentBlockParam[] = [];
+    let partial = false;
+    // Early input tokens from "message" event (fires before content, available even on abort)
+    let earlyInputTokens: number | undefined;
 
     // Inactivity timeout
     let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
@@ -785,6 +804,15 @@ async function streamIteration(
             );
 
             // --- Event handlers ---
+
+            // "message" fires BEFORE content generation — contains usage.input_tokens.
+            // Available even on immediate abort. Used for partial usage on stopped messages.
+            stream.on("message", (message) => {
+                resetTimer();
+                if (message.usage) {
+                    earlyInputTokens = message.usage.input_tokens;
+                }
+            });
 
             stream.on("text", (textDelta) => {
                 resetTimer();
@@ -865,6 +893,28 @@ async function streamIteration(
         });
 
         await streamPromise;
+    } catch (err) {
+        // On abort: build partial usage from earlyInputTokens (exact input, approximate output)
+        const isAbort = err instanceof Error && (
+            err.name === 'AbortError' ||
+            (err as { code?: string }).code === 'ERR_CANCELLED' ||
+            signal?.aborted
+        );
+        if (isAbort && earlyInputTokens != null) {
+            const approxOutput = Math.ceil(iterationText.length / 4);
+            tokenUsage = {
+                promptTokens: earlyInputTokens,
+                completionTokens: approxOutput,
+                totalTokens: earlyInputTokens + approxOutput,
+            };
+            partial = true;
+            console.log(
+                `[claude:streamChat] Abort — partial usage: input=${earlyInputTokens}, ` +
+                `output≈${approxOutput} (${iterationText.length} chars / 4)`,
+            );
+        } else {
+            throw err;
+        }
     } finally {
         if (inactivityTimer) clearTimeout(inactivityTimer);
         timeoutReject = null;
@@ -877,6 +927,7 @@ async function streamIteration(
         thinkingChars,
         toolUseBlocks,
         assistantBlocks,
+        partial,
     };
 }
 
