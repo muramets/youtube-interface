@@ -72,7 +72,7 @@ export const TokenBreakdown: React.FC<TokenBreakdownProps> = ({
                 </div>
 
                 {/* Stacked bar */}
-                <div className="flex h-2.5 rounded-full overflow-hidden bg-surface-secondary mb-2">
+                <div className="flex h-2.5 rounded-full overflow-hidden bg-surface-secondary mb-2" aria-label="Context breakdown chart">
                     {visibleComponents.map(c => {
                         const pct = total > 0 ? (scaled[c.key] / total) * 100 : 0;
                         if (pct < 0.5) return null;
@@ -81,20 +81,21 @@ export const TokenBreakdown: React.FC<TokenBreakdownProps> = ({
                                 key={c.key}
                                 className={`${c.color} opacity-80 hover:opacity-100 transition-opacity`}
                                 style={{ width: `${pct}%` }}
-                                title={`${c.label}: ${fmtTokens(scaled[c.key])} (${Math.round(pct)}%)`}
+                                role="img"
+                                aria-label={`${c.label}: ${fmtTokens(scaled[c.key])} (${Math.round(pct)}%)`}
                             />
                         );
                     })}
                 </div>
 
                 {/* Legend list */}
-                <div className="space-y-0.5">
+                <div className="space-y-0.5" role="list" aria-label="Context components">
                     {visibleComponents.map(c => {
                         const tokens = scaled[c.key];
                         const pct = total > 0 ? Math.round((tokens / total) * 100) : 0;
                         const barWidth = total > 0 ? Math.max(2, Math.round((tokens / total) * 100)) : 0;
                         return (
-                            <div key={c.key} className="flex items-center gap-2 text-[10px]">
+                            <div key={c.key} role="listitem" className="flex items-center gap-2 text-[10px]">
                                 <div className={`w-2 h-2 rounded-sm shrink-0 ${c.color} opacity-80`} />
                                 <span className="text-text-secondary w-28 shrink-0">{c.label}</span>
                                 <div className="flex-1 h-1.5 rounded-full bg-surface-secondary overflow-hidden">
