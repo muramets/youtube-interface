@@ -88,6 +88,7 @@ Gemini ссылается на конкретные видео, пользова
 - ✅ **Delta Enrichment Middleware**: `enrichContextWithDeltas()` автоматически дополняет видео данными о росте просмотров (24h/7d/30d) из trend snapshots перед отправкой в AI. Формат `Views: 111K | 24h: +1.2K / 7d: +5.3K / 30d: +12K`
 - ✅ **Traffic Sources**: 📊 иконка на VideoCardChip → read-only indicator (traffic data exists). Анализ трафика — on-demand через tool `analyzeTrafficSources` / `analyzeSuggestedTraffic`.
 - ✅ **viewThumbnails tool**: AI видит обложки видео как изображения. Gemini: Files API upload + 47h cache + approval gate (≥15 обложек). Claude: inline URL image blocks без gate. Подробнее: [viewThumbnails](./tools/view-thumbnails.md).
+- ✅ **Markdown Normalizer**: `normalizeMarkdown()` — нормализационный слой между LLM-выводом и `ReactMarkdown`. Исправляет структурные ошибки (таблица, склеенная с текстом). Code fence-aware — не трогает содержимое code blocks.
 
 **Что осталось:**
 
@@ -169,7 +170,7 @@ Gemini ссылается на конкретные видео, пользова
 **Компоненты:** `ChatPanel.tsx`, `ChatInput.tsx`, `ChatMessageList.tsx`, `ChatBubble.tsx`
 **Chips:** `VideoCardChip.tsx`, `SuggestedTrafficChip.tsx`, `CanvasSelectionChip.tsx`
 **Hooks:** `features/Chat/hooks/` (5 hooks)
-**Utils:** `videoReferenceUtils.ts` (legacy utils), `toolCallGrouping.ts` (группировка tool calls по типу для ToolCallSummary)
+**Utils:** `videoReferenceUtils.ts` (legacy utils), `toolCallGrouping.ts` (группировка tool calls по типу для ToolCallSummary), `normalizeMarkdown.ts` (нормализация LLM markdown — fix glued tables, code fence awareness), `buildToolVideoMap.ts` (video lookup из всех tool results — merge данных из browse/details/mention)
 **Stores:** `appContextStore.ts` (4 слота: playlist, traffic, canvas, trends), `chatStore` → `stoppedResponse` (ghost message, session-only)
 **Backend:** `functions/src/services/ai/` (provider router, retry, tool execution), `gemini/` (Gemini provider), `claude/` (Claude provider), `tools/` (definitions, executor, handlers), `memory.ts` (4 layers). Подробнее: [Multi-Provider Architecture](./multi-provider.md).
 **Types:** `appContext.ts` (VideoCardContext, SuggestedTrafficContext, CanvasSelectionContext)

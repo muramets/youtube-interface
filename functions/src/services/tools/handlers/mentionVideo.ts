@@ -26,7 +26,7 @@ export async function handleMentionVideo(
     const data = entry.data;
     // Build standard YouTube thumbnail URL from videoId as fallback.
     // Custom videos (docId starts with "custom-") don't have YouTube CDN thumbnails.
-    const thumbnailUrl = data.thumbnailUrl
+    const thumbnailUrl = data.thumbnail
         || (entry.docId.startsWith('custom-') ? '' : `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`);
     return {
         found: true,

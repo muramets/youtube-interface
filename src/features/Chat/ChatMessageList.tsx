@@ -56,6 +56,8 @@ import { Timestamp } from 'firebase/firestore';
 import { useChatStore } from '../../core/stores/chat/chatStore';
 import { VideoReferenceTooltip } from './components/VideoReferenceTooltip';
 import { formatRelativeTime, STATIC_AGE } from './formatRelativeTime';
+import { normalizeMarkdown } from './utils/normalizeMarkdown';
+import { buildToolVideoMap } from './utils/buildToolVideoMap';
 import { MessageErrorBoundary } from './components/ChatBoundaries';
 import { VideoCardChip } from './VideoCardChip';
 import { SuggestedTrafficChip } from './SuggestedTrafficChip';
@@ -156,7 +158,7 @@ const MarkdownMessage: React.FC<{ text: string; videoMap?: Map<string, VideoCard
                 },
             }}
         >
-            {text}
+            {normalizeMarkdown(text)}
         </ReactMarkdown>
     );
 });
@@ -401,8 +403,8 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     const confirmLargePayload = useChatStore(s => s.confirmLargePayload);
     const dismissLargePayload = useChatStore(s => s.dismissLargePayload);
 
-    // Build video lookup from persisted context for inline reference tooltips.
-    // Keyed by "{type}-{index}" to match reference URIs (e.g. "video-3", "draft-1").
+    // Build video lookup: persistedContext (user-attached) + all tool results.
+    // Used by inline mention:// links and ToolCallSummary expanded previews.
     const activeConversationId = useChatStore(s => s.activeConversationId);
     const conversations = useChatStore(s => s.conversations);
     const referenceVideoMap = useMemo<Map<string, VideoCardContext>>(() => {
@@ -410,32 +412,12 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
         const ctx = conv?.persistedContext;
         const baseMap = ctx && ctx.length > 0 ? buildVideoIdMap(ctx) : new Map<string, VideoCardContext>();
 
-        // Close data loop: supplement from mentionVideo tool call results.
-        // Videos discovered dynamically by Gemini (e.g. via analyzeSuggestedTraffic)
-        // live in msg.toolCalls[] — without this merge, their mention:// links
-        // would degrade to plain text because buildVideoIdMap only knows about
-        // user-attached persistedContext.
-        for (const msg of messages) {
-            if (!msg.toolCalls) continue;
-            for (const tc of msg.toolCalls) {
-                if (tc.name !== 'mentionVideo' || !tc.result) continue;
-                const r = tc.result as {
-                    found?: boolean;
-                    videoId?: string;
-                    title?: string;
-                    ownership?: string;
-                    channelTitle?: string;
-                    thumbnailUrl?: string;
-                };
-                if (!r.found || !r.videoId || baseMap.has(r.videoId)) continue;
-                baseMap.set(r.videoId, {
-                    type: 'video-card',
-                    videoId: r.videoId,
-                    title: r.title || '(untitled)',
-                    thumbnailUrl: r.thumbnailUrl || '',
-                    ownership: (r.ownership as VideoCardContext['ownership']) || 'competitor',
-                    channelTitle: r.channelTitle,
-                });
+        // Merge video data from tool results (browseChannelVideos, getMultipleVideoDetails, mentionVideo).
+        // persistedContext entries are authoritative — tool data only fills gaps.
+        const toolMap = buildToolVideoMap(messages);
+        for (const [videoId, toolEntry] of toolMap) {
+            if (!baseMap.has(videoId)) {
+                baseMap.set(videoId, toolEntry);
             }
         }
 
