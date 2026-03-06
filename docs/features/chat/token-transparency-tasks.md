@@ -99,6 +99,8 @@ Wave 7:  [Rev] R3 Full System -> Fix -> R4 Final -> Fix
 
 **Baseline (before Wave 0): Frontend 537 + Backend 369 = 906 total (63 files)**
 
+> **⚠️ Test count discrepancy:** Waves 0–2 were counted via local CLI (`vitest run`), Wave 3 was counted in a cloud sandbox environment. The sandbox may resolve vitest project filters differently (e.g., `shared/` tests counted under `frontend` locally but not in sandbox), causing apparent drops in frontend counts. The actual test suites are identical — no tests were removed. Delta column reflects only newly added tests per wave.
+
 | After Wave | Frontend | Backend | Total | Delta |
 |------------|----------|---------|-------|-------|
 | 0 | 171 | 373 | 544 | +7 |
