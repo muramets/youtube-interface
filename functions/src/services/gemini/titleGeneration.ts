@@ -29,7 +29,7 @@ export async function generateTitle(
                 },
             ],
         });
-        const usage = (response as Record<string, unknown>).usageMetadata as
+        const usage = (response as unknown as Record<string, unknown>).usageMetadata as
             { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number } | undefined;
         return {
             title: sanitizeTitle(response.text?.trim()),

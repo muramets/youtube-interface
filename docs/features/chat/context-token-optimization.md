@@ -4,6 +4,8 @@
 
 **Реализовано.** Compact L1 prompt (title + key metrics, без description/tags) + on-demand details через `getMultipleVideoDetails` tool. Delta enrichment автоматически добавляет рост просмотров (24h/7d/30d). ~75% экономии на input tokens по сравнению с full context.
 
+**Token Transparency интеграция:** каждый компонент контекста (system prompt, tool definitions, history, memory, current message, tool results, images) трекается через `ContextBreakdown` и визуализируется в Token Breakdown panel. Cost alerts предупреждают о дорогих разговорах. Подробности: `docs/features/chat/token-transparency.md`.
+
 ---
 
 ## Как формируется контекст (каждое сообщение)

@@ -2,7 +2,7 @@
 
 ## Текущее состояние
 
-Отображение токенов и стоимости в чате неточное. Семь проблем: context display accumulates across iterations (122K shown vs 43K real), thinking tokens not separated, hidden costs (summary/title), stopped messages lose billing data, no layer breakdown, no audit trail, buildMemory uses wrong model for budget. Full problem list -> Appendix A.
+Система полностью реализована (Waves 0–7 complete). Все 7 проблем исправлены: контекст показывает реальное значение последней итерации (не накопленное), thinking-токены отделены, auxiliary costs (summary/title) трекаются, stopped messages сохраняют billing data, добавлен layer breakdown panel, CLI audit tool, cost alerts с рекомендациями модели, buildMemory использует правильную модель для budget. 619 тестов, все passing.
 
 ---
 
@@ -26,13 +26,13 @@ User sees exactly how much each AI conversation costs, where tokens go, and gets
 
 | # | What | Tracked? | Visible? | Fixed by |
 |---|------|----------|----------|----------|
-| 1 | Main Chat (Claude) | YES (buggy) | YES (buggy) | Task C |
-| 2 | Main Chat (Gemini) | YES (buggy) | YES (buggy) | Task C |
-| 3 | L3 Summary | YES (logged) | NO | Task E |
+| 1 | Main Chat (Claude) | YES | YES | Task C ✅ |
+| 2 | Main Chat (Gemini) | YES | YES | Task C ✅ |
+| 3 | L3 Summary | YES | YES (auxiliary) | Task E ✅ |
 | 4 | L4 Memorize | YES | YES | — |
-| 5 | Title Generation | NO (bug) | NO | Task E |
+| 5 | Title Generation | YES | YES (auxiliary) | Task E ✅ |
 | 6 | Thumbnail Upload | NO | NO | Future |
-| 7 | Stopped Messages | NO (bug) | NO | Task D |
+| 7 | Stopped Messages | YES | YES (partial) | Task D ✅ |
 
 ---
 

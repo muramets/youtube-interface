@@ -21,6 +21,7 @@
 - **Provider-agnostic attachments** — все модели получают file attachments через `ProviderStreamOpts.attachments`. Gemini использует pre-uploaded refs (fast path) или server-side fallback upload. Claude принимает images по URL + PDF как document blocks.
 - **UI attachment filtering** — `accept` attribute и Send blocking адаптируются per-model из `MODEL_REGISTRY.attachmentSupport`
 - 239 backend тестов, 21 contract test для Claude streamChat
+- **Token Transparency** — оба провайдера пишут `normalizedUsage` (provider-agnostic `NormalizedTokenUsage`) на каждое model message. Включает per-iteration breakdown, thinking tokens, cost в USD. Подробности: `docs/features/chat/token-transparency.md`
 - **Utility Model Strategy** — вспомогательные задачи всегда через Gemini (не зависят от user model):
   - Title generation → `gemini-2.5-flash` (дёшево, 5 слов)
   - Summarization (Layer 3) → `gemini-2.5-flash` (сжатие текста)

@@ -64,7 +64,7 @@ export const TokenBreakdown: React.FC<TokenBreakdownProps> = ({
     );
 
     return (
-        <div className="space-y-3">
+        <div className="space-y-3" role="region" aria-label="Token breakdown">
             {/* === Context Breakdown === */}
             <div>
                 <div className="text-[11px] font-medium text-text-secondary mb-1.5">

@@ -2,7 +2,9 @@
 
 ## Текущее состояние
 
-**Stage 1-2 реализованы.** Claude-запросы используют `cache_control` breakpoints (system prompt, tools, last message). TTL = 1 час. Cache-данные (`cachedTokens`, `cacheWriteTokens`) проходят end-to-end: backend → SSE → frontend → Firestore → usage logging. Стоимость в UI точная (cache read 0.1x, cache write 2.0x). Per-message footer показывает cache-accurate €cost с тултипом-разбивкой. ChatHeader показывает кумулятивную экономию `saved €X` зелёным. Gemini пока без кэширования (Stage 3 — при росте prompt до 32K+).
+**Stage 1-2 реализованы.** Claude-запросы используют `cache_control` breakpoints (system prompt, tools, last message). TTL = 1 час. Cache-данные (`cachedTokens`, `cacheWriteTokens`) проходят end-to-end: backend → SSE → frontend → Firestore → usage logging. Стоимость в UI точная (cache read 0.1x, cache write 2.0x). Per-message footer показывает cache-accurate $cost с тултипом-разбивкой. ChatHeader показывает кумулятивную экономию `saved $X` зелёным. Gemini пока без кэширования (Stage 3 — при росте prompt до 32K+).
+
+**Token Transparency интеграция:** cache pricing теперь в `computeIterationCost()` — единственное место с pricing logic. `NormalizedTokenUsage.billing.cost` включает `cached` и `cacheWrite` стоимости per-iteration. `withoutCache` показывает гипотетическую стоимость без кэша. Подробности: `docs/features/chat/token-transparency.md`.
 
 ---
 

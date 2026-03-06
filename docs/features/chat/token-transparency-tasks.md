@@ -1,7 +1,7 @@
 # Token Transparency — Tasks
 
-## Current Wave: 7 (Final System Review)
-<!-- Update this line when moving to next wave -->
+## Current Wave: COMPLETE
+<!-- All waves done -->
 
 ## Overview
 
@@ -93,7 +93,7 @@ Wave 7:  [Rev] R3 Full System -> Fix -> R4 Final -> Fix
 | 4 | Core System Review (R1 + R2) | DONE |
 | 5 | Visualization + Audit (breakdown panel + CLI) | DONE |
 | 6 | Cost Alerts (warnings + model recommendations) | DONE |
-| 7 | Final System Review (R3 + R4) | TODO |
+| 7 | Final System Review (R3 + R4) | DONE |
 
 ## Current Test Count
 
@@ -110,7 +110,7 @@ Wave 7:  [Rev] R3 Full System -> Fix -> R4 Final -> Fix
 | 4 | 220 | 387 | 607 | +0 |
 | 5 | 225 | 387 | 612 | +5 |
 | 6 | 232 | 387 | 619 | +7 |
-| 7 | TBD | TBD | TBD | +TBD |
+| 7 | 232 | 387 | 619 | +0 |
 
 ---
 
@@ -1025,8 +1025,8 @@ Fix all review findings before moving to Wave 7.
 
 ### Tasks
 
-- [ ] **Rev R3** — Full System Architecture Review
-- [ ] **Rev R4** — Production Readiness (Full System)
+- [x] **Rev R3** — Full System Architecture Review
+- [x] **Rev R4** — Production Readiness (Full System)
 
 #### Rev R3: Full System Architecture Review
 
@@ -1083,14 +1083,14 @@ npm run check:docs                            # docs
 ```
 
 **MANDATORY: Update this file after both reviews pass (wave is NOT done until all boxes checked):**
-- [ ] Mark Rev R3, Rev R4 tasks above as done
-- [ ] Update Wave Status table: Wave 7 → DONE
-- [ ] Update "Current Test Count" table row for Wave 7 (final totals)
-- [ ] Update "Current Wave" pointer at top of file: `## Current Wave: COMPLETE`
-- [ ] Update `docs/features/chat/token-transparency.md`:
+- [x] Mark Rev R3, Rev R4 tasks above as done
+- [x] Update Wave Status table: Wave 7 → DONE
+- [x] Update "Current Test Count" table row for Wave 7 (final totals)
+- [x] Update "Current Wave" pointer at top of file: `## Current Wave: COMPLETE`
+- [x] Update `docs/features/chat/token-transparency.md`:
   - Update "Current state" section — system fully implemented
   - Update Token Consumption Map — all points tracked
-- [ ] Update related docs:
+- [x] Update related docs:
   - `docs/features/chat/multi-provider.md` — normalizedUsage integration
   - `docs/features/chat/context-token-optimization.md` — updated optimization strategy
   - `docs/features/chat/prompt-caching.md` — cache pricing in new cost model

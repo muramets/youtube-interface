@@ -6,7 +6,7 @@
 // =============================================================================
 
 import type { ToolCallRecord, TokenUsage } from "../services/ai/types.js";
-import type { NormalizedTokenUsage } from "../shared/models.js";
+import type { NormalizedTokenUsage, ContextBreakdown } from "../shared/models.js";
 
 // --- SSE event types (server-side mirror of client SSEEvent union) ---
 
@@ -22,6 +22,9 @@ type SSEDoneEvent = {
     toolCalls?: ToolCallRecord[];
     summary?: string;
     usedSummary?: boolean;
+    status?: 'complete' | 'stopped';
+    partial?: boolean;
+    contextBreakdown?: ContextBreakdown;
 };
 type SSEToolProgressEvent = { type: "toolProgress"; toolName: string; message: string; toolCallIndex: number };
 type SSEErrorEvent = { type: "error"; error: string };
