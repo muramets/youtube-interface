@@ -106,6 +106,7 @@ function buildStore(overrides: Partial<ChatState> = {}) {
         retryAttempt: 0,
         activeToolCalls: [],
         thinkingText: '',
+        stoppedResponse: null,
         hasMoreMessages: false,
         hasMoreConversations: false,
         pendingModel: null,

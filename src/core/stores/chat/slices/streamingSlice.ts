@@ -12,6 +12,7 @@ export function createStreamingSlice(): Pick<
     | 'retryAttempt'
     | 'activeToolCalls'
     | 'thinkingText'
+    | 'stoppedResponse'
     | 'stopGeneration'
 > {
     return {
@@ -21,6 +22,7 @@ export function createStreamingSlice(): Pick<
         retryAttempt: 0,
         activeToolCalls: [],
         thinkingText: '',
+        stoppedResponse: null,
 
         // Actions
         stopGeneration: () => {

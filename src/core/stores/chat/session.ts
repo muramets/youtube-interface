@@ -52,7 +52,7 @@ export function startStreamingSession(
     const controller = new AbortController();
     session.activeAbortController = controller;
     const nonce = ++session.streamingNonce;
-    set({ isStreaming: true, streamingText: '', retryAttempt: 0, activeToolCalls: [], thinkingText: '', error: null, lastFailedRequest: null });
+    set({ isStreaming: true, streamingText: '', retryAttempt: 0, activeToolCalls: [], thinkingText: '', stoppedResponse: null, error: null, lastFailedRequest: null });
     session.streamStartMs = Date.now();
     return { nonce, controller };
 }

@@ -45,6 +45,8 @@ export interface ChatState {
     retryAttempt: number; // 0 = normal, 1+ = server retrying
     activeToolCalls: ActiveToolCall[]; // tool calls in current streaming response (transient)
     thinkingText: string; // thinking text in current streaming response (transient)
+    /** Ghost message — partial AI response preserved after user clicks Stop. Session-only, never sent to API. */
+    stoppedResponse: { text: string; thinking: string; toolCalls: ActiveToolCall[]; model: string } | null;
     error: string | null;
     hasMoreMessages: boolean;
     hasMoreConversations: boolean;

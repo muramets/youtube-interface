@@ -126,15 +126,30 @@ Gemini ссылается на конкретные видео, пользова
 
 ---
 
+## Ghost Message (Stop Generation)
+
+Когда пользователь нажимает **Stop** во время стриминга ответа модели, частичный ответ и thinking chain сохраняются как **ghost message** — "призрачное" сообщение, видимое пользователю, но невидимое для AI.
+
+**Поведение:**
+- Сохраняются: частичный текст + thinking chain + tool calls → `stoppedResponse` (Zustand, session-only)
+- **Не** пишется в Firestore → **не** попадает в контекст API → модель не наследует оборванную мысль
+- Отображается полупрозрачным bubble с пометкой "Generation stopped" (thinking → tool call pills → текст)
+- Автоматически очищается при: отправке нового сообщения, редактировании предыдущего, переключении диалога, начале нового чата
+- Не переживает перезагрузку страницы (session-only by design)
+
+**Зачем:** пользователь видит, как модель рассуждала и что успела написать → может скорректировать свой промпт → при повторной отправке модель начинает "с чистого листа".
+
+---
+
 ## Known Issues
 
 ### Streaming dots пропадают при навигации назад-вперёд
 
-`setActiveConversation` в `chatStore.ts` сбрасывает `isStreaming` + `streamingNonce` при **любом** переключении — даже при возврате в тот же чат. Stream продолжает бежать на сервере, ответ появится через Firestore subscription, но streaming dots пропадают.
+`setActiveConversation` сбрасывает `isStreaming` + `streamingNonce` при **любом** переключении — даже при возврате в тот же чат. Stream продолжает бежать на сервере, ответ появится через Firestore subscription, но streaming dots пропадают.
 
 **Задача:** не сбрасывать streaming state при возврате в тот же conversation. Отвязать `streamingNonce` от navigation — nonce должен инвалидироваться только при переключении на **другой** conversation или при явном `stopGeneration`.
 
-**Затронутые файлы:** `src/core/stores/chat/chatStore.ts` — `setActiveConversation`, `handleBack`
+**Затронутые файлы:** `navigationSlice.ts` — `setActiveConversation`, `startNewChat`
 
 ---
 
@@ -155,7 +170,7 @@ Gemini ссылается на конкретные видео, пользова
 **Chips:** `VideoCardChip.tsx`, `SuggestedTrafficChip.tsx`, `CanvasSelectionChip.tsx`
 **Hooks:** `features/Chat/hooks/` (5 hooks)
 **Utils:** `videoReferenceUtils.ts` (legacy utils), `toolCallGrouping.ts` (группировка tool calls по типу для ToolCallSummary)
-**Stores:** `appContextStore.ts` (4 слота: playlist, traffic, canvas, trends)
+**Stores:** `appContextStore.ts` (4 слота: playlist, traffic, canvas, trends), `chatStore` → `stoppedResponse` (ghost message, session-only)
 **Backend:** `functions/src/services/ai/` (provider router, retry, tool execution), `gemini/` (Gemini provider), `claude/` (Claude provider), `tools/` (definitions, executor, handlers), `memory.ts` (4 layers). Подробнее: [Multi-Provider Architecture](./multi-provider.md).
 **Types:** `appContext.ts` (VideoCardContext, SuggestedTrafficContext, CanvasSelectionContext)
 **Bridges:** useSelectionContextBridge (Home+Playlists), TrafficTab (traffic), useCanvasContextBridge, useTrendsContextBridge

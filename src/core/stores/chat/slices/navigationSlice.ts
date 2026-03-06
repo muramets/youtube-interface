@@ -51,6 +51,7 @@ export function createNavigationSlice(
                 streamingText: '',
                 activeToolCalls: [],
                 thinkingText: '',
+                stoppedResponse: null,
                 error: null,
                 hasMoreMessages: false,
                 pendingLargePayloadConfirmation: null,
@@ -69,6 +70,7 @@ export function createNavigationSlice(
                 messages: [],
                 isStreaming: false,
                 streamingText: '',
+                stoppedResponse: null,
                 pendingLargePayloadConfirmation: null,
             });
         },

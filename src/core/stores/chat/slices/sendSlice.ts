@@ -285,13 +285,16 @@ export function createSendSlice(
                 await resumeSendFlow(get, set, convId!, text, attachments, appContext, persistedContext, myNonce, myAbortController, largePayloadApproved, isFirstExchange);
             } catch (err) {
                 if (err instanceof DOMException && err.name === 'AbortError') {
-                    // User stopped generation — save partial text if available
-                    const partial = get().streamingText;
-                    if (partial) {
-                        await ChatService.addMessage(userId, channelId, convId!, {
-                            role: 'model',
-                            text: partial + '\n\n*(generation stopped)*',
-                            model: resolveModel(aiSettings, projects, activeProjectId, undefined, undefined),
+                    // User stopped generation — preserve partial response as ghost message (session-only, never sent to API)
+                    const { streamingText: partial, thinkingText: thinking, activeToolCalls: toolCalls } = get();
+                    if (partial || thinking || toolCalls.length > 0) {
+                        set({
+                            stoppedResponse: {
+                                text: partial,
+                                thinking,
+                                toolCalls,
+                                model: resolveModel(aiSettings, projects, activeProjectId, undefined, undefined),
+                            },
                         });
                     }
                 } else {
@@ -364,7 +367,12 @@ export function createSendSlice(
             try {
                 await resumeSendFlow(get, set, convId, text, attachments, appContext, persistedContext, myNonce, myAbortController, true);
             } catch (err) {
-                if (!(err instanceof DOMException && err.name === 'AbortError')) {
+                if (err instanceof DOMException && err.name === 'AbortError') {
+                    const { streamingText: partial, thinkingText: thinking, activeToolCalls: toolCalls, aiSettings, projects, activeProjectId } = get();
+                    if (partial || thinking || toolCalls.length > 0) {
+                        set({ stoppedResponse: { text: partial, thinking, toolCalls, model: resolveModel(aiSettings, projects, activeProjectId, undefined, undefined) } });
+                    }
+                } else {
                     const errorMessage = err instanceof Error ? err.message : 'Failed to get AI response';
                     if (session.streamingNonce === myNonce) set({ error: errorMessage });
                 }
@@ -407,7 +415,12 @@ export function createSendSlice(
                     isFirstExchange,
                 );
             } catch (err) {
-                if (!(err instanceof DOMException && err.name === 'AbortError')) {
+                if (err instanceof DOMException && err.name === 'AbortError') {
+                    const { streamingText: partial, thinkingText: thinking, activeToolCalls: toolCalls, aiSettings: s, projects: p, activeProjectId: pid } = get();
+                    if (partial || thinking || toolCalls.length > 0) {
+                        set({ stoppedResponse: { text: partial, thinking, toolCalls, model: resolveModel(s, p, pid, undefined, undefined) } });
+                    }
+                } else {
                     const errorMessage = err instanceof Error ? err.message : 'Failed to get AI response';
                     if (session.streamingNonce === myNonce) {
                         set({ error: errorMessage, lastFailedRequest: { text, attachments, messageId } });

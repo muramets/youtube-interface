@@ -51,7 +51,7 @@ import { buildVideoIdMap } from '../../core/utils/buildReferenceMap';
 import { estimateCostEur, estimateCacheSavingsEur, type ModelPricing } from '../../core/types/chat/chat';
 import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
 import { MemoryCheckpoint } from './components/MemoryCheckpoint';
-import { FileAudio, FileVideo, File, Copy, Check, ArrowDown, RotateCcw, MessageCircle, Pencil } from 'lucide-react';
+import { FileAudio, FileVideo, File, Copy, Check, ArrowDown, RotateCcw, MessageCircle, Pencil, Square } from 'lucide-react';
 import { Timestamp } from 'firebase/firestore';
 import { useChatStore } from '../../core/stores/chat/chatStore';
 import { VideoReferenceTooltip } from './components/VideoReferenceTooltip';
@@ -396,6 +396,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     const isStreaming = useChatStore(s => s.isStreaming);
     const activeToolCalls = useChatStore(s => s.activeToolCalls);
     const thinkingText = useChatStore(s => s.thinkingText);
+    const stoppedResponse = useChatStore(s => s.stoppedResponse);
     const pendingLargePayloadConfirmation = useChatStore(s => s.pendingLargePayloadConfirmation);
     const confirmLargePayload = useChatStore(s => s.confirmLargePayload);
     const dismissLargePayload = useChatStore(s => s.dismissLargePayload);
@@ -606,6 +607,27 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                                 <span className="w-1.5 h-1.5 rounded-full bg-text-tertiary animate-typing-dot" style={{ animationDelay: '300ms' }} />
                             </span>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* Ghost message — partial AI response after user clicked Stop (session-only) */}
+            {!isStreaming && stoppedResponse && (
+                <div className="chat-message flex flex-col max-w-[85%] self-start mb-2 opacity-60">
+                    <div className={`${MSG_BUBBLE_MODEL} border border-border`}>
+                        {stoppedResponse.thinking && (
+                            <ThinkingBubble text={stoppedResponse.thinking} isStreaming={false} />
+                        )}
+                        {stoppedResponse.toolCalls.length > 0 && (
+                            <ToolCallSummary toolCalls={stoppedResponse.toolCalls} videoMap={referenceVideoMap} isStreaming={false} />
+                        )}
+                        {stoppedResponse.text && (
+                            <MarkdownMessage text={stoppedResponse.text} videoMap={referenceVideoMap} />
+                        )}
+                        <div className="flex items-center gap-1.5 mt-2 pt-1.5 border-t border-border text-text-tertiary text-[11px]">
+                            <Square size={10} />
+                            <span>Generation stopped</span>
+                        </div>
                     </div>
                 </div>
             )}
