@@ -1,15 +1,17 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useTrendStore } from '../stores/trends/trendStore';
 import { useAuth } from './useAuth';
 import { useChannelStore } from '../stores/channelStore';
-import type { VideoDeltaStats } from '../types/videoDeltaStats';
-import { computeVideoDeltas } from '../utils/computeVideoDeltas';
+import { useTrendSnapshots } from './useTrendSnapshots';
+import { calculateViewDeltas } from '../../../shared/viewDeltas';
+import type { VideoDeltaStats } from '../../../shared/viewDeltas';
 
 // =============================================================================
-// Shared hook: computes per-video delta stats from Trend Snapshots.
+// Shared hook: computes per-video delta stats from cached Trend Snapshots.
 // Accepts raw YouTube video IDs — no dependency on VideoDetails.
 //
-// Delegates computation to computeVideoDeltas() pure function.
+// Delegates I/O to useTrendSnapshots (TanStack Query cache).
+// Delegates math to calculateViewDeltas (shared pure algorithm).
 //
 // Used by:
 //   - usePlaylistDeltaStats (wraps this + aggregates totals)
@@ -21,8 +23,7 @@ export interface VideoDeltaMapResult {
     isLoading: boolean;
 }
 
-/** Stable empty result to prevent re-render loops */
-const EMPTY_RESULT: VideoDeltaMapResult = { perVideo: new Map(), isLoading: false };
+const EMPTY_MAP = new Map<string, VideoDeltaStats>();
 
 /**
  * Compute 24h/7d/30d view deltas for a set of YouTube video IDs.
@@ -30,8 +31,7 @@ const EMPTY_RESULT: VideoDeltaMapResult = { perVideo: new Map(), isLoading: fals
  * @param videoIds  - YouTube video IDs (11-character strings)
  * @param channelIdHints - Optional set of YouTube channel IDs to narrow snapshot lookups.
  *                         If provided, only trend channels matching these IDs are queried.
- *                         If omitted, ALL trend channels are scanned (slower but works
- *                         when caller doesn't know which channels own the videos).
+ *                         If omitted, ALL trend channels are scanned.
  */
 export const useVideoDeltaMap = (
     videoIds: string[],
@@ -41,55 +41,42 @@ export const useVideoDeltaMap = (
     const { currentChannel } = useChannelStore();
     const { channels: trendChannels } = useTrendStore();
 
-    const [result, setResult] = useState<VideoDeltaMapResult>(EMPTY_RESULT);
-
     // Filter to valid YouTube IDs only
     const youtubeVideoIds = useMemo(() => {
         return videoIds.filter(id => id && /^[a-zA-Z0-9_-]{11}$/.test(id));
     }, [videoIds]);
 
-    // Stable key to prevent re-fetching on reorder
-    const stableVideoIdKey = useMemo(() => {
-        return youtubeVideoIds.slice().sort().join(',');
-    }, [youtubeVideoIds]);
+    // Filter trend channels by hints
+    const relevantChannels = useMemo(() => {
+        if (!channelIdHints || trendChannels.length === 0) return trendChannels;
+        return trendChannels.filter(ch => channelIdHints.has(ch.id));
+    }, [trendChannels, channelIdHints]);
 
-    // Stable key for channel hints (if provided)
-    const stableChannelHintKey = useMemo(() => {
-        if (!channelIdHints) return '';
-        return Array.from(channelIdHints).sort().join(',');
-    }, [channelIdHints]);
+    // Cached snapshots via TanStack Query
+    const { snapshotMap, isLoading } = useTrendSnapshots(
+        user?.uid,
+        currentChannel?.id,
+        relevantChannels,
+    );
 
-    useEffect(() => {
-        if (!user?.uid || !currentChannel?.id || youtubeVideoIds.length === 0) {
-            setResult(EMPTY_RESULT);
-            return;
+    // Compute deltas: per-channel calculateViewDeltas, then merge (first wins)
+    const perVideo = useMemo(() => {
+        if (youtubeVideoIds.length === 0 || snapshotMap.size === 0) {
+            return EMPTY_MAP;
         }
 
-        if (trendChannels.length === 0) return;
-
-        const loadDeltas = async () => {
-            setResult(prev => ({ ...prev, isLoading: true }));
-
-            try {
-                const perVideoMap = await computeVideoDeltas(
-                    youtubeVideoIds,
-                    trendChannels,
-                    user.uid,
-                    currentChannel.id,
-                    channelIdHints,
-                );
-
-                setResult({ perVideo: perVideoMap, isLoading: false });
-            } catch (error) {
-                console.error('[useVideoDeltaMap] Error:', error);
-                setResult(prev => ({ ...prev, isLoading: false }));
+        const merged = new Map<string, VideoDeltaStats>();
+        for (const [, snapshots] of snapshotMap) {
+            if (snapshots.length === 0) continue;
+            const channelDeltas = calculateViewDeltas(snapshots, youtubeVideoIds);
+            for (const [videoId, stats] of channelDeltas) {
+                if (!merged.has(videoId)) {
+                    merged.set(videoId, stats);
+                }
             }
-        };
+        }
+        return merged;
+    }, [snapshotMap, youtubeVideoIds]);
 
-        loadDeltas();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [user?.uid, currentChannel?.id, stableVideoIdKey, trendChannels.length, stableChannelHintKey]);
-
-    return result;
+    return { perVideo, isLoading };
 };
-

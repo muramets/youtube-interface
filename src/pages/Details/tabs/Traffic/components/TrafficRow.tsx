@@ -23,7 +23,7 @@ import { useChannelStore } from '../../../../../core/stores/channelStore';
 import type { SuggestedTrafficNiche } from '../../../../../core/types/suggestedTraffic/suggestedTrafficNiches';
 
 import type { VideoDetails } from '../../../../../core/utils/youtubeApi';
-import type { VideoDeltaStats } from '../../../../../core/types/videoDeltaStats';
+import type { VideoDeltaStats } from '../../../../../../shared/viewDeltas';
 
 interface TrafficRowProps {
     item: TrafficSource;

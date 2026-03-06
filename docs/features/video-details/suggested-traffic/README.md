@@ -161,6 +161,7 @@ AI-ассистент анализирует suggested traffic через dedica
 - [x] Content trajectory (per-snapshot keywords evolution)
 - [x] Depth enum: quick (top 20) / standard (top 50) / detailed (top 100) / deep (all)
 - [x] Enrichment из `cached_external_videos` (Firestore) — tags, description, channelTitle
+- [x] View delta enrichment: suggested видео обогащаются `viewDelta24h/7d/30d` из trend snapshots (через `trendSnapshotService`). `analysisGuidance` объясняет LLM семантику view deltas (положительные = рост, null = нет данных). Подробнее: [Video View Deltas](../../video-view-deltas.md)
 
 ### Stage 7 — Lightweight Context ← YOU ARE HERE
 Bridge передаёт только IDs вместо полных данных. AI запрашивает details on-demand.
@@ -307,6 +308,7 @@ Bridge передаёт только IDs вместо полных данных.
 | `functions/src/services/tools/utils/csvParser.ts` | Server-side CSV parser (RFC 4180, `YT_RELATED.{id}` extraction) |
 | `functions/src/services/tools/utils/delta.ts` | Per-video timeline builder + transitions (new/dropped) |
 | `functions/src/services/tools/utils/suggestedAnalysis.ts` | Content analysis: shared tags, keywords, channels, self-channel, trajectory |
+| `functions/src/services/trendSnapshotService.ts` | Server-side trend snapshot loader for view delta enrichment |
 | `functions/src/services/tools/definitions.ts` | Tool declaration (provider-agnostic) |
 | `functions/src/services/tools/executor.ts` | Tool routing |
 
@@ -340,7 +342,8 @@ AI Analysis (on-demand):
     → csvParser.ts parses → delta.ts builds per-video timelines
     → suggestedAnalysis.ts: content analysis, self-channel, trajectory
     → Enrichment from cached_external_videos (tags, description)
-    → Returns structured JSON → LLM interprets
+    → View delta enrichment via trendSnapshotService (viewDelta24h/7d/30d)
+    → Returns structured JSON + analysisGuidance → LLM interprets
     → LLM calls mentionVideo + viewThumbnails proactively
 ```
 

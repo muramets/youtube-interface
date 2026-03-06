@@ -13,13 +13,18 @@
 
 ## Текущее состояние
 
+← YOU ARE HERE (после рефакторинга — Phases 1-4 + FINAL завершены)
+
 - [x] Расчёт дельт из Trend Snapshots
 - [x] Отображение в Trends Table (24h/7d/30d колонки, totals row, smart sort)
 - [x] Отображение в Suggested Traffic Table (tooltip при hover на Info icon)
 - [x] Отображение в Playlist Details (суммарные дельты в header, сортировка по дельтам, per-video delta в VideoCard)
-- [x] Enrichment для AI Chat (автоматическое обогащение контекста перед отправкой модели)
-- [ ] Единый вычислитель (Trends Table использует свою inline-логику — дублирование)
-- [ ] Кэширование (каждый потребитель делает свои Firestore-запросы)
+- [x] Enrichment для AI Chat (автоматическое обогащение контекста перед отправкой модели + channelIdHints)
+- [x] Единый вычислитель (`shared/viewDeltas.ts` — SSOT алгоритм, все потребители делегируют)
+- [x] Кэширование (`useTrendSnapshots()` — TanStack Query in-memory, инвалидация по `lastUpdated`)
+- [x] Серверные AI tools имеют доступ к view deltas (`getMultipleVideoDetails` + `analyzeSuggestedTraffic`)
+- [x] `analyzeSuggestedTraffic` tool обогащён view deltas на suggested videos
+- [ ] IndexedDB persistence (отложено — in-memory cache достаточен для текущего масштаба)
 
 ## Источник данных: Trend Snapshots
 
@@ -35,7 +40,17 @@ users/{userId}/channels/{channelId}/trendChannels/{trendChannelId}/snapshots/{id
 - `videoCount` — количество видео
 - `type` — `"auto"` (cron) или `"manual"` (пользователь нажал Sync)
 
-Снимки хранятся в порядке `timestamp DESC` (новейший первый).
+Снимки хранятся в порядке `timestamp DESC` (новейший первый). Снимки **неизменяемы** — раз записаны, не меняются. Новые добавляются при каждом sync (обычно раз в сутки).
+
+### Защиты от дупликатов (добавлены 2026-03-06)
+
+**Баг:** Предположительно при re-deploy Cloud Functions, Cloud Scheduler запустил catch-up execution `scheduledTrendSnapshot`. Несколько параллельных экземпляров функции создали ~186 дублирующих snapshots за один день (2026-03-05). В результате `limit(35)` (лимит на количество документов) покрывал только 4 дня вместо 35 — дельты 7d и 30d показывали `null`.
+
+**Fix 1 — Time-based query:** Заменён `limit(N)` на `where('timestamp', '>=', cutoff)` в `TrendService.getTrendSnapshots()` (frontend) и `trendSnapshotService.getTrendSnapshots()` (backend). Теперь запрос покрывает ровно `DELTA_SNAPSHOT_DAYS` **дней** независимо от количества документов.
+
+**Fix 2 — Idempotency guard:** В `SyncService.syncChannel()` перед записью snapshot проверяется: "есть ли уже snapshot за текущий UTC-день?". Если да — пропускается. Гарантирует max 1 snapshot/day/channel.
+
+**Cleanup:** 186 дубликатов удалены из production Firestore одноразовым скриптом.
 
 ## Алгоритм
 
@@ -84,9 +99,7 @@ snapshot = первый snapshot, где snapshot.timestamp <= target
 
 **Где:** `src/pages/Trends/Table/`
 
-**Как получает данные:** Вычисляет дельту **самостоятельно** в `useTrendTableData.ts` — загружает snapshots напрямую через `TrendService.getTrendSnapshots()` и считает дельту inline. Алгоритм идентичен `computeVideoDeltas()`, но код дублирован.
-
-**Почему не использует общий хук:** `useTrendTableData` уже имеет загруженные snapshots для построения таблицы, и на момент создания общего хука ещё не существовало.
+**Как получает данные:** `useTrendTableData.ts` получает snapshots через `useTrendSnapshots()` (TanStack Query cache) и делегирует delta-расчёт в `calculateViewDeltas()` из `shared/viewDeltas.ts`.
 
 **Что показывает:**
 - Три колонки: Last 24h, Last 7d, Last 30d
@@ -95,7 +108,9 @@ snapshot = первый snapshot, где snapshot.timestamp <= target
 - Числа в compact-нотации: `1500000` → `1.5M`
 - Smart Default Sort: сортировка по `delta24h DESC` если есть данные, иначе fallback на `publishedAt DESC`
 
-**Запрос:** 60 дней snapshots (30d delta + запас).
+**Запрос:** все snapshots за последние `DELTA_SNAPSHOT_DAYS` (35) дней через кэш (time-based `where`, не `limit`).
+
+**Intentional split:** "Views" колонка использует `video.viewCount` (API-synced), дельты — из snapshots. Оба записываются при одном sync, drift <1%.
 
 ### 2. Suggested Traffic Table
 
@@ -105,7 +120,7 @@ snapshot = первый snapshot, где snapshot.timestamp <= target
 
 **Оптимизация channelIdHints:** TrafficTab извлекает `channelId` из каждого traffic source и передаёт как `channelIdHints` — это сужает запрос snapshots только до релевантных trend channels, вместо сканирования всех.
 
-**Что показывает:** В `VideoPreviewTooltip` (появляется при hover на иконку ℹ️ рядом с названием видео) — три бейджа:
+**Что показывает:** В `VideoPreviewTooltip` (появляется при hover на иконку Info рядом с названием видео) — три бейджа:
 - `24h: +1.2K` (emerald/зелёный)
 - `7d: +5.3K` (emerald, 80% opacity)
 - `30d: +12K` (emerald, 60% opacity)
@@ -133,37 +148,50 @@ snapshot = первый snapshot, где snapshot.timestamp <= target
 
 **Важно:** VideoCard получает дельту **только** в контексте Playlist Detail Page. На Home Page (`HomePage.tsx`) `VideoGrid` рендерится без `videoDeltaStats` — карточки показывают только `video.viewCount` без дельт.
 
-### 5. AI Chat (Enrichment Pipeline)
+### 4. AI Chat (Enrichment Pipeline)
 
 **Где:** `src/core/ai/pipeline/enrichContextWithDeltas.ts`
 
 **Как получает данные:** Вызывает `computeVideoDeltas()` напрямую (pure async function, без React):
-1. Извлекает video IDs из `VideoCardContext` items в `appContextStore`
+1. Извлекает video IDs и `channelId` из `VideoCardContext` items в `appContextStore`
 2. Читает `trendStore.channels` и `channelStore.currentChannel` императивно через `getState()`
-3. Вычисляет дельты
-4. Патчит items: добавляет `delta24h`, `delta7d`, `delta30d`
-5. Graceful degradation: если нет snapshot-данных — items возвращаются без delta-полей
+3. Передаёт `channelIdHints` (извлечённые из items) для сужения запросов
+4. Вычисляет дельты (делегирует в `calculateViewDeltas` из shared)
+5. Патчит items: добавляет `delta24h`, `delta7d`, `delta30d`
+6. Graceful degradation: если нет snapshot-данных — items возвращаются без delta-полей
 
-**Когда срабатывает:** Автоматически при каждой отправке сообщения в чат, как шаг `prepareContext()`:
+**⚠️ Non-React context:** Этот middleware запускается из `chatStore.sendMessage`, не внутри React. Использует `computeVideoDeltas()` (прямые Firestore reads через `TrendService`), а НЕ `useTrendSnapshots()` hook. `channelIdHints` здесь уменьшает **количество Firestore reads** (меньше каналов сканируется), а не cache hits.
+
+### 5. Server-Side AI Tools
+
+**Где:** `functions/src/services/tools/handlers/`
+
+**`getMultipleVideoDetails`:** После получения данных видео, вызывает `getViewDeltas()` из `trendSnapshotService.ts`. Добавляет `viewDelta24h/7d/30d` в ответ каждого видео. Использует `channelId` из данных видео как hint. Graceful degradation: если `getViewDeltas` падает — видео возвращаются без дельт.
+
+**`analyzeSuggestedTraffic`:** После построения `topSources`, вызывает `getViewDeltas()` для всех suggested video IDs. Добавляет `viewDelta24h/7d/30d` к каждому suggested video. `channelId` берётся из `cached_external_videos` — если видео не кэшировано, дельта = null (принятый trade-off). `analysisGuidance` объясняет LLM семантику: "видео, дающее impressions вашему, и одновременно растущее — сигнал сильной алгоритмической ассоциации".
+
+### Enrichment Pipeline (общий поток)
+
+**Когда срабатывает:** Enrichment (consumer #4) запускается автоматически при каждой отправке сообщения в чат, как шаг `prepareContext()`:
 
 ```
 appContextStore (raw items)
-    ↓
+    |
 prepareContext()
-    ↓
-enrichContextWithDeltas()     ← здесь
-    ↓
+    |
+enrichContextWithDeltas()     <-- здесь
+    |
 mergeContextItems()
-    ↓
+    |
 persist to Firestore
-    ↓
-buildPersistentContextLayer() → System Prompt → AI Model
+    |
+buildPersistentContextLayer() --> System Prompt --> AI Model
 ```
 
 **Формат для модели** (в `persistentContextLayer.ts`):
 
 ```
-- Competitor: "Video Title" [id: abc123] — Views: 150K | 24h: +1.2K / 7d: +5.3K / 30d: +12K | Published: 2024-01-15
+- Competitor: "Video Title" [id: abc123] -- Views: 150K | 24h: +1.2K / 7d: +5.3K / 30d: +12K | Published: 2024-01-15
 ```
 
 **Зачем:** AI видит не только абсолютные просмотры, а динамику роста — может определить, растёт видео, стагнирует или затухает. Без дельт модели пришлось бы гадать о траектории.
@@ -171,78 +199,67 @@ buildPersistentContextLayer() → System Prompt → AI Model
 ## Data Flow (полная схема)
 
 ```
-┌─────────────────────────────────────────┐
-│          Trend Snapshots (Firestore)     │
-│  trendChannels/{id}/snapshots/{ts}       │
-│  { timestamp, videoViews: { id→count } } │
-└──────────────┬──────────────────────────┘
-               │
-       ┌───────┴───────┐
-       │               │
-       ▼               ▼
-  computeVideoDeltas()   useTrendTableData()
-  (pure async utility)   (inline, дублированный алгоритм)
-       │                        │
-       │                        ▼
-       │               ┌──────────────────┐
-       │               │  Trends Table     │
-       │               │  (24h/7d/30d      │
-       │               │   колонки + totals)│
-       │               └──────────────────┘
-       │
-  ┌────┴──────────────────────┐
-  │                           │
-  ▼                           ▼
-useVideoDeltaMap()    enrichContextWithDeltas()
-(React hook)          (AI pipeline middleware)
-  │                           │
-  ├──→ TrafficTab             ▼
-  │      └→ TrafficTable    prepareContext()
-  │          └→ TrafficRow    └→ persistentContextLayer
-  │              └→ VideoPreviewTooltip   └→ System Prompt
-  │
-  └──→ usePlaylistDeltaStats()
-         ├→ PlaylistSubtitle (aggregate header)
-         ├→ Sort options (conditional)
-         └→ VideoGrid → VirtualVideoGrid
-              └→ SortableVideoCard
-                   └→ VideoCard (currentViews + delta24h)
-                      (ТОЛЬКО в Playlist Detail Page; на Home Page — без дельт)
+Trend Snapshots (Firestore)
+  trendChannels/{id}/snapshots/{ts}
+               |
+     ----------+-----------
+     |                     |
+     v                     v
+  Frontend              Backend (Cloud Functions)
+  TanStack Query        trendSnapshotService.ts
+  (useTrendSnapshots)   (admin SDK reads)
+     |                     |
+     v                     v
+  calculateViewDeltas()  <--- shared/viewDeltas.ts (один алгоритм, 0 I/O)
+     |                     |
+     |                     +---> getMultipleVideoDetails handler
+     |                     |       (viewDelta24h/7d/30d в ответе tool)
+     |                     +---> analyzeSuggestedTraffic handler
+     |                             (view deltas на suggested videos)
+     |
+  ---+-----------------------------
+  |              |                 |
+  v              v                 v
+useTrendTableData()  useVideoDeltaMap()  enrichContextWithDeltas()
+(Trends Table)       (React hook)        (AI middleware, Firestore напрямую)
+  |                  |                         |
+  v                  +---> TrafficTab          v
+Trends Table         |      +-> VideoPreviewTooltip  prepareContext()
+(24h/7d/30d +        |                               +-> System Prompt
+ totals + sort)      +---> usePlaylistDeltaStats()
+                            +-> PlaylistSubtitle (aggregate header)
+                            +-> VideoCard (currentViews + delta24h)
 ```
 
-## Пути оптимизации
+---
 
-### 1. Устранение дублирования: Trends Table → computeVideoDeltas()
+## Архитектурные решения
 
-**Проблема:** `useTrendTableData.ts` дублирует алгоритм из `computeVideoDeltas.ts` — тот же `findSnapshot` + delta-расчёт, но inline.
+| # | Решение | Обоснование |
+|---|---------|-------------|
+| 1 | Snapshots остаются source of truth, без денормализации | Сохраняет возможность рисовать графики просмотров per day; нет лимитов на размер канала |
+| 2 | Гибрид: enrichment middleware + серверные tools оба имеют доступ к дельтам | Прикреплённые видео обогащаются автоматически; tools обогащают по запросу LLM |
+| 3 | Серверные tools читают snapshots напрямую через admin SDK | Единственный вариант без денормализации; ~0.1-0.2s latency приемлемо |
+| 4 | TanStack Query in-memory cache, инвалидация по `lastUpdated` | Snapshots неизменяемы; `gcTime: 30min`; IndexedDB отложен до реальной потребности |
+| 5 | `analyzeSuggestedTraffic` обогащается view deltas | +~750-1150 токенов, но LLM видит: видео даёт impressions моему видео И одновременно растёт на YouTube |
+| 6 | Tests first → refactor second | 865 тестов (35 файлов) обеспечивают regression safety |
+| 7 | Shared algorithm in `shared/viewDeltas.ts` | Один алгоритм, 0 I/O, 0 зависимостей — используется frontend + backend |
 
-**Решение:** Рефакторить `useTrendTableData` на использование `computeVideoDeltas()`. Сложность в том, что `useTrendTableData` работает с `TrendVideo[]` (у которых `viewCount` уже загружен), а `computeVideoDeltas` берёт `currentViews` из latest snapshot. Нужно убедиться, что оба источника "текущих просмотров" согласованы.
+## Рефакторинг: выполненные фазы
 
-**Риск:** Trends Table обрабатывает один канал за раз, а `computeVideoDeltas` может обрабатывать cross-channel video IDs. Рефакторинг может усложнить простой flow.
+Все фазы завершены. Детальный чеклист — в `docs/features/video-view-deltas-tasks.md`.
 
-### 2. Кэширование snapshot-запросов
+| Phase | Что сделано |
+|-------|-------------|
+| 1 | Safety net тесты (40 тестов на существующую логику до рефакторинга) |
+| 2 | Извлечение `calculateViewDeltas()` в `shared/`, удаление дублирования, миграция `VideoDeltaStats` |
+| 3 | `useTrendSnapshots()` TanStack Query hook + рефакторинг потребителей + `channelIdHints` |
+| 4 | `trendSnapshotService.ts` + `getMultipleVideoDetails` deltas + `analyzeSuggestedTraffic` deltas |
+| FINAL | Двойной review (R1: Architecture, R2: Production Readiness) — все проверки пройдены |
 
-**Проблема:** Каждый вызов `useVideoDeltaMap` / `computeVideoDeltas` делает независимый Firestore-запрос `getTrendSnapshots()`. Если пользователь открыл Playlist → перешёл в Traffic → вернулся — одни и те же snapshots загружаются заново.
+### Следующие шаги (не начаты)
 
-**Решение:** Кэшировать snapshots в `trendStore` или через TanStack Query (по ключу `[userId, channelId, trendChannelId, limitDays]`). Snapshots неизменяемы по своей природе — идеальные кандидаты для агрессивного кэширования.
-
-**Экономия:** При 5 trend channels это минус 5 Firestore-запросов при каждом переключении вкладки.
-
-### 3. channelIdHints — расширить на все потребители
-
-**Проблема:** `TrafficTab` и `usePlaylistDeltaStats` передают `channelIdHints` для сужения запросов. Но `enrichContextWithDeltas` (AI Chat) не передаёт hints — сканирует ВСЕ trend channels.
-
-**Решение:** Извлечь `channelId` из `VideoCardContext` items и передать как hints.
-
-**Экономия:** Если у пользователя 20 trend channels, а в контексте видео только из 3 — это минус 17 лишних запросов.
-
-### 4. Предвычисление дельт на стороне сервера
-
-**Проблема:** Дельты считаются на клиенте при каждом рендере потребителя. Для channels с 500+ видео это ощутимая нагрузка (загрузка snapshots, итерация по всем videos).
-
-**Решение (future):** При создании snapshot вычислять дельты server-side и хранить в `TrendChannel` документе. Клиенту не нужно загружать историю — дельты уже готовы.
-
-**Компромисс:** Увеличивает сложность sync pipeline и размер документа. Имеет смысл только при масштабировании до десятков пользователей.
+- IndexedDB persistence для TanStack Query cache (когда появятся пользователи и измеренная потребность)
 
 ---
 
@@ -251,7 +268,7 @@ useVideoDeltaMap()    enrichContextWithDeltas()
 ### Типы
 
 ```typescript
-// src/core/types/videoDeltaStats.ts
+// shared/viewDeltas.ts (после рефакторинга — shared между frontend и backend)
 interface VideoDeltaStats {
     delta24h: number | null;
     delta7d: number | null;
@@ -264,28 +281,29 @@ interface VideoDeltaStats {
 
 | Файл | Роль |
 |------|------|
-| `src/core/utils/computeVideoDeltas.ts` | Pure async функция: video IDs + trend channels → `Map<videoId, VideoDeltaStats>` |
-| `src/core/hooks/useVideoDeltaMap.ts` | React hook-обёртка вокруг `computeVideoDeltas` |
-| `src/core/types/videoDeltaStats.ts` | Тип `VideoDeltaStats` |
-| `src/features/Playlists/hooks/usePlaylistDeltaStats.ts` | Обёртка: per-video + aggregate totals для плейлиста |
-| `src/core/ai/pipeline/enrichContextWithDeltas.ts` | AI Chat: enrichment middleware |
-| `src/core/ai/pipeline/prepareContext.ts` | Orchestrator enrichment pipeline |
-| `src/core/ai/layers/persistentContextLayer.ts` | Форматирование дельт в Markdown для system prompt |
-| `src/pages/Trends/hooks/useTrendTableData.ts` | Inline delta-расчёт для Trends Table (дублирование) |
-| `src/pages/Details/tabs/Traffic/TrafficTab.tsx` | Потребитель: `useVideoDeltaMap` → `deltaMap` prop |
-| `src/pages/Details/tabs/Traffic/components/TrafficRow.tsx` | Потребитель: `deltaStats` → `VideoPreviewTooltip` |
-| `src/features/Video/components/VideoPreviewTooltip.tsx` | UI: три delta-бейджа (24h/7d/30d) |
-| `src/features/Video/VideoCard.tsx` | UI: `currentViews` + inline `delta24h` |
-| `src/pages/Playlists/PlaylistDetailPage.tsx` | Потребитель: `usePlaylistDeltaStats` → header + sort + grid |
-| `src/core/services/trendService.ts` | Firestore-запрос `getTrendSnapshots()` |
+| `shared/viewDeltas.ts` | **SSOT**: `calculateViewDeltas()` + `VideoDeltaStats` + `DELTA_SNAPSHOT_DAYS` (35). Zero imports. |
+| `src/core/hooks/useTrendSnapshots.ts` | TanStack Query cache: per-channel queries, keyed by `lastUpdated`, `gcTime: 30min` |
+| `src/core/utils/computeVideoDeltas.ts` | I/O wrapper (non-React): Firestore reads → `calculateViewDeltas()`. Для AI middleware. |
+| `src/core/hooks/useVideoDeltaMap.ts` | React hook: `useTrendSnapshots()` → `calculateViewDeltas()` → `Map<videoId, VideoDeltaStats>` |
+| `src/features/Playlists/hooks/usePlaylistDeltaStats.ts` | Aggregation: per-video + totals для плейлиста |
+| `src/core/ai/pipeline/enrichContextWithDeltas.ts` | AI Chat: enrichment middleware + `channelIdHints` |
+| `src/pages/Trends/hooks/useTrendTableData.ts` | Trends Table: cached snapshots → `calculateViewDeltas()` |
+| `src/pages/Trends/hooks/useTrendChannelTableData.ts` | Trends Channel Table: cached snapshots → per-channel aggregation |
+| `functions/src/services/trendSnapshotService.ts` | Server-side: admin SDK reads → `calculateViewDeltas()` from shared |
+| `functions/src/services/tools/handlers/getMultipleVideoDetails.ts` | Tool: enriches videos with `viewDelta24h/7d/30d` |
+| `functions/src/services/tools/handlers/analyzeSuggestedTraffic.ts` | Tool: enriches suggested videos with view deltas |
 
 ### Snapshot Query
 
-```typescript
-TrendService.getTrendSnapshots(userId, channelId, trendChannelId, limitDays)
-// → query(ref, orderBy('timestamp', 'desc'), limit(limitDays))
-// Возвращает TrendSnapshot[] отсортированные DESC (newest first)
-```
+Все запросы используют `DELTA_SNAPSHOT_DAYS = 35` из `shared/viewDeltas.ts`:
 
-- `limitDays = 60` — в Trends Table (30d delta + double buffer)
-- `limitDays = 32` — в `computeVideoDeltas` (30d + 2-day buffer)
+```typescript
+// Frontend (через кэш):
+useTrendSnapshots() → TrendService.getTrendSnapshots(userId, channelId, tcId, DELTA_SNAPSHOT_DAYS)
+
+// Frontend (non-React, AI middleware):
+computeVideoDeltas() → TrendService.getTrendSnapshots(userId, channelId, tcId, DELTA_SNAPSHOT_DAYS)
+
+// Backend (admin SDK):
+trendSnapshotService.getTrendSnapshots(userId, channelId, tcId, DELTA_SNAPSHOT_DAYS)
+```

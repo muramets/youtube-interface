@@ -29,6 +29,7 @@ function trendVideoToCardContext(video: TrendVideo): VideoCardContext {
         ...(video.tags ? { tags: video.tags } : {}),
         ...(video.description ? { description: video.description } : {}),
         ...(video.channelTitle ? { channelTitle: video.channelTitle } : {}),
+        ...(video.channelId ? { channelId: video.channelId } : {}),
     };
 }
 

@@ -117,9 +117,26 @@ findSnapshot(targetTimestamp):
 
 Числа форматируются в compact notation: `1500000` → `1.5M`.
 
-## computeVideoDeltas — Утилита для AI Chat
+## Shared Algorithm — `calculateViewDeltas()`
 
-`computeVideoDeltas()` — pure async функция, извлечённая из React-контекста для переиспользования в chat middleware (enrichment middleware в chatStore.sendMessage).
+Алгоритм вычисления дельт вынесен в **`shared/viewDeltas.ts`** — единый источник правды (SSOT), используемый и фронтендом, и бэкендом. Экспортирует:
+
+- `calculateViewDeltas(snapshots, videoIds)` — pure function, вычисляет дельты по массиву snapshots
+- `VideoDeltaStats` — интерфейс результата
+- `DELTA_SNAPSHOT_DAYS = 35` — единая константа лимита snapshot'ов (30d + запас)
+
+```typescript
+interface VideoDeltaStats {
+  delta24h: number | null;
+  delta7d: number | null;
+  delta30d: number | null;
+  currentViews: number;
+}
+```
+
+## computeVideoDeltas — I/O-обёртка для AI Chat
+
+`computeVideoDeltas()` — async I/O-обёртка, которая загружает snapshot'ы из Firestore и делегирует вычисления в `calculateViewDeltas()` из `shared/viewDeltas.ts`. Используется в chat middleware (enrichment pipeline в `chatStore.sendMessage`), то есть вне React-контекста.
 
 ### Параметры
 
@@ -134,19 +151,9 @@ findSnapshot(targetTimestamp):
 ### Логика
 
 1. Фильтрует невалидные video IDs (regex `^[a-zA-Z0-9_-]{11}$`)
-2. Для каждого relevant channel параллельно запрашивает snapshots (32 дня)
-3. Находит snapshots для 24h/7d/30d назад
-4. Вычисляет дельты: `current - past`
-5. Возвращает `Map<videoId, VideoDeltaStats>`
-
-```typescript
-interface VideoDeltaStats {
-  delta24h: number | null;
-  delta7d: number | null;
-  delta30d: number | null;
-  currentViews: number;
-}
-```
+2. Для каждого relevant channel параллельно запрашивает snapshots (`DELTA_SNAPSHOT_DAYS` дней)
+3. Делегирует в `calculateViewDeltas()` — поиск snapshot'ов для 24h/7d/30d и вычисление дельт
+4. Возвращает `Map<videoId, VideoDeltaStats>`
 
 ---
 
@@ -158,7 +165,9 @@ interface VideoDeltaStats {
 |------|-----------|
 | `src/pages/Trends/Table/TrendsTable.tsx` | Основной компонент таблицы |
 | `src/pages/Trends/Table/TrendsVideoRow.tsx` | Строка видео + `DeltaValue` component |
-| `src/pages/Trends/hooks/useTrendTableData.ts` | Video-level data + snapshots + deltas |
+| `shared/viewDeltas.ts` | SSOT: `calculateViewDeltas()`, `VideoDeltaStats`, `DELTA_SNAPSHOT_DAYS` |
+| `src/core/hooks/useTrendSnapshots.ts` | TanStack Query cache for trend snapshots (per-channel) |
+| `src/pages/Trends/hooks/useTrendTableData.ts` | Video-level data; uses `useTrendSnapshots()` cache + `calculateViewDeltas()` |
 | `src/pages/Trends/hooks/useTrendChannelTableData.ts` | Channel-level aggregation |
 | `src/core/utils/computeVideoDeltas.ts` | Reusable delta computation (outside React) |
 | `src/core/types/trends.ts` | `TrendVideoRow`, `TrendChannelRow`, `TrendSortConfig`, `TrendTotals` |
@@ -199,4 +208,4 @@ TrendService.getTrendSnapshots(userId, channelId, trendChannelId, limitDays)
 // Возвращает TrendSnapshot[] отсортированные DESC (newest first)
 ```
 
-`limitDays = 60` в table hooks (30d delta + запас). `limitDays = 32` в `computeVideoDeltas` (30d + buffer).
+Лимит snapshot'ов унифицирован: `DELTA_SNAPSHOT_DAYS = 35` из `shared/viewDeltas.ts` — используется и в table hooks (через `useTrendSnapshots()`), и в `computeVideoDeltas()` (AI middleware).

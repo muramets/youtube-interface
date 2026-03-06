@@ -189,6 +189,7 @@ function youtubeItemToCacheDoc(item: YouTubeVideoItem): Record<string, unknown> 
         title: item.snippet.title,
         description: item.snippet.description ?? "",
         tags: item.snippet.tags ?? [],
+        channelId: item.snippet.channelId || undefined,
         channelTitle: item.snippet.channelTitle,
         publishedAt: item.snippet.publishedAt,
         thumbnail: item.snippet.thumbnails?.medium?.url ?? item.snippet.thumbnails?.default?.url,

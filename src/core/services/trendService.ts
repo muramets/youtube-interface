@@ -12,7 +12,7 @@ import {
     increment,
     query,
     orderBy,
-    limit
+    where
 } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import type { TrendChannel, TrendVideo, TrendNiche, HiddenVideo, TrendSnapshot } from '../types/trends';
@@ -801,11 +801,13 @@ export const TrendService = {
     ): Promise<TrendSnapshot[]> => {
         const ref = collection(db, `users/${userId}/channels/${userChannelId}/trendChannels/${trendChannelId}/snapshots`);
 
-        // Optimization: Fetch only the necessary recent history from Firestore
-        // This saves Read quota and bandwidth.
+        // Time-based query: fetch all snapshots within the window.
+        // Using timestamp cutoff (not document limit) ensures correct coverage
+        // even when duplicate snapshots exist (e.g. from re-deploy catch-up).
         let q;
         if (limitDays > 0) {
-            q = query(ref, orderBy('timestamp', 'desc'), limit(limitDays));
+            const cutoff = Date.now() - limitDays * 24 * 60 * 60 * 1000;
+            q = query(ref, where('timestamp', '>=', cutoff), orderBy('timestamp', 'desc'));
         } else {
             q = query(ref, orderBy('timestamp', 'desc'));
         }

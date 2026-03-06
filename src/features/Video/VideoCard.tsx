@@ -21,7 +21,7 @@ import { useChannelStore } from '../../core/stores/channelStore';
 import { useSettings } from '../../core/hooks/useSettings';
 import { useUIStore } from '../../core/stores/uiStore';
 import { Toast } from '../../components/ui/molecules/Toast';
-import type { VideoDeltaStats } from '../Playlists/hooks/usePlaylistDeltaStats';
+import type { VideoDeltaStats } from '../../../shared/viewDeltas';
 
 export interface VideoCardAnonymizeData {
   channelTitle: string;

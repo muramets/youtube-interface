@@ -27,7 +27,7 @@
 | Параметр | Тип | Default | Описание |
 |----------|-----|---------|----------|
 | `uploadsPlaylistId` | string | — | Required. Из ответа `getChannelOverview` |
-| `channelId` | string | — | Optional. Для trend cache optimization |
+| `channelId` | string | — | Optional. Enables trend cache lookup (0-quota if tracked in Trends) + persists `channelId` on cached videos for view delta enrichment |
 | `publishedAfter` | string (ISO date) | — | Фильтр по дате (экономия output, не API) |
 
 ---
@@ -49,7 +49,9 @@
 }
 ```
 
-Side effect: все fetched видео кэшируются в `cached_external_videos/`.
+Side effects:
+- Все fetched видео кэшируются в `cached_external_videos/` (включая `channelId` из YouTube API)
+- `channelId` persistence enables downstream view delta lookups в `getMultipleVideoDetails` и `analyzeSuggestedTraffic` ([подробнее](../../video-view-deltas.md))
 
 ---
 

@@ -3,7 +3,7 @@ import { Copy, Check, Calendar, Tag, AlignLeft, GitCompare } from 'lucide-react'
 import { useVideoPlayer } from '../../../core/hooks/useVideoPlayer';
 import { DiffHighlight } from './DiffHighlight';
 import type { VideoDetails } from '../../../core/utils/youtubeApi';
-import type { VideoDeltaStats } from '../../../core/types/videoDeltaStats';
+import type { VideoDeltaStats } from '../../../../shared/viewDeltas';
 
 interface VideoPreviewTooltipProps {
     videoId: string;

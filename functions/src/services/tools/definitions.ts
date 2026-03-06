@@ -62,6 +62,8 @@ const getMultipleVideoDetails: ToolDefinition = {
         "Fetch full metadata (description, tags, etc.) for one or more videos by their IDs. " +
         "The context only contains compact info (title + key metrics). Use this tool when " +
         "you need description, tags, or other detailed fields to answer the user's question. " +
+        "Response includes view growth data (viewDelta24h/7d/30d) when the video's channel " +
+        "is tracked in Trends — use these to assess whether a video is actively growing or stagnating. " +
         "You can request up to 20 videos in a single call.",
     parametersJsonSchema: {
         type: "object",
@@ -83,7 +85,9 @@ const analyzeSuggestedTraffic: ToolDefinition = {
         "Analyze suggested traffic data for a video. Downloads all CSV snapshots, " +
         "builds per-video timeline trajectories across all snapshots with pre-computed deltas, " +
         "identifies pool transitions (new/dropped sources per period), and optionally analyzes " +
-        "tag/keyword overlap. Returns structured findings for strategic interpretation. " +
+        "tag/keyword overlap. Each suggested video includes YouTube-wide view deltas " +
+        "(viewDelta24h/7d/30d) showing whether it is growing or stagnating on YouTube overall. " +
+        "Returns structured findings for strategic interpretation. " +
         "Use when the user asks about suggested traffic, algorithmic neighbors, " +
         "or which videos appear alongside theirs. " +
         "IMPORTANT: This tool only works for videos that have Suggested Traffic CSV snapshots " +

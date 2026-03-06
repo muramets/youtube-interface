@@ -16,7 +16,7 @@ import type { SuggestedTrafficNiche } from '../../../../../core/types/suggestedT
 import type { SmartSuggestion } from '../hooks/useSmartNicheSuggestions';
 
 import type { VideoDetails } from '../../../../../core/utils/youtubeApi';
-import type { VideoDeltaStats } from '../../../../../core/types/videoDeltaStats';
+import type { VideoDeltaStats } from '../../../../../../shared/viewDeltas';
 
 import type { TrafficType } from '../../../../../core/types/suggestedTraffic/videoTrafficType';
 import type { ViewerType } from '../../../../../core/types/suggestedTraffic/viewerType';

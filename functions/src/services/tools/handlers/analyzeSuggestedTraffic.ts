@@ -24,6 +24,7 @@ import {
     computeSelfChannelStats,
     computeContentTrajectory,
 } from "../utils/suggestedAnalysis.js";
+import { getViewDeltas } from "../../trendSnapshotService.js";
 import type { ToolContext } from "../types.js";
 import type { VideoSnapshotEntry } from "../utils/delta.js";
 import type { EnrichedVideoData } from "../utils/suggestedAnalysis.js";
@@ -187,7 +188,45 @@ export async function handleAnalyzeSuggestedTraffic(
         avgViewDuration: t.avgViewDuration,
         watchTimeHours: t.watchTimeHours,
         timeline: t.timeline,
+        viewDelta24h: null as number | null,
+        viewDelta7d: null as number | null,
+        viewDelta30d: null as number | null,
     }));
+
+    // --- Step 5b: Enrich topSources with YouTube-wide view deltas ---
+    try {
+        const topVideoIds = topSources.map(s => s.videoId);
+        const cacheRefs = topVideoIds.map(id =>
+            db.doc(`${basePath}/cached_external_videos/${id}`),
+        );
+        const cacheSnaps = await db.getAll(...cacheRefs);
+
+        const channelIdHints = new Set<string>();
+        for (const snap of cacheSnaps) {
+            if (snap.exists) {
+                const chId = snap.data()?.channelId;
+                if (typeof chId === "string" && chId) {
+                    channelIdHints.add(chId);
+                }
+            }
+        }
+
+        const deltaMap = await getViewDeltas(
+            ctx.userId, ctx.channelId, topVideoIds,
+            channelIdHints.size > 0 ? channelIdHints : undefined,
+        );
+
+        for (const source of topSources) {
+            const stats = deltaMap.get(source.videoId);
+            if (stats) {
+                source.viewDelta24h = stats.delta24h;
+                source.viewDelta7d = stats.delta7d;
+                source.viewDelta30d = stats.delta30d;
+            }
+        }
+    } catch (err) {
+        console.warn("[analyzeSuggestedTraffic] View deltas enrichment failed:", err);
+    }
 
     const tailSlice = allTimelines.slice(limit);
     const tail = {
@@ -342,6 +381,7 @@ CRITICAL RULES:
   • <30% = "External Discovery" — the video broke into external suggested pools, reaching new audiences beyond the subscriber base. This is a sign of broader algorithmic reach and topic authority.
   selfChannelStats.timeline shows self-channel percentage PER SNAPSHOT — use it to identify the inflection point where self-channel traffic started growing. For example, if timeline shows [0%, 10%, 40%, 73%], explain WHEN the shift happened and correlate with topSources timelines to identify which specific video triggered the ecosystem boost.
   Always call out selfPercentage explicitly when present. This is one of the most strategically important metrics in the analysis.
+- "viewDelta24h/7d/30d" on each topSource = YouTube-wide view growth of that suggested video over the last 24 hours / 7 days / 30 days. A video driving impressions to yours while itself growing rapidly (high viewDelta24h) signals a strong algorithmic association — YouTube is actively promoting both videos together. A stagnating source (viewDelta ≈ 0) means the traffic comes from an older, evergreen association. Null = no trend data available for that video's channel.
 - DO NOT recalculate any numbers. Interpret and explain what the findings mean strategically.
 - If timelines have only 1 point (single snapshot), note that trend data requires at least 2 snapshots.
 - If you need deeper content analysis for specific videos — call getMultipleVideoDetails with their IDs. Do this selectively for the most interesting movers.

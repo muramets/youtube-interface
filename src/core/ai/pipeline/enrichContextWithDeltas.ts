@@ -18,6 +18,9 @@ import { debug } from '../../utils/debug';
  * Enrich VideoCardContext items with delta view stats from Trend Snapshots.
  * Items without matching snapshot data are returned unchanged.
  *
+ * Extracts channelId from video-card items to narrow snapshot lookups
+ * (channelIdHints optimization — fewer Firestore reads).
+ *
  * @param items - Raw context items from appContextStore
  * @param userId - Firebase user ID
  * @returns Enriched copy of items (never mutates originals)
@@ -35,6 +38,12 @@ export async function enrichContextWithDeltas(
 
     const videoIds = videoCards.map(v => v.videoId);
 
+    // Extract channelId hints from video-card items to narrow snapshot lookups
+    const channelIds = videoCards
+        .map(v => v.channelId)
+        .filter((id): id is string => !!id);
+    const channelIdHints = channelIds.length > 0 ? new Set(channelIds) : undefined;
+
     // Read stores imperatively (safe outside React)
     const trendChannels = useTrendStore.getState().channels;
     const currentChannel = useChannelStore.getState().currentChannel;
@@ -50,6 +59,7 @@ export async function enrichContextWithDeltas(
             trendChannels,
             userId,
             currentChannel.id,
+            channelIdHints,
         );
 
         if (deltaMap.size === 0) {

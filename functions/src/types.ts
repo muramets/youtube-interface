@@ -49,6 +49,7 @@ export interface YouTubeVideoSnippet {
         high?: { url: string };
     };
     publishedAt: string;
+    channelId?: string;
     channelTitle: string;
     description?: string;
     tags?: string[];

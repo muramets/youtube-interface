@@ -22,6 +22,7 @@ export interface VideoCardContext {
     tags?: string[];
     thumbnailUrl: string; // YouTube CDN URL (public, fetchable server-side)
     channelTitle?: string; // Channel name (for competitor videos)
+    channelId?: string;    // YouTube channel ID (for channelIdHints optimization)
     viewCount?: string;
     publishedAt?: string;
     duration?: string;

@@ -90,14 +90,33 @@ export class SyncService {
             await batch.commit();
         }
 
-        // 4. Save Snapshot
-        const snapshotRef = this.db.doc(`users/${userId}/channels/${userChannelId}/trendChannels/${trendChannel.id}/snapshots/${timestamp}`);
-        await snapshotRef.set({
-            timestamp: timestamp,
-            videoViews: videoViews,
-            videoCount: videos.length,
-            type: snapshotType
-        });
+        // 4. Save Snapshot (with idempotency guard — max 1 per UTC day)
+        const snapshotsCol = this.db.collection(
+            `users/${userId}/channels/${userChannelId}/trendChannels/${trendChannel.id}/snapshots`,
+        );
+        const todayStart = new Date(timestamp);
+        todayStart.setUTCHours(0, 0, 0, 0);
+        const todayEnd = new Date(timestamp);
+        todayEnd.setUTCHours(23, 59, 59, 999);
+
+        const existingToday = await snapshotsCol
+            .where("timestamp", ">=", todayStart.getTime())
+            .where("timestamp", "<=", todayEnd.getTime())
+            .limit(1)
+            .get();
+
+        if (existingToday.empty) {
+            await snapshotsCol.doc(`${timestamp}`).set({
+                timestamp: timestamp,
+                videoViews: videoViews,
+                videoCount: videos.length,
+                type: snapshotType,
+            });
+        } else {
+            console.log(
+                `[SyncService] Snapshot already exists for ${todayStart.toISOString().split("T")[0]} — skipping (channel: ${trendChannel.id})`,
+            );
+        }
 
         // 5. Update Channel Stats (Total Views, Last Updated)
         await this.updateChannelStats(userId, userChannelId, trendChannel.id, videos, timestamp);

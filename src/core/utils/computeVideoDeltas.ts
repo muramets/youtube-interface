@@ -1,18 +1,22 @@
 // =============================================================================
-// computeVideoDeltas — Pure async function for video delta computation
+// computeVideoDeltas — Async I/O wrapper for video delta computation
 //
-// Extracted from useVideoDeltaMap hook to enable reuse outside React context
-// (e.g., enrichment middleware in chatStore.sendMessage).
-//
-// Computes 24h/7d/30d view deltas from Trend Snapshots.
+// Handles Firestore reads (TrendService) and delegates pure math to
+// shared/viewDeltas.ts. Used outside React context (e.g., AI enrichment).
 // =============================================================================
 
 import { TrendService } from '../services/trendService';
-import type { TrendChannel, TrendSnapshot } from '../types/trends';
-import type { VideoDeltaStats } from '../types/videoDeltaStats';
+import type { TrendChannel } from '../types/trends';
+import { calculateViewDeltas, DELTA_SNAPSHOT_DAYS } from '../../../shared/viewDeltas';
+import type { VideoDeltaStats } from '../../../shared/viewDeltas';
+
+export type { VideoDeltaStats } from '../../../shared/viewDeltas';
 
 /**
  * Compute per-video view deltas from Trend Snapshots.
+ *
+ * I/O layer: fetches snapshots from Firestore per channel, delegates math
+ * to shared algorithm, merges results (first channel with data wins).
  *
  * @param videoIds         - YouTube video IDs (11-character strings)
  * @param trendChannels    - Available trend channels to scan for snapshots
@@ -34,11 +38,6 @@ export async function computeVideoDeltas(
         return new Map();
     }
 
-    const now = Date.now();
-    const oneDayMs = 24 * 60 * 60 * 1000;
-    const videoIdSet = new Set(youtubeVideoIds);
-    const videoDeltas: Map<string, { current: number; past24h?: number; past7d?: number; past30d?: number }> = new Map();
-
     // Determine which trend channels to query
     const relevantChannels = channelIdHints
         ? trendChannels.filter(ch => channelIdHints.has(ch.id))
@@ -48,65 +47,34 @@ export async function computeVideoDeltas(
         return new Map();
     }
 
-    // Fetch snapshots for each relevant trend channel (in parallel)
-    const snapshotPromises = relevantChannels.map(async (channel) => {
-        try {
-            const snapshots = await TrendService.getTrendSnapshots(
-                userId,
-                channelId,
-                channel.id,
-                32, // 32 days covers 30d delta + buffer
-            );
-
-            if (snapshots.length === 0) return;
-
-            const latestSnapshot = snapshots[0]; // Already sorted DESC
-
-            const findSnapshot = (targetTs: number): TrendSnapshot | undefined => {
-                return snapshots.find(s => s.timestamp <= targetTs);
-            };
-
-            const snap24h = findSnapshot(now - oneDayMs);
-            const snap7d = findSnapshot(now - (7 * oneDayMs));
-            const snap30d = findSnapshot(now - (30 * oneDayMs));
-
-            for (const videoId of videoIdSet) {
-                const currentViews = latestSnapshot.videoViews[videoId];
-                if (currentViews === undefined) continue;
-
-                if (!videoDeltas.has(videoId)) {
-                    videoDeltas.set(videoId, { current: currentViews });
-                }
-
-                const entry = videoDeltas.get(videoId)!;
-
-                if (snap24h?.videoViews[videoId] !== undefined) {
-                    entry.past24h = snap24h.videoViews[videoId];
-                }
-                if (snap7d?.videoViews[videoId] !== undefined) {
-                    entry.past7d = snap7d.videoViews[videoId];
-                }
-                if (snap30d?.videoViews[videoId] !== undefined) {
-                    entry.past30d = snap30d.videoViews[videoId];
-                }
+    // Fetch snapshots per channel in parallel, compute deltas per channel
+    const channelResults = await Promise.all(
+        relevantChannels.map(async (channel) => {
+            try {
+                const snapshots = await TrendService.getTrendSnapshots(
+                    userId,
+                    channelId,
+                    channel.id,
+                    DELTA_SNAPSHOT_DAYS,
+                );
+                if (snapshots.length === 0) return new Map<string, VideoDeltaStats>();
+                return calculateViewDeltas(snapshots, youtubeVideoIds);
+            } catch (err) {
+                console.warn(`[computeVideoDeltas] Failed to fetch snapshots for channel ${channel.id}:`, err);
+                return new Map<string, VideoDeltaStats>();
             }
-        } catch (err) {
-            console.warn(`[computeVideoDeltas] Failed to fetch snapshots for channel ${channel.id}:`, err);
+        }),
+    );
+
+    // Merge: first channel with data for a video wins
+    const merged = new Map<string, VideoDeltaStats>();
+    for (const channelMap of channelResults) {
+        for (const [videoId, stats] of channelMap) {
+            if (!merged.has(videoId)) {
+                merged.set(videoId, stats);
+            }
         }
-    });
-
-    await Promise.all(snapshotPromises);
-
-    // Build per-video delta map
-    const perVideoMap: Map<string, VideoDeltaStats> = new Map();
-
-    for (const [videoId, entry] of videoDeltas.entries()) {
-        const delta24h = entry.past24h !== undefined ? entry.current - entry.past24h : null;
-        const delta7d = entry.past7d !== undefined ? entry.current - entry.past7d : null;
-        const delta30d = entry.past30d !== undefined ? entry.current - entry.past30d : null;
-
-        perVideoMap.set(videoId, { delta24h, delta7d, delta30d, currentViews: entry.current });
     }
 
-    return perVideoMap;
+    return merged;
 }

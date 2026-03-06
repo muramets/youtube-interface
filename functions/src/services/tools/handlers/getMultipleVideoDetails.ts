@@ -11,6 +11,7 @@
 
 import { db } from "../../../shared/db.js";
 import { YouTubeService } from "../../youtube.js";
+import { getViewDeltas } from "../../trendSnapshotService.js";
 import type { ToolContext } from "../types.js";
 
 export async function handleGetMultipleVideoDetails(
@@ -78,6 +79,7 @@ export async function handleGetMultipleVideoDetails(
                             title: item.snippet.title,
                             description: item.snippet.description ?? "",
                             tags: item.snippet.tags ?? [],
+                            channelId: item.snippet.channelId || undefined,
                             channelTitle: item.snippet.channelTitle,
                             publishedAt: item.snippet.publishedAt,
                             thumbnail: item.snippet.thumbnails?.medium?.url ?? item.snippet.thumbnails?.default?.url,
@@ -105,6 +107,28 @@ export async function handleGetMultipleVideoDetails(
             console.warn(`[getMultipleVideoDetails] YouTube API fallback failed:`, err);
             // Continue with what we have — notFoundIds stays as-is
         }
+    }
+
+    // --- Step 3: Enrich with view deltas (24h/7d/30d) ---
+    try {
+        const allVideoIds = videos.map(v => v.videoId as string);
+        const hints = new Set(
+            videos.map(v => v.channelId as string).filter(Boolean),
+        );
+        const deltaMap = await getViewDeltas(
+            ctx.userId, ctx.channelId, allVideoIds,
+            hints.size > 0 ? hints : undefined,
+        );
+        for (const video of videos) {
+            const stats = deltaMap.get(video.videoId as string);
+            if (stats) {
+                video.viewDelta24h = stats.delta24h;
+                video.viewDelta7d = stats.delta7d;
+                video.viewDelta30d = stats.delta30d;
+            }
+        }
+    } catch (err) {
+        console.warn("[getMultipleVideoDetails] View deltas enrichment failed:", err);
     }
 
     return {
@@ -136,6 +160,7 @@ function formatVideoData(
         description: data.description || "",
         tags: data.tags || [],
         ownership,
+        channelId: data.channelId || undefined,
         channelTitle: data.channelTitle || undefined,
         viewCount: data.viewCount || undefined,
         likeCount: data.likeCount || undefined,

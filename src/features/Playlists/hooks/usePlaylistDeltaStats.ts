@@ -2,9 +2,8 @@ import { useMemo } from 'react';
 import type { VideoDetails } from '../../../core/utils/youtubeApi';
 import { useVideoDeltaMap } from '../../../core/hooks/useVideoDeltaMap';
 
-// Re-export from shared location for backward-compatible imports
-export type { VideoDeltaStats } from '../../../core/types/videoDeltaStats';
-import type { VideoDeltaStats } from '../../../core/types/videoDeltaStats';
+export type { VideoDeltaStats } from '../../../../shared/viewDeltas';
+import type { VideoDeltaStats } from '../../../../shared/viewDeltas';
 
 export interface PlaylistDeltaStats {
     // Aggregate totals for playlist header
