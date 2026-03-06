@@ -51,6 +51,7 @@ import type { VideoCardContext } from '../../core/types/appContext';
 import { buildVideoIdMap } from '../../core/utils/buildReferenceMap';
 import { estimateCostEur, estimateCacheSavingsEur, type ModelPricing } from '../../core/types/chat/chat';
 import { getEffectiveDisplayLevel } from './utils/tokenDisplay';
+import { EXPENSIVE_MESSAGE_THRESHOLD } from './hooks/useCostAlerts';
 import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
 import { MemoryCheckpoint } from './components/MemoryCheckpoint';
 import { FileAudio, FileVideo, File, Copy, Check, ArrowDown, RotateCcw, MessageCircle, Pencil, Square } from 'lucide-react';
@@ -406,6 +407,11 @@ const MessageItem: React.FC<MessageItemProps> = React.memo(({ msg, modelPricing,
                         <span className="text-[10px] text-text-tertiary select-none cursor-default inline-flex items-center gap-0.5 hover:text-text-secondary transition-colors">
                             {messageCost.isUsd ? '$' : '€'}{messageCost.cost.toFixed(4)}
                             {messageCost.cachedPct > 0 && <span className="ml-0.5" style={{ color: 'var(--color-success)' }}>↓{messageCost.cachedPct}%</span>}
+                            {messageCost.cost >= EXPENSIVE_MESSAGE_THRESHOLD && (
+                                <PortalTooltip content={`Expensive message: $${messageCost.cost.toFixed(2)}`} enterDelay={200}>
+                                    <span className="ml-0.5 text-[9px] font-bold" style={{ color: 'var(--color-error)' }}>$</span>
+                                </PortalTooltip>
+                            )}
                         </span>
                     </PortalTooltip>
                 )}

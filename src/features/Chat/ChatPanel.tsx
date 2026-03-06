@@ -29,6 +29,8 @@ import { ConversationList } from './components/ConversationList';
 import { ChatSummaryBanner } from './components/ChatSummaryBanner';
 import { ChatListErrorBoundary } from './components/ChatBoundaries';
 import { TokenBreakdown } from './components/TokenBreakdown';
+import { CostAlertBanner } from './components/CostAlertBanner';
+import { useCostAlerts } from './hooks/useCostAlerts';
 import type { ReadyAttachment } from '../../core/types/chat/chatAttachment';
 
 export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number; anchorRightPx?: number }> = ({ onClose, anchorBottomPx = 32, anchorRightPx = 32 }) => {
@@ -127,6 +129,9 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
         }
         return null;
     }, [messages]);
+
+    // --- Cost alerts ---
+    const costAlert = useCostAlerts(messages, activeModel);
 
     // --- Set context once (userId + channelId) ---
 
@@ -239,6 +244,14 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
                             normalizedUsage={lastBreakdown.normalizedUsage}
                         />
                     </div>
+                )}
+
+                {view === 'chat' && costAlert.level !== 'none' && (
+                    <CostAlertBanner
+                        level={costAlert.level}
+                        totalCostUsd={costAlert.totalCostUsd}
+                        recommendation={costAlert.recommendation}
+                    />
                 )}
 
                 <ChatContextBar

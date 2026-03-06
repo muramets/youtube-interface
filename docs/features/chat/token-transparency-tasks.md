@@ -1,6 +1,6 @@
 # Token Transparency — Tasks
 
-## Current Wave: 6 (Cost Alerts)
+## Current Wave: 7 (Final System Review)
 <!-- Update this line when moving to next wave -->
 
 ## Overview
@@ -92,7 +92,7 @@ Wave 7:  [Rev] R3 Full System -> Fix -> R4 Final -> Fix
 | 3 | Features (stopped msgs + auxiliary costs + tooltip) | DONE |
 | 4 | Core System Review (R1 + R2) | DONE |
 | 5 | Visualization + Audit (breakdown panel + CLI) | DONE |
-| 6 | Cost Alerts (warnings + model recommendations) | TODO |
+| 6 | Cost Alerts (warnings + model recommendations) | DONE |
 | 7 | Final System Review (R3 + R4) | TODO |
 
 ## Current Test Count
@@ -109,7 +109,7 @@ Wave 7:  [Rev] R3 Full System -> Fix -> R4 Final -> Fix
 | 3 | 220 | 387 | 607 | +22 |
 | 4 | 220 | 387 | 607 | +0 |
 | 5 | 225 | 387 | 612 | +5 |
-| 6 | TBD | TBD | TBD | +TBD |
+| 6 | 232 | 387 | 619 | +7 |
 | 7 | TBD | TBD | TBD | +TBD |
 
 ---
@@ -928,7 +928,7 @@ Fix all review findings before moving to Wave 6.
 
 ### Tasks
 
-- [ ] **J** — Real-time cost warnings + model recommendations
+- [x] **J** — Real-time cost warnings + model recommendations
 
 #### J: Real-time cost warnings + model recommendations
 
@@ -994,10 +994,10 @@ npm run typecheck                             # clean
 ```
 
 **MANDATORY: Update this file before proceeding (wave is NOT done until all boxes checked):**
-- [ ] Mark J task above as done
-- [ ] Update Wave Status table: Wave 6 → DONE
-- [ ] Update "Current Test Count" table row for Wave 6
-- [ ] Update "Current Wave" pointer at top of file: `## Current Wave: 7 (Final System Review)`
+- [x] Mark J task above as done
+- [x] Update Wave Status table: Wave 6 → DONE
+- [x] Update "Current Test Count" table row for Wave 6
+- [x] Update "Current Wave" pointer at top of file: `## Current Wave: 7 (Final System Review)`
 
 ### Review Gate 6
 

@@ -156,6 +156,10 @@
      --------------------------------------------------------------------------- */
    --color-success: #22c55e;
    /* green-500 — used for repeat-all active, copy success */
+   --color-warning: #f59e0b;
+   /* amber-500 — cost alerts, moderate warnings */
+   --color-error: #ef4444;
+   /* red-500 — high cost alerts, destructive actions */
 }
 
 /* =============================================================================
