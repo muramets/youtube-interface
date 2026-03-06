@@ -27,7 +27,7 @@ export const ChatContextBar: React.FC<ChatContextBarProps> = ({
             )}
 
             {isContextFull && (
-                <div className="chat-error-banner px-3 py-2 mx-2.5 mb-1.5 rounded-md bg-[rgba(204,0,0,0.08)] border border-[rgba(204,0,0,0.15)] text-[color:var(--danger-color,#cc0000)] text-xs flex items-center gap-2">
+                <div className="chat-error-banner px-3 py-2 mx-2.5 mt-1.5 rounded-md bg-[rgba(204,0,0,0.08)] text-[color:var(--danger-color,#cc0000)] text-xs flex items-center gap-2">
                     <span>Context window full. Start a new conversation or delete old messages.</span>
                 </div>
             )}

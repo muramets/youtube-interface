@@ -14,8 +14,8 @@ interface ChatHeaderStatsProps {
     contextPercent: number;
     contextLimit: number;
     modelContextLimit: number;
-    totalCostEur: number;
-    totalSavingsEur: number;
+    totalCost: number;
+    totalSavings: number;
     totalTokens: number;
     onToggleBreakdown?: () => void;
 }
@@ -25,16 +25,16 @@ export const ChatHeaderStats: React.FC<ChatHeaderStatsProps> = ({
     contextPercent,
     contextLimit,
     modelContextLimit,
-    totalCostEur,
-    totalSavingsEur,
+    totalCost,
+    totalSavings,
     totalTokens,
     onToggleBreakdown,
 }) => {
-    const hasSavings = totalSavingsEur > 0.01;
+    const hasSavings = totalSavings > 0.01;
 
     const contextLine = `Auto-summary at ${formatTokenCount(contextLimit)}. Model limit: ${formatTokenCount(modelContextLimit)}.`;
     const costTooltip = hasSavings
-        ? `${contextLine}\nTotal tokens: ${totalTokens.toLocaleString()}\nConversation cost: €${totalCostEur.toFixed(2)}\nWithout caching: €${(totalCostEur + totalSavingsEur).toFixed(2)}\nSaved: €${totalSavingsEur.toFixed(2)} (${Math.round((totalSavingsEur / (totalCostEur + totalSavingsEur)) * 100)}%)`
+        ? `${contextLine}\nTotal tokens: ${totalTokens.toLocaleString()}\nConversation cost: $${totalCost.toFixed(2)}\nWithout caching: $${(totalCost + totalSavings).toFixed(2)}\nSaved: $${totalSavings.toFixed(2)} (${Math.round((totalSavings / (totalCost + totalSavings)) * 100)}%)`
         : `${contextLine}\nTotal tokens: ${totalTokens.toLocaleString()}\nClick for breakdown`;
 
     if (contextUsed <= 0) return null;
@@ -54,11 +54,11 @@ export const ChatHeaderStats: React.FC<ChatHeaderStatsProps> = ({
                 }}
             >
                 <Zap size={11} /> {contextUsed.toLocaleString()} ({contextPercent}%)
-                {totalCostEur > 0 && (
-                    <span className="inline-flex items-center"> · €{totalCostEur.toFixed(4)}</span>
+                {totalCost > 0 && (
+                    <span className="inline-flex items-center"> · ${totalCost.toFixed(4)}</span>
                 )}
                 {hasSavings && (
-                    <span className="inline-flex items-center" style={{ color: 'var(--color-success)' }}> · saved €{totalSavingsEur.toFixed(2)}</span>
+                    <span className="inline-flex items-center" style={{ color: 'var(--color-success)' }}> · saved ${totalSavings.toFixed(2)}</span>
                 )}
             </span>
         </PortalTooltip>

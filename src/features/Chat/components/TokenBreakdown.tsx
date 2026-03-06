@@ -7,7 +7,6 @@ import React, { useMemo } from 'react';
 import type { ContextBreakdown } from '../../../../shared/models';
 import type { NormalizedTokenUsage } from '../../../../shared/models';
 import { scaleBreakdown, type ScaledBreakdown } from '../utils/tokenDisplay';
-import type { AuxiliaryCost } from '../../../../shared/models';
 
 /** Format token count as compact string: 120000 → "120K". */
 function fmtTokens(n: number): string {
@@ -32,7 +31,6 @@ interface TokenBreakdownProps {
     contextUsed: number;
     contextLimit: number;
     normalizedUsage?: NormalizedTokenUsage;
-    auxiliaryCosts?: AuxiliaryCost[];
 }
 
 export const TokenBreakdown: React.FC<TokenBreakdownProps> = ({
@@ -40,7 +38,6 @@ export const TokenBreakdown: React.FC<TokenBreakdownProps> = ({
     contextUsed,
     contextLimit,
     normalizedUsage,
-    auxiliaryCosts,
 }) => {
     const scaled = useMemo(
         () => scaleBreakdown(contextBreakdown, contextUsed),
@@ -57,11 +54,6 @@ export const TokenBreakdown: React.FC<TokenBreakdownProps> = ({
     );
 
     const billingCost = normalizedUsage?.billing?.cost?.total;
-
-    const auxTotal = useMemo(
-        () => auxiliaryCosts?.reduce((s, c) => s + c.costUsd, 0) ?? 0,
-        [auxiliaryCosts],
-    );
 
     return (
         <div className="space-y-3" role="region" aria-label="Token breakdown">
@@ -115,7 +107,7 @@ export const TokenBreakdown: React.FC<TokenBreakdownProps> = ({
             </div>
 
             {/* === Billing (if available) === */}
-            {(billingCost != null || auxTotal > 0) && (
+            {billingCost != null && (
                 <div>
                     <div className="text-[11px] font-medium text-text-secondary mb-1">
                         Billing
@@ -133,16 +125,6 @@ export const TokenBreakdown: React.FC<TokenBreakdownProps> = ({
                                 <span>Without cache</span>
                                 <span>${normalizedUsage.billing.cost.withoutCache.toFixed(4)}</span>
                             </div>
-                        )}
-                        {auxiliaryCosts && auxiliaryCosts.length > 0 && (
-                            <>
-                                {auxiliaryCosts.map(ac => (
-                                    <div key={ac.id} className="flex justify-between">
-                                        <span className="capitalize">{ac.type}</span>
-                                        <span>${ac.costUsd.toFixed(4)}</span>
-                                    </div>
-                                ))}
-                            </>
                         )}
                     </div>
                 </div>

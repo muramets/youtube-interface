@@ -7,8 +7,8 @@ interface ChatHeaderProps {
     headerTitle: string;
     totalTokens: number;
     contextUsed: number;
-    totalCostEur: number;
-    totalSavingsEur: number;
+    totalCost: number;
+    totalSavings: number;
     contextPercent: number;
     contextLimit: number;
     modelContextLimit: number;
@@ -29,8 +29,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     headerTitle,
     totalTokens,
     contextUsed,
-    totalCostEur,
-    totalSavingsEur,
+    totalCost,
+    totalSavings,
     contextPercent,
     contextLimit,
     modelContextLimit,
@@ -77,8 +77,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                     contextPercent={contextPercent}
                     contextLimit={contextLimit}
                     modelContextLimit={modelContextLimit}
-                    totalCostEur={totalCostEur}
-                    totalSavingsEur={totalSavingsEur}
+                    totalCost={totalCost}
+                    totalSavings={totalSavings}
                     totalTokens={totalTokens}
                     onToggleBreakdown={onToggleBreakdown}
                 />

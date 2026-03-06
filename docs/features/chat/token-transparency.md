@@ -2,7 +2,7 @@
 
 ## Текущее состояние
 
-Система полностью реализована (Waves 0–7 complete). Все 7 проблем исправлены: контекст показывает реальное значение последней итерации (не накопленное), thinking-токены отделены, auxiliary costs (summary/title) трекаются, stopped messages сохраняют billing data, добавлен layer breakdown panel, CLI audit tool, cost alerts с рекомендациями модели, buildMemory использует правильную модель для budget. 619 тестов, все passing.
+Система полностью реализована (Waves 0–7 complete). Все 7 проблем исправлены: контекст показывает реальное значение последней итерации (не накопленное), thinking-токены отделены, auxiliary costs (summary/title) трекаются, stopped messages сохраняют billing data, добавлен layer breakdown panel, CLI audit tool, cost alerts с рекомендациями модели, buildMemory использует правильную модель для budget. Все стоимости в USD (legacy EUR полностью мигрирован).
 
 ---
 
@@ -124,7 +124,7 @@ export interface AuxiliaryCost {
   costUsd: number;
   tokens?: { input: number; output: number };
   triggeredByMessageId?: string;
-  createdAt: Timestamp;
+  createdAt: unknown;  // Date.now() (number) — unknown avoids importing Firestore types into shared/
 }
 ```
 
@@ -138,7 +138,7 @@ export interface AuxiliaryCost {
 
 ### Cost Calculation
 
-**All costs in USD.** Legacy `estimateCostEur()` untouched. New: `computeIterationCost()`.
+**All costs in USD.** `estimateCostUsd()` returns raw USD. New: `computeIterationCost()`.
 
 **Architecture: cost per-iteration, NOT per-aggregate.** Long context pricing applied per-request by provider. Per-iteration check uses `snapshot.input.total` (ground truth from API).
 
@@ -358,6 +358,44 @@ Current: solo user, hardcoded `preference = 'debug'`, `maxAllowed = 'debug'`.
 
 ---
 
+### Token Breakdown Panel
+
+Expandable panel triggered by clicking the header stats. Shows context composition as stacked horizontal bars (Tailwind CSS only, no chart library).
+
+**Context section:** Each bar = one `ContextBreakdown` component, scaled proportionally via `scaleBreakdown()`. Text components (chars) are scaled to fit `actualTotal - imageTokens`. Rounding remainder absorbed by largest component — guarantees sum = actualTotal.
+
+**Billing section:** Per-message cost from `normalizedUsage.billing.cost`, cache savings when `withoutCache - total > 0.0001`. Shows "Summarized history" indicator when `contextBreakdown.usedSummary` is true.
+
+**Files:**
+- `src/features/Chat/components/TokenBreakdown.tsx` — panel component
+- `src/features/Chat/utils/tokenDisplay.ts` — `scaleBreakdown()`, `getEffectiveDisplayLevel()`
+- `src/features/Chat/ChatPanel.tsx` — toggle state, passes data
+
+---
+
+### Cost Alerts
+
+Proactive cost management — warnings before a conversation becomes expensive, model recommendations to optimize cost/quality.
+
+**Thresholds (named constants in `useCostAlerts.ts`):**
+
+| Total | Level | Style |
+|-------|-------|-------|
+| > $1 | warning | Yellow banner |
+| > $5 | high | Orange banner |
+| > $10 | critical | Red banner |
+| Single message > $0.50 | expensive | Red `$` badge on message |
+
+**Model recommendations:** `estimateAlternativeCost()` re-prices all message iterations with each alternative model's pricing via `computeIterationCost()` (no duplicate pricing logic). Recommendation shown only when savings > 30% (`RECOMMENDATION_SAVINGS_MIN`).
+
+**Banner:** Dismissible per-session (React state, not persisted). Appears below header, above messages.
+
+**Files:**
+- `src/features/Chat/hooks/useCostAlerts.ts` — `useCostAlerts()` hook + `estimateAlternativeCost()`
+- `src/features/Chat/components/CostAlertBanner.tsx` — banner component
+
+---
+
 ### Infrastructure
 
 #### Secrets (Google Secret Manager)
@@ -395,7 +433,7 @@ Current: solo user, hardcoded `preference = 'debug'`, `maxAllowed = 'debug'`.
 
 1. **Billing discrepancy:** $0.22 vs ~$0.80 = stopped messages (not tracked)
 2. **Admin API key:** created, stored in `ANTHROPIC_ADMIN_KEY`
-3. **EUR -> USD migration:** treat existing as USD (solo user), no migration
+3. **EUR -> USD migration:** DONE. `estimateCostEur` → `estimateCostUsd`, `USD_TO_EUR` deleted. All UI shows `$`.
 4. **Long context cost:** per-iteration check (not aggregate)
 5. **Image tokens (Gemini):** 258 (2.5), ~1090 (3.x), fixed per image, measured
 6. **Stopped message visibility:** pure render logic, no status mutations

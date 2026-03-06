@@ -62,17 +62,14 @@ export interface ModelConfig {
     imageTokensPerImage?: number;
 }
 
-// Fixed EUR/USD rate — approximate, updated manually as needed
-export const USD_TO_EUR = 0.92;
-
 export const LONG_CONTEXT_THRESHOLD = 200_000;
 
 /**
- * Estimate cost in EUR for a single API call.
+ * Estimate cost in USD for a single API call.
  * Accounts for cache pricing when cache token counts are provided.
  * Backward-compatible: without cache params, works as before.
  */
-export function estimateCostEur(
+export function estimateCostUsd(
     pricing: ModelPricing,
     promptTokens: number,
     completionTokens: number,
@@ -93,14 +90,14 @@ export function estimateCostEur(
         + ((cachedTokens ?? 0) / 1_000_000) * cacheReadRate
         + ((cacheWriteTokens ?? 0) / 1_000_000) * cacheWriteRate
         + (completionTokens / 1_000_000) * outputRate;
-    return costUsd * USD_TO_EUR;
+    return costUsd;
 }
 
 /**
- * Estimate how much EUR was saved by caching for a single API call.
+ * Estimate how much USD was saved by caching for a single API call.
  * Returns 0 when no cache data is present or savings are negative.
  */
-export function estimateCacheSavingsEur(
+export function estimateCacheSavingsUsd(
     pricing: ModelPricing,
     promptTokens: number,
     completionTokens: number,
@@ -109,13 +106,13 @@ export function estimateCacheSavingsEur(
 ): number {
     if (!cachedTokens && !cacheWriteTokens) return 0;
     // Hypothetical: all input tokens at full price
-    const hypothetical = estimateCostEur(
+    const hypothetical = estimateCostUsd(
         pricing,
         promptTokens + (cachedTokens ?? 0) + (cacheWriteTokens ?? 0),
         completionTokens,
     );
     // Actual: with cache pricing
-    const actual = estimateCostEur(pricing, promptTokens, completionTokens, cachedTokens, cacheWriteTokens);
+    const actual = estimateCostUsd(pricing, promptTokens, completionTokens, cachedTokens, cacheWriteTokens);
     return Math.max(0, hypothetical - actual);
 }
 
@@ -377,6 +374,26 @@ export function aggregateIterations(
     snapshots: IterationSnapshot[],
     model: Pick<ModelConfig, 'id' | 'provider' | 'contextLimit'>,
 ): NormalizedTokenUsage {
+    if (snapshots.length === 0) {
+        return {
+            contextWindow: {
+                inputTokens: 0,
+                outputTokens: 0,
+                thinkingTokens: 0,
+                limit: model.contextLimit,
+                percent: 0,
+            },
+            billing: {
+                input: { total: 0, fresh: 0, cached: 0, cacheWrite: 0 },
+                output: { total: 0, thinking: 0 },
+                iterations: 0,
+                cost: { input: 0, cached: 0, cacheWrite: 0, output: 0, total: 0, withoutCache: 0, thinkingSubset: 0 },
+            },
+            provider: model.provider === 'gemini' ? 'google' : 'anthropic',
+            model: model.id,
+        };
+    }
+
     const billing = {
         input: { total: 0, fresh: 0, cached: 0, cacheWrite: 0 },
         output: { total: 0, thinking: 0 },

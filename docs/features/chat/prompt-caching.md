@@ -78,24 +78,24 @@ Breakpoint 4: (резерв)
 
 **User flow:**
 
-Пользователь ведёт разговор. Под каждым ответом модели — точная стоимость (ниже чем без кэша) с `↓N%` индикатором для cached сообщений. В header — кумулятивная экономия `saved €X` зелёным. При наведении — подробности.
+Пользователь ведёт разговор. Под каждым ответом модели — точная стоимость (ниже чем без кэша) с `↓N%` индикатором для cached сообщений. В header — кумулятивная экономия `saved $X` зелёным. При наведении — подробности.
 
 **UI — Per-Message Footer:**
 ```
-Было:   12:34  ⚡ 12,345 • €0.0234
-Стало:  12:34 · €0.004 ↓85%
+Было:   12:34  ⚡ 12,345 • $0.0234
+Стало:  12:34 · $0.004 ↓85%
 ```
 - Raw token count убран (когнитивный диссонанс: "те же токены, другая цена?")
 - Точная стоимость с учётом cache pricing, `↓N%` зелёным при cache hit
-- Hover tooltip: `Input: 10,482 tokens (8,900 cached) / Output: 1,863 tokens / Cost: €0.004 (without cache: €0.023)`
+- Hover tooltip: `Input: 10,482 tokens (8,900 cached) / Output: 1,863 tokens / Cost: $0.004 (without cache: $0.023)`
 
 **UI — ChatHeader:**
 ```
-Было:   ⚡ 8,200 (65%) • €0.1523
-Стало:  ⚡ 8,200 (65%) · €0.15 · saved €0.62
+Было:   ⚡ 8,200 (65%) • $0.1523
+Стало:  ⚡ 8,200 (65%) · $0.15 · saved $0.62
 ```
 - Context window (⚡ tokens + %) — без изменений (про лимит, не про стоимость)
-- `saved €X` — кумулятивная экономия, `--color-success`, показывается при savings > €0.01
+- `saved $X` — кумулятивная экономия, `--color-success`, показывается при savings > $0.01
 - Hover tooltip: `Total tokens / Conversation cost / Without caching / Saved (N%)`
 
 **Поведение при протухании кэша:** `saved`-счётчик кумулятивный (сумма savings по всем сообщениям). Cache write после протухания (2x цена) слегка уменьшает total savings, но следующие cache read (0.1x) быстро компенсируют.
@@ -112,8 +112,8 @@ Breakpoint 4: (резерв)
 Слой 2 — Cache-Accurate Cost Calculation:
 - [x] `ModelPricing` — `cacheReadMultiplier?`, `cacheWriteMultiplier?`
 - [x] Claude models — множители read: 0.1, write: 2.0
-- [x] `estimateCostEur` — cache-aware, backward-compatible
-- [x] `estimateCacheSavingsEur` — hypothetical vs actual cost
+- [x] `estimateCostUsd` — cache-aware, backward-compatible
+- [x] `estimateCacheSavingsUsd` — hypothetical vs actual cost
 
 Слой 3 — UI Per-Message:
 - [x] `ChatMessageList` — `useMemo` messageCost (pre-computed, no IIFE)
@@ -121,8 +121,8 @@ Breakpoint 4: (резерв)
 - [x] `↓N%` cached indicator (`--color-success`)
 
 Слой 4 — UI ChatHeader:
-- [x] `useChatDerivedState` — `totalSavingsEur` (cost + savings in single reduce)
-- [x] `ChatHeader` — `saved €X` badge (`--color-success`), tooltip pre-computed
+- [x] `useChatDerivedState` — `totalSavings` (cost + savings in single reduce)
+- [x] `ChatHeader` — `saved $X` badge (`--color-success`), tooltip pre-computed
 - [x] `costTooltip` variable (clean, no inline template literals)
 
 Слой 5 — Backend Structured Logging:
@@ -234,16 +234,16 @@ tokenUsage = {
 
 | Файл | Изменение |
 |---|---|
-| `shared/models.ts` | `ModelPricing` + `cacheReadMultiplier?` / `cacheWriteMultiplier?`; `estimateCostEur` cache-aware; новая `estimateCacheSavingsEur`; Claude models — множители 0.1 / 2.0 |
+| `shared/models.ts` | `ModelPricing` + `cacheReadMultiplier?` / `cacheWriteMultiplier?`; `estimateCostUsd` cache-aware; новая `estimateCacheSavingsUsd`; Claude models — множители 0.1 / 2.0 |
 | `src/core/types/sseEvents.ts` | `SSETokenUsage` + `cachedTokens?`, `cacheWriteTokens?` |
-| `src/core/types/chat/chat.ts` | `ChatMessage.tokenUsage` + cache-поля; реэкспорт `estimateCacheSavingsEur` |
+| `src/core/types/chat/chat.ts` | `ChatMessage.tokenUsage` + cache-поля; реэкспорт `estimateCacheSavingsUsd` |
 | `src/core/services/ai/aiProxyService.ts` | `StreamChatResult` + cache-поля |
 | `src/core/services/ai/aiService.ts` | `AiSendResult` + cache-поля |
 | `src/core/stores/chat/slices/sendSlice.ts` | `streamAiResponse` / `persistAiResponse` — расширенные типы |
-| `src/features/Chat/hooks/useChatDerivedState.ts` | `totalSavingsEur` (cost + savings в одном reduce) |
-| `src/features/Chat/components/ChatHeader.tsx` | `totalSavingsEur` prop; `saved €X` badge (`--color-success`); `costTooltip` pre-computed |
+| `src/features/Chat/hooks/useChatDerivedState.ts` | `totalSavings` (cost + savings в одном reduce) |
+| `src/features/Chat/components/ChatHeader.tsx` | `totalSavings` prop; `saved $X` badge (`--color-success`); `costTooltip` pre-computed |
 | `src/features/Chat/ChatMessageList.tsx` | `messageCost` useMemo; PortalTooltip с breakdown; `↓N%` indicator (`--color-success`) |
-| `src/features/Chat/ChatPanel.tsx` | Проброс `totalSavingsEur` в ChatHeader |
+| `src/features/Chat/ChatPanel.tsx` | Проброс `totalSavings` в ChatHeader |
 | `functions/src/types.ts` | `AiUsageLog` + `cachedTokens?`, `cacheWriteTokens?` |
 | `functions/src/chat/helpers.ts` | `logAiUsage` — пишет cache-поля в Firestore |
 | `vitest.config.ts` | Fix: `root: '.'` в frontend project (pre-existing test isolation bug) |

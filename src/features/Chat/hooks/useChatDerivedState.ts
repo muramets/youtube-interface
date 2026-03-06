@@ -5,7 +5,7 @@
 import { useMemo } from 'react';
 import type { ChatProject, ChatConversation, ChatMessage } from '../../../core/types/chat/chat';
 import { MODEL_REGISTRY, DEFAULT_MODEL, DEFAULT_CONTEXT_LIMIT, HISTORY_BUDGET_RATIO, resolveModelId } from '../../../core/types/chat/chat';
-import { estimateCostEur, estimateCacheSavingsEur, type ModelPricing } from '../../../core/types/chat/chat';
+import { estimateCostUsd, estimateCacheSavingsUsd, type ModelPricing } from '../../../core/types/chat/chat';
 
 interface UseChatDerivedStateOpts {
     projects: ChatProject[];
@@ -25,8 +25,8 @@ interface UseChatDerivedStateReturn {
     activeConversation: ChatConversation | undefined;
     headerTitle: string;
     totalTokens: number;
-    totalCostEur: number;
-    totalSavingsEur: number;
+    totalCost: number;
+    totalSavings: number;
     modelPricing: ModelPricing;
     activeModel: string;
     modelLabel: string;
@@ -63,22 +63,39 @@ export function useChatDerivedState(opts: UseChatDerivedStateOpts): UseChatDeriv
 
     // Token usage (model responses only — user messages don't have tokenUsage)
     const totalTokens = useMemo(() =>
-        messages.reduce((sum, m) => m.role === 'model' ? sum + (m.tokenUsage?.totalTokens ?? 0) : sum, 0),
+        messages.reduce((sum, m) => {
+            if (m.role !== 'model') return sum;
+            if (m.normalizedUsage) {
+                return sum + m.normalizedUsage.billing.input.total + m.normalizedUsage.billing.output.total;
+            }
+            return sum + (m.tokenUsage?.totalTokens ?? 0);
+        }, 0),
         [messages]
     );
 
-    // Total cost (EUR) — per-message model pricing, cache-aware
-    const { totalCostEur, totalSavingsEur } = useMemo(() => {
+    // Total cost (USD) — per-message model pricing, cache-aware
+    const { totalCost, totalSavings } = useMemo(() => {
         const fallbackConfig = MODEL_REGISTRY.find(m => m.id === activeModel) ?? MODEL_REGISTRY[0];
         return messages.reduce((acc, m) => {
-            if (m.role !== 'model' || !m.tokenUsage) return acc;
+            if (m.role !== 'model') return acc;
+            // Prefer normalizedUsage (accurate, provider-agnostic)
+            if (m.normalizedUsage) {
+                const cost = m.normalizedUsage.billing.cost.total;
+                const savings = Math.max(0, m.normalizedUsage.billing.cost.withoutCache - cost);
+                return {
+                    totalCost: acc.totalCost + cost,
+                    totalSavings: acc.totalSavings + savings,
+                };
+            }
+            // Legacy fallback
+            if (!m.tokenUsage) return acc;
             const msgModelConfig = (m.model && MODEL_REGISTRY.find(r => r.id === m.model)) || fallbackConfig;
             const { promptTokens, completionTokens, cachedTokens, cacheWriteTokens } = m.tokenUsage;
             return {
-                totalCostEur: acc.totalCostEur + estimateCostEur(msgModelConfig.pricing, promptTokens, completionTokens, cachedTokens, cacheWriteTokens),
-                totalSavingsEur: acc.totalSavingsEur + estimateCacheSavingsEur(msgModelConfig.pricing, promptTokens, completionTokens, cachedTokens, cacheWriteTokens),
+                totalCost: acc.totalCost + estimateCostUsd(msgModelConfig.pricing, promptTokens, completionTokens, cachedTokens, cacheWriteTokens),
+                totalSavings: acc.totalSavings + estimateCacheSavingsUsd(msgModelConfig.pricing, promptTokens, completionTokens, cachedTokens, cacheWriteTokens),
             };
-        }, { totalCostEur: 0, totalSavingsEur: 0 });
+        }, { totalCost: 0, totalSavings: 0 });
     }, [messages, activeModel]);
 
     // Context window tracking
@@ -108,8 +125,8 @@ export function useChatDerivedState(opts: UseChatDerivedStateOpts): UseChatDeriv
         activeConversation,
         headerTitle,
         totalTokens,
-        totalCostEur,
-        totalSavingsEur,
+        totalCost,
+        totalSavings,
         modelPricing: modelConfig.pricing,
         activeModel,
         modelLabel: modelConfig.label,

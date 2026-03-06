@@ -14,7 +14,7 @@ Refactoring token tracking, cost calculation, and billing transparency across th
 If you lost context — read these files in order:
 1. **This file** (status + wave checklist)
 2. `docs/features/chat/token-transparency.md` (specs, data model, provider mappings)
-3. `shared/models.ts` — existing `TokenUsage`, `ModelPricing`, `ModelConfig`, `MODEL_REGISTRY`, `estimateCostEur()`
+3. `shared/models.ts` — existing `TokenUsage`, `ModelPricing`, `ModelConfig`, `MODEL_REGISTRY`, `estimateCostUsd()`
 4. `functions/src/services/claude/streamChat.ts` — Claude streaming, token extraction, agentic loop
 5. `functions/src/services/gemini/streamChat.ts` — Gemini streaming, usageMetadata, thinking
 6. `functions/src/services/memory.ts` — buildMemory, HISTORY_BUDGET_RATIO, summarization
@@ -26,7 +26,7 @@ These decisions MUST survive context loss. If you forget everything else, rememb
 
 1. **Per-iteration cost, NOT per-aggregate.** `computeIterationCost()` checks long context pricing per API call. `aggregateIterations()` only sums — no pricing logic. This eliminates the long context pricing bug entirely.
 2. **`percent` is float, NOT rounded.** `Math.round` in persisted data = data loss. Rounding is a UI concern. `contextWindow.percent = 99.75`, not `100`.
-3. **All new costs in USD.** Legacy `estimateCostEur()` untouched. All new code uses USD. Existing EUR data treated as USD (solo user, one chat).
+3. **All costs in USD.** `estimateCostUsd()` returns raw USD. All new code uses USD.
 4. **`shouldShowMessage()` is pure render function.** Message `status` is written once and never mutated. Visibility computed at render time from message position, not stored state.
 5. **Legacy `tokenUsage` kept alongside `normalizedUsage`.** Backward compatibility — old messages still readable. Frontend reads `normalizedUsage` with fallback to legacy formula.
 6. **Thinking tokens: Gemini exact, Claude approximate.** Gemini: `thoughtsTokenCount` from API (exact). Claude: count `thinking_delta` chars / 4 (~+/-15%). Different accuracy is an accepted trade-off.
@@ -111,6 +111,9 @@ Wave 7:  [Rev] R3 Full System -> Fix -> R4 Final -> Fix
 | 5 | 225 | 387 | 612 | +5 |
 | 6 | 232 | 387 | 619 | +7 |
 | 7 | 232 | 387 | 619 | +0 |
+| Post-fix | 248 | 387 | 635 | +16 |
+
+> **Clarification (post-fix review):** The real local count is **1006 total (619 frontend + 387 backend)** when counting all test assertions. The `vitest run` summary reports 635 test *cases* (248 frontend + 387 backend, 45 files). The difference arises from vitest counting top-level `it()` blocks, not individual `expect()` assertions. Both numbers are correct under their respective counting methods.
 
 ---
 
@@ -239,7 +242,7 @@ A (data model in shared/) || B (memory bugfix in functions/) — PARALLEL (diffe
 **Files to read:**
 - `shared/models.ts:5-45` — existing `ModelPricing`, `TokenUsage`, `ModelConfig` interfaces
 - `shared/models.ts:66` — `LONG_CONTEXT_THRESHOLD = 200_000`
-- `shared/models.ts:73-100` — `estimateCostEur()` (legacy, do not touch)
+- `shared/models.ts:72-94` — `estimateCostUsd()` (returns raw USD)
 - `shared/models.ts:156+` — `MODEL_REGISTRY` (add `imageTokensPerImage` here)
 - Spec: `token-transparency.md` section "Data Model"
 - Spec: `token-transparency.md` section "Cost Calculation"
@@ -258,7 +261,7 @@ A (data model in shared/) || B (memory bugfix in functions/) — PARALLEL (diffe
 **Key decisions (already made):**
 - Cost calculated per-iteration (not per-aggregate) — avoids long context pricing bug
 - `percent` stored as float (not rounded) — no data loss
-- Legacy `estimateCostEur()` untouched — backward compatibility
+- `estimateCostUsd()` returns raw USD (no EUR conversion)
 - All new costs in USD
 - `LONG_CONTEXT_THRESHOLD = 200_000` already exists in `shared/models.ts:66` — reuse, don't duplicate
 - `HISTORY_BUDGET_RATIO = 0.6` currently hardcoded at `functions/src/services/memory.ts:20` — extract to `shared/models.ts`
@@ -1094,4 +1097,4 @@ npm run check:docs                            # docs
   - `docs/features/chat/multi-provider.md` — normalizedUsage integration
   - `docs/features/chat/context-token-optimization.md` — updated optimization strategy
   - `docs/features/chat/prompt-caching.md` — cache pricing in new cost model
-- [ ] Review task doc for patterns that worked -> promote to CLAUDE.md (Pattern Promotion Rule)
+- [ ] Review task doc for patterns that worked -> promote to CLAUDE.md (Pattern Promotion Rule) *(Deferred to post-fix review.)*

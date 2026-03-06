@@ -41,6 +41,8 @@ export default {
                 'button-secondary-text': 'var(--button-secondary-text)',
                 'tag-bg': 'var(--tag-bg)',
                 'tag-hover': 'var(--tag-hover)',
+                'surface-primary': 'var(--surface-primary)',
+                'surface-secondary': 'var(--surface-secondary)',
             },
             zIndex: {
                 'base': '0',           // Default stacking

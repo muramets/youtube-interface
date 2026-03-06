@@ -49,7 +49,7 @@ import { shouldShowMessage } from '../../core/types/chat/chat';
 import { getVideoCards, getTrafficContexts, getCanvasContexts } from '../../core/types/appContext';
 import type { VideoCardContext } from '../../core/types/appContext';
 import { buildVideoIdMap } from '../../core/utils/buildReferenceMap';
-import { estimateCostEur, estimateCacheSavingsEur, type ModelPricing } from '../../core/types/chat/chat';
+import { estimateCostUsd, estimateCacheSavingsUsd, type ModelPricing } from '../../core/types/chat/chat';
 import { getEffectiveDisplayLevel } from './utils/tokenDisplay';
 import { EXPENSIVE_MESSAGE_THRESHOLD } from './hooks/useCostAlerts';
 import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
@@ -297,7 +297,7 @@ const MessageItem: React.FC<MessageItemProps> = React.memo(({ msg, modelPricing,
             if (level !== 'minimal') {
                 lines.unshift(
                     `Input: ${nu.contextWindow.inputTokens.toLocaleString()} tokens${cachedTokens ? ` (${cachedTokens.toLocaleString()} cached)` : ''}`,
-                    `Output: ${nu.contextWindow.outputTokens.toLocaleString()} tokens${nu.contextWindow.thinkingTokens > 0 && level === 'detailed' || level === 'debug' ? ` (${nu.contextWindow.thinkingTokens.toLocaleString()} thinking)` : ''}`,
+                    `Output: ${nu.contextWindow.outputTokens.toLocaleString()} tokens${nu.contextWindow.thinkingTokens > 0 && (level === 'detailed' || level === 'debug') ? ` (${nu.contextWindow.thinkingTokens.toLocaleString()} thinking)` : ''}`,
                 );
             }
 
@@ -307,22 +307,22 @@ const MessageItem: React.FC<MessageItemProps> = React.memo(({ msg, modelPricing,
                 lines.push(`Tool calls: ${toolCount} (${nu.billing.iterations} iterations)`);
             }
 
-            return { cost: costTotal, cachedPct, tooltip: lines.join('\n'), isUsd: true };
+            return { cost: costTotal, cachedPct, tooltip: lines.join('\n') };
         }
 
         // --- Legacy fallback (pre-normalization messages) ---
         if (!msg.tokenUsage || !modelPricing) return null;
         const { promptTokens, completionTokens, cachedTokens, cacheWriteTokens } = msg.tokenUsage;
         const totalInput = promptTokens + (cachedTokens ?? 0) + (cacheWriteTokens ?? 0);
-        const cost = estimateCostEur(modelPricing, promptTokens, completionTokens, cachedTokens, cacheWriteTokens);
-        const savings = estimateCacheSavingsEur(modelPricing, promptTokens, completionTokens, cachedTokens, cacheWriteTokens);
+        const cost = estimateCostUsd(modelPricing, promptTokens, completionTokens, cachedTokens, cacheWriteTokens);
+        const savings = estimateCacheSavingsUsd(modelPricing, promptTokens, completionTokens, cachedTokens, cacheWriteTokens);
         const cachedPct = cachedTokens ? Math.round((cachedTokens / totalInput) * 100) : 0;
         const tooltip = [
             `Input: ${totalInput.toLocaleString()} tokens${cachedTokens ? ` (${cachedTokens.toLocaleString()} cached)` : ''}`,
             `Output: ${completionTokens.toLocaleString()} tokens`,
-            `Cost: €${cost.toFixed(4)}${savings > 0 ? ` (without cache: €${(cost + savings).toFixed(4)})` : ''}`,
+            `Cost: $${cost.toFixed(4)}${savings > 0 ? ` (without cache: $${(cost + savings).toFixed(4)})` : ''}`,
         ].join('\n');
-        return { cost, cachedPct, tooltip, isUsd: false };
+        return { cost, cachedPct, tooltip };
     }, [msg.role, msg.tokenUsage, msg.normalizedUsage, msg.toolCalls, modelPricing]);
 
     return (
@@ -405,12 +405,10 @@ const MessageItem: React.FC<MessageItemProps> = React.memo(({ msg, modelPricing,
                 {messageCost && (
                     <PortalTooltip content={messageCost.tooltip} enterDelay={300}>
                         <span className="text-[10px] text-text-tertiary select-none cursor-default inline-flex items-center gap-0.5 hover:text-text-secondary transition-colors">
-                            {messageCost.isUsd ? '$' : '€'}{messageCost.cost.toFixed(4)}
+                            ${messageCost.cost.toFixed(4)}
                             {messageCost.cachedPct > 0 && <span className="ml-0.5" style={{ color: 'var(--color-success)' }}>↓{messageCost.cachedPct}%</span>}
                             {messageCost.cost >= EXPENSIVE_MESSAGE_THRESHOLD && (
-                                <PortalTooltip content={`Expensive message: $${messageCost.cost.toFixed(2)}`} enterDelay={200}>
-                                    <span className="ml-0.5 text-[9px] font-bold" style={{ color: 'var(--color-error)' }}>$</span>
-                                </PortalTooltip>
+                                <span className="ml-0.5 text-[9px] font-bold" style={{ color: 'var(--color-error)' }}>$</span>
                             )}
                         </span>
                     </PortalTooltip>

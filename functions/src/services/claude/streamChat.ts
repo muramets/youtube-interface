@@ -518,10 +518,17 @@ export async function streamChat(
                     thinking: thinkingTokens,
                 },
             };
-            iterationSnapshots.push({
-                ...snapshotTokens,
-                cost: computeIterationCost(modelConfig!.pricing, snapshotTokens),
-            });
+            if (modelConfig) {
+                iterationSnapshots.push({
+                    ...snapshotTokens,
+                    cost: computeIterationCost(modelConfig.pricing, snapshotTokens),
+                });
+            } else {
+                iterationSnapshots.push({
+                    ...snapshotTokens,
+                    cost: { input: 0, cached: 0, cacheWrite: 0, output: 0, total: 0, withoutCache: 0, thinkingSubset: 0 },
+                });
+            }
 
             // Legacy accumulation (unchanged for backward compat)
             if (tokenUsage) {

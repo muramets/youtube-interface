@@ -262,6 +262,22 @@ describe('aggregateIterations', () => {
         expect(Number.isInteger(result.contextWindow.percent)).toBe(false);
     });
 
+    it('returns zero-state for empty snapshots array', () => {
+        const result = aggregateIterations([], claudeModel);
+
+        expect(result.contextWindow.inputTokens).toBe(0);
+        expect(result.contextWindow.outputTokens).toBe(0);
+        expect(result.contextWindow.thinkingTokens).toBe(0);
+        expect(result.contextWindow.limit).toBe(200_000);
+        expect(result.contextWindow.percent).toBe(0);
+        expect(result.billing.iterations).toBe(0);
+        expect(result.billing.input.total).toBe(0);
+        expect(result.billing.output.total).toBe(0);
+        expect(result.billing.cost.total).toBe(0);
+        expect(result.provider).toBe('anthropic');
+        expect(result.model).toBe('claude-opus-4-6');
+    });
+
     it('maps gemini provider to google', () => {
         const snapshot = makeSnapshot(
             { total: 10_000, fresh: 10_000, cached: 0, cacheWrite: 0 },

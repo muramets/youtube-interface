@@ -330,7 +330,6 @@ export const aiChat = onRequest(
 
             // Persist stopped messages directly to Firestore (SSE may not reach client)
             if (partial && responseText) {
-                const messagesPath = `${convPath}/messages`;
                 const stoppedMsg: Record<string, unknown> = {
                     role: 'model',
                     text: responseText,
@@ -377,7 +376,6 @@ export const aiChat = onRequest(
                     logAiUsage(userId, body.channelId, body.conversationId, model, memory.summaryTokenUsage, "summarize").catch(err => console.warn('[aiChat] Failed to log summary usage', err))
                 );
                 // Persist summary as AuxiliaryCost on conversation doc
-                const { UTILITY_MODEL_ID } = await import("../config/models.js");
                 const utilityConfig = MODEL_REGISTRY.find(m => m.id === UTILITY_MODEL_ID);
                 const summaryCostUsd = utilityConfig?.pricing
                     ? (memory.summaryTokenUsage.promptTokens / 1_000_000 * utilityConfig.pricing.inputPerMillion) +
@@ -392,7 +390,7 @@ export const aiChat = onRequest(
                         input: memory.summaryTokenUsage.promptTokens,
                         output: memory.summaryTokenUsage.completionTokens,
                     },
-                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                    createdAt: Date.now(),
                 };
                 afterTasks.push(
                     db.doc(convPath).update({
