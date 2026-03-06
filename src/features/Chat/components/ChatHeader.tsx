@@ -21,6 +21,7 @@ interface ChatHeaderProps {
     onDragStart?: (e: React.MouseEvent) => void;
     isMaximized?: boolean;
     onToggleMaximize?: () => void;
+    onToggleBreakdown?: () => void;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -42,6 +43,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     onDragStart,
     isMaximized,
     onToggleMaximize,
+    onToggleBreakdown,
 }) => {
     const showBack = view === 'chat' || (view === 'conversations' && activeProjectId) || editingProjectId;
     const showProjectsBtn = view === 'conversations';
@@ -78,6 +80,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                     totalCostEur={totalCostEur}
                     totalSavingsEur={totalSavingsEur}
                     totalTokens={totalTokens}
+                    onToggleBreakdown={onToggleBreakdown}
                 />
             )}
 

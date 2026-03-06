@@ -2,7 +2,7 @@
 // AI CHAT: Main Chat Panel — Orchestrator
 // =============================================================================
 
-import React, { useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useEffect, useCallback, useRef, useMemo, useState } from 'react';
 import { ChevronUp } from 'lucide-react';
 import { ConfirmationModal } from '../../components/ui/organisms/ConfirmationModal';
 import { useChatStore } from '../../core/stores/chat/chatStore';
@@ -28,6 +28,7 @@ import { ProjectSettings } from './components/ProjectSettings';
 import { ConversationList } from './components/ConversationList';
 import { ChatSummaryBanner } from './components/ChatSummaryBanner';
 import { ChatListErrorBoundary } from './components/ChatBoundaries';
+import { TokenBreakdown } from './components/TokenBreakdown';
 import type { ReadyAttachment } from '../../core/types/chat/chatAttachment';
 
 export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number; anchorRightPx?: number }> = ({ onClose, anchorBottomPx = 32, anchorRightPx = 32 }) => {
@@ -114,6 +115,18 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
         defaultModel: aiSettings.defaultModel,
         pendingModel,
     });
+
+    // --- Token breakdown panel ---
+    const [showBreakdown, setShowBreakdown] = useState(false);
+    const lastBreakdown = useMemo(() => {
+        for (let i = messages.length - 1; i >= 0; i--) {
+            const msg = messages[i];
+            if (msg.role === 'model' && msg.contextBreakdown) {
+                return { contextBreakdown: msg.contextBreakdown, normalizedUsage: msg.normalizedUsage };
+            }
+        }
+        return null;
+    }, [messages]);
 
     // --- Set context once (userId + channelId) ---
 
@@ -214,7 +227,19 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
                     onDragStart={handleDragStart}
                     isMaximized={isMaximized}
                     onToggleMaximize={toggleMaximize}
+                    onToggleBreakdown={() => setShowBreakdown(prev => !prev)}
                 />
+
+                {showBreakdown && lastBreakdown && (
+                    <div className="px-3.5 py-2.5 border-b border-border bg-surface-primary">
+                        <TokenBreakdown
+                            contextBreakdown={lastBreakdown.contextBreakdown}
+                            contextUsed={contextUsed}
+                            contextLimit={contextLimit}
+                            normalizedUsage={lastBreakdown.normalizedUsage}
+                        />
+                    </div>
+                )}
 
                 <ChatContextBar
                     visible={view === 'chat'}

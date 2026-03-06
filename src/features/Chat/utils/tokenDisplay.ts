@@ -27,3 +27,55 @@ export function getEffectiveDisplayLevel(
 ): TokenDisplayLevel {
     return LEVEL_RANK[preference] <= LEVEL_RANK[maxAllowed] ? preference : maxAllowed;
 }
+
+// =============================================================================
+// Context Breakdown Scaling — chars → proportional tokens
+// =============================================================================
+
+import type { ContextBreakdown } from '../../../../shared/models';
+
+/** Scaled breakdown with each component in estimated tokens, summing to actualTotal. */
+export interface ScaledBreakdown {
+    systemPrompt: number;
+    toolDefinitions: number;
+    history: number;
+    memory: number;
+    currentMessage: number;
+    toolResults: number;
+    images: number;
+}
+
+const TEXT_KEYS = ['systemPrompt', 'toolDefinitions', 'history', 'memory', 'currentMessage', 'toolResults'] as const;
+
+/**
+ * Scale raw char sizes proportionally to fit `actualTotal` tokens.
+ * Images keep their token estimate; text shares the remainder.
+ * Guarantee: sum of all values === actualTotal.
+ */
+export function scaleBreakdown(raw: ContextBreakdown, actualTotal: number): ScaledBreakdown {
+    const textCharsSum = raw.systemPrompt + raw.toolDefinitions + raw.history
+        + raw.memory + raw.currentMessage + raw.toolResults;
+    const imageShare = Math.min(raw.imageTokens, actualTotal);
+    const textBudget = actualTotal - imageShare;
+    const textScale = textCharsSum > 0 ? textBudget / textCharsSum : 0;
+
+    const scaled: ScaledBreakdown = {
+        systemPrompt: Math.round(raw.systemPrompt * textScale),
+        toolDefinitions: Math.round(raw.toolDefinitions * textScale),
+        history: Math.round(raw.history * textScale),
+        memory: Math.round(raw.memory * textScale),
+        currentMessage: Math.round(raw.currentMessage * textScale),
+        toolResults: Math.round(raw.toolResults * textScale),
+        images: imageShare,
+    };
+
+    // Fix rounding remainder: adjust largest text component so sum === actualTotal
+    const scaledTextSum = TEXT_KEYS.reduce((s, k) => s + scaled[k], 0);
+    const remainder = textBudget - scaledTextSum;
+    if (remainder !== 0) {
+        const largest = TEXT_KEYS.reduce((a, b) => scaled[a] >= scaled[b] ? a : b);
+        scaled[largest] += remainder;
+    }
+
+    return scaled;
+}

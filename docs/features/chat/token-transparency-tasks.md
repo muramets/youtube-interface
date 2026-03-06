@@ -1,6 +1,6 @@
 # Token Transparency — Tasks
 
-## Current Wave: 5 (Visualization + Audit)
+## Current Wave: 6 (Cost Alerts)
 <!-- Update this line when moving to next wave -->
 
 ## Overview
@@ -91,7 +91,7 @@ Wave 7:  [Rev] R3 Full System -> Fix -> R4 Final -> Fix
 | 2 | Integration (providers + frontend header) | DONE |
 | 3 | Features (stopped msgs + auxiliary costs + tooltip) | DONE |
 | 4 | Core System Review (R1 + R2) | DONE |
-| 5 | Visualization + Audit (breakdown panel + CLI) | TODO |
+| 5 | Visualization + Audit (breakdown panel + CLI) | DONE |
 | 6 | Cost Alerts (warnings + model recommendations) | TODO |
 | 7 | Final System Review (R3 + R4) | TODO |
 
@@ -108,7 +108,7 @@ Wave 7:  [Rev] R3 Full System -> Fix -> R4 Final -> Fix
 | 2 | 583 | 381 | 964 | +390 |
 | 3 | 220 | 387 | 607 | +22 |
 | 4 | 220 | 387 | 607 | +0 |
-| 5 | TBD | TBD | TBD | +TBD |
+| 5 | 225 | 387 | 612 | +5 |
 | 6 | TBD | TBD | TBD | +TBD |
 | 7 | TBD | TBD | TBD | +TBD |
 
@@ -756,8 +756,8 @@ H (frontend: TokenBreakdown component) || I (scripts: CLI audit tool) — PARALL
 
 ### Tasks
 
-- [ ] **H** — Layer breakdown panel
-- [ ] **I** — CLI audit tool
+- [x] **H** — Layer breakdown panel
+- [x] **I** — CLI audit tool
 
 #### H: Layer breakdown panel
 
@@ -897,10 +897,10 @@ npm run typecheck                             # clean (new component)
 ```
 
 **MANDATORY: Update this file before proceeding (wave is NOT done until all boxes checked):**
-- [ ] Mark H, I tasks above as done
-- [ ] Update Wave Status table: Wave 5 → DONE
-- [ ] Update "Current Test Count" table row for Wave 5
-- [ ] Update "Current Wave" pointer at top of file: `## Current Wave: 6 (Cost Alerts)`
+- [x] Mark H, I tasks above as done
+- [x] Update Wave Status table: Wave 5 → DONE
+- [x] Update "Current Test Count" table row for Wave 5
+- [x] Update "Current Wave" pointer at top of file: `## Current Wave: 6 (Cost Alerts)`
 
 ### Review Gate 5
 
