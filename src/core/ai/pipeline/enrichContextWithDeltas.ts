@@ -2,7 +2,7 @@
 // enrichContextWithDeltas — Enrichment middleware for AppContextItems
 //
 // Post-processing step that adds delta view data (24h/7d/30d) to
-// VideoCardContext items before they are sent to Gemini.
+// VideoCardContext items before they are sent to the AI provider.
 //
 // Called imperatively from chatStore.sendMessage() — no React dependency.
 // Reads trendChannels from Zustand store, computes deltas via pure function.

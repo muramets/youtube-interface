@@ -1,8 +1,8 @@
 // =============================================================================
-// debugSendLog — Structured console logging for Gemini send requests
+// debugSendLog — Structured console logging for chat send requests
 //
 // Extracted from chatStore.sendMessage() for SRP.
-// Only runs in DEV mode. Logs layered view of what's sent to Gemini:
+// Only runs in DEV mode. Logs layered view of what's sent to chat:
 //   - Settings layer (language, style, prompts)
 //   - Layer 1: Persistent Context (videos, traffic, canvas)
 //   - Layer 2: Per-message context
@@ -29,7 +29,7 @@ interface DebugSendLogParams {
 }
 
 /**
- * Log a structured view of everything being sent to Gemini.
+ * Log a structured view of everything being sent to chat.
  * No-op in production.
  */
 export function debugSendLog(params: DebugSendLogParams): void {
@@ -37,7 +37,7 @@ export function debugSendLog(params: DebugSendLogParams): void {
 
     const { model, aiSettings, projects, activeProjectId, persistedContext, appContext, messages, memories, thumbnailUrls, systemPrompt } = params;
 
-    console.group('🤖 Sending to Gemini | Model:', model);
+    console.group('🤖 Sent to chat | Model:', model);
 
     // Settings layer
     console.groupCollapsed('⚙️ Settings Layer');
@@ -146,5 +146,5 @@ export function debugSendLog(params: DebugSendLogParams): void {
         console.log(`📏 System prompt: ~${chars.toLocaleString()} chars (~${tokens.toLocaleString()} tokens)`);
     }
 
-    console.groupEnd(); // 🤖 Sending to Gemini
+    console.groupEnd(); // 🤖 Sent to chat
 }
