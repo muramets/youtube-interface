@@ -18,8 +18,8 @@
 - Claude agentic loop — до 10 итераций, `executeToolBatch()`, 90s inactivity timeout
 - Thinking per-model — Gemini: `thinkingLevel` (enum) или `thinkingBudget` (tokens); Claude: `budget_tokens`
 - UI — dropdown с группировкой по провайдеру (GEMINI / CLAUDE секции), thinking level адаптируется под модель
-- **Provider-agnostic attachments** — все модели получают file attachments через `ProviderStreamOpts.attachments`. Gemini использует pre-uploaded refs (fast path) или server-side fallback upload. Claude принимает images по URL + PDF как document blocks.
-- **UI attachment filtering** — `accept` attribute и Send blocking адаптируются per-model из `MODEL_REGISTRY.attachmentSupport`
+- **Provider-agnostic attachments** — все модели получают file attachments через `ProviderStreamOpts.attachments`. Gemini использует pre-uploaded refs (fast path) или server-side fallback upload. Claude принимает images по URL, PDF как document blocks, text files (CSV, plain text) — content fetched server-side и inline в text blocks.
+- **UI attachment filtering** — `accept` attribute и Send blocking адаптируются per-model из `MODEL_REGISTRY.attachmentSupport`. Text file token estimate + warning при >30% context window.
 - 239 backend тестов, 21 contract test для Claude streamChat
 - **Token Transparency** — оба провайдера пишут `normalizedUsage` (provider-agnostic `NormalizedTokenUsage`) на каждое model message. Включает per-iteration breakdown, thinking tokens, cost в USD. Подробности: `docs/features/chat/token-transparency.md`
 - **Utility Model Strategy** — вспомогательные задачи всегда через Gemini (не зависят от user model):
@@ -194,9 +194,11 @@ UI поддержка мульти-провайдера.
 - [x] `aiChat.ts` маппит attachments → generic `ProviderStreamOpts.attachments`
 - [x] `currentMessageGeminiRefs` rename + server-side fallback upload в `geminiFactory`
 - [x] `toClaudeAttachmentBlock()` — image → image block, PDF → document block, other → text fallback
+- [x] `fetchTextAttachmentBlock()` — text/* files fetched server-side, inline as text blocks (max 500KB, truncation)
 - [x] Conditional Gemini upload в `useFileAttachments` (skip для Anthropic models)
 - [x] Dynamic `accept` attribute + Send blocking при несовместимых файлах
 - [x] Inline warning "Some files are not supported by {model}"
+- [x] Text file token estimate in staged chips + warning при >30% context window
 
 ### Стадия 5 — Production Hardening
 - [ ] Provider-specific rate limiting и cost tracking

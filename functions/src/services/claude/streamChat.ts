@@ -123,12 +123,18 @@ const CACHE_CONTROL: CacheControlEphemeral = { type: "ephemeral", ttl: "1h" };
 // =============================================================================
 
 /**
- * Convert a provider-agnostic AttachmentRef to a Claude content block.
+ * Maximum text attachment size to include inline (bytes).
+ * ~125K tokens — leaves room for history + system prompt within 200K context.
+ */
+const MAX_TEXT_ATTACHMENT_BYTES = 500_000;
+
+/**
+ * Convert a provider-agnostic AttachmentRef to a Claude content block (sync).
  *
- * Supported natively:
+ * Used for history attachments where content is NOT re-fetched:
  *   - Images → `image` block with URL source
  *   - PDFs → `document` block with URL source
- * Fallback:
+ *   - Text files → `text` block with file description (content was sent on original turn)
  *   - Everything else → `text` block with file name/type description
  */
 function toClaudeAttachmentBlock(att: AttachmentRef): ContentBlockParam {
@@ -144,11 +150,51 @@ function toClaudeAttachmentBlock(att: AttachmentRef): ContentBlockParam {
             source: { type: "url", url: att.url },
         } as DocumentBlockParam;
     }
+    // Text files in history — content was already processed on the original turn
+    if (att.mimeType.startsWith("text/")) {
+        return {
+            type: "text",
+            text: `[Previously attached file: ${att.name} (${att.mimeType})]`,
+        } as TextBlockParam;
+    }
     // Unsupported type — include as text description
     return {
         type: "text",
         text: `[Attached file: ${att.name} (${att.mimeType})]`,
     } as TextBlockParam;
+}
+
+/**
+ * Fetch text file content from a Firebase Storage URL and return as a text block.
+ * Used for current-message text attachments (CSV, plain text, etc.).
+ *
+ * Truncates at MAX_TEXT_ATTACHMENT_BYTES to prevent context overflow.
+ */
+async function fetchTextAttachmentBlock(att: AttachmentRef): Promise<TextBlockParam> {
+    try {
+        const response = await fetch(att.url);
+        if (!response.ok) {
+            console.warn(`[claude:attachment] Failed to fetch ${att.name}: HTTP ${response.status}`);
+            return { type: "text", text: `[Could not read file: ${att.name} (${att.mimeType})]` } as TextBlockParam;
+        }
+
+        let content = await response.text();
+        let truncated = false;
+
+        if (content.length > MAX_TEXT_ATTACHMENT_BYTES) {
+            content = content.slice(0, MAX_TEXT_ATTACHMENT_BYTES);
+            truncated = true;
+        }
+
+        const header = truncated
+            ? `[File: ${att.name} — truncated to first ${Math.round(MAX_TEXT_ATTACHMENT_BYTES / 1000)}KB]`
+            : `[File: ${att.name}]`;
+
+        return { type: "text", text: `${header}\n${content}` } as TextBlockParam;
+    } catch (err) {
+        console.error(`[claude:attachment] Error fetching ${att.name}:`, err);
+        return { type: "text", text: `[Could not read file: ${att.name} (${att.mimeType})]` } as TextBlockParam;
+    }
 }
 
 // =============================================================================
@@ -386,9 +432,14 @@ export async function streamChat(
     const userBlocks: ContentBlockParam[] = [];
 
     // Current-message attachments → native content blocks
+    // Text files (CSV, plain text, etc.) are fetched and included inline.
     if (attachments && attachments.length > 0) {
         for (const att of attachments) {
-            userBlocks.push(toClaudeAttachmentBlock(att));
+            if (att.mimeType.startsWith("text/")) {
+                userBlocks.push(await fetchTextAttachmentBlock(att));
+            } else {
+                userBlocks.push(toClaudeAttachmentBlock(att));
+            }
         }
     }
 

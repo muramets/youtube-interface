@@ -135,7 +135,7 @@ const GEMINI_ATTACHMENT_SUPPORT: AttachmentSupport = {
 };
 
 const CLAUDE_ATTACHMENT_SUPPORT: AttachmentSupport = {
-    image: true, pdf: true, audio: false, video: false, text: false,
+    image: true, pdf: true, audio: false, video: false, text: true,
 };
 
 /**

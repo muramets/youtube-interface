@@ -102,6 +102,22 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         return stagedFiles.some(f => f.result && !isAllowedMimeTypeForModel(f.file, support));
     }, [activeModelConfig, stagedFiles]);
 
+    // Warn when a text file uses >30% of the model's context window
+    const largeTextWarning = useMemo(() => {
+        if (!activeModelConfig || stagedFiles.length === 0) return null;
+        const threshold = activeModelConfig.contextLimit * 0.3;
+        for (const f of stagedFiles) {
+            if (f.file.type.startsWith('text/')) {
+                const estimatedTokens = Math.ceil(f.file.size / 4);
+                if (estimatedTokens > threshold) {
+                    const percent = Math.round((estimatedTokens / activeModelConfig.contextLimit) * 100);
+                    return { fileName: f.file.name, percent };
+                }
+            }
+        }
+        return null;
+    }, [activeModelConfig, stagedFiles]);
+
     // Memorize mode state
     const [isMemorizing, setIsMemorizing] = useState(false);
     const [isMemorizeSaving, setIsMemorizeSaving] = useState(false);
@@ -258,6 +274,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                         const imageTokenEstimate = type === 'image' && activeModel
                             ? estimateImageTokens(activeModel, [{ width: staged.width, height: staged.height }])
                             : 0;
+                        const textTokenEstimate = staged.file.type.startsWith('text/')
+                            ? Math.ceil(staged.file.size / 4)
+                            : 0;
                         return (
                             <div
                                 key={staged.id}
@@ -293,8 +312,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                         ? staged.file.name.slice(0, 17) + '...'
                                         : staged.file.name}
                                 </span>
-                                {imageTokenEstimate > 0 && (
-                                    <span className="text-text-tertiary">~{imageTokenEstimate.toLocaleString()} tokens</span>
+                                {(imageTokenEstimate > 0 || textTokenEstimate > 0) && (
+                                    <span className="text-text-tertiary">~{(imageTokenEstimate || textTokenEstimate).toLocaleString()} tokens</span>
                                 )}
                                 <button className="bg-transparent border-none p-1 rounded text-text-tertiary cursor-pointer flex text-sm leading-none hover:bg-hover-bg hover:text-[var(--danger-color,#cc0000)] transition-colors" onClick={() => onRemoveFile(staged.id)} title="Remove">
                                     <X size={12} />
@@ -310,6 +329,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 <div className="flex items-center gap-1.5 px-3 py-1.5 mb-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-400">
                     <AlertCircle size={12} />
                     <span>Some files are not supported by {activeModelConfig.label}. Remove them to send.</span>
+                </div>
+            )}
+
+            {/* Large text file warning */}
+            {largeTextWarning && (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 mb-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-400">
+                    <AlertCircle size={12} />
+                    <span>{largeTextWarning.fileName} uses ~{largeTextWarning.percent}% of context window. Response quality may decrease.</span>
                 </div>
             )}
 
