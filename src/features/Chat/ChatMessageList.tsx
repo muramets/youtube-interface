@@ -471,6 +471,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     const memories = useChatStore(s => s.memories);
     const updateMemory = useChatStore(s => s.updateMemory);
     const deleteMemory = useChatStore(s => s.deleteMemory);
+    // Manual memories (conversationId undefined) are excluded by design — they appear only in Settings
     const conversationMemories = useMemo(() =>
         memories.filter(m => m.conversationId === activeConversationId),
         [memories, activeConversationId]

@@ -38,7 +38,7 @@ vi.mock('../../config/models.js', () => ({
 // Import after mocks
 // ---------------------------------------------------------------------------
 
-import { formatContextLabel, buildMemory, extractCandidateVideos } from '../memory.js';
+import { formatContextLabel, buildMemory, extractCandidateVideos, generateConcludeSummary } from '../memory.js';
 import { getClient } from '../gemini/index.js';
 const mockGetClient = vi.mocked(getClient);
 
@@ -912,5 +912,41 @@ describe('extractCandidateVideos', () => {
         expect(result).toHaveLength(2);
         expect(result[0]).toEqual({ videoId: 'v1', title: '(untitled)', ownership: 'competitor', thumbnailUrl: '' });
         expect(result[1]).toEqual({ videoId: 'v2', title: '(untitled)', ownership: 'competitor', thumbnailUrl: '' });
+    });
+});
+
+// =============================================================================
+// generateConcludeSummary — CONCLUDE_SYSTEM_PROMPT section headers
+// =============================================================================
+
+describe('generateConcludeSummary', () => {
+    it('passes consistent section headers in systemInstruction', async () => {
+        const mockGenerateContent = vi.fn().mockResolvedValue({
+            text: JSON.stringify({ content: '## Decisions\n- chose X', referencedVideoIds: [] }),
+            usageMetadata: { promptTokenCount: 50, candidatesTokenCount: 30, totalTokenCount: 80 },
+        });
+        mockGetClient.mockResolvedValue({
+            models: { generateContent: mockGenerateContent },
+        } as never);
+
+        const messages: HistoryMessage[] = [
+            makeMsg('m1', 'user', 'What should we do about CTR?'),
+            makeMsg('m2', 'model', 'Based on analysis, try shorter titles.'),
+        ];
+
+        await generateConcludeSummary('test-key', messages, undefined, 'test-model');
+
+        expect(mockGenerateContent).toHaveBeenCalledOnce();
+        const callArgs = mockGenerateContent.mock.calls[0][0];
+        const systemPrompt: string = callArgs.config.systemInstruction;
+
+        // Verify all 5 section headers are present
+        expect(systemPrompt).toContain('## Decisions');
+        expect(systemPrompt).toContain('## Insights');
+        expect(systemPrompt).toContain('## Channel State');
+        expect(systemPrompt).toContain('## Action Items');
+        expect(systemPrompt).toContain('## Open Questions');
+        // Verify "omit empty" instruction
+        expect(systemPrompt).toContain('omit sections with no content');
     });
 });

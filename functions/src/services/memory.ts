@@ -348,12 +348,12 @@ into a concise, actionable memory that will be injected into future AI conversat
 
 CRITICAL: This memory will be the ONLY record of this conversation. It must be self-contained.
 
-Extract and preserve:
-1. **Decisions made** — what was chosen and why
-2. **Strategies identified** — specific approaches, patterns, techniques learned
-3. **Key data points** — concrete numbers, names, comparisons that support decisions
-4. **Action items** — anything planned but not yet done
-5. **Lessons learned** — insights about what works or doesn't
+Structure the content with these exact markdown headers (omit sections with no content):
+## Decisions — what was chosen and why
+## Insights — patterns observed, lessons learned, what works or doesn't
+## Channel State — snapshot of current channel metrics and situation
+## Action Items — anything planned but not yet done
+## Open Questions — unresolved issues for future exploration
 
 Do NOT include:
 - Greetings, chitchat, or procedural back-and-forth
@@ -362,7 +362,7 @@ Do NOT include:
 - Video reference numbers like "Video 3" — always use the video's actual title instead
 
 Return a JSON object with two fields:
-- "content": the insight as markdown (bullet points grouped by topic, 100-300 words, shorter is better if nothing is lost)
+- "content": the insight as markdown (use the section headers above, 100-300 words, shorter is better if nothing is lost)
 - "referencedVideoIds": array of videoId strings — ONLY videos your insight directly discusses, NOT every video mentioned in passing
 
 Language: Write the content in the same language as the conversation.`;

@@ -100,13 +100,14 @@ export interface AiChatResult {
 // Re-export shared type for consumers that import from chat types
 export type { MemoryVideoRef } from '../../../../shared/memory';
 
-/** Layer 4: A saved memory (insight) from a concluded conversation. */
+/** Layer 4: A saved memory (insight) from a concluded conversation or manual note. */
 export interface ConversationMemory {
     id: string;
-    conversationId: string;
+    conversationId?: string;   // absent for manual memories
     conversationTitle: string;
     content: string;           // generated summary (user-editable)
     guidance?: string;         // optional user guidance for focus
+    source?: 'chat' | 'manual'; // absent on legacy memories (treated as 'chat')
     videoRefs?: import('../../../../shared/memory').MemoryVideoRef[]; // video snapshots referenced by this insight
     createdAt: Timestamp;
     updatedAt: Timestamp;

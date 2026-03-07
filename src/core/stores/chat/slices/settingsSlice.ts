@@ -20,6 +20,7 @@ export function createSettingsSlice(
     | 'subscribeToMemories'
     | 'saveAiSettings'
     | 'memorizeConversation'
+    | 'createMemory'
     | 'updateMemory'
     | 'deleteMemory'
 > {
@@ -57,6 +58,11 @@ export function createSettingsSlice(
             const model = conv?.model || get().aiSettings.defaultModel;
 
             return AiProxy.concludeConversation(channelId, activeConversationId, guidance, model);
+        },
+
+        createMemory: async (content: string, title?: string) => {
+            const { userId, channelId } = requireContext(get);
+            await ChatService.createMemory(userId, channelId, content, title);
         },
 
         updateMemory: async (memoryId: string, content: string) => {

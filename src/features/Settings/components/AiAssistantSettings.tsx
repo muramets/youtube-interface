@@ -3,7 +3,7 @@
 // =============================================================================
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { ChevronDown, Brain, Pencil, Trash2, Check, X } from 'lucide-react';
+import { ChevronDown, Brain, Pencil, Trash2, Check, X, Plus } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Dropdown } from '../../../components/ui/molecules/Dropdown';
@@ -44,11 +44,15 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
     }, [userId, channelId, setContext, subscribeToAiSettings, subscribeToMemories]);
 
     const memories = useChatStore(s => s.memories);
+    const storeCreateMemory = useChatStore(s => s.createMemory);
     const storeUpdateMemory = useChatStore(s => s.updateMemory);
     const storeDeleteMemory = useChatStore(s => s.deleteMemory);
     const [editingMemoryId, setEditingMemoryId] = useState<string | null>(null);
     const [editText, setEditText] = useState('');
     const [savingMemoryId, setSavingMemoryId] = useState<string | null>(null);
+    const [isCreating, setIsCreating] = useState(false);
+    const [newMemoryTitle, setNewMemoryTitle] = useState('');
+    const [newMemoryText, setNewMemoryText] = useState('');
 
     const handleEditStart = useCallback((mem: { id: string; content: string }) => {
         setEditingMemoryId(mem.id);
@@ -65,6 +69,19 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
             setSavingMemoryId(null);
         }
     }, [editText, storeUpdateMemory]);
+
+    const handleCreateSave = useCallback(async () => {
+        if (!newMemoryText.trim()) return;
+        setIsCreating(false);
+        try {
+            await storeCreateMemory(newMemoryText.trim(), newMemoryTitle.trim() || undefined);
+            setNewMemoryText('');
+            setNewMemoryTitle('');
+        } catch (err) {
+            console.error('[AiAssistantSettings] Failed to create memory:', err);
+            setIsCreating(true); // re-open textarea so user can retry
+        }
+    }, [newMemoryText, newMemoryTitle, storeCreateMemory]);
 
     const handleDelete = useCallback(async (memoryId: string) => {
         setSavingMemoryId(memoryId);
@@ -228,9 +245,70 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
                     <span className={`text-[10px] ${theme.textSecondary} ml-auto`}>
                         {memories.length} {memories.length === 1 ? 'memory' : 'memories'}
                     </span>
+                    <button
+                        className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] bg-transparent border-none cursor-pointer hover:bg-white/[0.05] transition-colors"
+                        style={{ color: 'var(--accent)' }}
+                        onClick={() => { setIsCreating(true); setNewMemoryTitle(''); setNewMemoryText(''); }}
+                    >
+                        <Plus size={12} /> Add Memory
+                    </button>
                 </div>
 
-                {memories.length === 0 ? (
+                {isCreating && (
+                    <div
+                        className="rounded-lg p-3"
+                        style={{ backgroundColor: 'var(--settings-menu-active)' }}
+                    >
+                        <input
+                            type="text"
+                            value={newMemoryTitle}
+                            onChange={(e) => setNewMemoryTitle(e.target.value)}
+                            placeholder="Title (optional)"
+                            className="w-full bg-transparent text-sm font-medium text-text-primary outline-none border border-border rounded-md px-2 py-1.5 mb-2 placeholder-modal-placeholder"
+                            autoFocus
+                        />
+                        <textarea
+                            ref={(el) => {
+                                if (el) {
+                                    el.style.height = 'auto';
+                                    el.style.height = el.scrollHeight + 'px';
+                                }
+                            }}
+                            value={newMemoryText}
+                            onChange={(e) => {
+                                setNewMemoryText(e.target.value);
+                                e.target.style.height = 'auto';
+                                e.target.style.height = e.target.scrollHeight + 'px';
+                            }}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Escape') {
+                                    e.stopPropagation();
+                                    setIsCreating(false);
+                                }
+                            }}
+                            placeholder={'## Decisions\n\n## Insights\n\n## Channel State\n\n## Action Items'}
+                            className="w-full bg-transparent text-sm text-text-primary outline-none resize-none border border-border rounded-md p-2 min-h-[120px] max-h-[300px] overflow-y-auto"
+                        />
+                        <div className="flex items-center justify-end gap-1.5 mt-2">
+                            <button
+                                className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] text-text-tertiary bg-transparent border-none cursor-pointer hover:text-text-secondary hover:bg-white/[0.05] transition-colors"
+                                onClick={() => setIsCreating(false)}
+                            >
+                                <X size={12} /> Cancel
+                            </button>
+                            <button
+                                className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] bg-transparent border-none cursor-pointer hover:bg-white/[0.05] transition-colors disabled:opacity-50"
+                                style={{ color: 'var(--accent)' }}
+                                onClick={handleCreateSave}
+                                disabled={!newMemoryText.trim()}
+                            >
+                                <Check size={12} /> Save
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {memories.length === 0 && !isCreating ? (
                     <p className={`text-sm ${theme.textSecondary} italic inline-flex items-center gap-1`}>
                         No memories yet. Use the <Brain size={14} className="inline" /> button in chat to memorize conversations.
                     </p>

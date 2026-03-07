@@ -2,7 +2,7 @@
 
 ## Текущее состояние
 
-**Реализовано.** 4-слойная система памяти чата. L1 (persistent context) и L2 (per-message labels) обеспечивают awareness — AI знает, какие видео обсуждаются. L3 (summarization) сжимает длинную историю, чтобы не выходить за контекстное окно модели. L4 (cross-conversation memory) сохраняет ключевые инсайты между разговорами по нажатию кнопки "Memorize" — с привязкой конкретных видео (video refs). Summarization всегда выполняется через Gemini Flash (дёшево и быстро), независимо от того, какой провайдер ведёт основной чат.
+**Реализовано.** 4-слойная система памяти чата. L1 (persistent context) и L2 (per-message labels) обеспечивают awareness — AI знает, какие видео обсуждаются. L3 (summarization) сжимает длинную историю, чтобы не выходить за контекстное окно модели. L4 (cross-conversation memory) сохраняет ключевые инсайты между разговорами по нажатию кнопки "Memorize" — с привязкой конкретных видео (video refs). L4 memories генерируются с **consistent section headers** (`## Decisions`, `## Insights`, `## Channel State`, `## Action Items`, `## Open Questions`). Пользователь может также **вручную добавлять memories** из Settings → AI Memory (manual notes без LLM-обработки). Summarization всегда выполняется через Gemini Flash (дёшево и быстро), независимо от того, какой провайдер ведёт основной чат.
 
 ---
 
@@ -159,7 +159,7 @@
 ## Known Limitations
 
 ### Token estimation — грубая оценка
-Используется `CHARS_PER_TOKEN = 4` (4 символа ≈ 1 токен). Для смешанного контента (русский + английский + code + URLs) точность колеблется. Это порог, не биллинг — ошибка в 20-30% допустима, но может приводить к преждевременному или запоздалому срабатыванию summary.
+Используется `CHARS_PER_TOKEN = 4` (4 символа ≈ 1 токен). Для смешанного контента (русский + английский + code + URLs) точность колеблется. Это порог, не биллинг — ошибка в 20-30% допустима. На практике запас большой: при `historyBudgetRatio = 0.85` от 1M (Gemini) остаётся ~150K токенов свободных — промах эвристики на 30% не критичен. Возможен гибридный подход: использовать реальные `inputTokens` из Token Transparency (NormalizedTokenUsage) как базу для предыдущих вызовов, оценивая эвристикой только новые сообщения.
 
 ### Нет иерархической суммаризации
 При очень длинных разговорах (50+ обменов) summary сам разрастается. Нет механизма "сжать сжатое" — recursive summarization. Summary растёт линейно с длиной разговора.
@@ -206,30 +206,45 @@ Summary инжектируется как сообщение с `role: "model"` 
 
 Task doc: [memory-video-refs-tasks.md](./memory-video-refs-tasks.md)
 
-### Stage 2 — Reliability & Precision ← YOU ARE HERE
-Повысить надёжность оценки токенов и качество summary.
+### Stage 2 — Smart Cross-Conversation Memory (L4) ✅
+Улучшение качества генерации L4 memories. L3 summarization работает адекватно — фокус на L4.
 
-- [ ] **Точная оценка токенов** — заменить `CHARS_PER_TOKEN = 4` на `countTokens()` API Gemini. Один дополнительный API-вызов на сообщение, но точный бюджет вместо heuristic. Кэшировать результат на message doc.
-- [ ] **Summary quality check** — после генерации summary делать follow-up вызов: "перечисли 5 ключевых фактов из этого summary" → сравнить с оригиналом → если потеряно >30% — регенерировать с повышенным приоритетом сохранения.
-- [ ] **Auto-conclude stale conversations** — если разговор не активен 7+ дней и содержит 5+ сообщений — предложить Memorize через push notification или banner при следующем открытии.
-- [ ] **Structured summary output** — вместо free-form markdown генерировать JSON с секциями (`decisions`, `openQuestions`, `keyMetrics`, `actionItems`). Markdown rendering — на клиенте.
+Task doc: [cross-chat-memory-stage2-tasks.md](./cross-chat-memory-stage2-tasks.md)
 
-### Stage 3 — Smart Memory
-Автоматическое управление памятью и topic-aware retrieval.
+- [x] **Consistent memory sections** — обновить `CONCLUDE_SYSTEM_PROMPT` чтобы memory всегда генерировался с фиксированными секциями: `## Decisions`, `## Insights`, `## Channel State`, `## Action Items`, `## Open Questions`. Пустые секции опускаются. Хранение — тот же `content: string` (markdown), `responseSchema` не меняется (`{ content, referencedVideoIds }`). **Влияние на L4:** каждый новый memory — консистентно структурированный текст вместо свободной формы. AI легче находит нужные факты, пользователю легче читать и редактировать. Фундамент для будущей consolidation.
+- [x] **Manual memory creation** — кнопка "Add Memory" в Settings → AI Memory. Textarea с опциональным scaffolding (секции из consistent sections). Сохраняется в ту же коллекцию `conversationMemories` с `source: 'manual'` (без `conversationId`, без video refs, без LLM-обработки). **Влияние на L4:** пользователь может добавлять инсайты, полученные вне чата (из YouTube Analytics, конференций, собственных наблюдений) — база знаний AI становится полнее.
+- [x] **Custom title for manual memories** — при создании manual memory пользователь может задать заголовок вместо дефолтного "Manual note". Важно для различимости при 5+ manual memories — в system prompt LLM видит `### "заголовок" (дата)`, и одинаковые "Manual note" затрудняют навигацию. Минимальное изменение: текстовое поле title в UI + `conversationTitle` из пользовательского ввода.
 
-- [ ] **Hierarchical summarization** — при summary > 3K токенов: recursive pass, сжимающий summary до целевого размера с приоритизацией по importance score.
-- [ ] **Topic segmentation** — разбивать summary на topic chunks с embeddings. При формировании контекста — retrieval только релевантных chunks (а не всего summary).
-- [ ] **Memory consolidation** — периодический batch job: анализ всех L4 memories канала → слияние дубликатов → разрешение противоречий → обновление/архивация устаревших.
-- [ ] **AI-driven recall** — `recallMemory(query)` tool: AI сам решает, когда ему нужна информация из прошлых разговоров, и запрашивает конкретный topic.
+#### Когда memory layer станет bottleneck ← YOU ARE HERE
 
-### Stage 4 — Market-Ready Memory
-Полноценная персистентная память ассистента. Пользователь ведёт разговоры месяцами, ассистент накапливает экспертизу о канале.
+Триггер: `ContextBreakdown.memory` в Token Transparency показывает >30-50% контекстного бюджета. Тогда актуализируются (в порядке приоритета):
 
-- [ ] **Vector-indexed memory store** — все L4 memories + conversation summaries индексируются через embeddings. Semantic search по всей истории взаимодействий.
-- [ ] **Memory timeline** — UI для просмотра всех memories хронологически: когда что обсуждалось, как менялись решения со временем.
-- [ ] **Proactive memory** — AI сам предлагает: "В прошлый раз вы решили X, но с тех пор метрики изменились — хотите пересмотреть?"
-- [ ] **Export/import** — экспорт knowledge base канала. При смене инструмента — знания не теряются.
-- [ ] **Cost model:** L3 summarization ~$0.001/summary (Flash). L4 conclude ~$0.002/memory (Flash/Pro). Memory retrieval ~$0.0005/query. Consolidation batch ~$0.01/run. Storage: Firestore + Vector Index.
+- [ ] **Memory consolidation** — LLM мержит похожие memories. 5 memories про thumbnails из разных разговоров → 1 comprehensive memory. Загрузить все L4 memories канала → сравнить содержимое → слить дубликаты → разрешить противоречия (старое решение отменено новым) → обновить/архивировать устаревшие. **Влияние на L4:** меньше memories в system prompt, нет дублей и конфликтов.
+- [ ] **Selective injection** — вместо "все memories в system prompt" → инжектировать только релевантные текущему разговору. Embedding search по содержимому memories (embedding хранится как поле на документе memory, сравнение в коде для десятков memories). **Влияние на L4:** AI получает только нужный контекст, экономия токенов.
+- [ ] **AI-driven recall** — `recallMemory(query)` tool: AI сам запрашивает информацию из прошлых разговоров, когда считает нужным. Работает поверх того же embedding search. **Влияние на L4:** AI ищет прошлые инсайты on-demand, даже те, что не были инжектированы в system prompt.
+
+### Stage 3 — Smart Summarization (L3) + Market-Ready Memory
+L3 reliability & precision + масштабирование и продвинутые L4 фичи.
+
+#### L3 (In-Conversation Summarization)
+
+- [ ] **Summary quality check** — после генерации L3 summary делать проверочный LLM-вызов: "перечисли 5 ключевых фактов из этого summary" → сравнить с оригинальными сообщениями → если потеряно >30% — регенерировать с повышенным приоритетом сохранения. **Влияние на L3:** страховка от "амнезии" — единственный способ поймать потерю данных до того, как она станет необратимой.
+- [ ] **Точная оценка токенов** — заменить `CHARS_PER_TOKEN = 4` на гибридный подход: использовать реальные `inputTokens` из Token Transparency (`NormalizedTokenUsage`) как базу, оценивать эвристикой только новые сообщения. Полная замена на `countTokens()` API — опционально, добавляет +100ms латентности. **Влияние на L3:** точнее определяет момент срабатывания summarization. При текущем запасе (~150K свободных токенов при Gemini 1M) не критично.
+- [ ] **Topic segmentation** — вместо одного монолитного summary разбивать на topic chunks (например: `[thumbnails]`, `[titles]`, `[analytics]`). Каждый chunk получает embedding-вектор (через embedding API, provider-agnostic utility operation — аналогично тому, как summarization всегда идёт через Gemini Flash). При формировании контекста: embedding текущего сообщения → cosine similarity с embedding-ами топиков → инжектировать только релевантные chunks, а не весь summary. **Влияние на L3:** AI получает сфокусированный контекст вместо всего монолита → качественнее ответы + экономия ~60% токенов на summary injection. Для 5-10 топиков на разговор — сравнение в коде. Embedding хранится как обычное поле на документе топика.
+- [ ] **Hierarchical summarization** — при summary > 3K токенов: recursive pass, сжимающий summary до целевого размера с приоритизацией по importance score. **Влияние на L3:** предотвращает разрастание summary в очень длинных разговорах (50+ обменов) — summary сам не съедает бюджет контекстного окна.
+- [ ] **AI-driven recall для L3** — расширение `recallMemory` tool (Stage 2): поиск по topic chunks текущего разговора. AI подгружает забытые topic chunks из ранней части разговора по запросу.
+
+#### L3 + L4
+
+- [ ] **Vector-indexed memory store** — масштабирование embedding search: миграция с in-code cosine similarity на Firestore Vector Search (`findNearest()`, `distanceMeasure: "COSINE"`). Актуально когда L4 memories + L3 topic chunks исчисляются сотнями. Embedding-и уже хранятся как поля документов — нужно только создать vector index. **Влияние на L3:** быстрый поиск по сотням topic chunks. **Влияние на L4:** быстрый поиск по сотням accumulated memories.
+
+#### L4
+
+- [ ] **Auto-conclude stale conversations** — если разговор не активен 7+ дней и содержит 5+ сообщений — предложить Memorize через banner при следующем открытии чата. **Влияние на L4:** больше ценных разговоров превращаются в memories → база знаний полнее.
+- [ ] **Memory timeline** — UI для просмотра всех L4 memories хронологически: когда что обсуждалось, как менялись решения со временем. **Влияние на L4:** пользователь видит эволюцию стратегий канала, может чистить устаревшее.
+- [ ] **Proactive memory** — AI сам предлагает: "В прошлый раз вы решили X, но с тех пор метрики изменились — хотите пересмотреть?" **Влияние на L4:** memories становятся активным инструментом — AI сам инициирует пересмотр на основе изменений в данных.
+- [ ] **Export/import** — экспорт L4 knowledge base канала. При смене инструмента — знания не теряются.
+- [ ] **Cost model:** L3 summarization ~$0.001/summary (Flash). L4 conclude ~$0.002/memory (Flash/Pro). Embedding ~$0.0001/query. Consolidation batch ~$0.01/run. Storage: Firestore docs + Vector Index.
 
 ---
 
@@ -250,7 +265,7 @@ Task doc: [memory-video-refs-tasks.md](./memory-video-refs-tasks.md)
 
 **Core module:** `functions/src/services/memory.ts`
 - `SUMMARY_SYSTEM_PROMPT` — base instructions для L3 суммаризатора (что сохранять, формат, приоритеты)
-- `CONCLUDE_SYSTEM_PROMPT` — base instructions для L4 conclude (extraction rules, что включать/исключать, target length)
+- `CONCLUDE_SYSTEM_PROMPT` — base instructions для L4 conclude (consistent section headers: Decisions / Insights / Channel State / Action Items / Open Questions; extraction rules; target length 100-300 words)
 - `estimateTokens(messages)` — heuristic оценка токенов (4 chars/token + attachment overhead)
 - `formatContextLabel(appContext)` — L2 labels для summarization context
 - `formatMessageForSummary(msg)` — форматирует сообщение для суммаризации (инжектирует L2 labels в user messages)
@@ -283,7 +298,8 @@ Task doc: [memory-video-refs-tasks.md](./memory-video-refs-tasks.md)
 
 **Settings UI:** `src/features/Settings/components/AiAssistantSettings.tsx`
 - "Base Instructions" textarea — редактирование `globalSystemPrompt`
-- "AI Memory" section — просмотр, редактирование и удаление всех L4 memories (с markdown preview + video chips)
+- "AI Memory" section — просмотр, редактирование, удаление и **создание** всех L4 memories (с markdown preview + video chips)
+- "Add Memory" button — создание manual memory с placeholder-scaffolding секций
 
 **Cross-conversation layer:** `src/core/ai/layers/crossConversationLayer.ts`
 - `buildCrossConversationLayer(memories)` — formats L4 memories into system prompt section
@@ -304,10 +320,11 @@ Task doc: [memory-video-refs-tasks.md](./memory-video-refs-tasks.md)
 - `summarizedUpTo: string` — message ID of last summarized message
 
 **Memory doc** (`users/{uid}/channels/{chId}/conversationMemories/{memId}`):
-- `conversationId: string` — source conversation
-- `conversationTitle: string`
+- `conversationId?: string` — source conversation (absent for manual memories)
+- `conversationTitle: string` — conversation title or "Manual note"
 - `content: string` — markdown insight text
 - `guidance?: string` — user-provided focus hint
+- `source?: 'chat' | 'manual'` — origin type (absent on legacy memories, treated as 'chat')
 - `videoRefs: MemoryVideoRef[]` — snapshot видео, о которых инсайт (Stage 1.5)
 - `createdAt: Timestamp`
 - `updatedAt: Timestamp`
@@ -332,7 +349,11 @@ Task doc: [memory-video-refs-tasks.md](./memory-video-refs-tasks.md)
 
 ### Test Coverage
 
-`functions/src/services/__tests__/memory.test.ts` — ~49 tests across 3 describe blocks:
+`functions/src/services/__tests__/memory.test.ts` — ~49 tests across 4 describe blocks:
 - `formatContextLabel`: video-card, suggested-traffic, canvas-selection, edge cases
 - `buildMemory`: full history, summarization trigger, incremental updates, caching, token estimation
 - `extractCandidateVideos`: appContext, canvas-selection nodes, mentionVideo toolCalls, deduplication, defaults, edge cases
+- `generateConcludeSummary`: consistent section headers in systemInstruction
+
+`src/core/services/ai/__tests__/chatService.test.ts` — 4 tests:
+- `createMemory`: correct fields & path, empty content validation, whitespace-only validation, markdown special characters pass-through

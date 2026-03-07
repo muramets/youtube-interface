@@ -351,6 +351,20 @@ export const ChatService = {
         );
     },
 
+    async createMemory(userId: string, channelId: string, content: string, title?: string): Promise<string> {
+        if (!content.trim()) throw new Error('Memory content cannot be empty');
+        const id = uuidv4();
+        await setDocument(memoriesPath(userId, channelId), id, {
+            conversationTitle: title?.trim() || 'Manual note',
+            content,
+            source: 'manual',
+            videoRefs: [],
+            createdAt: Timestamp.now(),
+            updatedAt: Timestamp.now(),
+        });
+        return id;
+    },
+
     async updateMemory(
         userId: string,
         channelId: string,

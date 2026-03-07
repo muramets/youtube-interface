@@ -112,6 +112,7 @@ export interface ChatState {
     stopGeneration: () => void;
     saveAiSettings: (settings: Partial<AiAssistantSettings>) => Promise<void>;
     memorizeConversation: (guidance?: string) => Promise<{ memoryId: string; content: string }>;
+    createMemory: (content: string, title?: string) => Promise<void>;
     updateMemory: (memoryId: string, content: string) => Promise<void>;
     deleteMemory: (memoryId: string) => Promise<void>;
 
