@@ -44,6 +44,11 @@ export const MODEL_CONTEXT_LIMITS: Record<string, number> = Object.fromEntries(
     MODEL_REGISTRY.map(m => [m.id, m.contextLimit])
 );
 
+/** Per-model history budget ratio keyed by model ID. */
+export const MODEL_HISTORY_RATIOS: Record<string, number> = Object.fromEntries(
+    MODEL_REGISTRY.map(m => [m.id, m.historyBudgetRatio])
+);
+
 /**
  * Validate that a thinkingOptionId is valid for the given model.
  * Returns the validated option id, or undefined if invalid/missing.

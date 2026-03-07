@@ -298,7 +298,7 @@ Summary инжектируется как сообщение с `role: "model"` 
 |----------|-------|---------|
 | `CHARS_PER_TOKEN` | 4 | Rough token estimation ratio |
 | `ATTACHMENT_TOKEN_ESTIMATE` | 1,500 | Tokens per attachment in estimate |
-| `HISTORY_BUDGET_RATIO` | 0.6 | History gets 60% of model context |
+| `historyBudgetRatio` | 0.75 (Claude) / 0.85 (Gemini) | Per-model history budget (fallback `HISTORY_BUDGET_RATIO = 0.6`) |
 | `MIN_RECENT_MESSAGES` | 10 | Always keep at least 10 recent messages |
 | `CONTEXT_LABEL_CHARS_PER_ITEM` | 50 | Estimated chars per appContext label |
 | Recent window budget | 80% of history budget | Sliding window allocation |

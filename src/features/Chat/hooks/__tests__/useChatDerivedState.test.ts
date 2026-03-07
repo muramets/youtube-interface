@@ -4,7 +4,6 @@ import { Timestamp } from 'firebase/firestore';
 import { useChatDerivedState } from '../useChatDerivedState';
 import type { ChatMessage } from '../../../../core/types/chat/chat';
 import type { TokenUsage, NormalizedTokenUsage } from '../../../../../shared/models';
-import { HISTORY_BUDGET_RATIO } from '../../../../../shared/models';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -95,7 +94,7 @@ describe('useChatDerivedState — context tracking', () => {
         expect(result.current.contextUsed).toBe(1700);
     });
 
-    it('contextLimit = modelConfig.contextLimit * HISTORY_BUDGET_RATIO (summarization threshold)', () => {
+    it('contextLimit = modelConfig.contextLimit * historyBudgetRatio (per-model summarization threshold)', () => {
         const messages: ChatMessage[] = [
             makeMessage('user'),
             makeMessage('model', {
@@ -107,18 +106,18 @@ describe('useChatDerivedState — context tracking', () => {
             }),
         ];
 
-        // Claude: contextLimit = 200_000 * 0.6 = 120_000
+        // Claude: contextLimit = 200_000 * 0.75 = 150_000
         const { result: claudeResult } = renderHook(() =>
             useChatDerivedState(makeOpts({ messages, defaultModel: 'claude-sonnet-4-6' })),
         );
-        expect(claudeResult.current.contextLimit).toBe(200_000 * HISTORY_BUDGET_RATIO);
+        expect(claudeResult.current.contextLimit).toBe(200_000 * 0.75);
         expect(claudeResult.current.modelContextLimit).toBe(200_000);
 
-        // Gemini: contextLimit = 1_000_000 * 0.6 = 600_000
+        // Gemini: contextLimit = 1_000_000 * 0.85 = 850_000
         const { result: geminiResult } = renderHook(() =>
             useChatDerivedState(makeOpts({ messages, defaultModel: 'gemini-2.5-pro' })),
         );
-        expect(geminiResult.current.contextLimit).toBe(1_000_000 * HISTORY_BUDGET_RATIO);
+        expect(geminiResult.current.contextLimit).toBe(1_000_000 * 0.85);
         expect(geminiResult.current.modelContextLimit).toBe(1_000_000);
     });
 
@@ -138,18 +137,18 @@ describe('useChatDerivedState — context tracking', () => {
             ),
         ];
 
-        // Use Claude model (contextLimit = 200_000 * 0.6 = 120_000)
+        // Use Claude model (contextLimit = 200_000 * 0.75 = 150_000)
         const { result } = renderHook(() =>
             useChatDerivedState(makeOpts({ messages, defaultModel: 'claude-sonnet-4-6' })),
         );
 
         // contextUsed = 100_000 + 50_000 + 10_000 = 160_000
-        // contextPercent = Math.min(100, Math.round(160_000 / 120_000 * 100)) = 100 (capped)
+        // contextPercent = Math.min(100, Math.round(160_000 / 150_000 * 100)) = 100 (capped)
         expect(result.current.contextUsed).toBe(160_000);
         expect(result.current.contextPercent).toBe(100);
     });
 
-    it('uses contextLimit from the active model in MODEL_REGISTRY (scaled by HISTORY_BUDGET_RATIO)', () => {
+    it('uses contextLimit from the active model in MODEL_REGISTRY (scaled by per-model historyBudgetRatio)', () => {
         const tokenUsage: TokenUsage = {
             promptTokens: 100_000,
             completionTokens: 5_000,
@@ -163,12 +162,12 @@ describe('useChatDerivedState — context tracking', () => {
             makeMessage('model', tokenUsage),
         ];
 
-        // With Claude model (contextLimit = 200_000 * 0.6 = 120_000)
+        // With Claude model (contextLimit = 200_000 * 0.75 = 150_000)
         const { result: claudeResult } = renderHook(() =>
             useChatDerivedState(makeOpts({ messages, defaultModel: 'claude-sonnet-4-6' })),
         );
 
-        // With Gemini model (contextLimit = 1_000_000 * 0.6 = 600_000)
+        // With Gemini model (contextLimit = 1_000_000 * 0.85 = 850_000)
         const { result: geminiResult } = renderHook(() =>
             useChatDerivedState(makeOpts({ messages, defaultModel: 'gemini-2.5-pro' })),
         );
@@ -177,11 +176,11 @@ describe('useChatDerivedState — context tracking', () => {
         expect(claudeResult.current.contextUsed).toBe(100_000);
         expect(geminiResult.current.contextUsed).toBe(100_000);
 
-        // Claude: Math.round(100_000 / 120_000 * 100) = 83
-        expect(claudeResult.current.contextPercent).toBe(83);
+        // Claude: Math.round(100_000 / 150_000 * 100) = 67
+        expect(claudeResult.current.contextPercent).toBe(67);
 
-        // Gemini: Math.round(100_000 / 600_000 * 100) = 17
-        expect(geminiResult.current.contextPercent).toBe(17);
+        // Gemini: Math.round(100_000 / 850_000 * 100) = 12
+        expect(geminiResult.current.contextPercent).toBe(12);
     });
 
     it('prefers normalizedUsage.contextWindow.inputTokens over legacy tokenUsage', () => {

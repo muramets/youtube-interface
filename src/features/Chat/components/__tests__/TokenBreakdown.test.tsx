@@ -166,7 +166,7 @@ describe('TokenBreakdown', () => {
             );
 
             expect(screen.getByText('Billing')).toBeInTheDocument();
-            expect(screen.getByText('This message')).toBeInTheDocument();
+            expect(screen.getByText('Last request')).toBeInTheDocument();
             expect(screen.getByText('$0.0523')).toBeInTheDocument();
         });
 

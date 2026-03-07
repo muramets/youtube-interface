@@ -17,13 +17,19 @@ vi.mock('../gemini/index.js', () => ({
     getClient: vi.fn(),
 }));
 
-// Mock MODEL_CONTEXT_LIMITS + HISTORY_BUDGET_RATIO — deterministic budget for tests
+// Mock MODEL_CONTEXT_LIMITS + MODEL_HISTORY_RATIOS — deterministic budget for tests
 vi.mock('../../config/models.js', () => ({
     MODEL_CONTEXT_LIMITS: {
         'test-model': 1_000,         // tiny: 1000 tokens total → 600 budget
         'test-model-large': 100_000, // large enough that short convos fit
         'claude-opus-4-6': 200_000,  // Claude context for Task B tests
         'gemini-2.5-pro': 1_000_000, // Gemini context for Task B tests
+    } as Record<string, number>,
+    MODEL_HISTORY_RATIOS: {
+        'test-model': 0.6,
+        'test-model-large': 0.6,
+        'claude-opus-4-6': 0.75,
+        'gemini-2.5-pro': 0.85,
     } as Record<string, number>,
     HISTORY_BUDGET_RATIO: 0.6,
 }));
@@ -741,13 +747,12 @@ describe('buildMemory', () => {
         expect(largeResult.usedSummary).toBe(false);
     });
 
-    it('Claude budget = 200K × 0.6 = 120K, Gemini budget = 1M × 0.6 = 600K', async () => {
+    it('Claude budget = 200K × 0.75 = 150K, Gemini budget = 1M × 0.85 = 850K', async () => {
         setupMockGenerateContent('Claude budget test');
 
-        // ~30K tokens worth of messages (120K chars / 4 chars per token)
-        // Claude budget: 200K × 0.6 = 120K → 30K < 120K → fits
-        // But if we use 500K chars → 125K tokens > 120K budget → summarizes
-        const longMessages = makeConversation(20, 25_000); // 20 × 25K = 500K chars → ~125K tokens
+        // 620K chars → ~155K tokens > Claude budget 150K → summarizes
+        // But 155K < Gemini budget 850K → fits
+        const longMessages = makeConversation(20, 31_000); // 20 × 31K = 620K chars → ~155K tokens
 
         const claudeResult = await buildMemory({
             apiKey: 'test-key',
@@ -757,7 +762,7 @@ describe('buildMemory', () => {
         });
         expect(claudeResult.usedSummary).toBe(true);
 
-        // Same messages with Gemini: 125K < 600K → fits
+        // Same messages with Gemini: 155K < 850K → fits
         const geminiResult = await buildMemory({
             apiKey: 'test-key',
             chatModel: 'gemini-2.5-pro',

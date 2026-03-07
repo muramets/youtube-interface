@@ -6,7 +6,7 @@
 // =============================================================================
 
 import type { HistoryMessage } from "./ai/types.js";
-import { MODEL_CONTEXT_LIMITS, HISTORY_BUDGET_RATIO } from "../config/models.js";
+import { MODEL_CONTEXT_LIMITS, MODEL_HISTORY_RATIOS, HISTORY_BUDGET_RATIO } from "../config/models.js";
 
 // --- Token estimation ---
 
@@ -185,7 +185,8 @@ export async function buildMemory(opts: {
     const { apiKey, chatModel, summaryModel, allMessages, existingSummary, existingSummarizedUpTo } = opts;
 
     const totalTokens = estimateTokens(allMessages);
-    const budget = (MODEL_CONTEXT_LIMITS[chatModel] || 200_000) * HISTORY_BUDGET_RATIO;
+    const ratio = MODEL_HISTORY_RATIOS[chatModel] ?? HISTORY_BUDGET_RATIO;
+    const budget = (MODEL_CONTEXT_LIMITS[chatModel] || 200_000) * ratio;
 
     // If everything fits — use full history, no summarization needed
     if (totalTokens <= budget) {

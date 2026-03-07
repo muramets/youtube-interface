@@ -59,7 +59,7 @@ export function useChatDerivedState(opts: UseChatDerivedStateOpts): UseChatDeriv
     const activeModel = resolveModelId(pendingModel || activeConversation?.model || activeProject?.model || defaultModel || DEFAULT_MODEL, MODEL_REGISTRY);
     const modelConfig = MODEL_REGISTRY.find(m => m.id === activeModel) ?? MODEL_REGISTRY[0];
     const modelContextLimit = modelConfig.contextLimit ?? DEFAULT_CONTEXT_LIMIT;
-    const contextLimit = modelContextLimit * HISTORY_BUDGET_RATIO;
+    const contextLimit = modelContextLimit * (modelConfig.historyBudgetRatio ?? HISTORY_BUDGET_RATIO);
 
     // Token usage (model responses only — user messages don't have tokenUsage)
     const totalTokens = useMemo(() =>
