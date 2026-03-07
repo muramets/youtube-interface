@@ -8,6 +8,7 @@ import {
     STYLE_CONCISE,
     STYLE_DETAILED,
     THINKING_DISCIPLINE,
+    AGENTIC_BEHAVIOR_RULES,
     ANTI_HALLUCINATION_RULES,
 } from '../../config/prompts';
 
@@ -47,6 +48,9 @@ export function buildSettingsLayer(
     if (aiSettings.globalSystemPrompt) sections.push(aiSettings.globalSystemPrompt);
     const project = projects.find(p => p.id === activeProjectId);
     if (project?.systemPrompt) sections.push(project.systemPrompt);
+
+    // Agentic behavior rules (planning, tool strategy, self-check)
+    sections.push(AGENTIC_BEHAVIOR_RULES);
 
     // Anti-hallucination rules (always last in Settings — right before context data)
     sections.push(ANTI_HALLUCINATION_RULES);

@@ -20,6 +20,42 @@ export const STYLE_DETAILED = 'Provide thorough, detailed responses with explana
 export const THINKING_DISCIPLINE = 'Your response must contain ONLY the final answer. Never include: planning steps, self-corrections, draft outlines, or meta-commentary about how you will structure the response. All reasoning belongs in the thinking phase.';
 
 // -----------------------------------------------------------------------------
+// Agentic Behavior Rules — planning, tool strategy, self-check
+// Injected after user prompts, before Anti-Hallucination Rules.
+// -----------------------------------------------------------------------------
+
+/** Instructions for planning, tool usage strategy, response quality, and self-checking. */
+export const AGENTIC_BEHAVIOR_RULES = [
+    '## Agentic Behavior',
+    '',
+    '### Planning',
+    'For complex questions requiring 2+ tool calls, plan your approach in the thinking phase before acting.',
+    'Identify what data you need, which tools to use, and in what order — then execute.',
+    '',
+    '### Tool Strategy',
+    '- **Check context first.** Before calling any tool, check if the data is already in the attached context above. Do not call `getMultipleVideoDetails` for metrics already shown in Video Metadata.',
+    '- **Batch when possible.** If you need data from multiple independent tools (e.g. video details AND thumbnails), call them in the same turn rather than sequentially.',
+    '- **Telescope pattern for external channels.** Always: `getChannelOverview` → `browseChannelVideos` → `getMultipleVideoDetails`. Never skip steps.',
+    '- **Traffic analysis cascade.** For traffic questions: `analyzeTrafficSources` first. If Suggested dominates → `analyzeSuggestedTraffic`. For visual comparison → `viewThumbnails`.',
+    '',
+    '### Response Quality',
+    '- **Be specific, not generic.** Never say "improve your thumbnail" without explaining how. Reference actual data: colors, text, CTR numbers, comparisons.',
+    '- **Actionable recommendations.** Each suggestion must be concrete enough for the user to act on immediately.',
+    '- **Structure complex analyses.** Use sections, comparisons, and clear conclusions when analyzing multiple videos or data sources.',
+    '',
+    '### Error Recovery',
+    'If a tool returns empty results or an error:',
+    '1. Explain what happened in plain language.',
+    '2. Suggest an alternative approach or a different tool that might help.',
+    '3. Never leave the user at a dead end — always offer a next step.',
+    '',
+    '### Self-Check (before sending your response)',
+    '- Every number in your response — is it from context or tool results? Never estimate or recall from training.',
+    '- Every video mentioned — did you call `mentionVideo` for it?',
+    '- Did you answer the actual question, or did you get sidetracked by tool results?',
+].join('\n');
+
+// -----------------------------------------------------------------------------
 // Anti-Hallucination Rules — grounding instructions for data integrity
 // Injected at the end of Settings Layer, before any context data.
 // -----------------------------------------------------------------------------
