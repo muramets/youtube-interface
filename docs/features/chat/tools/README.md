@@ -38,7 +38,7 @@
 |------|-------|-----|
 | [getChannelOverview](./get-channel-overview-tool.md) | 1 — Discovery | Resolve канала + quota gate |
 | [browseChannelVideos](./browse-channel-videos-tool.md) | 1 — Discovery | Список видео канала + smart cache |
-| [getMultipleVideoDetails](./get-multiple-video-details-tool.md) | 2 — Detail | 3-level cascade + traffic snapshot counts |
+| [getMultipleVideoDetails](./get-multiple-video-details-tool.md) | 2 — Detail | 4-level cascade + traffic snapshot counts |
 | [viewThumbnails](./view-thumbnails.md) | 2 — Detail | Visual analysis, approval gate, multi-provider |
 | [analyzeTrafficSources](./analyze-traffic-sources-tool.md) | 3 — Analysis | Gateway: откуда трафик (aggregate breakdown) |
 | [analyzeSuggestedTraffic](./analyze-suggested-traffic-tool.md) | 3 — Analysis | Drill-down: per-video suggested pool |
@@ -62,7 +62,7 @@ LLM → browseChannelVideos(uploadsPlaylistId) // Layer 1: список виде
   "Вижу 47 видео. Пик в ноябре — 'quiet morning'.
    Хочу углубиться в 3 видео вокруг пика."
 
-LLM → getVideoDetails([id1, id2, id3])      // Layer 2: детали (из кэша!)
+LLM → getMultipleVideoDetails([id1, id2, id3])  // Layer 2: детали (из кэша!)
   "У хита description/tags совпадают с конкурентом."
 
 LLM → viewThumbnails([id1, id2, id3])       // Layer 2: визуал
@@ -85,7 +85,7 @@ LLM → analyzeSuggestedTraffic(id1)          // Layer 3: deep dive
 
 > *"Сравни мои последние 10 видео с последними 10 у Little Thing"*
 
-LLM вызывает `getChannelOverview` + `browseChannelVideos` для обоих каналов → `getVideoDetails` для интересных → `viewThumbnails` для сравнения обложек.
+LLM вызывает `getChannelOverview` + `browseChannelVideos` для обоих каналов → `getMultipleVideoDetails` для интересных → `viewThumbnails` для сравнения обложек.
 
 ---
 
@@ -97,7 +97,7 @@ sequenceDiagram
     participant LLM as AI Assistant
     participant GCO as getChannelOverview
     participant BCV as browseChannelVideos
-    participant GVD as getVideoDetails
+    participant GVD as getMultipleVideoDetails
     participant VT as viewThumbnails
     participant YT as YouTube API
     participant FB as Firebase
@@ -120,7 +120,7 @@ sequenceDiagram
     LLM-->>U: "Вижу хронологию. 3 видео рядом со спайком..."
 
     Note over LLM,GVD: Layer 2: Detail
-    LLM->>GVD: getVideoDetails([id1, id2, id3])
+    LLM->>GVD: getMultipleVideoDetails([id1, id2, id3])
     GVD->>FB: Cache HIT (0 API cost)
     GVD-->>LLM: Full details (desc, tags)
     LLM->>VT: viewThumbnails([id1, id2, id3])

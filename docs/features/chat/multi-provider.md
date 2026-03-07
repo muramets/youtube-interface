@@ -20,7 +20,7 @@
 - UI — dropdown с группировкой по провайдеру (GEMINI / CLAUDE секции), thinking level адаптируется под модель
 - **Provider-agnostic attachments** — все модели получают file attachments через `ProviderStreamOpts.attachments`. Gemini использует pre-uploaded refs (fast path) или server-side fallback upload. Claude принимает images по URL, PDF как document blocks, text files (CSV, plain text) — content fetched server-side и inline в text blocks.
 - **UI attachment filtering** — `accept` attribute и Send blocking адаптируются per-model из `MODEL_REGISTRY.attachmentSupport`. Text file token estimate + warning при >30% context window.
-- 239 backend тестов, 21 contract test для Claude streamChat
+- 388 backend тестов, 43+ contract tests для Claude streamChat (8 suites)
 - **Token Transparency** — оба провайдера пишут `normalizedUsage` (provider-agnostic `NormalizedTokenUsage`) на каждое model message. Включает per-iteration breakdown, thinking tokens, cost в USD. Подробности: `docs/features/chat/token-transparency.md`
 - **Utility Model Strategy** — вспомогательные задачи всегда через Gemini (не зависят от user model):
   - Title generation → `gemini-2.5-flash` (дёшево, 5 слов)
@@ -77,7 +77,7 @@ User selects model in UI
 |---------|----------|-----------|
 | HTTP (AiChatRequest) | `fileRef` | Provider-agnostic — может быть любой URI |
 | Firestore (ChatAttachmentData) | `geminiFileUri` | Gemini-internal — хранит URI загруженного в Gemini Files API |
-| Gemini Provider Context | `currentMessageAttachments` | `{ geminiFileUri, mimeType }[]` — pre-uploaded файлы текущего сообщения |
+| Gemini Provider Context | `currentMessageGeminiRefs` | `{ geminiFileUri, mimeType }[]` — pre-uploaded файлы текущего сообщения |
 
 ---
 
@@ -136,7 +136,7 @@ claude/
 ├── streamChat.ts      # Claude agentic loop (streaming + tools + thinking)
 ├── factory.ts         # claudeFactory: ProviderFactory
 └── __tests__/
-    └── streamChat.test.ts  # 21 contract tests (5 suites)
+    └── streamChat.test.ts  # 43+ tests (8 suites: happy path, agentic loop, thinking, retry, error handling, prompt caching, normalizedUsage, abort handling)
 ```
 
 ### Shared (`functions/src/services/`)
@@ -146,7 +146,7 @@ services/
 └── tools/
     ├── definitions.ts # TOOL_DECLARATIONS — provider-agnostic
     ├── executor.ts    # executeTool() dispatcher
-    ├── types.ts       # ToolContext, ToolResult
+    ├── types.ts       # ToolContext, FunctionCallInput, FunctionCallResult, ToolHandler
     └── handlers/      # Tool implementations
 ```
 
@@ -176,7 +176,7 @@ services/
 - [x] `toClaudeTools()` — ToolDefinition → Claude Tool format
 - [x] Thinking leak protection (фильтрация `<think>` из text blocks)
 - [x] 90s inactivity timeout, MAX_AGENTIC_ITERATIONS=10
-- [x] 21 contract tests (5 suites: happy path, tools, thinking, retry, errors)
+- [x] 43+ contract tests (8 suites: happy path, agentic loop, thinking, retry, error handling, prompt caching, normalizedUsage, abort handling)
 
 ### Стадия 3 — Frontend ✅
 UI поддержка мульти-провайдера.
@@ -188,7 +188,7 @@ UI поддержка мульти-провайдера.
 ### Стадия 4 — Provider-Agnostic Attachments ✅
 Все провайдеры получают file attachments, UI фильтрует допустимые типы per-model.
 - [x] `AttachmentSupport` interface + per-model capability metadata в `MODEL_REGISTRY`
-- [x] `getAcceptedMimeTypes()` / `isAllowedMimeTypeForModel()` — shared helpers
+- [x] `getAcceptedMimeTypes()` / `isAllowedMimeTypeForModel()` — frontend-only helpers (`src/core/services/ai/aiService.ts`)
 - [x] `fileRef` optional — Claude skips Gemini Files API upload
 - [x] Send flow передаёт полные attachment данные (type, url, name, mimeType, fileRef?)
 - [x] `aiChat.ts` маппит attachments → generic `ProviderStreamOpts.attachments`

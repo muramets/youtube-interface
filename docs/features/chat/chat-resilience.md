@@ -36,6 +36,8 @@ User sends message
        │
        ▼
 [per-iteration retry loop — for attempt = 1..3]
+  ─ NOTE: диаграмма показывает Gemini flow. Claude использует
+  ─ AiStreamTimeoutError с аналогичным паттерном (см. различия ниже).
   ─ создаёт свежий AbortController (iterationAbort)
   ─ propagates caller signal → iterationAbort (user cancel)
   ─ стартует inactivity timer (90s)
@@ -43,7 +45,7 @@ User sends message
        │
        ├─── чанк пришёл → resetTimer() → продолжаем
        │
-       ├─── GeminiTimeoutError (90s без чанков)
+       ├─── GeminiTimeoutError / AiStreamTimeoutError (90s без чанков)
        │         │
        │         ├─ signal?.aborted (user cancel) → throw немедленно
        │         │
@@ -81,7 +83,7 @@ User sends message
 
 | Константа | Значение | Где определена |
 |---|---|---|
-| `STREAM_INACTIVITY_TIMEOUT_MS` | 90 000 ms (90 сек) | Provider-specific: передаётся в `withStreamRetry()` из каждого провайдера |
+| `STREAM_INACTIVITY_TIMEOUT_MS` | 90 000 ms (90 сек) | Provider-specific: используется внутри provider-specific iteration function (не передаётся в `withStreamRetry()` напрямую). При таймауте бросает `GeminiTimeoutError` / `AiStreamTimeoutError`, которые `withStreamRetry` ловит через `isTransient` |
 | `MAX_STREAM_RETRIES` | 2 (итого 3 попытки) | Provider-specific: передаётся в `withStreamRetry()` из каждого провайдера |
 | `STREAM_TIMEOUT_MS` | 120 000 ms (120 сек, клиент) | `src/core/services/ai/aiProxyService.ts` — 30с буфер сверх серверных 90с |
 
@@ -119,7 +121,7 @@ src/
     services/
       aiProxyService.ts                   ← inactivity guard + SSE 'retry' handler
     stores/
-      chat/chatStore.ts                    ← retryAttempt state field (sliced architecture)
+      chat/chatStore.ts                    ← aggregator (re-exports retryAttempt; defined in types.ts line 45, initial value in slices/streamingSlice.ts line 22)
   features/
     Chat/
       components/

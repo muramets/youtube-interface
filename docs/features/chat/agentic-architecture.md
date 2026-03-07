@@ -188,7 +188,7 @@ services/tools/
 │   ├── getMultipleVideoDetails.ts  # Batch fetch из videos/ + cached_external_videos/
 │   ├── viewThumbnails.ts           # Обложки видео (dual-collection lookup)
 │   ├── analyzeTrafficSources.ts    # Анализ источников трафика
-│   ├── analyzeTraffic.ts           # Анализ suggested traffic
+│   ├── analyzeSuggestedTraffic.ts   # Анализ suggested traffic
 │   ├── getChannelOverview.ts       # Обзор YouTube канала
 │   └── browseChannelVideos.ts      # Список видео канала
 ```
@@ -196,8 +196,8 @@ services/tools/
 ### Frontend (`src/`)
 ```
 core/types/sseEvents.ts                # 9 SSE event types
-core/services/aiProxyService.ts        # SSE парсер + callbacks
-core/services/aiService.ts             # Фасад (API → store)
+core/services/ai/aiProxyService.ts     # SSE парсер + callbacks
+core/services/ai/aiService.ts          # Фасад (API → store)
 core/stores/chat/chatStore.ts          # Состояние streaming + sliced architecture
 
 features/Chat/components/

@@ -236,8 +236,8 @@ src/
     types/
       sseEvents.ts                                 ← SSEConfirmLargePayloadEvent
     services/
-      aiService.ts                                 ← largePayloadApproved + onConfirmLargePayload opts
-      aiProxyService.ts                            ← SSE handler for confirmLargePayload
+      ai/aiService.ts                              ← largePayloadApproved + onConfirmLargePayload opts
+      ai/aiProxyService.ts                         ← SSE handler for confirmLargePayload
     stores/
       chatStore.ts                                 ← pendingLargePayloadConfirmation state + confirmLargePayload action
   features/

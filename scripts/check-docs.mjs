@@ -70,18 +70,26 @@ function checkMarkdownLinks(filePath, content) {
 }
 
 /**
- * Check code file paths in markdown tables.
- * Pattern: `some/path/File.ts(x)` inside table cells (lines starting with |).
+ * Check code file paths anywhere in markdown (not just tables).
+ * Pattern: `some/path/File.ts(x)` in backticks.
+ * Skips fenced code blocks (```...```) to avoid false positives from examples.
  */
 function checkCodePaths(filePath, content) {
     const errors = [];
     const lines = content.split("\n");
+    let inFencedBlock = false;
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
 
-        // Only check table rows (start with |)
-        if (!line.trimStart().startsWith("|")) continue;
+        // Track fenced code blocks — toggle on ``` boundaries
+        if (line.trimStart().startsWith("```")) {
+            inFencedBlock = !inFencedBlock;
+            continue;
+        }
+
+        // Skip lines inside fenced code blocks (examples, shell commands)
+        if (inFencedBlock) continue;
 
         // Find backtick-wrapped paths that look like code files
         const pathRe = /`([\w@/.-]+\.(?:ts|tsx|js|jsx|mjs|cjs))`/g;
@@ -93,6 +101,19 @@ function checkCodePaths(filePath, content) {
             // Skip obvious non-paths (single filenames without slashes
             // that are likely just mentioning a utility name like `csvUtils.ts`)
             if (!codePath.includes("/")) continue;
+
+            // Only check paths that look like full project-relative paths.
+            // Short relative paths (e.g. `claude/client.ts`, `tools/executor.ts`)
+            // are intentional shorthand in docs — not meant to be resolvable.
+            const RESOLVABLE_PREFIXES = [
+                "src/",
+                "functions/",
+                "shared/",
+                "scripts/",
+                "docs/",
+            ];
+            if (!RESOLVABLE_PREFIXES.some((p) => codePath.startsWith(p)))
+                continue;
 
             // Try resolving against each code root
             const found = CODE_ROOTS.some((root) =>
@@ -130,7 +151,12 @@ function main() {
         const relPath = file.replace(ROOT + "/", "");
 
         const linkErrors = checkMarkdownLinks(file, content);
-        const codeErrors = checkCodePaths(file, content);
+
+        // Task docs (*-tasks.md) are historical execution logs —
+        // they reference files that may have been deliberately deleted.
+        // Only check markdown links (to other docs), skip code path checks.
+        const isTaskDoc = file.endsWith("-tasks.md");
+        const codeErrors = isTaskDoc ? [] : checkCodePaths(file, content);
         const allErrors = [...linkErrors, ...codeErrors];
 
         if (allErrors.length > 0) {

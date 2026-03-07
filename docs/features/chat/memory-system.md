@@ -91,7 +91,7 @@
 
 Автоматическое сжатие истории, когда она не помещается в контекстное окно.
 
-**Когда срабатывает:** оценка токенов всех сообщений > 60% контекстного окна модели.
+**Когда срабатывает:** оценка токенов всех сообщений превышает per-model history budget ratio из `MODEL_HISTORY_RATIOS` (Gemini = 0.85, Claude = 0.75), с fallback на `HISTORY_BUDGET_RATIO` (0.6) для неизвестных моделей.
 
 **Как делит бюджет:**
 - 80% бюджета — sliding window (последние сообщения целиком)
@@ -189,7 +189,7 @@ Summary инжектируется как сообщение с `role: "model"` 
 - [x] L4: Cross-conversation injection в system prompt
 - [x] UI: ChatSummaryBanner (сворачиваемый баннер summary)
 - [x] UI: MemoryCheckpoint (inline expandable/editable/deletable marker)
-- [x] Тесты: 17+ тестов (formatContextLabel, buildMemory, edge cases)
+- [x] Тесты: ~40 тестов (formatContextLabel, buildMemory, edge cases)
 
 ### Stage 2 — Reliability & Precision ← YOU ARE HERE
 Повысить надёжность оценки токенов и качество summary.
@@ -264,7 +264,7 @@ Summary инжектируется как сообщение с `role: "model"` 
 - `buildSettingsLayer(aiSettings, projects, activeProjectId)` — собирает system prompt из пользовательских настроек: дата, язык, стиль, **Base Instructions** (`globalSystemPrompt`), project-specific prompt, anti-hallucination rules
 - Base Instructions = пользовательский текст из "AI Assistant" tab в глобальных настройках. Отправляется с каждым сообщением как часть system prompt, до L1 и L4
 
-**Settings UI:** `src/features/Settings/AiAssistantSettings.tsx`
+**Settings UI:** `src/features/Settings/components/AiAssistantSettings.tsx`
 - "Base Instructions" textarea — редактирование `globalSystemPrompt`
 - "AI Memory" section — просмотр, редактирование и удаление всех L4 memories (с markdown preview)
 
@@ -306,6 +306,6 @@ Summary инжектируется как сообщение с `role: "model"` 
 
 ### Test Coverage
 
-`functions/src/services/__tests__/memory.test.ts` — 17 tests:
-- `formatContextLabel`: 16 tests covering video-card, suggested-traffic, canvas-selection, edge cases
-- `buildMemory`: 12 tests covering full history, summarization trigger, incremental updates, caching, token estimation
+`functions/src/services/__tests__/memory.test.ts` — ~40 tests across 2 describe blocks:
+- `formatContextLabel`: video-card, suggested-traffic, canvas-selection, edge cases
+- `buildMemory`: full history, summarization trigger, incremental updates, caching, token estimation

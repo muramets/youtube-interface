@@ -105,7 +105,7 @@ Breakpoint 4: (резерв)
 Слой 1 — Data Pipeline (cache-данные end-to-end):
 - [x] `SSETokenUsage` — `cachedTokens?`, `cacheWriteTokens?`
 - [x] `ChatMessage.tokenUsage` — `cachedTokens?`, `cacheWriteTokens?`
-- [x] `StreamChatResult`, `AiSendResult` — cache-поля
+- [x] `AiChatResult` (aliased as `AiSendResult`) — cache fields inside `normalizedUsage`
 - [x] `sendSlice` — `streamAiResponse` + `persistAiResponse` расширены
 - [x] `logAiUsage` + `AiUsageLog` — cache-поля в Firestore
 
@@ -237,7 +237,7 @@ tokenUsage = {
 | `shared/models.ts` | `ModelPricing` + `cacheReadMultiplier?` / `cacheWriteMultiplier?`; `estimateCostUsd` cache-aware; новая `estimateCacheSavingsUsd`; Claude models — множители 0.1 / 2.0 |
 | `src/core/types/sseEvents.ts` | `SSETokenUsage` + `cachedTokens?`, `cacheWriteTokens?` |
 | `src/core/types/chat/chat.ts` | `ChatMessage.tokenUsage` + cache-поля; реэкспорт `estimateCacheSavingsUsd` |
-| `src/core/services/ai/aiProxyService.ts` | `StreamChatResult` + cache-поля |
+| `src/core/services/ai/aiProxyService.ts` | `AiChatResult` — cache fields inside `normalizedUsage` |
 | `src/core/services/ai/aiService.ts` | `AiSendResult` + cache-поля |
 | `src/core/stores/chat/slices/sendSlice.ts` | `streamAiResponse` / `persistAiResponse` — расширенные типы |
 | `src/features/Chat/hooks/useChatDerivedState.ts` | `totalSavings` (cost + savings в одном reduce) |

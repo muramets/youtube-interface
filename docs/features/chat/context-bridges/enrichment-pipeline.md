@@ -81,7 +81,7 @@ AI видит не только "150K views", а "150K views, +1.2K за 24h, +5
 
 **VideoCardContext** (слоты playlist, trends):
 ```
-## Your Videos — Attached by User
+## Video Metadata
 
 - Your Video: "My Title" [id: abc123] -- Views: 150K | 24h: +1.2K / 7d: +5.3K | Published: 2024-01-15 | Duration: 12:34
 - Competitor: "Their Title" [id: xyz789] (Channel: SomeChannel) -- Views: 500K | Published: 2024-02-01
@@ -91,18 +91,18 @@ AI видит не только "150K views", а "150K views, +1.2K за 24h, +5
 
 **SuggestedTrafficContext** (слот traffic):
 ```
-## Suggested Traffic Analysis
+## Suggested Traffic Analysis Context
 
 **Data exported:** January 15, 2024
 **User's label for this export:** "Before title change"
 
-### Source Video (user's video that YouTube suggests alongside)
+### Your Video (Source)
 - "My Video" [id: abc123] -- Views: 100K | Published: 2024-01-01
 
-### Selected Suggested Videos
+### Selected Suggested Videos (YouTube shows your video alongside these)
 - Suggested: "Their Video" [id: def456] (SomeChannel) -- Imp: 5,000 | CTR: 4.2% | Views: 210 | AvgDur: 03:45 | WatchTime: 2.1h
 
-### Traffic Discrepancy (Long Tail)
+### ⚠️ Traffic Discrepancy (Long Tail)
 YouTube reports higher totals than the sum of individual sources...
 - Report Total: 50K impressions / 2.1K views
 - Top Videos Sum: 35K impressions / 1.5K views
@@ -111,7 +111,7 @@ YouTube reports higher totals than the sum of individual sources...
 
 **CanvasSelectionContext** (слот canvas):
 ```
-## Canvas Board — Selected Nodes
+## Canvas Board Selection
 
 ### Videos
 - Your Video: "Title" [id: abc123] -- Views: 100K

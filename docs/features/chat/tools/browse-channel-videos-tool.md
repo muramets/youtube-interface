@@ -27,7 +27,7 @@
 | Параметр | Тип | Default | Описание |
 |----------|-----|---------|----------|
 | `uploadsPlaylistId` | string | — | Required. Из ответа `getChannelOverview` |
-| `channelId` | string | — | Optional. Enables trend cache lookup (0-quota if tracked in Trends) + persists `channelId` on cached videos for view delta enrichment |
+| `channelId` | string | — | Optional. Enables own-channel sync detection — compares inApp count vs onYouTube count when browsing the user's own channel + persists `channelId` on cached videos for view delta enrichment |
 | `publishedAfter` | string (ISO date) | — | Фильтр по дате (экономия output, не API) |
 
 ---

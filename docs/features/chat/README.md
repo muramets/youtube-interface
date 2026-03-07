@@ -169,7 +169,7 @@ Gemini ссылается на конкретные видео, пользова
 
 **Компоненты:** `ChatPanel.tsx`, `ChatInput.tsx`, `ChatMessageList.tsx`, `ChatBubble.tsx`
 **Chips:** `VideoCardChip.tsx`, `SuggestedTrafficChip.tsx`, `CanvasSelectionChip.tsx`
-**Hooks:** `features/Chat/hooks/` (5 hooks)
+**Hooks:** `features/Chat/hooks/` (7 hooks: useChatDerivedState, useChatDragDrop, useChatNavigation, useChatScroll, useCostAlerts, useFileAttachments, usePanelGeometry)
 **Utils:** `videoReferenceUtils.ts` (legacy utils), `toolCallGrouping.ts` (группировка tool calls по типу для ToolCallSummary), `normalizeMarkdown.ts` (нормализация LLM markdown — fix glued tables, code fence awareness), `buildToolVideoMap.ts` (video lookup из всех tool results — merge данных из browse/details/mention)
 **Stores:** `appContextStore.ts` (4 слота: playlist, traffic, canvas, trends), `chatStore` → `stoppedResponse` (ghost message, session-only)
 **Backend:** `functions/src/services/ai/` (provider router, retry, tool execution), `gemini/` (Gemini provider), `claude/` (Claude provider), `tools/` (definitions, executor, handlers), `memory.ts` (4 layers). Подробнее: [Multi-Provider Architecture](./multi-provider.md).
