@@ -7,6 +7,7 @@ import { Brain, ChevronDown, Pencil, Check, X, Trash2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { ConversationMemory } from '../../../core/types/chat/chat';
+import { MemoryVideoChips } from './MemoryVideoChips';
 
 interface MemoryCheckpointProps {
     memory: ConversationMemory;
@@ -100,6 +101,9 @@ export const MemoryCheckpoint: React.FC<MemoryCheckpointProps> = ({ memory, onUp
                         backgroundColor: 'color-mix(in srgb, var(--accent) 5%, var(--bg-primary))',
                     }}
                 >
+                    {memory.videoRefs && memory.videoRefs.length > 0 && (
+                        <MemoryVideoChips videoRefs={memory.videoRefs} />
+                    )}
                     {isEditing ? (
                         <>
                             <textarea

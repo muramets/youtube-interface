@@ -16,11 +16,28 @@ export function buildCrossConversationLayer(memories?: ConversationMemory[]): st
 
     const header = '## Conversation Memories\n\nThese are insights from previous conversations. Use them for continuity — refer to past decisions and context when relevant.';
 
+    const OWNERSHIP_LABELS: Record<string, string> = {
+        'own-published': 'your published',
+        'own-draft': 'your draft',
+        'competitor': 'competitor',
+    };
+
     const memoryBlocks = memories.map(m => {
         const date = m.createdAt?.toDate?.()
             ? m.createdAt.toDate().toISOString().slice(0, 10)
             : 'Unknown date';
-        return `### "${m.conversationTitle}" (${date})\n${m.content}`;
+
+        let block = `### "${m.conversationTitle}" (${date})`;
+
+        if (m.videoRefs && m.videoRefs.length > 0) {
+            const refs = m.videoRefs.map(v =>
+                `"${v.title}" [id: ${v.videoId}] (${OWNERSHIP_LABELS[v.ownership] || v.ownership})`
+            ).join(', ');
+            block += `\n**Videos referenced:** ${refs}`;
+        }
+
+        block += `\n${m.content}`;
+        return block;
     });
 
     return [header + '\n\n' + memoryBlocks.join('\n\n')];

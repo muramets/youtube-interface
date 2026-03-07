@@ -274,6 +274,75 @@ export async function buildMemory(opts: {
 // injected into all future conversations.
 // =============================================================================
 
+// Re-export shared type for consumers that import from memory.ts
+export type { MemoryVideoRef } from "../shared/memory.js";
+import type { MemoryVideoRef } from "../shared/memory.js";
+
+const OWNERSHIP_LABELS: Record<string, string> = {
+    'own-published': 'your published',
+    'own-draft': 'your draft',
+    'competitor': 'competitor',
+};
+
+/**
+ * Extract candidate videos from conversation messages.
+ * Sources: appContext (user-attached) and mentionVideo tool calls (AI-referenced).
+ * Deduplicates by videoId — appContext wins on conflict (richer user-selected data).
+ */
+export function extractCandidateVideos(messages: Array<{
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    appContext?: any[];
+    toolCalls?: Array<{ name: string; result?: Record<string, unknown> }>;
+}>): MemoryVideoRef[] {
+    const map = new Map<string, MemoryVideoRef>();
+
+    for (const msg of messages) {
+        // Source 1: appContext items (user-attached — higher priority)
+        if (msg.appContext) {
+            for (const item of msg.appContext) {
+                if (item.type === 'video-card' && item.videoId && !map.has(item.videoId)) {
+                    map.set(item.videoId, {
+                        videoId: item.videoId,
+                        title: item.title || '(untitled)',
+                        ownership: item.ownership || 'competitor',
+                        thumbnailUrl: item.thumbnailUrl || '',
+                    });
+                } else if (item.type === 'canvas-selection' && item.nodes) {
+                    for (const node of item.nodes) {
+                        if (node.nodeType === 'video' && node.videoId && !map.has(node.videoId)) {
+                            map.set(node.videoId, {
+                                videoId: node.videoId,
+                                title: node.title || '(untitled)',
+                                ownership: node.ownership || 'competitor',
+                                thumbnailUrl: node.thumbnailUrl || '',
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        // Source 2: mentionVideo tool call results (AI-referenced)
+        if (msg.toolCalls) {
+            for (const tc of msg.toolCalls) {
+                if (tc.name === 'mentionVideo' && tc.result?.found && tc.result.videoId) {
+                    const videoId = tc.result.videoId as string;
+                    if (!map.has(videoId)) {
+                        map.set(videoId, {
+                            videoId,
+                            title: (tc.result.title as string) || '(untitled)',
+                            ownership: (tc.result.ownership as MemoryVideoRef['ownership']) || 'competitor',
+                            thumbnailUrl: (tc.result.thumbnailUrl as string) || '',
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    return Array.from(map.values());
+}
+
 const CONCLUDE_SYSTEM_PROMPT = `You are a knowledge extraction system. Your task is to distill a conversation \
 into a concise, actionable memory that will be injected into future AI conversations.
 
@@ -292,21 +361,26 @@ Do NOT include:
 - Redundant context that would already be in the attached data
 - Video reference numbers like "Video 3" — always use the video's actual title instead
 
-Format: Use bullet points grouped by topic. Be concise but complete.
-Length: 100-300 words. Shorter is better if nothing is lost.
-Language: Write the summary in the same language as the conversation.`;
+Return a JSON object with two fields:
+- "content": the insight as markdown (bullet points grouped by topic, 100-300 words, shorter is better if nothing is lost)
+- "referencedVideoIds": array of videoId strings — ONLY videos your insight directly discusses, NOT every video mentioned in passing
+
+Language: Write the content in the same language as the conversation.`;
 
 /**
  * Layer 4: Generate a focused summary for cross-conversation memory.
  * Unlike Layer 3's generateSummary (context compression), this produces
  * a permanent actionable insight that will live in future system prompts.
+ *
+ * Uses Gemini JSON mode to return structured output with video references.
  */
 export async function generateConcludeSummary(
     apiKey: string,
     messages: HistoryMessage[],
     guidance: string | undefined,
-    model: string
-): Promise<{ text: string; tokenUsage: { promptTokens: number; completionTokens: number; totalTokens: number } }> {
+    model: string,
+    candidateVideos: MemoryVideoRef[] = [],
+): Promise<{ text: string; referencedVideoIds: string[]; tokenUsage: { promptTokens: number; completionTokens: number; totalTokens: number } }> {
     const { getClient } = await import("./gemini/index.js");
     const ai = await getClient(apiKey);
 
@@ -314,7 +388,17 @@ export async function generateConcludeSummary(
         .map(formatMessageForSummary)
         .join("\n\n");
 
-    let userPrompt = `Extract the key insights from this conversation:\n\n${conversationText}`;
+    let userPrompt = '';
+
+    // Provide candidate video list so LLM uses exact titles and can select relevant ones
+    if (candidateVideos.length > 0) {
+        const videoList = candidateVideos
+            .map(v => `- "${v.title}" [id: ${v.videoId}] (${OWNERSHIP_LABELS[v.ownership] || v.ownership})`)
+            .join('\n');
+        userPrompt += `Videos from this conversation (use exact titles when referencing):\n${videoList}\n\n---\n\n`;
+    }
+
+    userPrompt += `Extract the key insights from this conversation:\n\n${conversationText}`;
 
     if (guidance) {
         userPrompt += `\n\n---\n\nUser guidance — focus the summary on this:\n"${guidance}"`;
@@ -325,6 +409,18 @@ export async function generateConcludeSummary(
         contents: [{ role: "user", parts: [{ text: userPrompt }] }],
         config: {
             systemInstruction: CONCLUDE_SYSTEM_PROMPT,
+            responseMimeType: "application/json",
+            responseSchema: {
+                type: "OBJECT" as const,
+                properties: {
+                    content: { type: "STRING" as const },
+                    referencedVideoIds: {
+                        type: "ARRAY" as const,
+                        items: { type: "STRING" as const },
+                    },
+                },
+                required: ["content", "referencedVideoIds"],
+            },
         },
     });
 
@@ -334,5 +430,18 @@ export async function generateConcludeSummary(
         totalTokens: response.usageMetadata?.totalTokenCount ?? 0,
     };
 
-    return { text: response.text?.trim() || "", tokenUsage };
+    // Parse structured JSON response with graceful fallback
+    const rawText = response.text?.trim() || "";
+    try {
+        const parsed = JSON.parse(rawText) as { content?: string; referencedVideoIds?: string[] };
+        return {
+            text: parsed.content?.trim() || "",
+            referencedVideoIds: parsed.referencedVideoIds || [],
+            tokenUsage,
+        };
+    } catch {
+        // Fallback: if JSON parsing fails, treat entire response as content
+        console.warn('[generateConcludeSummary] JSON parse failed, falling back to raw text');
+        return { text: rawText, referencedVideoIds: [], tokenUsage };
+    }
 }

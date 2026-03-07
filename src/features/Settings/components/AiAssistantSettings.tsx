@@ -8,6 +8,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Dropdown } from '../../../components/ui/molecules/Dropdown';
 import { SegmentedControl } from '../../../components/ui/molecules/SegmentedControl';
+import { MemoryVideoChips } from '../../Chat/components/MemoryVideoChips';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
 import { useChatStore } from '../../../core/stores/chat/chatStore';
@@ -257,6 +258,9 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
                                         </span>
                                     </div>
 
+                                    {mem.videoRefs && mem.videoRefs.length > 0 && (
+                                        <MemoryVideoChips videoRefs={mem.videoRefs} />
+                                    )}
                                     {isEditing ? (
                                         <>
                                             <textarea

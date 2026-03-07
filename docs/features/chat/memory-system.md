@@ -2,7 +2,7 @@
 
 ## Текущее состояние
 
-**Реализовано.** 4-слойная система памяти чата. L1 (persistent context) и L2 (per-message labels) обеспечивают awareness — AI знает, какие видео обсуждаются. L3 (summarization) сжимает длинную историю, чтобы не выходить за контекстное окно модели. L4 (cross-conversation memory) сохраняет ключевые инсайты между разговорами по нажатию кнопки "Memorize". Summarization всегда выполняется через Gemini Flash (дёшево и быстро), независимо от того, какой провайдер ведёт основной чат.
+**Реализовано.** 4-слойная система памяти чата. L1 (persistent context) и L2 (per-message labels) обеспечивают awareness — AI знает, какие видео обсуждаются. L3 (summarization) сжимает длинную историю, чтобы не выходить за контекстное окно модели. L4 (cross-conversation memory) сохраняет ключевые инсайты между разговорами по нажатию кнопки "Memorize" — с привязкой конкретных видео (video refs). Summarization всегда выполняется через Gemini Flash (дёшево и быстро), независимо от того, какой провайдер ведёт основной чат.
 
 ---
 
@@ -131,8 +131,11 @@
 - Избыточный контекст (уже в прикреплённых данных)
 - Ссылки "Video 3" — только реальные названия
 
+**Video References:** при создании memory код автоматически собирает все видео, обсуждавшиеся в разговоре (из `appContext` и `mentionVideo` tool calls). LLM выбирает, какие из них непосредственно связаны с инсайтом, и возвращает их ID. Эти видео сохраняются как структурированные snapshot-ы (`videoRefs`) вместе с текстом memory — title, ownership, thumbnailUrl на момент создания. В UI они отображаются как chips с обложками, в system prompt будущих чатов — как `[id: videoId]` аннотации (совпадает с форматом L1), позволяя AI узнавать видео, если оно снова появляется в контексте.
+
 **User control:** пользователь может:
 - Развернуть и прочитать memory
+- Видеть привязанные видео как chips с обложками
 - Отредактировать текст (double-click или кнопка Edit)
 - Удалить memory
 - Добавить guidance при создании ("сфокусируйся на стратегии CTR")
@@ -191,6 +194,18 @@ Summary инжектируется как сообщение с `role: "model"` 
 - [x] UI: MemoryCheckpoint (inline expandable/editable/deletable marker)
 - [x] Тесты: ~40 тестов (formatContextLabel, buildMemory, edge cases)
 
+### Stage 1.5 — Video References in Memory ✅
+Привязка конкретных видео к L4 memories для сохранения контекста между чатами.
+
+- [x] **Video extraction** — код собирает все видео из `appContext` (video-card + canvas-selection nodes) и `mentionVideo` tool calls (упомянутые AI). Детерминистический сбор, не LLM.
+- [x] **LLM selection** — суммаризатор получает список видео-кандидатов и возвращает structured output (JSON): какие из них непосредственно связаны с инсайтом. Structured output через Gemini JSON mode.
+- [x] **Snapshot storage** — `videoRefs[]` на memory doc: `{ videoId, title, ownership, thumbnailUrl }` на момент Memorize. Snapshot, не live ссылка. Тип `MemoryVideoRef` в `shared/memory.ts`.
+- [x] **System prompt injection** — `crossConversationLayer` включает видео в формате `[id: videoId]` (совпадает с L1 persistent context).
+- [x] **UI chips** — MemoryCheckpoint (в чате) и AiAssistantSettings (в настройках) показывают видео как chips с обложками над текстом memory. Shared компонент `MemoryVideoChips`.
+- [x] Тесты: 9 тестов (extractCandidateVideos: appContext, toolCalls, canvas-selection, dedup, edge cases)
+
+Task doc: [memory-video-refs-tasks.md](./memory-video-refs-tasks.md)
+
 ### Stage 2 — Reliability & Precision ← YOU ARE HERE
 Повысить надёжность оценки токенов и качество summary.
 
@@ -241,11 +256,13 @@ Summary инжектируется как сообщение с `role: "model"` 
 - `formatMessageForSummary(msg)` — форматирует сообщение для суммаризации (инжектирует L2 labels в user messages)
 - `generateSummary(apiKey, messages, existingSummary, model)` — LLM-суммаризация (first-time или incremental)
 - `buildMemory(opts)` — orchestrator: budget check → sliding window → summary generation → result
-- `generateConcludeSummary(apiKey, messages, guidance, model)` — L4 focused insight extraction
+- `extractCandidateVideos(messages)` — детерминистический сбор видео из `appContext` (video-card) + `mentionVideo` tool calls; дедупликация по videoId
+- `MemoryVideoRef` — interface: `{ videoId, title, ownership, thumbnailUrl }`
+- `generateConcludeSummary(apiKey, messages, guidance, model, candidateVideos)` — L4 focused insight extraction; Gemini JSON mode возвращает `{ content, referencedVideoIds }`; fallback на raw text при ошибке парсинга
 
 **Conclude endpoint:** `functions/src/chat/concludeConversation.ts`
 - Cloud Function (onCall), secrets: `GEMINI_API_KEY`
-- Reads all messages + appContext → generates conclude summary → saves to `conversationMemories` collection
+- Reads all messages + appContext + toolCalls → extracts candidate videos → generates conclude summary → filters videoRefs by LLM selection → saves to `conversationMemories` collection
 - Logs AI usage as "memorize" type
 
 **Integration point:** `functions/src/chat/aiChat.ts`
@@ -266,14 +283,16 @@ Summary инжектируется как сообщение с `role: "model"` 
 
 **Settings UI:** `src/features/Settings/components/AiAssistantSettings.tsx`
 - "Base Instructions" textarea — редактирование `globalSystemPrompt`
-- "AI Memory" section — просмотр, редактирование и удаление всех L4 memories (с markdown preview)
+- "AI Memory" section — просмотр, редактирование и удаление всех L4 memories (с markdown preview + video chips)
 
 **Cross-conversation layer:** `src/core/ai/layers/crossConversationLayer.ts`
 - `buildCrossConversationLayer(memories)` — formats L4 memories into system prompt section
+- Включает `**Videos referenced:** "Title" [id: X] (ownership)` для memories с videoRefs
 
 **Chat UI components:**
 - `src/features/Chat/components/ChatSummaryBanner.tsx` — collapsible L3 summary banner в чате
-- `src/features/Chat/components/MemoryCheckpoint.tsx` — inline expandable/editable/deletable L4 memory marker в таймлайне чата
+- `src/features/Chat/components/MemoryCheckpoint.tsx` — inline expandable/editable/deletable L4 memory marker в таймлайне чата (с video chips)
+- `src/features/Chat/components/MemoryVideoChips.tsx` — shared компонент: горизонтальный ряд chips с mini thumbnail + title для videoRefs
 
 **Store integration:** `src/core/stores/chat/slices/sendSlice.ts`
 - `resumeSendFlow()` → receives `usedSummary` flag from backend → debug log
@@ -289,8 +308,15 @@ Summary инжектируется как сообщение с `role: "model"` 
 - `conversationTitle: string`
 - `content: string` — markdown insight text
 - `guidance?: string` — user-provided focus hint
+- `videoRefs: MemoryVideoRef[]` — snapshot видео, о которых инсайт (Stage 1.5)
 - `createdAt: Timestamp`
 - `updatedAt: Timestamp`
+
+**MemoryVideoRef** (embedded in memory doc):
+- `videoId: string`
+- `title: string`
+- `ownership: 'own-published' | 'own-draft' | 'competitor'`
+- `thumbnailUrl: string`
 
 ### Constants
 
@@ -306,6 +332,7 @@ Summary инжектируется как сообщение с `role: "model"` 
 
 ### Test Coverage
 
-`functions/src/services/__tests__/memory.test.ts` — ~40 tests across 2 describe blocks:
+`functions/src/services/__tests__/memory.test.ts` — ~49 tests across 3 describe blocks:
 - `formatContextLabel`: video-card, suggested-traffic, canvas-selection, edge cases
 - `buildMemory`: full history, summarization trigger, incremental updates, caching, token estimation
+- `extractCandidateVideos`: appContext, canvas-selection nodes, mentionVideo toolCalls, deduplication, defaults, edge cases

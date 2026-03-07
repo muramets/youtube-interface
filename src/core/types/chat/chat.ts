@@ -97,6 +97,9 @@ export interface AiChatResult {
     partial?: boolean;
 }
 
+// Re-export shared type for consumers that import from chat types
+export type { MemoryVideoRef } from '../../../../shared/memory';
+
 /** Layer 4: A saved memory (insight) from a concluded conversation. */
 export interface ConversationMemory {
     id: string;
@@ -104,6 +107,7 @@ export interface ConversationMemory {
     conversationTitle: string;
     content: string;           // generated summary (user-editable)
     guidance?: string;         // optional user guidance for focus
+    videoRefs?: import('../../../../shared/memory').MemoryVideoRef[]; // video snapshots referenced by this insight
     createdAt: Timestamp;
     updatedAt: Timestamp;
 }

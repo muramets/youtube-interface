@@ -75,6 +75,7 @@ export const concludeConversation = onCall(
                 text: data.text as string,
                 attachments: data.attachments,
                 appContext: data.appContext,
+                toolCalls: data.toolCalls as Array<{ name: string; result?: Record<string, unknown> }> | undefined,
             };
         });
 
@@ -86,13 +87,21 @@ export const concludeConversation = onCall(
 
         const startTime = Date.now();
 
-        // Generate focused summary via Gemini
-        const { generateConcludeSummary } = await import("../services/memory.js");
+        // Extract candidate videos from conversation (deterministic, code-driven)
+        const { generateConcludeSummary, extractCandidateVideos } = await import("../services/memory.js");
+        const candidateVideos = extractCandidateVideos(allMessages);
+
+        console.info(`[concludeConversation] ── Candidates ── videos=${candidateVideos.length}` +
+            ` ids=[${candidateVideos.map(v => v.videoId).join(', ')}]`);
+
+        // Generate focused summary via Gemini (structured output with video selection)
         let content: string;
+        let referencedVideoIds: string[];
         let tokenUsage: { promptTokens: number; completionTokens: number; totalTokens: number };
         try {
-            const result = await generateConcludeSummary(apiKey, allMessages, guidance, resolvedModel);
+            const result = await generateConcludeSummary(apiKey, allMessages, guidance, resolvedModel, candidateVideos);
             content = result.text;
+            referencedVideoIds = result.referencedVideoIds;
             tokenUsage = result.tokenUsage;
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
@@ -105,6 +114,10 @@ export const concludeConversation = onCall(
             throw new HttpsError("internal", "Failed to generate memory summary.");
         }
 
+        // Filter candidates to only those the LLM selected as relevant to the insight
+        const referencedSet = new Set(referencedVideoIds);
+        const videoRefs = candidateVideos.filter(v => referencedSet.has(v.videoId));
+
         // Save to Firestore
         const memoriesPath = `users/${userId}/channels/${channelId}/conversationMemories`;
         const now = admin.firestore.FieldValue.serverTimestamp();
@@ -112,6 +125,7 @@ export const concludeConversation = onCall(
             conversationId,
             conversationTitle,
             content,
+            videoRefs,
             ...(guidance ? { guidance } : {}),
             createdAt: now,
             updatedAt: now,
@@ -120,7 +134,7 @@ export const concludeConversation = onCall(
         const durationMs = Date.now() - startTime;
         console.info(`[concludeConversation] ── Response ── conv=${conversationId}` +
             ` memory=${memoryRef.id} len=${content.length}chars duration=${durationMs}ms` +
-            ` tokens=${tokenUsage.totalTokens}`);
+            ` tokens=${tokenUsage.totalTokens} videoRefs=${videoRefs.length}`);
 
         // Log AI usage (non-blocking)
         logAiUsage(userId, channelId, conversationId, resolvedModel, tokenUsage, "memorize")

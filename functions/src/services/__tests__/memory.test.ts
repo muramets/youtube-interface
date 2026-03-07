@@ -38,7 +38,7 @@ vi.mock('../../config/models.js', () => ({
 // Import after mocks
 // ---------------------------------------------------------------------------
 
-import { formatContextLabel, buildMemory } from '../memory.js';
+import { formatContextLabel, buildMemory, extractCandidateVideos } from '../memory.js';
 import { getClient } from '../gemini/index.js';
 const mockGetClient = vi.mocked(getClient);
 
@@ -785,5 +785,132 @@ describe('buildMemory', () => {
             allMessages: longMessages,
         });
         expect(result.usedSummary).toBe(true);
+    });
+});
+
+// =============================================================================
+// extractCandidateVideos
+// =============================================================================
+
+describe('extractCandidateVideos', () => {
+    it('extracts videos from appContext video-card items', () => {
+        const messages = [
+            {
+                appContext: [
+                    { type: 'video-card', videoId: 'v1', title: 'My Video', ownership: 'own-published', thumbnailUrl: 'https://thumb1.jpg' },
+                    { type: 'video-card', videoId: 'v2', title: 'Competitor', ownership: 'competitor', thumbnailUrl: 'https://thumb2.jpg' },
+                ],
+            },
+        ];
+
+        const result = extractCandidateVideos(messages);
+        expect(result).toHaveLength(2);
+        expect(result[0]).toEqual({ videoId: 'v1', title: 'My Video', ownership: 'own-published', thumbnailUrl: 'https://thumb1.jpg' });
+        expect(result[1]).toEqual({ videoId: 'v2', title: 'Competitor', ownership: 'competitor', thumbnailUrl: 'https://thumb2.jpg' });
+    });
+
+    it('extracts videos from mentionVideo tool calls', () => {
+        const messages = [
+            {
+                toolCalls: [
+                    { name: 'mentionVideo', result: { found: true, videoId: 'm1', title: 'Mentioned', ownership: 'own-draft', thumbnailUrl: 'https://thumb-m.jpg' } },
+                    { name: 'mentionVideo', result: { found: false, videoId: 'm2' } }, // not found — skip
+                    { name: 'getMultipleVideoDetails', result: { videos: [] } }, // different tool — skip
+                ],
+            },
+        ];
+
+        const result = extractCandidateVideos(messages);
+        expect(result).toHaveLength(1);
+        expect(result[0]).toEqual({ videoId: 'm1', title: 'Mentioned', ownership: 'own-draft', thumbnailUrl: 'https://thumb-m.jpg' });
+    });
+
+    it('deduplicates by videoId — appContext wins over toolCalls', () => {
+        const messages = [
+            {
+                appContext: [
+                    { type: 'video-card', videoId: 'dup', title: 'From Context', ownership: 'own-published', thumbnailUrl: 'https://ctx.jpg' },
+                ],
+                toolCalls: [
+                    { name: 'mentionVideo', result: { found: true, videoId: 'dup', title: 'From Mention', ownership: 'competitor', thumbnailUrl: 'https://mention.jpg' } },
+                ],
+            },
+        ];
+
+        const result = extractCandidateVideos(messages);
+        expect(result).toHaveLength(1);
+        expect(result[0].title).toBe('From Context'); // appContext wins
+    });
+
+    it('deduplicates across multiple messages', () => {
+        const messages = [
+            { appContext: [{ type: 'video-card', videoId: 'v1', title: 'First', ownership: 'own-published', thumbnailUrl: '' }] },
+            { appContext: [{ type: 'video-card', videoId: 'v1', title: 'Duplicate', ownership: 'competitor', thumbnailUrl: '' }] },
+        ];
+
+        const result = extractCandidateVideos(messages);
+        expect(result).toHaveLength(1);
+        expect(result[0].title).toBe('First'); // first occurrence wins
+    });
+
+    it('handles empty messages', () => {
+        expect(extractCandidateVideos([])).toEqual([]);
+    });
+
+    it('handles messages without appContext or toolCalls', () => {
+        const messages = [{ }, { appContext: [] }, { toolCalls: [] }];
+        expect(extractCandidateVideos(messages)).toEqual([]);
+    });
+
+    it('extracts videos from canvas-selection nodes', () => {
+        const messages = [
+            {
+                appContext: [
+                    {
+                        type: 'canvas-selection',
+                        nodes: [
+                            { nodeType: 'video', videoId: 'cv1', title: 'Canvas Video', ownership: 'own-published', thumbnailUrl: 'https://cv.jpg' },
+                            { nodeType: 'traffic-source', videoId: 'ts1', title: 'Traffic' }, // not a video node — skip
+                            { nodeType: 'sticky-note', content: 'Note' }, // not a video — skip
+                        ],
+                    },
+                ],
+            },
+        ];
+
+        const result = extractCandidateVideos(messages);
+        expect(result).toHaveLength(1);
+        expect(result[0]).toEqual({ videoId: 'cv1', title: 'Canvas Video', ownership: 'own-published', thumbnailUrl: 'https://cv.jpg' });
+    });
+
+    it('ignores non-video appContext items without nodes', () => {
+        const messages = [
+            {
+                appContext: [
+                    { type: 'suggested-traffic', sourceVideo: { title: 'Source' } },
+                    { type: 'canvas-selection', nodes: [] },
+                ],
+            },
+        ];
+
+        expect(extractCandidateVideos(messages)).toEqual([]);
+    });
+
+    it('uses defaults for missing fields', () => {
+        const messages = [
+            {
+                appContext: [{ type: 'video-card', videoId: 'v1' }], // no title, ownership, thumbnail
+            },
+            {
+                toolCalls: [
+                    { name: 'mentionVideo', result: { found: true, videoId: 'v2' } }, // minimal result
+                ],
+            },
+        ];
+
+        const result = extractCandidateVideos(messages);
+        expect(result).toHaveLength(2);
+        expect(result[0]).toEqual({ videoId: 'v1', title: '(untitled)', ownership: 'competitor', thumbnailUrl: '' });
+        expect(result[1]).toEqual({ videoId: 'v2', title: '(untitled)', ownership: 'competitor', thumbnailUrl: '' });
     });
 });
