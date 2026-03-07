@@ -78,6 +78,7 @@ export async function streamChat(opts: StreamChatOpts): Promise<AiChatResult> {
         onConfirmLargePayload,
         onRetry,
         signal,
+        systemLayers,
     } = opts;
 
     // Get Firebase Auth token

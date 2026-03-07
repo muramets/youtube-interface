@@ -9,7 +9,10 @@ import type { NormalizedTokenUsage } from '../../../../shared/models';
 import { scaleBreakdown, fmtTokens, type ScaledBreakdown } from '../utils/tokenDisplay';
 
 /** Component label + color mapping — two variants depending on layer data availability. */
-const COMPONENTS_FLAT: { key: keyof ScaledBreakdown; label: string; color: string }[] = [
+/** Only numeric keys — excludes `hasSystemLayers` boolean flag. */
+type ScaledNumericKey = Exclude<keyof ScaledBreakdown, 'hasSystemLayers'>;
+
+const COMPONENTS_FLAT: { key: ScaledNumericKey; label: string; color: string }[] = [
     { key: 'systemPrompt', label: 'System prompt', color: 'bg-blue-500' },
     { key: 'toolDefinitions', label: 'Tool definitions', color: 'bg-indigo-500' },
     { key: 'history', label: 'History', color: 'bg-purple-500' },
@@ -19,7 +22,7 @@ const COMPONENTS_FLAT: { key: keyof ScaledBreakdown; label: string; color: strin
     { key: 'toolResults', label: 'Tool results', color: 'bg-cyan-500' },
 ];
 
-const COMPONENTS_LAYERED: { key: keyof ScaledBreakdown; label: string; color: string }[] = [
+const COMPONENTS_LAYERED: { key: ScaledNumericKey; label: string; color: string }[] = [
     { key: 'systemSettings', label: 'Settings', color: 'bg-blue-500' },
     { key: 'persistentContext', label: 'Attached context', color: 'bg-blue-400' },
     { key: 'crossMemory', label: 'Memories', color: 'bg-blue-300' },

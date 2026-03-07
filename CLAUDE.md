@@ -116,13 +116,10 @@ UI listens for status changes via Firestore `onSnapshot`. Download links come fr
 - The codeword to begin editing the codebase is **"ебашим"**. Do not touch code until this word is received.
 
 ### After Editing Code
-- Always run `npm run lint` from the project root (not `tsc` directly). Lint includes type-aware checks + hooks rules.
-- When creating new files or refactoring imports — additionally run `npm run typecheck`.
-- Fix all lint errors and warnings following industry best practices — no hacks or workarounds. If a fix requires an architectural change, make it.
+- Always run **`npm run check`** from the project root. This single command runs ESLint + TypeScript compiler + doc link checker. Never skip typecheck — ESLint alone does NOT catch TypeScript compilation errors (e.g. missing destructured variables, type mismatches).
+- Fix all lint/type errors and warnings following industry best practices — no hacks or workarounds. If a fix requires an architectural change, make it.
 - **Always run existing tests before deploying** (`npm run test:run` for frontend, `npx vitest run --project functions` for backend — both from project root). "Lint/typecheck pass" is NOT a substitute for passing tests. If test runner itself fails (timeout, worker crash, config issue) — fix the test infrastructure first, do not deploy with broken tests.
-- When editing files in `docs/features/` — run `npm run check:docs` to verify all markdown links and code file paths are valid.
-- When renaming, moving, or deleting any source files — also run `npm run check:docs`, because docs may reference those paths.
-- When renaming exported types, interfaces, or functions — grep `docs/features/` for the old name manually. `check:docs` only validates file paths, not symbol names.
+- When renaming exported types, interfaces, or functions — grep `docs/features/` for the old name manually. `check:docs` (included in `npm run check`) only validates file paths, not symbol names.
 - Fix any broken references before finishing.
 
 ### Communication Style
