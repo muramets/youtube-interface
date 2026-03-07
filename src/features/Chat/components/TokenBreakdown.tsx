@@ -8,9 +8,21 @@ import type { ContextBreakdown } from '../../../../shared/models';
 import type { NormalizedTokenUsage } from '../../../../shared/models';
 import { scaleBreakdown, fmtTokens, type ScaledBreakdown } from '../utils/tokenDisplay';
 
-/** Component label + color mapping. */
-const COMPONENTS: { key: keyof ScaledBreakdown; label: string; color: string }[] = [
+/** Component label + color mapping — two variants depending on layer data availability. */
+const COMPONENTS_FLAT: { key: keyof ScaledBreakdown; label: string; color: string }[] = [
     { key: 'systemPrompt', label: 'System prompt', color: 'bg-blue-500' },
+    { key: 'toolDefinitions', label: 'Tool definitions', color: 'bg-indigo-500' },
+    { key: 'history', label: 'History', color: 'bg-purple-500' },
+    { key: 'images', label: 'Images', color: 'bg-pink-500' },
+    { key: 'memory', label: 'Memory / Summary', color: 'bg-amber-500' },
+    { key: 'currentMessage', label: 'Current message', color: 'bg-emerald-500' },
+    { key: 'toolResults', label: 'Tool results', color: 'bg-cyan-500' },
+];
+
+const COMPONENTS_LAYERED: { key: keyof ScaledBreakdown; label: string; color: string }[] = [
+    { key: 'systemSettings', label: 'Settings', color: 'bg-blue-500' },
+    { key: 'persistentContext', label: 'Attached context', color: 'bg-blue-400' },
+    { key: 'crossMemory', label: 'Memories', color: 'bg-blue-300' },
     { key: 'toolDefinitions', label: 'Tool definitions', color: 'bg-indigo-500' },
     { key: 'history', label: 'History', color: 'bg-purple-500' },
     { key: 'images', label: 'Images', color: 'bg-pink-500' },
@@ -40,10 +52,13 @@ export const TokenBreakdown: React.FC<TokenBreakdownProps> = ({
     const total = contextUsed;
     const pctOfLimit = contextLimit > 0 ? Math.round((total / contextLimit) * 100) : 0;
 
+    // Choose flat or layered component list based on data availability
+    const components = scaled.hasSystemLayers ? COMPONENTS_LAYERED : COMPONENTS_FLAT;
+
     // Filter to non-zero components
     const visibleComponents = useMemo(
-        () => COMPONENTS.filter(c => scaled[c.key] > 0),
-        [scaled],
+        () => components.filter(c => scaled[c.key] > 0),
+        [scaled, components],
     );
 
     const billingCost = normalizedUsage?.billing?.cost?.total;
@@ -108,7 +123,7 @@ export const TokenBreakdown: React.FC<TokenBreakdownProps> = ({
                     <div className="space-y-0.5 text-[10px] text-text-secondary">
                         {billingCost != null && (
                             <div className="flex justify-between">
-                                <span>This message</span>
+                                <span>Last request</span>
                                 <span>${billingCost.toFixed(4)}</span>
                             </div>
                         )}

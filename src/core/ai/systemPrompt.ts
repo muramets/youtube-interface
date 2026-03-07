@@ -15,22 +15,43 @@ import { buildSettingsLayer } from './layers/settingsLayer';
 import { buildPersistentContextLayer } from './layers/persistentContextLayer';
 import { buildCrossConversationLayer } from './layers/crossConversationLayer';
 
-/** Build system prompt by composing all layers. */
+export interface SystemPromptResult {
+    prompt: string;
+    layerSizes: {
+        settings: number;
+        persistentContext: number;
+        crossMemory: number;
+    };
+}
+
+/** Build system prompt by composing all layers. Returns prompt + per-layer char sizes. */
 export function buildSystemPrompt(
     aiSettings: AiAssistantSettings,
     projects: ChatProject[],
     activeProjectId: string | null,
     appContext?: AppContextItem[],
     memories?: ConversationMemory[],
-): string {
-    const sections = [
-        ...buildSettingsLayer(aiSettings, projects, activeProjectId),
-        // --- Memory Layers (system prompt) ---
-        ...buildPersistentContextLayer(appContext),   // Layer 1: Persistent Context
-        // Layer 2 (per-message context) lives server-side in gemini.ts buildHistory()
-        // Layer 3 (summarization) lives server-side in memory.ts buildMemory()
-        ...buildCrossConversationLayer(memories),     // Layer 4: Cross-Conversation Memory
-    ];
+): SystemPromptResult {
+    const settingsSections = buildSettingsLayer(aiSettings, projects, activeProjectId);
+    const contextSections = buildPersistentContextLayer(appContext);   // Layer 1
+    // Layer 2 (per-message context) lives server-side in buildHistory()
+    // Layer 3 (summarization) lives server-side in buildMemory()
+    const memorySections = buildCrossConversationLayer(memories);      // Layer 4
 
-    return sections.join('\n\n');
+    const sections = [...settingsSections, ...contextSections, ...memorySections];
+    const joinWith = '\n\n';
+
+    // Measure each layer's contribution including join separators
+    const measure = (s: string[]) => s.length > 0
+        ? s.join(joinWith).length
+        : 0;
+
+    return {
+        prompt: sections.join(joinWith),
+        layerSizes: {
+            settings: measure(settingsSections),
+            persistentContext: measure(contextSections),
+            crossMemory: measure(memorySections),
+        },
+    };
 }

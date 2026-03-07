@@ -100,9 +100,9 @@ Text components in **chars** (scaled by frontend). Images in **tokens** (not sca
 
 ```typescript
 export interface ContextBreakdown {
-  systemPrompt: number;      // chars
+  systemPrompt: number;      // chars (total system prompt)
   toolDefinitions: number;   // chars
-  history: number;           // chars
+  history: number;           // chars (includes Layer 2 appContext labels)
   memory: number;            // chars
   currentMessage: number;    // chars
   toolResults: number;       // chars
@@ -111,8 +111,18 @@ export interface ContextBreakdown {
   historyMessageCount: number;
   usedSummary: boolean;
   triggeredAuxiliary?: string[];
+  /** System prompt layer breakdown — when present, UI splits "System prompt" into sub-layers. */
+  systemLayers?: {
+    settings: number;          // Settings layer chars
+    persistentContext: number; // Layer 1: attached videos/traffic/canvas chars
+    crossMemory: number;       // Layer 4: cross-conversation memory chars
+  };
 }
 ```
+
+**System prompt layers:** Frontend measures each layer in `buildSystemPrompt()` and sends `systemLayers` alongside the prompt string. Backend passes through to `ContextBreakdown`. UI shows "Settings", "Attached context", "Memories" as separate bars when `systemLayers` is present; falls back to single "System prompt" bar for old messages.
+
+**History accuracy:** `historyChars` includes Layer 2 per-message appContext labels (`formatContextLabel()` output + `\n\n` separator). Current user message excluded from history (it arrives separately as `body.text`).
 
 #### AuxiliaryCost
 
@@ -157,7 +167,7 @@ function computeIterationCost(pricing: ModelPricing, snapshot: IterationSnapshot
 
 `aggregateIterations()` only sums per-iteration costs — does NOT know about `ModelPricing`.
 
-**`HISTORY_BUDGET_RATIO = 0.6`** — single source of truth in `shared/models.ts` (extracted from `functions/src/services/memory.ts:9`). Used by both backend (`buildMemory` budget calculation) and frontend (progress bar: % until auto-summarization).
+**`historyBudgetRatio`** — per-model field in `ModelConfig` (`shared/models.ts`). Claude = 0.75 (budget 150K), Gemini = 0.85 (budget 850K). Legacy `HISTORY_BUDGET_RATIO = 0.6` kept as fallback for unknown models. Used by both backend (`buildMemory` budget calculation) and frontend (progress bar: % until auto-summarization).
 
 ---
 
@@ -362,7 +372,7 @@ Current: solo user, hardcoded `preference = 'debug'`, `maxAllowed = 'debug'`.
 
 Expandable panel triggered by clicking the header stats. Shows context composition as stacked horizontal bars (Tailwind CSS only, no chart library).
 
-**Context section:** Each bar = one `ContextBreakdown` component, scaled proportionally via `scaleBreakdown()`. Text components (chars) are scaled to fit `actualTotal - imageTokens`. Rounding remainder absorbed by largest component — guarantees sum = actualTotal.
+**Context section:** Each bar = one `ContextBreakdown` component, scaled proportionally via `scaleBreakdown()`. Text components (chars) are scaled to fit `actualTotal - imageTokens`. Rounding remainder absorbed by largest component — guarantees sum = actualTotal. When `systemLayers` is present, "System prompt" is split into three sub-bars (Settings, Attached context, Memories) using the same proportional scaling within the system prompt's token share.
 
 **Billing section:** Per-message cost from `normalizedUsage.billing.cost`, cache savings when `withoutCache - total > 0.0001`. Shows "Summarized history" indicator when `contextBreakdown.usedSummary` is true. Shows thinking tokens + cost when `thinkingTokens > 0`.
 

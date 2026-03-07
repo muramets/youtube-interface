@@ -14,6 +14,7 @@ interface StreamChatOpts {
     conversationId: string;
     model: string;
     systemPrompt?: string;
+    systemLayers?: { settings: number; persistentContext: number; crossMemory: number };
     text: string;
     attachments?: Array<{ type: string; url: string; name: string; mimeType: string; fileRef?: string }>;
     thumbnailUrls?: string[];
@@ -91,6 +92,7 @@ export async function streamChat(opts: StreamChatOpts): Promise<AiChatResult> {
         text,
         model,
         systemPrompt: systemPrompt || undefined,
+        systemLayers,
         attachments,
         thumbnailUrls,
         contextMeta,

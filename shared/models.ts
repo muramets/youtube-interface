@@ -60,6 +60,8 @@ export interface ModelConfig {
     attachmentSupport: AttachmentSupport;
     /** Fixed tokens per image for this model (Gemini only; Claude uses tile formula) */
     imageTokensPerImage?: number;
+    /** Fraction of context window reserved for history (rest = system prompt + response). */
+    historyBudgetRatio: number;
 }
 
 export const LONG_CONTEXT_THRESHOLD = 200_000;
@@ -165,6 +167,7 @@ export const MODEL_REGISTRY: ModelConfig[] = [
         thinkingMode: 'level',
         attachmentSupport: GEMINI_ATTACHMENT_SUPPORT,
         imageTokensPerImage: 1090,
+        historyBudgetRatio: 0.85,
     },
     {
         id: 'gemini-3-flash-preview', label: 'Gemini 3 Flash', provider: 'gemini', contextLimit: 1_000_000,
@@ -179,6 +182,7 @@ export const MODEL_REGISTRY: ModelConfig[] = [
         thinkingMode: 'level',
         attachmentSupport: GEMINI_ATTACHMENT_SUPPORT,
         imageTokensPerImage: 1090,
+        historyBudgetRatio: 0.85,
     },
     {
         id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', provider: 'gemini', contextLimit: 1_000_000, isDefault: true,
@@ -193,6 +197,7 @@ export const MODEL_REGISTRY: ModelConfig[] = [
         thinkingMode: 'budget',
         attachmentSupport: GEMINI_ATTACHMENT_SUPPORT,
         imageTokensPerImage: 258,
+        historyBudgetRatio: 0.85,
     },
     {
         id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', provider: 'gemini', contextLimit: 1_000_000,
@@ -208,6 +213,7 @@ export const MODEL_REGISTRY: ModelConfig[] = [
         thinkingMode: 'budget',
         attachmentSupport: GEMINI_ATTACHMENT_SUPPORT,
         imageTokensPerImage: 258,
+        historyBudgetRatio: 0.85,
     },
     {
         id: 'claude-opus-4-6', label: 'Claude Opus 4.6', provider: 'anthropic', contextLimit: 200_000,
@@ -222,6 +228,7 @@ export const MODEL_REGISTRY: ModelConfig[] = [
         thinkingDefault: 'high',
         thinkingMode: 'adaptive',
         attachmentSupport: CLAUDE_ATTACHMENT_SUPPORT,
+        historyBudgetRatio: 0.75,
     },
     {
         id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6', provider: 'anthropic', contextLimit: 200_000,
@@ -236,6 +243,7 @@ export const MODEL_REGISTRY: ModelConfig[] = [
         thinkingDefault: 'high',
         thinkingMode: 'adaptive',
         attachmentSupport: CLAUDE_ATTACHMENT_SUPPORT,
+        historyBudgetRatio: 0.75,
     },
     {
         id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5', provider: 'anthropic', contextLimit: 200_000,
@@ -246,6 +254,7 @@ export const MODEL_REGISTRY: ModelConfig[] = [
         thinkingDefault: 'off',
         thinkingMode: 'budget',
         attachmentSupport: CLAUDE_ATTACHMENT_SUPPORT,
+        historyBudgetRatio: 0.75,
     },
 ];
 
@@ -253,7 +262,7 @@ export const MODEL_REGISTRY: ModelConfig[] = [
 // Token Transparency — data model + cost calculation
 // ---------------------------------------------------------------------------
 
-/** History gets at most 60% of model context; rest reserved for response + system prompt. */
+/** Legacy fallback — prefer ModelConfig.historyBudgetRatio (per-model). */
 export const HISTORY_BUDGET_RATIO = 0.6;
 
 /** Provider identifier as stored in normalized usage (Gemini maps to 'google'). */
@@ -323,6 +332,12 @@ export interface ContextBreakdown {
     historyMessageCount: number;
     usedSummary: boolean;
     triggeredAuxiliary?: string[];
+    /** System prompt layer breakdown (optional — when present, UI splits "System prompt" into layers). */
+    systemLayers?: {
+        settings: number;
+        persistentContext: number;
+        crossMemory: number;
+    };
 }
 
 /** Auxiliary cost entry (summary, title, memorize). */

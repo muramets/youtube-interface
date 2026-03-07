@@ -94,6 +94,7 @@ export const AiService = {
         conversationId: string;
         model?: string;
         systemPrompt?: string;
+        systemLayers?: { settings: number; persistentContext: number; crossMemory: number };
         text: string;
         attachments?: Array<{ type: string; url: string; name: string; mimeType: string; fileRef?: string }>;
         thumbnailUrls?: string[];
@@ -114,6 +115,7 @@ export const AiService = {
             conversationId: opts.conversationId,
             model: opts.model || DEFAULT_MODEL,
             systemPrompt: opts.systemPrompt,
+            systemLayers: opts.systemLayers,
             text: opts.text,
             attachments: opts.attachments,
             thumbnailUrls: opts.thumbnailUrls,

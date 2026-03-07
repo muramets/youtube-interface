@@ -146,6 +146,8 @@ export interface AiChatRequest {
     text: string;
     model?: string;
     systemPrompt?: string;
+    /** Per-layer char sizes of the system prompt (settings, persistent context, cross-memory). */
+    systemLayers?: { settings: number; persistentContext: number; crossMemory: number };
     attachments?: Array<{
         type: 'image' | 'audio' | 'video' | 'file';
         url: string;
@@ -153,6 +155,9 @@ export interface AiChatRequest {
         mimeType: string;
         /** Gemini File URI — present only when client pre-uploaded to Gemini Files API. */
         fileRef?: string;
+        /** Image dimensions in pixels (captured on frontend via Image.onload). */
+        width?: number;
+        height?: number;
     }>;
     thumbnailUrls?: string[];
     /** Thinking depth option id (matches model's thinkingOptions) */

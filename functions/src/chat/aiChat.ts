@@ -21,6 +21,7 @@ import type { StreamCallbacks, AttachmentRef } from "../services/ai/types.js";
 import { writeSSE } from "./sseWriter.js";
 import type { ContextBreakdown, AuxiliaryCost } from "../shared/models.js";
 import { estimateImageTokens } from "../shared/imageTokens.js";
+import { formatContextLabel } from "../services/memory.js";
 
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
 // NOTE: buildMemory always uses Gemini Flash for summarization. GEMINI_API_KEY required regardless of provider.
@@ -150,6 +151,11 @@ export const aiChat = onRequest(
                 });
             const convData = convDoc.data();
 
+            // The current user message is already in Firestore (frontend persists it
+            // before calling this function). It arrives separately as body.text, so
+            // exclude it from history to avoid sending it to the model twice.
+            const priorMessages = allMessages.slice(0, -1);
+
             // Build optimal memory: full history or summary + recent window
             // NOTE: buildMemory always uses Gemini Flash for summarization,
             // regardless of which provider handles the main chat.
@@ -159,7 +165,7 @@ export const aiChat = onRequest(
                 apiKey,
                 chatModel: model,
                 summaryModel: UTILITY_MODEL_ID,
-                allMessages,
+                allMessages: priorMessages,
                 existingSummary: convData?.summary,
                 existingSummarizedUpTo: convData?.summarizedUpTo,
             });
@@ -254,13 +260,20 @@ export const aiChat = onRequest(
                 : undefined;
 
             // --- Context breakdown: measure char sizes before API call ---
-            const historyChars = memory.history.reduce((sum, m) => sum + m.text.length, 0);
-            const imageAttachmentCount = (body.attachments ?? [])
-                .filter(att => att.mimeType?.startsWith('image/')).length;
+            // Include Layer 2 context labels (prepended to user messages by buildHistory)
+            const historyChars = memory.history.reduce((sum, m) => {
+                let chars = m.text.length;
+                if (m.role === 'user' && m.appContext?.length) {
+                    chars += formatContextLabel(m.appContext).length + 2; // +2 for "\n\n"
+                }
+                return sum + chars;
+            }, 0);
+            const imageAttachments = (body.attachments ?? [])
+                .filter(att => att.mimeType?.startsWith('image/'));
             const thumbnailCount = body.thumbnailUrls?.length ?? 0;
             const allImages: Array<{ width?: number; height?: number }> = [
-                // Attachments: no dimensions available server-side (captured on client only)
-                ...Array.from({ length: imageAttachmentCount }, () => ({ width: undefined, height: undefined })),
+                // Attachments: dimensions passed from frontend (captured via Image.onload)
+                ...imageAttachments.map(att => ({ width: att.width, height: att.height })),
                 // YouTube thumbnails: hardcoded 1280x720
                 ...Array.from({ length: thumbnailCount }, () => ({ width: 1280, height: 720 })),
             ];
@@ -275,9 +288,10 @@ export const aiChat = onRequest(
                 toolResults: 0, // First iteration has no tool results
                 imageTokens: estimateImageTokens(model, allImages),
                 imageCount: allImages.length,
-                historyMessageCount: allMessages.length,
+                historyMessageCount: priorMessages.length,
                 usedSummary: memory.usedSummary,
                 ...(memory.newSummary ? { triggeredAuxiliary: ['summary'] } : {}),
+                ...(body.systemLayers ? { systemLayers: body.systemLayers } : {}),
             };
 
             // --- Provider-agnostic stream call via router ---
@@ -308,7 +322,7 @@ export const aiChat = onRequest(
                 ` prompt=${tokenUsage?.promptTokens ?? '?'} completion=${tokenUsage?.completionTokens ?? '?'} total=${tokenUsage?.totalTokens ?? '?'}` +
                 ` context=${contextPercent}%` +
                 ` toolCalls=${toolCalls?.length ?? 0}` +
-                ` historyLen=${allMessages.length} usedSummary=${memory.usedSummary} newSummary=${!!memory.newSummary}` +
+                ` historyLen=${priorMessages.length} usedSummary=${memory.usedSummary} newSummary=${!!memory.newSummary}` +
                 ` duration=${durationMs}ms`);
 
             // Determine message status (immutable after write)

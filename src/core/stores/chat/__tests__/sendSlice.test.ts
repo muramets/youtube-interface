@@ -57,7 +57,10 @@ vi.mock('../../../ai/pipeline/debugSendLog', () => ({
 }));
 
 vi.mock('../../../ai/systemPrompt', () => ({
-    buildSystemPrompt: vi.fn(() => undefined),
+    buildSystemPrompt: vi.fn(() => ({
+        prompt: undefined,
+        layerSizes: { settings: 0, persistentContext: 0, crossMemory: 0 },
+    })),
 }));
 
 vi.mock('../../appContextStore', () => ({

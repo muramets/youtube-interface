@@ -61,12 +61,14 @@ async function streamAiResponse(
     largePayloadApproved?: boolean,
     onConfirmLargePayload?: (count: number) => void,
     onRetry?: (attempt: number) => void,
+    systemLayers?: { settings: number; persistentContext: number; crossMemory: number },
 ): Promise<{ text: string; tokenUsage?: TokenUsage; normalizedUsage?: NormalizedTokenUsage; toolCalls?: ToolCallRecord[]; usedSummary?: boolean; contextBreakdown?: import('../../../../../shared/models').ContextBreakdown }> {
     return AiService.sendMessage({
         channelId,
         conversationId: convId,
         model,
         systemPrompt,
+        systemLayers,
         text,
         attachments: attachments?.map(a => ({
             type: a.type,
@@ -74,6 +76,8 @@ async function streamAiResponse(
             name: a.name,
             mimeType: a.mimeType,
             fileRef: a.fileRef,
+            width: a.width,
+            height: a.height,
         })),
         thumbnailUrls,
         contextMeta,
@@ -162,7 +166,7 @@ async function resumeSendFlow(
     const thumbnailUrls = extractThumbnails(persistedContext ?? appContext);
     const activeConv = get().conversations.find(c => c.id === convId);
     const model = resolveModel(aiSettings, projects, activeProjectId, activeConv?.model, get().pendingModel);
-    const systemPrompt = buildSystemPrompt(aiSettings, projects, activeProjectId, persistedContext, memories);
+    const { prompt: systemPrompt, layerSizes: systemLayers } = buildSystemPrompt(aiSettings, projects, activeProjectId, persistedContext, memories);
 
     debugSendLog({ model, aiSettings, projects, activeProjectId, persistedContext, appContext, messages, memories, thumbnailUrls, systemPrompt });
 
@@ -185,6 +189,7 @@ async function resumeSendFlow(
         largePayloadApproved,
         (count) => scopedSet({ pendingLargePayloadConfirmation: { count, text, attachments, convId, appContext, persistedContext } }),
         (attempt) => scopedSet({ retryAttempt: attempt, streamingText: '', thinkingText: '' }),
+        systemLayers,
     );
 
     debug.chat(`📝 Layer 3: ${usedSummary ? '✓ summary used (older messages were compressed)' : '— full history (no summarization needed)'}`);
