@@ -8,7 +8,7 @@
 
 ## Task Document
 
-Execution plan, wave checklist, agent assignments: `docs/features/chat/token-transparency-tasks.md`
+Execution plan, wave checklist, agent assignments: `docs/archive/tasks/chat/token-transparency-tasks.md`
 
 ---
 

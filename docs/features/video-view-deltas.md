@@ -247,7 +247,7 @@ Trends Table         |      +-> VideoPreviewTooltip  prepareContext()
 
 ## Рефакторинг: выполненные фазы
 
-Все фазы завершены. Детальный чеклист — в `docs/features/video-view-deltas-tasks.md`.
+Все фазы завершены. Детальный чеклист — в `docs/archive/tasks/video-view-deltas-tasks.md`.
 
 | Phase | Что сделано |
 |-------|-------------|

@@ -139,7 +139,7 @@ Path string: `cached_suggested_traffic_videos` → `cached_external_videos`
 | Файл | Упоминания |
 |------|-----------|
 | `docs/features/chat/youtube-research-tools.md` | 5 |
-| `docs/features/chat/youtube-research-tools-tasks.md` | 4 |
+| `docs/archive/tasks/chat/youtube-research-tools-tasks.md` | 4 |
 | `docs/features/chat/README.md` | 2 |
 | `docs/features/chat/view-thumbnails.md` | 1 |
 | `docs/features/chat/context-token-optimization.md` | 1 |

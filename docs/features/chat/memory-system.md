@@ -204,12 +204,12 @@ Summary инжектируется как сообщение с `role: "model"` 
 - [x] **UI chips** — MemoryCheckpoint (в чате) и AiAssistantSettings (в настройках) показывают видео как chips с обложками над текстом memory. Shared компонент `MemoryVideoChips`.
 - [x] Тесты: 9 тестов (extractCandidateVideos: appContext, toolCalls, canvas-selection, dedup, edge cases)
 
-Task doc: [memory-video-refs-tasks.md](./memory-video-refs-tasks.md)
+Task doc: [memory-video-refs-tasks.md](../../archive/tasks/chat/memory-video-refs-tasks.md)
 
 ### Stage 2 — Smart Cross-Conversation Memory (L4) ✅
 Улучшение качества генерации L4 memories. L3 summarization работает адекватно — фокус на L4.
 
-Task doc: [cross-chat-memory-stage2-tasks.md](./cross-chat-memory-stage2-tasks.md)
+Task doc: [cross-chat-memory-stage2-tasks.md](../../archive/tasks/chat/cross-chat-memory-stage2-tasks.md)
 
 - [x] **Consistent memory sections** — обновить `CONCLUDE_SYSTEM_PROMPT` чтобы memory всегда генерировался с фиксированными секциями: `## Decisions`, `## Insights`, `## Channel State`, `## Action Items`, `## Open Questions`. Пустые секции опускаются. Хранение — тот же `content: string` (markdown), `responseSchema` не меняется (`{ content, referencedVideoIds }`). **Влияние на L4:** каждый новый memory — консистентно структурированный текст вместо свободной формы. AI легче находит нужные факты, пользователю легче читать и редактировать. Фундамент для будущей consolidation.
 - [x] **Manual memory creation** — кнопка "Add Memory" в Settings → AI Memory. Textarea с опциональным scaffolding (секции из consistent sections). Сохраняется в ту же коллекцию `conversationMemories` с `source: 'manual'` (без `conversationId`, без video refs, без LLM-обработки). **Влияние на L4:** пользователь может добавлять инсайты, полученные вне чата (из YouTube Analytics, конференций, собственных наблюдений) — база знаний AI становится полнее.

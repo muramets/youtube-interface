@@ -173,7 +173,7 @@ npx vitest run --project functions
 **Prompt for review agent:**
 
 > Read these files in order:
-> 1. `docs/features/chat/cross-chat-memory-stage2-tasks.md` (Key Decisions)
+> 1. `docs/archive/tasks/chat/cross-chat-memory-stage2-tasks.md` (Key Decisions)
 > 2. `functions/src/services/memory.ts` (CONCLUDE_SYSTEM_PROMPT)
 > 3. `src/core/types/chat/chat.ts` (ConversationMemory interface)
 > 4. `src/core/services/ai/chatService.ts` (createMemory)
