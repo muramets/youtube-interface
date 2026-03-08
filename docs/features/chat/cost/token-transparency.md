@@ -455,7 +455,7 @@ Proactive cost management — warnings before a conversation becomes expensive, 
 
 ## Related Features
 
-- [Context & Token Optimization](./context-token-optimization.md)
-- [Prompt Caching](./prompt-caching.md)
-- [Agentic Architecture](./agentic-architecture.md)
-- [Multi-Provider](./multi-provider.md)
+- [Context & Token Optimization](../context/token-optimization.md)
+- [Prompt Caching](../context/prompt-caching.md)
+- [Agentic Architecture](../infrastructure/agentic-architecture.md)
+- [Multi-Provider](../infrastructure/multi-provider.md)

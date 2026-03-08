@@ -82,10 +82,10 @@ Handler читает ТОЛЬКО channel-level документы из `trendCh
 
 ## Связанные фичи
 
-- [Telescope Pattern Overview](./README.md) — Layer 4: Competition
-- [browseTrendVideos](./browse-trend-videos.md) — следующий шаг (видео конкурентов с фильтрами)
-- [getNicheSnapshot](./get-niche-snapshot.md) — контекст ниши вокруг даты
-- [Competitive Intelligence](../competitive-intelligence.md) — roadmap и архитектура
+- [Telescope Pattern Overview](../README.md) — Layer 4: Competition
+- [browseTrendVideos](./browse-trend-videos-tool.md) — следующий шаг (видео конкурентов с фильтрами)
+- [getNicheSnapshot](./get-niche-snapshot-tool.md) — контекст ниши вокруг даты
+- [Competitive Intelligence](./competitive-intelligence.md) — roadmap и архитектура
 
 ---
 

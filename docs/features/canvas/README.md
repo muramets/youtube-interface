@@ -295,7 +295,7 @@ Debounced save (1.5s) записывает финальные позиции в 
 
 ## Связанные docs
 
-- [Context Bridges](../chat/context-bridges/README.md) — Canvas Bridge: выделение на Canvas → AI Chat
+- [Context Bridges](../chat/context/bridges/README.md) — Canvas Bridge: выделение на Canvas → AI Chat
 - [AI Chat](../chat/README.md) — общая архитектура чата
 - [Suggested Traffic](../video-details/suggested-traffic/README.md) — источник traffic source данных
 

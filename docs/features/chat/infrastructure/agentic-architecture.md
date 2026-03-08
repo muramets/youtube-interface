@@ -65,7 +65,7 @@
 | `getChannelOverview` | Обзор YouTube канала: подписчики, видео, статистика | Когда AI исследует внешний канал (конкурент, источник трафика) |
 | `browseChannelVideos` | Пагинированный список видео канала с метриками | Когда нужен детальный обзор контента канала |
 
-Подробности по каждому tool — в отдельных docs: [Tool Index](./tools/README.md), [viewThumbnails](./tools/view-thumbnails.md), [analyzeSuggestedTraffic](./tools/analyze-suggested-traffic-tool.md).
+Подробности по каждому tool — в отдельных docs: [Tool Index](../tools/README.md), [viewThumbnails](../tools/layer-2-detail/view-thumbnails-tool.md), [analyzeSuggestedTraffic](../tools/layer-3-analysis/analyze-suggested-traffic-tool.md).
 
 ### Как добавить новый tool:
 1. Описать его в `tools/definitions.ts` (что он делает, какие параметры)

@@ -116,11 +116,11 @@ Percentile тиры вычисляются per-channel, не cross-channel:
 
 ## Связанные фичи
 
-- [Telescope Pattern Overview](./README.md) — Layer 4: Competition
-- [listTrendChannels](./list-trend-channels.md) — prerequisite (channelIds)
-- [getNicheSnapshot](./get-niche-snapshot.md) — агрегированный снимок ниши
-- [viewThumbnails](./view-thumbnails.md) — визуальный анализ обложек результатов
-- [Competitive Intelligence](../competitive-intelligence.md) — roadmap и архитектура
+- [Telescope Pattern Overview](../README.md) — Layer 4: Competition
+- [listTrendChannels](./list-trend-channels-tool.md) — prerequisite (channelIds)
+- [getNicheSnapshot](./get-niche-snapshot-tool.md) — агрегированный снимок ниши
+- [viewThumbnails](../layer-2-detail/view-thumbnails-tool.md) — визуальный анализ обложек результатов
+- [Competitive Intelligence](./competitive-intelligence.md) — roadmap и архитектура
 
 ---
 

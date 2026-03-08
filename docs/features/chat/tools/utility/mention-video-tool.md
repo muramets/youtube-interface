@@ -50,7 +50,7 @@
 
 ## Связанные фичи
 
-- [Telescope Pattern Overview](./README.md) — utility layer
+- [Telescope Pattern Overview](../README.md) — utility layer
 - Все analysis tools используют `mentionVideo` для reference видео в ответах
 
 ---

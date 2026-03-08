@@ -84,7 +84,7 @@ LLM использует дельты для оценки динамики: ви
 
 Graceful degradation: если `trendSnapshotService` недоступен — видео возвращаются без delta полей.
 
-Подробнее: [Video View Deltas](../../video-view-deltas.md)
+Подробнее: [Video View Deltas](../../../video-view-deltas.md)
 
 ---
 
@@ -105,10 +105,10 @@ YouTube API результаты кэшируются в `cached_external_videos
 
 ## Связанные фичи
 
-- [Telescope Pattern Overview](./README.md)
-- [browseChannelVideos](./browse-channel-videos-tool.md) — часто вызывается перед этим тулом
-- [analyzeTrafficSources](./analyze-traffic-sources-tool.md) — использует `trafficSourceSnapshotCount` для pre-check
-- [analyzeSuggestedTraffic](./analyze-suggested-traffic-tool.md) — использует `suggestedTrafficSnapshotCount` для pre-check
+- [Telescope Pattern Overview](../README.md)
+- [browseChannelVideos](../layer-1-discovery/browse-channel-videos-tool.md) — часто вызывается перед этим тулом
+- [analyzeTrafficSources](../layer-3-analysis/analyze-traffic-sources-tool.md) — использует `trafficSourceSnapshotCount` для pre-check
+- [analyzeSuggestedTraffic](../layer-3-analysis/analyze-suggested-traffic-tool.md) — использует `suggestedTrafficSnapshotCount` для pre-check
 
 ---
 

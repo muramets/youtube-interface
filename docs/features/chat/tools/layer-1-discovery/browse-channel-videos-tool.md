@@ -51,7 +51,7 @@
 
 Side effects:
 - Все fetched видео кэшируются в `cached_external_videos/` (включая `channelId` из YouTube API)
-- `channelId` persistence enables downstream view delta lookups в `getMultipleVideoDetails` и `analyzeSuggestedTraffic` ([подробнее](../../video-view-deltas.md))
+- `channelId` persistence enables downstream view delta lookups в `getMultipleVideoDetails` и `analyzeSuggestedTraffic` ([подробнее](../../../video-view-deltas.md))
 
 ---
 
@@ -78,9 +78,9 @@ Custom videos создаются с document ID `custom-XXXXX`, а YouTube video
 
 ## Связанные фичи
 
-- [Telescope Pattern Overview](./README.md)
+- [Telescope Pattern Overview](../README.md)
 - [getChannelOverview](./get-channel-overview-tool.md) — prerequisite (quota gate)
-- [getMultipleVideoDetails](./get-multiple-video-details-tool.md) — следующий шаг (full metadata)
+- [getMultipleVideoDetails](../layer-2-detail/get-multiple-video-details-tool.md) — следующий шаг (full metadata)
 
 ---
 

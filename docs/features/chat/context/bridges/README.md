@@ -94,7 +94,7 @@ Floating Bars (тулбар, появляющийся при выделении)
 - [Architecture (slot system, store, types)](./architecture.md)
 - [4 моста в деталях](./bridges.md)
 - [Enrichment Pipeline](./enrichment-pipeline.md)
-- [Canvas Feature](../../canvas/README.md) — визуальная доска, типы нод, добавление видео на Canvas
-- [AI Chat README](../README.md) — общая архитектура чата
-- [Context & Token Optimization](../context-token-optimization.md) — compact L1, on-demand details
+- [Canvas Feature](../../../canvas/README.md) — визуальная доска, типы нод, добавление видео на Canvas
+- [AI Chat README](../../README.md) — общая архитектура чата
+- [Context & Token Optimization](../token-optimization.md) — compact L1, on-demand details
 - [Memory System](../memory-system.md) — 4 слоя памяти (L1-L4)

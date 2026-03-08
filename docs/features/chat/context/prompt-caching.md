@@ -163,10 +163,10 @@ Breakpoint 4: (резерв)
 
 ## Связанные фичи
 
-- [Multi-Provider Architecture](./multi-provider.md) — provider router, factory pattern
-- [Chat Resilience](./chat-resilience.md) — retry взаимодействует с кэшем (retry = cache read, не write)
-- [Context Token Optimization](./context-token-optimization.md) — compact L1 prompt уменьшает cacheable payload
-- [AI Chat README](./README.md) — Stage 8 (Gemini Context Caching prerequisite)
+- [Multi-Provider Architecture](../infrastructure/multi-provider.md) — provider router, factory pattern
+- [Chat Resilience](../infrastructure/chat-resilience.md) — retry взаимодействует с кэшем (retry = cache read, не write)
+- [Context Token Optimization](./token-optimization.md) — compact L1 prompt уменьшает cacheable payload
+- [AI Chat README](../README.md) — Stage 8 (Gemini Context Caching prerequisite)
 
 ---
 

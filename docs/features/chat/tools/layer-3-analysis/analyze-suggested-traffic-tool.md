@@ -98,7 +98,7 @@ timeline: [
 
 Graceful degradation: если `getViewDeltas()` падает — handler продолжает работу, все viewDelta остаются null.
 
-Подробнее: [Video View Deltas](../../video-view-deltas.md)
+Подробнее: [Video View Deltas](../../../video-view-deltas.md)
 
 ---
 
@@ -285,9 +285,9 @@ LLM анализирует "слепо" — не знает, какой тип �
 ---
 
 ## Связанные фичи
-- [Suggested Traffic UI](../../video-details/suggested-traffic/) — откуда берутся CSV и данные enrichment
-- [Traffic Sources Tool](../../video-details/traffic-sources.md) — gateway tool (`analyzeTrafficSources`) вызывается перед drill-down
-- [Telescope Pattern Overview](./README.md) — архитектура tool chain
+- [Suggested Traffic UI](../../../video-details/suggested-traffic/) — откуда берутся CSV и данные enrichment
+- [Traffic Sources Tool](../../../video-details/traffic-sources.md) — gateway tool (`analyzeTrafficSources`) вызывается перед drill-down
+- [Telescope Pattern Overview](../README.md) — архитектура tool chain
 - Chat — SSE streaming, tool call pipeline, ToolCallSummary UI
 
 ---

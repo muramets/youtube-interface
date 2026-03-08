@@ -134,7 +134,7 @@ src/
 ## Связанные фичи
 
 - [Agentic Architecture](./agentic-architecture.md) — agentic loop, внутри которого живёт retry
-- [AI Chat README](./README.md) — общая архитектура чата
+- [AI Chat README](../README.md) — общая архитектура чата
 
 ---
 

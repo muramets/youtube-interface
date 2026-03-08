@@ -52,7 +52,7 @@
 
 ## Связанные фичи
 
-- [Telescope Pattern Overview](./README.md)
+- [Telescope Pattern Overview](../README.md)
 - [browseChannelVideos](./browse-channel-videos-tool.md) — следующий шаг (требует `uploadsPlaylistId`)
 
 ---

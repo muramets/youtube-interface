@@ -230,7 +230,7 @@ UI поддержка мульти-провайдера.
 ---
 
 ## Связанные фичи
-- [AI Chat — README](./README.md) — общий обзор чат-системы
+- [AI Chat — README](../README.md) — общий обзор чат-системы
 - [Agentic Architecture](./agentic-architecture.md) — agentic loop, tools, thinking
 - [Chat Resilience](./chat-resilience.md) — retry, progressive status
-- [Context & Tokens](./context-token-optimization.md) — memory, summarization, token budget
+- [Context & Tokens](../context/token-optimization.md) — memory, summarization, token budget
