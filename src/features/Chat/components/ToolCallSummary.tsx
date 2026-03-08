@@ -3,11 +3,6 @@
 //
 // Replaces individual ToolCallBadge mapping. Groups tool calls by type and
 // renders consolidated pills with expandable details.
-//
-// Pill types:
-//   1. mentionVideo  → "Mentioned N videos" — which videos Gemini references
-//   2. getMultipleVideoDetails → "Loaded details for N videos" — audit trail
-//   3. analyzeSuggestedTraffic → "Suggested Traffic Analysis" — expandable stats
 // =============================================================================
 
 import React, { useState } from 'react';

@@ -204,6 +204,27 @@ describe("handleListTrendChannels", () => {
         expect(result.totalVideos).toBe(50);
     });
 
+    // --- videoCount fallback ---
+
+    it("falls back to 0 when videoCount is missing or not a number", async () => {
+        mockCollectionGet.mockResolvedValueOnce({
+            empty: false,
+            docs: [
+                makeDoc("UC_missing", { title: "Missing Count", avatarUrl: "a.jpg", lastUpdated: null }),
+                makeDoc("UC_string", { title: "String Count", avatarUrl: "b.jpg", videoCount: "fifty", lastUpdated: null }),
+                makeDoc("UC_valid", { title: "Valid Count", avatarUrl: "c.jpg", videoCount: 25, lastUpdated: null }),
+            ],
+        });
+
+        const result = await handleListTrendChannels({}, CTX);
+
+        const channels = result.channels as Record<string, unknown>[];
+        expect(channels[0].videoCount).toBe(0);
+        expect(channels[1].videoCount).toBe(0);
+        expect(channels[2].videoCount).toBe(25);
+        expect(result.totalVideos).toBe(25);
+    });
+
     // --- dataFreshness ---
 
     it("builds dataFreshness array with channelId, channelTitle, lastSynced", async () => {

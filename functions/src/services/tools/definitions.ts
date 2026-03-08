@@ -322,7 +322,8 @@ const getNicheSnapshot: ToolDefinition = {
         "Zero API cost (all data from Firestore). " +
         "Prefer the 'date' parameter when publishedAt is known from context (zero extra reads). " +
         "Use 'videoId' only when date is unavailable. " +
-        "Pass 'channelId' alongside 'videoId' when known (from browseTrendVideos result) to minimize lookups.",
+        "Pass 'channelId' alongside 'videoId' when known (from browseTrendVideos result) to minimize lookups. " +
+        "At least one of 'date' or 'videoId' is required.",
     parametersJsonSchema: {
         type: "object",
         properties: {

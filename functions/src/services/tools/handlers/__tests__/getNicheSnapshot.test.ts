@@ -474,6 +474,113 @@ describe("handleGetNicheSnapshot", () => {
     });
 
     // -----------------------------------------------------------------------
+    // 12b. Truncates commonTags to top 20
+    // -----------------------------------------------------------------------
+    it("truncates commonTags to top 20 when more distinct tags exist", async () => {
+        mockAssignPercentileGroups.mockReturnValue(new Map());
+
+        // Generate 25 unique tags — each appears once across videos
+        const allTags = Array.from({ length: 25 }, (_, i) => `tag-${String(i).padStart(2, "0")}`);
+
+        mockCollectionGet.mockImplementation((path: string) => {
+            if (path === `${BASE_PATH}/trendChannels`) {
+                return Promise.resolve({
+                    docs: [makeTrendChannelDoc("tc1", "Channel 1")],
+                    empty: false,
+                });
+            }
+            if (path.includes("/videos")) {
+                // Create videos that collectively use all 25 tags
+                // v1 has tags 0-12, v2 has tags 13-24, v3 has tag-00 (so tag-00 appears 2x)
+                return Promise.resolve({
+                    docs: [
+                        makeVideoDoc("v1", {
+                            title: "V1", viewCount: 100,
+                            publishedAt: "2025-06-14T00:00:00.000Z",
+                            tags: allTags.slice(0, 13),
+                        }),
+                        makeVideoDoc("v2", {
+                            title: "V2", viewCount: 200,
+                            publishedAt: "2025-06-13T00:00:00.000Z",
+                            tags: allTags.slice(13),
+                        }),
+                        makeVideoDoc("v3", {
+                            title: "V3", viewCount: 300,
+                            publishedAt: "2025-06-12T00:00:00.000Z",
+                            tags: ["tag-00"],
+                        }),
+                    ],
+                    empty: false,
+                });
+            }
+            return Promise.resolve({ docs: [], empty: true });
+        });
+
+        const result = await handleGetNicheSnapshot(
+            { date: "2025-06-15T00:00:00.000Z" },
+            CTX,
+        ) as Record<string, unknown>;
+
+        const aggregates = result.aggregates as Record<string, unknown>;
+        const commonTags = aggregates.commonTags as Array<{ tag: string; count: number }>;
+
+        // Should be truncated to 20
+        expect(commonTags).toHaveLength(20);
+        // tag-00 appears 2x → should be first
+        expect(commonTags[0]).toEqual({ tag: "tag-00", count: 2 });
+    });
+
+    // -----------------------------------------------------------------------
+    // 12c. Handles null/missing tags in video data
+    // -----------------------------------------------------------------------
+    it("handles null/missing tags gracefully", async () => {
+        mockAssignPercentileGroups.mockReturnValue(new Map());
+
+        mockCollectionGet.mockImplementation((path: string) => {
+            if (path === `${BASE_PATH}/trendChannels`) {
+                return Promise.resolve({
+                    docs: [makeTrendChannelDoc("tc1", "Channel 1")],
+                    empty: false,
+                });
+            }
+            if (path.includes("/videos")) {
+                return Promise.resolve({
+                    docs: [
+                        makeVideoDoc("v1", {
+                            title: "V1", viewCount: 100,
+                            publishedAt: "2025-06-14T00:00:00.000Z",
+                            tags: null,
+                        }),
+                        makeVideoDoc("v2", {
+                            title: "V2", viewCount: 200,
+                            publishedAt: "2025-06-13T00:00:00.000Z",
+                            // tags field completely missing
+                        }),
+                        makeVideoDoc("v3", {
+                            title: "V3", viewCount: 300,
+                            publishedAt: "2025-06-12T00:00:00.000Z",
+                            tags: ["valid-tag"],
+                        }),
+                    ],
+                    empty: false,
+                });
+            }
+            return Promise.resolve({ docs: [], empty: true });
+        });
+
+        const result = await handleGetNicheSnapshot(
+            { date: "2025-06-15T00:00:00.000Z" },
+            CTX,
+        ) as Record<string, unknown>;
+
+        // Should not throw — null/missing tags treated as empty array
+        expect(result).not.toHaveProperty("error");
+        const aggregates = result.aggregates as Record<string, unknown>;
+        const commonTags = aggregates.commonTags as Array<{ tag: string; count: number }>;
+        expect(commonTags).toEqual([{ tag: "valid-tag", count: 1 }]);
+    });
+
+    // -----------------------------------------------------------------------
     // 13. Returns dataFreshness for all channels
     // -----------------------------------------------------------------------
     it("returns dataFreshness for all channels", async () => {
@@ -505,7 +612,7 @@ describe("handleGetNicheSnapshot", () => {
         expect(freshness[0]).toEqual({
             channelId: "tc1",
             channelTitle: "Channel 1",
-            lastSynced: 1700000000000,
+            lastSynced: new Date(1700000000000).toISOString(),
         });
         expect(freshness[1]).toEqual({
             channelId: "tc2",

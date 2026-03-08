@@ -326,7 +326,83 @@ describe("handleBrowseTrendVideos", () => {
         expect(ch2).toEqual({ channelId: "tc2", title: "Channel B", matchedCount: 1 });
     });
 
-    // 13. Handles delta sort with all-null deltas (fallback to views + _note)
+    // 13a. Sorts by views explicitly
+    it("sorts by views when sort='views'", async () => {
+        const videos = [
+            makeVideoDoc("v1", { publishedAt: "2025-01-20", viewCount: 100 }),
+            makeVideoDoc("v2", { publishedAt: "2025-01-10", viewCount: 900 }),
+            makeVideoDoc("v3", { publishedAt: "2025-01-15", viewCount: 500 }),
+        ];
+        setupDefaultMocks({ videos: new Map([["tc1", videos]]) });
+
+        const result = await handleBrowseTrendVideos({ sort: "views" }, CTX);
+
+        expect(result.error).toBeUndefined();
+        const resultVideos = result.videos as { videoId: string; viewCount: number }[];
+        expect(resultVideos.map((v) => v.videoId)).toEqual(["v2", "v3", "v1"]);
+    });
+
+    // 13b. Clamps limit to MAX_LIMIT (200)
+    it("clamps limit to 200 when larger value provided", async () => {
+        const videos = Array.from({ length: 210 }, (_, i) =>
+            makeVideoDoc(`v${i}`, { publishedAt: `2025-01-${String((i % 28) + 1).padStart(2, "0")}` }),
+        );
+        setupDefaultMocks({ videos: new Map([["tc1", videos]]) });
+
+        const result = await handleBrowseTrendVideos({ limit: 500 }, CTX);
+
+        const resultVideos = result.videos as unknown[];
+        expect(resultVideos).toHaveLength(200);
+        expect(result.totalMatched).toBe(210);
+    });
+
+    // 13c. Delta sort happy path — mixed null and non-null deltas
+    it("sorts by delta24h with mixed null/non-null values (nulls to end)", async () => {
+        const videos = [
+            makeVideoDoc("v1", { publishedAt: "2025-01-10", viewCount: 100 }),
+            makeVideoDoc("v2", { publishedAt: "2025-01-15", viewCount: 500 }),
+            makeVideoDoc("v3", { publishedAt: "2025-01-20", viewCount: 300 }),
+        ];
+        setupDefaultMocks({ videos: new Map([["tc1", videos]]) });
+
+        // v1 has delta, v2 has no delta (null), v3 has higher delta
+        mockGetViewDeltas.mockResolvedValue(new Map([
+            ["v1", { delta24h: 50, delta7d: null, delta30d: null }],
+            // v2 missing → null
+            ["v3", { delta24h: 200, delta7d: null, delta30d: null }],
+        ]));
+
+        const result = await handleBrowseTrendVideos({ sort: "delta24h" }, CTX);
+
+        expect(result.error).toBeUndefined();
+        expect(result._note).toBeUndefined(); // NOT all-null fallback
+
+        const resultVideos = result.videos as { videoId: string; viewDelta24h: number | null }[];
+        // v3 (200) → v1 (50) → v2 (null, goes to end)
+        expect(resultVideos.map((v) => v.videoId)).toEqual(["v3", "v1", "v2"]);
+        expect(resultVideos[0].viewDelta24h).toBe(200);
+        expect(resultVideos[1].viewDelta24h).toBe(50);
+        expect(resultVideos[2].viewDelta24h).toBeNull();
+    });
+
+    // 13d. Returns empty videos (not error) when channels exist but no videos match filters
+    it("returns empty result when filters exclude all videos", async () => {
+        const videos = [
+            makeVideoDoc("v1", { publishedAt: "2025-01-10", viewCount: 100 }),
+        ];
+        setupDefaultMocks({ videos: new Map([["tc1", videos]]) });
+
+        const result = await handleBrowseTrendVideos(
+            { dateRange: { from: "2026-01-01", to: "2026-12-31" } },
+            CTX,
+        );
+
+        expect(result.error).toBeUndefined();
+        expect(result.videos).toEqual([]);
+        expect(result.totalMatched).toBe(0);
+    });
+
+    // 13e. Handles delta sort with all-null deltas (fallback to views + _note)
     it("handles delta sort with all-null deltas (fallback to views + _note)", async () => {
         const videos = [
             makeVideoDoc("v1", { viewCount: 100, publishedAt: "2025-01-10" }),

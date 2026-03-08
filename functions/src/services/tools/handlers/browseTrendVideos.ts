@@ -11,6 +11,7 @@ import { assignPercentileGroups } from "../../../shared/percentiles.js";
 import type { PercentileGroup } from "../../../shared/percentiles.js";
 import { getViewDeltas } from "../../trendSnapshotService.js";
 import { getHiddenVideoIds } from "../utils/getHiddenVideoIds.js";
+import { normalizeLastUpdated } from "../utils/normalizeLastUpdated.js";
 import type { ToolContext } from "../types.js";
 
 // ---------------------------------------------------------------------------
@@ -100,9 +101,7 @@ export async function handleBrowseTrendVideos(
             ).then((docs) => docs.filter((d) => d.exists))
             : (await trendChannelsRef.get()).docs;
 
-        const trendChannelDocs = Array.isArray(trendChannelsSnap)
-            ? trendChannelsSnap
-            : trendChannelsSnap;
+        const trendChannelDocs = trendChannelsSnap;
 
         if (trendChannelDocs.length === 0) {
             return {
@@ -117,10 +116,10 @@ export async function handleBrowseTrendVideos(
         const channelMeta: Map<string, { title: string; lastUpdated: string | null }> = new Map();
 
         for (const channelDoc of trendChannelDocs) {
-            const channelData = channelDoc.data?.() ?? (channelDoc as { data: () => Record<string, unknown> }).data?.() ?? {};
+            const channelData = channelDoc.data?.() ?? {};
             const trendChannelId = channelDoc.id;
             const channelTitle = (channelData.title as string) ?? trendChannelId;
-            const lastUpdated = (channelData.lastUpdated as string) ?? null;
+            const lastUpdated = normalizeLastUpdated(channelData.lastUpdated);
 
             channelMeta.set(trendChannelId, { title: channelTitle, lastUpdated });
 

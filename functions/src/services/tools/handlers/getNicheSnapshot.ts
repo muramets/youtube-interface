@@ -12,6 +12,7 @@ import { db } from "../../../shared/db.js";
 import { assignPercentileGroups } from "../../../shared/percentiles.js";
 import { getViewDeltas } from "../../trendSnapshotService.js";
 import { getHiddenVideoIds } from "../utils/getHiddenVideoIds.js";
+import { normalizeLastUpdated } from "../utils/normalizeLastUpdated.js";
 import { resolveVideosByIds } from "../utils/resolveVideos.js";
 import type { ToolContext } from "../types.js";
 
@@ -49,6 +50,10 @@ export async function handleGetNicheSnapshot(
         let resolvedVideoId: string | undefined;
         let resolvedVideoTitle: string | undefined;
 
+        // Cache trend channels snapshot to avoid duplicate Firestore reads (M2 fix).
+        // Populated during videoId resolution and reused for the main logic below.
+        let cachedTrendChannelsSnap: FirebaseFirestore.QuerySnapshot | undefined;
+
         if (dateArg) {
             // Primary path — zero extra reads
             referenceDate = dateArg;
@@ -71,11 +76,11 @@ export async function handleGetNicheSnapshot(
             }
 
             if (!publishedAt) {
-                // Try each trend channel
-                const trendChannelsSnap = await db
+                // Try each trend channel — cache the snapshot for reuse
+                cachedTrendChannelsSnap = await db
                     .collection(`${basePath}/trendChannels`)
                     .get();
-                const trendChannelIds = trendChannelsSnap.docs.map(d => d.id);
+                const trendChannelIds = cachedTrendChannelsSnap.docs.map(d => d.id);
 
                 if (trendChannelIds.length > 0) {
                     const refs = trendChannelIds.map(tcId =>
@@ -119,10 +124,9 @@ export async function handleGetNicheSnapshot(
         const windowFrom = new Date(refMs - windowDays * 24 * 60 * 60 * 1000).toISOString();
         const windowTo = new Date(refMs + windowDays * 24 * 60 * 60 * 1000).toISOString();
 
-        // --- Read all trend channels ---
-        const trendChannelsSnap = await db
-            .collection(`${basePath}/trendChannels`)
-            .get();
+        // --- Read all trend channels (reuse cached snapshot if available) ---
+        const trendChannelsSnap = cachedTrendChannelsSnap
+            ?? await db.collection(`${basePath}/trendChannels`).get();
 
         if (trendChannelsSnap.empty) {
             return {
@@ -164,7 +168,7 @@ export async function handleGetNicheSnapshot(
             channelTitle: string;
             allVideos: { id: string; viewCount: number }[];
             windowVideos: VideoDoc[];
-            lastUpdated: number | string;
+            lastUpdated: string | null;
         }
 
         const channelResults: ChannelResult[] = [];
@@ -173,7 +177,7 @@ export async function handleGetNicheSnapshot(
             const channelData = channelDoc.data();
             const tcId = channelDoc.id;
             const channelTitle = (channelData.title as string) || tcId;
-            const lastUpdated = channelData.lastUpdated ?? "";
+            const lastUpdated = normalizeLastUpdated(channelData.lastUpdated);
 
             const videosSnap = await db
                 .collection(`${basePath}/trendChannels/${tcId}/videos`)
@@ -200,7 +204,7 @@ export async function handleGetNicheSnapshot(
                         title: (vData.title as string) || "(untitled)",
                         viewCount,
                         publishedAt: pubAt,
-                        tags: (vData.tags as string[]) ?? [],
+                        tags: Array.isArray(vData.tags) ? (vData.tags as string[]) : [],
                         channelId: tcId,
                         channelTitle,
                     });

@@ -6,6 +6,7 @@
 // =============================================================================
 
 import { db } from "../../../shared/db.js";
+import { normalizeLastUpdated } from "../utils/normalizeLastUpdated.js";
 import type { ToolContext } from "../types.js";
 
 // ---------------------------------------------------------------------------
@@ -47,17 +48,7 @@ export async function handleListTrendChannels(
         const videoCount = typeof data.videoCount === "number" ? data.videoCount : 0;
         totalVideos += videoCount;
 
-        // Resolve lastUpdated to ISO string
-        let lastUpdated: string | null = null;
-        if (data.lastUpdated) {
-            if (typeof data.lastUpdated === "string") {
-                lastUpdated = data.lastUpdated;
-            } else if (typeof data.lastUpdated.toDate === "function") {
-                lastUpdated = data.lastUpdated.toDate().toISOString();
-            } else if (data.lastUpdated instanceof Date) {
-                lastUpdated = data.lastUpdated.toISOString();
-            }
-        }
+        const lastUpdated = normalizeLastUpdated(data.lastUpdated);
 
         const channel: Record<string, unknown> = {
             channelId: doc.id,
