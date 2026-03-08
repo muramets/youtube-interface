@@ -63,16 +63,16 @@ Final verification — all test suites + lint + typecheck + docs
 
 | Phase | Goal | Status |
 |-------|------|--------|
-| 1 | Safety net: понять текущие данные, написать тесты для shared percentile | TODO |
-| 2 | Реализация 3 handlers + registration + frontend refactor | TODO |
+| 1 | Safety net: понять текущие данные, написать тесты для shared percentile | DONE |
+| 2 | Реализация 3 handlers + registration + frontend refactor | IN PROGRESS |
 | 3 | Документация инструментов (tool docs) | TODO |
 | FINAL | Double review-fix cycle | TODO |
 
 ## Current Test Count
 
-- Frontend: 666 tests (46 files)
-- Backend: 399 tests (25 files)
-- **Total: 1065 tests (71 files)**
+- **Frontend: 681 tests (47 files)** — verified via `npm run test:run` (2026-03-08)
+- **Backend: 399 tests (25 files)** — verified via `npx vitest run --project functions` (2026-03-08)
+- **Total: 1080 tests** — all passing
 
 ---
 
@@ -91,7 +91,7 @@ Final verification — all test suites + lint + typecheck + docs
 
 ### Tasks
 
-- [ ] **T1.1** — Create shared pure algorithm
+- [x] **T1.1** — Create shared pure algorithm
   - Create: `shared/percentiles.ts`
   - Export: `assignPercentileGroups(videos: {id: string, viewCount: number}[])` → `Map<videoId, PercentileGroup>`
   - Export: `PERCENTILE_GROUPS` constant (move from `trendStore.ts`)
@@ -100,7 +100,7 @@ Final verification — all test suites + lint + typecheck + docs
   - 0 I/O, 0 dependencies, 0 framework imports
   - Паттерн: `shared/viewDeltas.ts`
 
-- [ ] **T1.2** — Test shared algorithm
+- [x] **T1.2** — Test shared algorithm
   - Create: `shared/__tests__/percentiles.test.ts`
   - ⚠️ Tests in `shared/__tests__/` run under the **frontend** vitest project (`npm run test:run`). Паттерн: `shared/__tests__/viewDeltas.test.ts`
   - Cases for `assignPercentileGroups`:
@@ -115,7 +115,7 @@ Final verification — all test suites + lint + typecheck + docs
     - Empty array → all zeros (or null? — decide)
     - Two videos → correct interpolation
 
-- [ ] **T1.3** — Refactor frontend to use shared
+- [x] **T1.3** — Refactor frontend to use shared
   - `src/pages/Trends/TrendsPage.tsx`: replace inline useMemo with `import { assignPercentileGroups } from 'shared/percentiles'`
   - `src/core/stores/trends/trendStore.ts`: remove `PERCENTILE_GROUPS` definition, re-export from shared
   - Update all imports of `PERCENTILE_GROUPS` and `PercentileGroup` across codebase (known files):
@@ -134,9 +134,9 @@ npm run check                          # lint + typecheck + doc links
 ```
 
 **MANDATORY: Update this file before proceeding:**
-- [ ] Mark completed tasks above
-- [ ] Update Phase Status table: Phase 1 → DONE
-- [ ] Record test count in "Current Test Count" section
+- [x] Mark completed tasks above
+- [x] Update Phase Status table: Phase 1 → DONE
+- [x] Record test count in "Current Test Count" section
 
 ### Review Gate 1
 
@@ -175,9 +175,9 @@ Fix all findings before moving to Phase 2.
 
 ### Tasks
 
-- [ ] **T2.1** — `shared/percentiles.ts` done in Phase 1 (dependency)
+- [x] **T2.1** — `shared/percentiles.ts` done in Phase 1 (dependency)
 
-- [ ] **T2.1.5** — Backend utility: `getHiddenVideoIds`
+- [x] **T2.1.5** — Backend utility: `getHiddenVideoIds`
   - Create: `functions/src/services/tools/utils/getHiddenVideoIds.ts`
   - Signature: `async (basePath: string) => Promise<Set<string>>`
   - Logic: read `${basePath}/hiddenVideos/` collection → return `Set` of document IDs
@@ -185,7 +185,7 @@ Fix all findings before moving to Phase 2.
   - ⚠️ Flat `Set<string>` достаточен: YouTube video ID глобально уникален — один videoId = один канал. `channelId` поле на hidden doc используется фронтендом для UI и copy channel, но для handler фильтрации не нужно
   - Переиспользуется в T2.2b, T2.3, T2.4
 
-- [ ] **T2.2a** — Cache `performanceDistribution` at sync time
+- [x] **T2.2a** — Cache `performanceDistribution` at sync time
   - File: `functions/src/services/sync.ts` — private method `updateChannelStats()` (lines 131-147)
   - Called from `syncChannel()` at line 122: `await this.updateChannelStats(userId, userChannelId, trendChannel.id, videos, timestamp)`
   - Сейчас метод получает `videos: YouTubeVideoItem[]` и считает `totalViewCount` + `averageViews`. Добавить в тот же `channelRef.update()` (line 142-146):
@@ -195,7 +195,7 @@ Fix all findings before moving to Phase 2.
   - ⚠️ `videos` — это `YouTubeVideoItem[]` (YouTube API response). ViewCount = `parseInt(v.statistics.viewCount || '0')` — тот же parsing, что уже на line 138
   - ⚠️ Zero дополнительных Firestore reads — видео уже в памяти
 
-- [ ] **T2.2b** — Handler: `listTrendChannels`
+- [x] **T2.2b** — Handler: `listTrendChannels`
   - Create: `functions/src/services/tools/handlers/listTrendChannels.ts`
   - Input: none (uses ctx)
   - Logic:
@@ -206,7 +206,7 @@ Fix all findings before moving to Phase 2.
   - Error: if no trend channels → `{ channels: [], totalChannels: 0, totalVideos: 0, dataFreshness: [] }` (valid empty result, not error)
   - ⚠️ Channels added before T2.2a won't have `performanceDistribution` — handler must handle `null` gracefully (omit field or return empty object). Distribution appears after first sync
 
-- [ ] **T2.3** — Handler: `browseTrendVideos`
+- [x] **T2.3** — Handler: `browseTrendVideos`
   - Create: `functions/src/services/tools/handlers/browseTrendVideos.ts`
   - Input: `{ channelIds?, dateRange?: {from, to}, performanceTier?, sort?, limit? }`
   - Logic:
@@ -223,7 +223,7 @@ Fix all findings before moving to Phase 2.
     11. Build `dataFreshness` from channel `lastUpdated`
   - Output: `{ videos: [...], totalMatched, channels: [...], dataFreshness: [...] }`
 
-- [ ] **T2.4** — Handler: `getNicheSnapshot`
+- [x] **T2.4** — Handler: `getNicheSnapshot`
   - Create: `functions/src/services/tools/handlers/getNicheSnapshot.ts`
   - Input: `{ date?, videoId?, channelId?, windowDays? }`
   - ⚠️ `windowDays` default = `7` (window = ±7 дней = 14 дней total). Вынести в именованную константу `DEFAULT_WINDOW_DAYS`
@@ -247,7 +247,7 @@ Fix all findings before moving to Phase 2.
   - Output: `{ referencePoint, window, competitorActivity: [...], aggregates: {...}, dataFreshness: [...] }`
   - Edge case: no videos in window → valid empty response with zero aggregates
 
-- [ ] **T2.5** — Registration
+- [x] **T2.5** — Registration
   - `functions/src/services/tools/definitions.ts`:
     - Add 3 constants to `TOOL_NAMES`
     - Create 3 `ToolDefinition` objects with clear descriptions + `parametersJsonSchema`
@@ -260,7 +260,7 @@ Fix all findings before moving to Phase 2.
   - ⚠️ `performanceTier` parameter: use enum `["Top 1%", "Top 5%", "Top 20%", "Middle 60%", "Bottom 20%"]`
   - ⚠️ `sort` parameter: use enum `["date", "views", "delta24h", "delta7d", "delta30d"]`
 
-- [ ] **T2.6** — Frontend: ToolCallSummary + toolCallGrouping
+- [x] **T2.6** — Frontend: ToolCallSummary + toolCallGrouping
   - `src/features/Chat/utils/toolCallGrouping.ts`:
     - `extractVideoIdsForTool()` switch: add 3 new cases. ⚠️ Layer 4 tools extract IDs from `result.videos[].videoId` (not `args.videoIds` like Layer 1-2)
     - `isExpandable()`: add cases for 3 new tools

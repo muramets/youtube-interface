@@ -11,7 +11,7 @@
 // =============================================================================
 
 import React, { useState } from 'react';
-import { Loader2, Check, AlertCircle, ChevronDown, BarChart3, TrendingUp, Images, Satellite, Globe, PieChart } from 'lucide-react';
+import { Loader2, Check, AlertCircle, ChevronDown, BarChart3, TrendingUp, Images, Satellite, Globe, PieChart, Users, Telescope } from 'lucide-react';
 import type { ToolCallRecord } from '../../../core/types/chat/chat';
 import type { VideoCardContext } from '../../../core/types/appContext';
 import { groupToolCalls, getGroupLabel, isExpandable, isThumbnailTool, getGroupQuota } from '../utils/toolCallGrouping';
@@ -222,6 +222,100 @@ const BrowseChannelStats: React.FC<{ result: Record<string, unknown> }> = ({ res
     );
 };
 
+/** Compact stats for listTrendChannels expanded view. */
+const TrendChannelsStats: React.FC<{ result: Record<string, unknown> }> = ({ result }) => {
+    const channels = result.channels as Array<{ title: string; videoCount?: number; averageViews?: number }> | undefined;
+    const totalChannels = result.totalChannels as number | undefined;
+    const totalVideos = result.totalVideos as number | undefined;
+
+    return (
+        <div className="flex flex-col gap-1 px-2 py-1.5 rounded-md bg-white/[0.03] text-[11px] text-text-secondary">
+            <span className="inline-flex items-center gap-1.5">
+                <Users size={11} className="shrink-0 opacity-60" />
+                {totalChannels ?? 0} channels · {(totalVideos ?? 0).toLocaleString()} videos
+            </span>
+            {channels && channels.length > 0 && (
+                <div className="flex flex-col gap-0.5 text-[10px] text-text-tertiary">
+                    {channels.slice(0, 5).map(ch => (
+                        <span key={ch.title} className="truncate">
+                            {ch.title}: {(ch.videoCount ?? 0).toLocaleString()} videos
+                            {ch.averageViews != null && ` · avg ${formatViewCount(ch.averageViews)}`}
+                        </span>
+                    ))}
+                    {channels.length > 5 && (
+                        <span className="text-text-tertiary">+{channels.length - 5} more</span>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
+
+/** Compact stats for browseTrendVideos expanded view. */
+const BrowseTrendStats: React.FC<{ result: Record<string, unknown> }> = ({ result }) => {
+    const videos = result.videos as unknown[] | undefined;
+    const totalMatched = result.totalMatched as number | undefined;
+    const channels = result.channels as Array<{ title: string; matchedCount: number }> | undefined;
+
+    return (
+        <div className="flex flex-col gap-1 px-2 py-1.5 rounded-md bg-white/[0.03] text-[11px] text-text-secondary">
+            <span className="text-[10px] text-text-tertiary">
+                {videos?.length ?? 0} videos returned
+                {totalMatched != null && totalMatched > (videos?.length ?? 0) && ` (${totalMatched} matched)`}
+            </span>
+            {channels && channels.length > 0 && (
+                <div className="flex flex-col gap-0.5 text-[10px] text-text-tertiary">
+                    {channels.map(ch => (
+                        <span key={ch.title} className="truncate">
+                            {ch.title}: {ch.matchedCount} matched
+                        </span>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
+/** Compact stats for getNicheSnapshot expanded view. */
+const NicheSnapshotStats: React.FC<{ result: Record<string, unknown> }> = ({ result }) => {
+    const window = result.window as { from: string; to: string } | undefined;
+    const aggregates = result.aggregates as {
+        totalVideosInWindow?: number;
+        commonTags?: Array<{ tag: string; count: number }>;
+        avgViewsInWindow?: number;
+    } | undefined;
+    const activity = result.competitorActivity as Array<{ channelTitle: string; videosPublished: number }> | undefined;
+
+    return (
+        <div className="flex flex-col gap-1 px-2 py-1.5 rounded-md bg-white/[0.03] text-[11px] text-text-secondary">
+            {window && (
+                <span className="text-[10px] text-text-tertiary">
+                    Window: {window.from} — {window.to}
+                </span>
+            )}
+            <span className="inline-flex items-center gap-1.5">
+                <Telescope size={11} className="shrink-0 opacity-60" />
+                {aggregates?.totalVideosInWindow ?? 0} videos
+                {aggregates?.avgViewsInWindow != null && ` · avg ${formatViewCount(aggregates.avgViewsInWindow)}`}
+            </span>
+            {activity && activity.length > 0 && (
+                <div className="flex flex-col gap-0.5 text-[10px] text-text-tertiary">
+                    {activity.slice(0, 5).map(ch => (
+                        <span key={ch.channelTitle} className="truncate">
+                            {ch.channelTitle}: {ch.videosPublished} videos
+                        </span>
+                    ))}
+                </div>
+            )}
+            {aggregates?.commonTags && aggregates.commonTags.length > 0 && (
+                <span className="text-[10px] text-text-tertiary truncate">
+                    Tags: {aggregates.commonTags.slice(0, 5).map(t => t.tag).join(', ')}
+                </span>
+            )}
+        </div>
+    );
+};
+
 /** Quota badge — shows API cost when a tool used YouTube quota. */
 const QuotaBadge: React.FC<{ quota: number }> = ({ quota }) => {
     if (quota <= 0) return null;
@@ -288,6 +382,12 @@ const GroupPill: React.FC<{
                     <Globe size={12} className="shrink-0" />
                 ) : group.toolName === 'analyzeTrafficSources' && group.allResolved && !group.hasErrors ? (
                     <PieChart size={12} className="shrink-0" />
+                ) : group.toolName === 'listTrendChannels' && group.allResolved && !group.hasErrors ? (
+                    <Users size={12} className="shrink-0" />
+                ) : group.toolName === 'browseTrendVideos' && group.allResolved && !group.hasErrors ? (
+                    <TrendingUp size={12} className="shrink-0" />
+                ) : group.toolName === 'getNicheSnapshot' && group.allResolved && !group.hasErrors ? (
+                    <Telescope size={12} className="shrink-0" />
                 ) : (
                     <StatusIcon
                         size={12}
@@ -321,6 +421,16 @@ const GroupPill: React.FC<{
                     {/* Browse channel: video stats */}
                     {group.toolName === 'browseChannelVideos' && group.records[group.records.length - 1]?.result && (
                         <BrowseChannelStats result={group.records[group.records.length - 1].result!} />
+                    )}
+                    {/* Layer 4: Competition tools */}
+                    {group.toolName === 'listTrendChannels' && group.records[0]?.result && (
+                        <TrendChannelsStats result={group.records[0].result} />
+                    )}
+                    {group.toolName === 'browseTrendVideos' && group.records[group.records.length - 1]?.result && (
+                        <BrowseTrendStats result={group.records[group.records.length - 1].result!} />
+                    )}
+                    {group.toolName === 'getNicheSnapshot' && group.records[0]?.result && (
+                        <NicheSnapshotStats result={group.records[0].result} />
                     )}
                     {/* Thumbnail tool: image grid */}
                     {isThumbnail && <ThumbnailGrid group={group} />}

@@ -25,6 +25,9 @@ export const TOOL_NAMES = {
     GET_CHANNEL_OVERVIEW: "getChannelOverview",
     BROWSE_CHANNEL_VIDEOS: "browseChannelVideos",
     ANALYZE_TRAFFIC_SOURCES: "analyzeTrafficSources",
+    LIST_TREND_CHANNELS: "listTrendChannels",
+    BROWSE_TREND_VIDEOS: "browseTrendVideos",
+    GET_NICHE_SNAPSHOT: "getNicheSnapshot",
 } as const;
 
 export type ToolName = (typeof TOOL_NAMES)[keyof typeof TOOL_NAMES];
@@ -244,6 +247,109 @@ const analyzeTrafficSources: ToolDefinition = {
     },
 };
 
+// --- Layer 4: Competition (Firestore-only, zero YouTube API cost) ---
+
+const listTrendChannels: ToolDefinition = {
+    name: TOOL_NAMES.LIST_TREND_CHANNELS,
+    description:
+        "List all competitor channels the user is tracking in Trends. " +
+        "Returns channel metadata, video counts, average views, and performance distribution (p25/median/p75/max). " +
+        "Call this FIRST when the user asks about competitors — it gives you the landscape. " +
+        "Zero API cost (all data from Firestore). " +
+        "Use the channelId values from the response to filter subsequent browseTrendVideos calls.",
+    parametersJsonSchema: {
+        type: "object",
+        properties: {},
+    },
+};
+
+const browseTrendVideos: ToolDefinition = {
+    name: TOOL_NAMES.BROWSE_TREND_VIDEOS,
+    description:
+        "Browse and filter competitor videos from Trends data. " +
+        "Supports filtering by channels, date range, and performance tier. " +
+        "Each video includes per-channel performance tier and view growth deltas (24h/7d/30d). " +
+        "Default limit is 50 videos (~6K tokens), max 200. " +
+        "Response always includes totalMatched — if truncated, narrow filters or increase limit. " +
+        "Zero API cost (all data from Firestore). " +
+        "Use after listTrendChannels to explore specific channels or time periods. " +
+        "To see thumbnails of results, pass videoIds to viewThumbnails.",
+    parametersJsonSchema: {
+        type: "object",
+        properties: {
+            channelIds: {
+                type: "array",
+                items: { type: "string" },
+                description:
+                    "Filter to specific competitor channel IDs (from listTrendChannels). " +
+                    "Omit to browse all tracked channels.",
+            },
+            dateRange: {
+                type: "object",
+                properties: {
+                    from: { type: "string", description: "Start date (ISO 8601, e.g. '2026-02-01')" },
+                    to: { type: "string", description: "End date (ISO 8601, e.g. '2026-03-01')" },
+                },
+                description: "Filter videos by publish date range.",
+            },
+            performanceTier: {
+                type: "string",
+                enum: ["Top 1%", "Top 5%", "Top 20%", "Middle 60%", "Bottom 20%"],
+                description:
+                    "Filter by performance tier (per-channel percentile). " +
+                    "E.g. 'Top 1%' returns the best-performing videos of EACH channel.",
+            },
+            sort: {
+                type: "string",
+                enum: ["date", "views", "delta24h", "delta7d", "delta30d"],
+                description: "Sort order (default: 'date'). Delta sorts fall back to views if data unavailable.",
+            },
+            limit: {
+                type: "number",
+                description: "Max videos to return (default 50, max 200).",
+            },
+        },
+    },
+};
+
+const getNicheSnapshot: ToolDefinition = {
+    name: TOOL_NAMES.GET_NICHE_SNAPSHOT,
+    description:
+        "Get a snapshot of competitor activity around a specific date. " +
+        "Shows what all tracked channels published in a time window (default ±7 days), " +
+        "grouped by channel with per-channel stats, tag frequency analysis, and top performers. " +
+        "Returns structured data + pre-computed aggregates for your interpretation. " +
+        "Zero API cost (all data from Firestore). " +
+        "Prefer the 'date' parameter when publishedAt is known from context (zero extra reads). " +
+        "Use 'videoId' only when date is unavailable. " +
+        "Pass 'channelId' alongside 'videoId' when known (from browseTrendVideos result) to minimize lookups.",
+    parametersJsonSchema: {
+        type: "object",
+        properties: {
+            date: {
+                type: "string",
+                description:
+                    "Reference date (ISO 8601, e.g. '2026-02-20'). Primary input — use when publishedAt is known.",
+            },
+            videoId: {
+                type: "string",
+                description:
+                    "Video ID to use as reference point. Fallback — the tool resolves its publishedAt. " +
+                    "Prefer 'date' when available.",
+            },
+            channelId: {
+                type: "string",
+                description:
+                    "Channel ID of the video (from browseTrendVideos). Optimization — reduces lookup to 1 read.",
+            },
+            windowDays: {
+                type: "number",
+                description: "Half-window size in days (default 7 = ±7 days = 14 days total).",
+            },
+        },
+    },
+};
+
 // --- Exported registry ---
 
 export const TOOL_DECLARATIONS: ToolDefinition[] = [
@@ -254,4 +360,7 @@ export const TOOL_DECLARATIONS: ToolDefinition[] = [
     getChannelOverview,
     browseChannelVideos,
     analyzeTrafficSources,
+    listTrendChannels,
+    browseTrendVideos,
+    getNicheSnapshot,
 ];

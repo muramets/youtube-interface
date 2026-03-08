@@ -55,6 +55,8 @@ function extractVideoIdsForTool(toolName: string, records: ToolCallRecord[]): st
         case 'mentionVideo': return extractMentionVideoIds(records);
         case 'getMultipleVideoDetails': return extractDetailVideoIds(records);
         case 'viewThumbnails': return extractViewThumbnailVideoIds(records);
+        case 'browseTrendVideos': return extractResultVideoIds(records);
+        case 'getNicheSnapshot': return extractNicheSnapshotVideoIds(records);
         default: return [];
     }
 }
@@ -93,6 +95,36 @@ export function extractDetailVideoIds(records: ToolCallRecord[]): string[] {
         if (videoIds) {
             for (const id of videoIds) {
                 if (!ids.includes(id)) ids.push(id);
+            }
+        }
+    }
+    return ids;
+}
+
+/** Extract unique video IDs from Layer 4 tool results (result.videos[].videoId). */
+function extractResultVideoIds(records: ToolCallRecord[]): string[] {
+    const ids: string[] = [];
+    for (const r of records) {
+        const videos = r.result?.videos as Array<{ videoId: string }> | undefined;
+        if (videos) {
+            for (const v of videos) {
+                if (v.videoId && !ids.includes(v.videoId)) ids.push(v.videoId);
+            }
+        }
+    }
+    return ids;
+}
+
+/** Extract unique video IDs from getNicheSnapshot results (nested in competitorActivity). */
+function extractNicheSnapshotVideoIds(records: ToolCallRecord[]): string[] {
+    const ids: string[] = [];
+    for (const r of records) {
+        const activity = r.result?.competitorActivity as Array<{ videos: Array<{ videoId: string }> }> | undefined;
+        if (activity) {
+            for (const channel of activity) {
+                for (const v of channel.videos) {
+                    if (v.videoId && !ids.includes(v.videoId)) ids.push(v.videoId);
+                }
             }
         }
     }
@@ -166,6 +198,36 @@ export function getGroupLabel(group: ToolCallGroup): string {
             : 'Analyzing traffic sources...';
     }
 
+    if (group.toolName === 'listTrendChannels') {
+        if (group.hasErrors) return "Couldn't load trend channels";
+        if (!group.allResolved) return 'Loading competitor channels...';
+        const result = group.records[0]?.result;
+        const totalChannels = result?.totalChannels as number | undefined;
+        return totalChannels ? `${totalChannels} tracked channels` : 'Competitor channels loaded';
+    }
+
+    if (group.toolName === 'browseTrendVideos') {
+        if (group.hasErrors) return "Couldn't browse trend videos";
+        if (!group.allResolved) return 'Browsing competitor videos...';
+        const result = group.records[group.records.length - 1]?.result;
+        const totalMatched = result?.totalMatched as number | undefined;
+        const videoCount = (result?.videos as unknown[] | undefined)?.length;
+        if (totalMatched != null && videoCount != null) {
+            return totalMatched > videoCount
+                ? `${videoCount} of ${totalMatched} competitor videos`
+                : `${totalMatched} competitor ${pluralVideos(totalMatched)}`;
+        }
+        return 'Competitor videos loaded';
+    }
+
+    if (group.toolName === 'getNicheSnapshot') {
+        if (group.hasErrors) return "Couldn't load niche snapshot";
+        if (!group.allResolved) return 'Analyzing niche activity...';
+        const result = group.records[0]?.result;
+        const total = (result?.aggregates as Record<string, unknown>)?.totalVideosInWindow as number | undefined;
+        return total != null ? `Niche snapshot: ${total} videos` : 'Niche snapshot loaded';
+    }
+
     // Fallback for unknown tools
     return group.allResolved ? group.toolName : `Running ${group.toolName}...`;
 }
@@ -178,6 +240,9 @@ export function isExpandable(group: ToolCallGroup): boolean {
     if (group.toolName === 'analyzeTrafficSources' && group.allResolved) return true;
     if (group.toolName === 'getChannelOverview' && group.allResolved) return true;
     if (group.toolName === 'browseChannelVideos' && group.allResolved) return true;
+    if (group.toolName === 'listTrendChannels' && group.allResolved) return true;
+    if (group.toolName === 'browseTrendVideos' && group.allResolved) return true;
+    if (group.toolName === 'getNicheSnapshot' && group.allResolved) return true;
     return false;
 }
 

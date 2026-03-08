@@ -14,6 +14,9 @@ import { handleViewThumbnails } from "./handlers/viewThumbnails.js";
 import { handleGetChannelOverview } from "./handlers/getChannelOverview.js";
 import { handleBrowseChannelVideos } from "./handlers/browseChannelVideos.js";
 import { handleAnalyzeTrafficSources } from "./handlers/analyzeTrafficSources.js";
+import { handleListTrendChannels } from "./handlers/listTrendChannels.js";
+import { handleBrowseTrendVideos } from "./handlers/browseTrendVideos.js";
+import { handleGetNicheSnapshot } from "./handlers/getNicheSnapshot.js";
 
 // --- Handler registry ---
 
@@ -25,6 +28,9 @@ const HANDLERS: Record<ToolName, ToolHandler> = {
     [TOOL_NAMES.GET_CHANNEL_OVERVIEW]: handleGetChannelOverview,
     [TOOL_NAMES.BROWSE_CHANNEL_VIDEOS]: handleBrowseChannelVideos,
     [TOOL_NAMES.ANALYZE_TRAFFIC_SOURCES]: handleAnalyzeTrafficSources,
+    [TOOL_NAMES.LIST_TREND_CHANNELS]: handleListTrendChannels,
+    [TOOL_NAMES.BROWSE_TREND_VIDEOS]: handleBrowseTrendVideos,
+    [TOOL_NAMES.GET_NICHE_SNAPSHOT]: handleGetNicheSnapshot,
 };
 
 // --- Dispatcher ---

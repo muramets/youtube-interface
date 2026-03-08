@@ -4,6 +4,10 @@ import type { TrendChannel, TrendNiche, TimelineConfig, TrendVideo } from '../..
 import type { FilterOperator } from '../filterStore';
 import { TrendService } from '../../services/trendService';
 import { useChannelStore } from '../channelStore';
+import { PERCENTILE_GROUPS, type PercentileGroup } from '../../../../shared/percentiles';
+
+// Re-export from shared — single source of truth for frontend + backend
+export { PERCENTILE_GROUPS, type PercentileGroup };
 
 // Trends-specific filter item (date, views, percentile)
 
@@ -23,18 +27,6 @@ export interface TrendsFilterItem {
     value: TrendsFilterValue;
     label: string;
 }
-
-
-// Available percentile groups
-export const PERCENTILE_GROUPS = [
-    'Top 1%',
-    'Top 5%',
-    'Top 20%',
-    'Middle 60%',
-    'Bottom 20%'
-] as const;
-
-export type PercentileGroup = typeof PERCENTILE_GROUPS[number];
 
 const DEFAULT_TIMELINE_CONFIG: TimelineConfig = {
     zoomLevel: 1,
