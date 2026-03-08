@@ -1,6 +1,7 @@
 import * as admin from "firebase-admin";
 import { YouTubeService } from "./youtube";
 import { TrendChannel, ProcessStats, Notification, YouTubeVideoItem } from "../types";
+import { getPercentileDistribution } from "../shared/percentiles.js";
 
 export class SyncService {
     private db = admin.firestore();
@@ -138,11 +139,17 @@ export class SyncService {
         const totalViews = videos.reduce((sum, v) => sum + parseInt(v.statistics.viewCount || '0'), 0);
         const averageViews = videos.length > 0 ? totalViews / videos.length : 0;
 
+        const performanceDistribution = getPercentileDistribution(
+            videos.map(v => ({ viewCount: parseInt(v.statistics.viewCount || '0') }))
+        );
+
         const channelRef = this.db.doc(`users/${userId}/channels/${userChannelId}/trendChannels/${trendChannelId}`);
         await channelRef.update({
             lastUpdated: timestamp,
             totalViewCount: totalViews,
-            averageViews: averageViews
+            averageViews: averageViews,
+            performanceDistribution,
+            videoCount: videos.length,
         });
     }
 

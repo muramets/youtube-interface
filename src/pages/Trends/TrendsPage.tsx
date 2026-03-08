@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { assignPercentileGroups } from '../../../shared/percentiles';
 import { useTrendStore } from '../../core/stores/trends/trendStore';
 import { TimelineCanvas } from './Timeline/TimelineCanvas';
 import { TrendsTable } from './Table/TrendsTable';
@@ -49,23 +50,8 @@ export const TrendsPage: React.FC = () => {
     }, [selectedChannelId, clearSelection]);
 
 
-    // Calculate Global Percentile Map
-    const globalPercentileMap = useMemo(() => {
-        if (videos.length === 0) return new Map<string, string>();
-        const sortedByViews = [...videos].sort((a, b) => b.viewCount - a.viewCount);
-        const map = new Map<string, string>();
-        sortedByViews.forEach((v, i) => {
-            const percentile = (i / videos.length) * 100;
-            let group: string;
-            if (percentile <= 1) group = 'Top 1%';
-            else if (percentile <= 5) group = 'Top 5%';
-            else if (percentile <= 20) group = 'Top 20%';
-            else if (percentile <= 80) group = 'Middle 60%';
-            else group = 'Bottom 20%';
-            map.set(v.id, group);
-        });
-        return map;
-    }, [videos]);
+    // Calculate Global Percentile Map (shared algorithm — SSOT for frontend + backend)
+    const globalPercentileMap = useMemo(() => assignPercentileGroups(videos), [videos]);
 
     // Apply Filters using extracted hook
     const filteredVideos = useFilteredVideos({

@@ -89,6 +89,7 @@ Gemini ссылается на конкретные видео, пользова
 - ✅ **Traffic Sources**: 📊 иконка на VideoCardChip → read-only indicator (traffic data exists). Анализ трафика — on-demand через tool `analyzeTrafficSources` / `analyzeSuggestedTraffic`.
 - ✅ **viewThumbnails tool**: AI видит обложки видео как изображения. Gemini: Files API upload + 47h cache + approval gate (≥15 обложек). Claude: inline URL image blocks без gate. Подробнее: [viewThumbnails](./tools/view-thumbnails.md).
 - ✅ **Markdown Normalizer**: `normalizeMarkdown()` — нормализационный слой между LLM-выводом и `ReactMarkdown`. Исправляет структурные ошибки (таблица, склеенная с текстом). Code fence-aware — не трогает содержимое code blocks.
+- ✅ **Competitive Intelligence Этап 1**: Layer 4 (Competition) — 3 инструмента (`listTrendChannels`, `browseTrendVideos`, `getNicheSnapshot`) дают AI доступ к данным конкурентов из Trends. Zero API cost. Подробнее: [Competitive Intelligence](./competitive-intelligence.md).
 
 **Что осталось:**
 

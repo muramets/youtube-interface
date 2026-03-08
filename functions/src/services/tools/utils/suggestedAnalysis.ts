@@ -2,7 +2,7 @@
 // Suggested Traffic Analysis — aggregation and content analysis
 //
 // Pure functions: sort, filter, aggregate rows into the structured response
-// that gets passed to Gemini for interpretation.
+// that gets passed to the LLM for interpretation.
 //
 // No Firebase, no async, no side effects — fully unit-testable.
 // =============================================================================
