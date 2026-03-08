@@ -101,10 +101,11 @@ const MAX_STREAM_RETRIES = 2;
 const RETRY_DELAY_MS = 2_000;
 
 /**
- * Default max_tokens for Claude API calls.
+ * Fallback max_tokens for Claude API calls when model config is unavailable.
  * Claude requires this parameter explicitly (unlike Gemini).
+ * Per-model limits are defined in MODEL_REGISTRY.maxOutputTokens.
  */
-const DEFAULT_MAX_TOKENS = 16_384;
+const FALLBACK_MAX_TOKENS = 16_384;
 
 /** Default thinking budget when auto mode is selected. */
 const DEFAULT_THINKING_BUDGET = 10_240;
@@ -479,15 +480,14 @@ export async function streamChat(
     const thinkingEffort = thinkingResult?.effort;
     const thinkingEnabled = thinkingConfig && thinkingConfig.type !== 'disabled';
 
-    // --- max_tokens: when thinking is enabled, budget_tokens counts toward max_tokens ---
-    // Claude requires max_tokens >= budget_tokens, so we set it high enough.
-    let maxTokens = DEFAULT_MAX_TOKENS;
+    // --- max_tokens: use per-model maximum from MODEL_REGISTRY ---
+    // Claude requires max_tokens explicitly. Thinking tokens are a subset of max_tokens,
+    // so we set it to the model's full output capacity.
+    const modelMaxOutput = modelConfig?.maxOutputTokens ?? FALLBACK_MAX_TOKENS;
+    let maxTokens = modelMaxOutput;
     if (thinkingEnabled && thinkingConfig.type === 'enabled' && 'budget_tokens' in thinkingConfig) {
         // Budget mode: ensure max_tokens accommodates thinking budget + response tokens
-        maxTokens = Math.max(maxTokens, thinkingConfig.budget_tokens + DEFAULT_MAX_TOKENS);
-    } else if (thinkingEnabled && thinkingConfig.type === 'adaptive') {
-        // Adaptive mode: Claude decides thinking budget, set generous max_tokens
-        maxTokens = 16_000;
+        maxTokens = Math.max(maxTokens, thinkingConfig.budget_tokens + FALLBACK_MAX_TOKENS);
     }
 
     // Diagnostic logging

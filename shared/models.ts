@@ -62,6 +62,8 @@ export interface ModelConfig {
     imageTokensPerImage?: number;
     /** Fraction of context window reserved for history (rest = system prompt + response). */
     historyBudgetRatio: number;
+    /** Maximum output tokens the model supports (used for max_tokens API param). */
+    maxOutputTokens?: number;
 }
 
 export const LONG_CONTEXT_THRESHOLD = 200_000;
@@ -217,7 +219,8 @@ export const MODEL_REGISTRY: ModelConfig[] = [
     },
     {
         id: 'claude-opus-4-6', label: 'Claude Opus 4.6', provider: 'anthropic', contextLimit: 200_000,
-        pricing: { inputPerMillion: 5.00, outputPerMillion: 25.00, cacheReadMultiplier: 0.1, cacheWriteMultiplier: 2.0 },
+        pricing: { inputPerMillion: 5.00, outputPerMillion: 25.00, inputPerMillionLong: 10.00, outputPerMillionLong: 37.50, cacheReadMultiplier: 0.1, cacheWriteMultiplier: 2.0 },
+        maxOutputTokens: 128_000,
         thinkingOptions: [
             { id: 'off', label: 'Off', value: 'off' },
             { id: 'low', label: 'Low', value: 'low' },
@@ -232,7 +235,8 @@ export const MODEL_REGISTRY: ModelConfig[] = [
     },
     {
         id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6', provider: 'anthropic', contextLimit: 200_000,
-        pricing: { inputPerMillion: 3.00, outputPerMillion: 15.00, cacheReadMultiplier: 0.1, cacheWriteMultiplier: 2.0 },
+        pricing: { inputPerMillion: 3.00, outputPerMillion: 15.00, inputPerMillionLong: 6.00, outputPerMillionLong: 22.50, cacheReadMultiplier: 0.1, cacheWriteMultiplier: 2.0 },
+        maxOutputTokens: 64_000,
         thinkingOptions: [
             { id: 'off', label: 'Off', value: 'off' },
             { id: 'low', label: 'Low', value: 'low' },

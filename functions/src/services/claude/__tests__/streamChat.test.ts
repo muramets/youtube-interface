@@ -153,6 +153,7 @@ vi.mock("../../../config/models.js", () => ({
             id: "test-claude-model",
             provider: "anthropic",
             contextLimit: 200_000,
+            maxOutputTokens: 64_000,
             thinkingMode: "budget",
             thinkingOptions: [
                 { id: "off", value: 0 },
@@ -398,6 +399,21 @@ describe("Claude streamChat — happy path (single-turn text)", () => {
 
         expect(result.text).toBe("");
         expect(result.tokenUsage).toBeDefined();
+    });
+
+    it("uses maxOutputTokens from MODEL_REGISTRY as max_tokens", async () => {
+        const mockStream = mockClientStreams({
+            events: [
+                ...textEvents("Hi"),
+                finalMessageEvent({ input_tokens: 10, output_tokens: 5 }),
+            ],
+        });
+
+        await streamChat(makeOpts());
+
+        // messages.stream() is called with params containing max_tokens from model config
+        const apiParams = mockStream.mock.calls[0][0];
+        expect(apiParams.max_tokens).toBe(64_000);
     });
 
     it("returns undefined toolCalls when no tools were called", async () => {

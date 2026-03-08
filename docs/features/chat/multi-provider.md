@@ -206,6 +206,27 @@ UI поддержка мульти-провайдера.
 - [ ] A/B testing framework (model comparison per-conversation)
 - [ ] Provider health dashboard (latency, error rates, cost per model)
 
+### Стадия 6 — Claude Advanced Context
+Расширение контекстных возможностей Claude моделей: 1M context window и серверная compaction.
+
+**Prerequisites (quick fixes):**
+- [x] Long context pricing в `MODEL_REGISTRY` — `inputPerMillionLong` / `outputPerMillionLong` для Claude моделей (Sonnet: $6/$22.50, Opus: $10/$37.50). Инфраструктура (`estimateCostUsd`, `computeIterationCost`) уже поддерживает — нужно только добавить числа в конфиг
+- [x] Увеличить `max_tokens` default с 16,384 до модельных максимумов (Sonnet 4.6: 64K, Opus 4.6: 128K) — `maxOutputTokens` per-model в `MODEL_REGISTRY`
+
+**1M Context Window (beta):**
+- [ ] Beta header `betas: ["context-1m-2025-08-07"]` в Claude клиенте (требует usage tier 4+)
+- [ ] `contextLimit` toggle в `MODEL_REGISTRY` (200K → 1M) или runtime-конфиг
+- [ ] Интеграция с Token Transparency — long context pricing автоматически подхватится через `LONG_CONTEXT_THRESHOLD`
+- [ ] Rate limits: отдельные лимиты для >200K запросов (1M ITPM / 200K OTPM на tier 4)
+
+**Server-side Compaction (beta):**
+- [ ] Beta header `compact-2026-01-12` + параметр `context_management: { edits: [{ type: "compact_20260112" }] }`
+- [ ] Замена L3 summarization для Claude — вместо отдельного Gemini Flash вызова Claude сам сжимает свой контекст
+- [ ] Custom `instructions` для YouTube-specific context preservation (видео-метрики, решения по каналу, L2 labels)
+- [ ] Обработка `stop_reason: "compaction"` в streaming loop
+- [ ] Сохранение compaction block в Firestore как часть message history
+- [ ] L3 остаётся для Gemini и как fallback
+
 ---
 
 ## Связанные фичи
