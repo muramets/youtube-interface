@@ -183,7 +183,7 @@ Bridge передаёт только IDs вместо полных данных.
 - [Traffic Sources](../traffic-sources.md) — агрегированные метрики по источникам. `analyzeTrafficSources` = gateway, `analyzeSuggestedTraffic` = drill-down
 - [Data Repair & Smart Assistant Gate](./data-repair.md) — enrichment flow, gatekeeper pattern, cache-first архитектура
 - [Telescope Pattern Overview](../../chat/tools/README.md) — `analyzeSuggestedTraffic` входит в Telescope Pattern (Layer 3 — drill-down tool)
-- [analyzeSuggestedTraffic Tool Doc](../../chat/tools/layer-3-analysis/analyze-suggested-traffic-tool.md) — подробная документация AI-тула (параметры, output, stages)
+- [analyzeSuggestedTraffic Tool Doc](../../chat/tools/layer-3-analysis/2-analyze-suggested-traffic-tool.md) — подробная документация AI-тула (параметры, output, stages)
 - Chat — Chat Bridge передаёт `SuggestedTrafficContext` через `appContextStore`; `SuggestedTrafficChip` в chat UI
 - Canvas — Traffic nodes с frame grouping по snapshot'ам
 - Video Details — Suggested Traffic живёт как таб `traffic` внутри Details page

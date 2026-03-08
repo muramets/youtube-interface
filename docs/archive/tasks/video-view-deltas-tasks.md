@@ -511,6 +511,6 @@ npm run check:docs                            # docs
   - `docs/features/trends/table-view.md` — reference shared algorithm
   - `docs/features/chat/context-bridges/enrichment-pipeline.md` — updated middleware behavior
   - `docs/features/video-details/suggested-traffic/README.md` — viewDeltas in tool response
-  - `docs/features/chat/tools/analyze-suggested-traffic-tool.md` — step 5b, return type, backend files
-  - `docs/features/chat/tools/get-multiple-video-details-tool.md` — viewDelta fields in response schema
-  - `docs/features/chat/tools/browse-channel-videos-tool.md` — channelId persistence for delta lookup
+  - `docs/features/chat/tools/layer-3-analysis/2-analyze-suggested-traffic-tool.md` — step 5b, return type, backend files
+  - `docs/features/chat/tools/layer-2-detail/1-get-multiple-video-details-tool.md` — viewDelta fields in response schema
+  - `docs/features/chat/tools/layer-1-discovery/2-browse-channel-videos-tool.md` — channelId persistence for delta lookup

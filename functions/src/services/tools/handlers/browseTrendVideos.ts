@@ -112,55 +112,60 @@ export async function handleBrowseTrendVideos(
         // --- Read videos per channel + assign percentiles per channel ---
         ctx.reportProgress?.("Reading trend videos...");
 
-        const allVideos: TrendVideo[] = [];
         const channelMeta: Map<string, { title: string; lastUpdated: string | null }> = new Map();
 
-        for (const channelDoc of trendChannelDocs) {
-            const channelData = channelDoc.data?.() ?? {};
-            const trendChannelId = channelDoc.id;
-            const channelTitle = (channelData.title as string) ?? trendChannelId;
-            const lastUpdated = normalizeLastUpdated(channelData.lastUpdated);
+        // Parallel reads: all channel video collections at once (~200ms vs ~2s sequential)
+        const channelVideoResults = await Promise.all(
+            trendChannelDocs.map(async (channelDoc) => {
+                const channelData = channelDoc.data?.() ?? {};
+                const trendChannelId = channelDoc.id;
+                const channelTitle = (channelData.title as string) ?? trendChannelId;
+                const lastUpdated = normalizeLastUpdated(channelData.lastUpdated);
 
-            channelMeta.set(trendChannelId, { title: channelTitle, lastUpdated });
+                channelMeta.set(trendChannelId, { title: channelTitle, lastUpdated });
 
-            // Read ALL videos for this channel
-            const videosSnap = await db
-                .collection(`${basePath}/trendChannels/${trendChannelId}/videos`)
-                .get();
+                const videosSnap = await db
+                    .collection(`${basePath}/trendChannels/${trendChannelId}/videos`)
+                    .get();
 
-            if (videosSnap.empty) continue;
+                if (videosSnap.empty) return [];
 
-            // Build video list for percentile computation
-            const videosForPercentile: { id: string; viewCount: number }[] = [];
-            const videoDataMap = new Map<string, FirebaseFirestore.DocumentData>();
+                // Build video list for percentile computation
+                const videosForPercentile: { id: string; viewCount: number }[] = [];
+                const videoDataMap = new Map<string, FirebaseFirestore.DocumentData>();
 
-            for (const videoDoc of videosSnap.docs) {
-                const data = videoDoc.data();
-                const viewCount = typeof data.viewCount === "number" ? data.viewCount : 0;
-                videosForPercentile.push({ id: videoDoc.id, viewCount });
-                videoDataMap.set(videoDoc.id, data);
-            }
+                for (const videoDoc of videosSnap.docs) {
+                    const data = videoDoc.data();
+                    const viewCount = typeof data.viewCount === "number" ? data.viewCount : 0;
+                    videosForPercentile.push({ id: videoDoc.id, viewCount });
+                    videoDataMap.set(videoDoc.id, data);
+                }
 
-            // Assign percentiles per-channel (CRITICAL: not cross-channel)
-            const percentileMap = assignPercentileGroups(videosForPercentile);
+                // Assign percentiles per-channel (CRITICAL: not cross-channel)
+                const percentileMap = assignPercentileGroups(videosForPercentile);
 
-            // Build TrendVideo objects
-            for (const [videoId, data] of videoDataMap) {
-                const tier = percentileMap.get(videoId) ?? "Bottom 20%";
-                allVideos.push({
-                    videoId,
-                    title: (data.title as string) ?? "(untitled)",
-                    channelId: trendChannelId,
-                    channelTitle,
-                    publishedAt: (data.publishedAt as string) ?? "",
-                    viewCount: typeof data.viewCount === "number" ? data.viewCount : 0,
-                    tags: Array.isArray(data.tags) ? (data.tags as string[]) : [],
-                    thumbnailUrl: (data.thumbnail as string) ??
-                        `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
-                    performanceTier: tier,
-                });
-            }
-        }
+                // Build TrendVideo objects
+                const videos: TrendVideo[] = [];
+                for (const [videoId, data] of videoDataMap) {
+                    const tier = percentileMap.get(videoId) ?? "Bottom 20%";
+                    videos.push({
+                        videoId,
+                        title: (data.title as string) ?? "(untitled)",
+                        channelId: trendChannelId,
+                        channelTitle,
+                        publishedAt: (data.publishedAt as string) ?? "",
+                        viewCount: typeof data.viewCount === "number" ? data.viewCount : 0,
+                        tags: Array.isArray(data.tags) ? (data.tags as string[]) : [],
+                        thumbnailUrl: (data.thumbnail as string) ??
+                            `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
+                        performanceTier: tier,
+                    });
+                }
+                return videos;
+            }),
+        );
+
+        const allVideos = channelVideoResults.flat();
 
         // --- Apply date range filter ---
         let filtered = allVideos;
@@ -218,13 +223,18 @@ export async function handleBrowseTrendVideos(
         const truncated = isDeltaSort ? filtered : filtered.slice(0, limit);
 
         // --- Enrich with view deltas ---
+        // TRADE-OFF: delta sorts (delta24h/delta7d/delta30d) enrich ALL filtered
+        // videos before sorting, because we need growth data for every video to
+        // determine the true top-N by growth. Non-delta sorts enrich only the
+        // limit-truncated set. For 350 filtered videos with limit 50, this means
+        // 350 vs 50 delta lookups (~7x cost). This is intentional — truncating
+        // before enrichment would give incorrect top-N results.
         ctx.reportProgress?.("Computing view deltas...");
 
         const channelIdHints = new Set(
             trendChannelDocs.map((doc) => doc.id),
         );
 
-        // For delta sorts, get deltas for all filtered videos to sort properly
         const videosToEnrich = isDeltaSort ? filtered : truncated;
         const videoIdsForDeltas = videosToEnrich.map((v) => v.videoId);
 

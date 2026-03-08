@@ -171,58 +171,59 @@ export async function handleGetNicheSnapshot(
             lastUpdated: string | null;
         }
 
-        const channelResults: ChannelResult[] = [];
+        // Parallel reads: all channel video collections at once (~200ms vs ~2s sequential)
+        const channelResults: ChannelResult[] = await Promise.all(
+            trendChannelsSnap.docs.map(async (channelDoc) => {
+                const channelData = channelDoc.data();
+                const tcId = channelDoc.id;
+                const channelTitle = (channelData.title as string) || tcId;
+                const lastUpdated = normalizeLastUpdated(channelData.lastUpdated);
 
-        for (const channelDoc of trendChannelsSnap.docs) {
-            const channelData = channelDoc.data();
-            const tcId = channelDoc.id;
-            const channelTitle = (channelData.title as string) || tcId;
-            const lastUpdated = normalizeLastUpdated(channelData.lastUpdated);
+                const videosSnap = await db
+                    .collection(`${basePath}/trendChannels/${tcId}/videos`)
+                    .get();
 
-            const videosSnap = await db
-                .collection(`${basePath}/trendChannels/${tcId}/videos`)
-                .get();
+                const allVideos: { id: string; viewCount: number }[] = [];
+                const windowVideos: VideoDoc[] = [];
 
-            const allVideos: { id: string; viewCount: number }[] = [];
-            const windowVideos: VideoDoc[] = [];
+                for (const vDoc of videosSnap.docs) {
+                    const vData = vDoc.data();
+                    const viewCount = (vData.viewCount as number) ?? 0;
+                    const pubAt = (vData.publishedAt as string) ?? "";
 
-            for (const vDoc of videosSnap.docs) {
-                const vData = vDoc.data();
-                const viewCount = (vData.viewCount as number) ?? 0;
-                const pubAt = (vData.publishedAt as string) ?? "";
+                    // Include ALL videos for percentile calculation (even hidden)
+                    allVideos.push({ id: vDoc.id, viewCount });
 
-                // Include ALL videos for percentile calculation (even hidden)
-                allVideos.push({ id: vDoc.id, viewCount });
+                    // Filter hidden for window results only
+                    if (hiddenIds.has(vDoc.id)) continue;
 
-                // Filter hidden for window results only
-                if (hiddenIds.has(vDoc.id)) continue;
-
-                // Filter by window using ISO string comparison
-                if (pubAt >= windowFrom && pubAt <= windowTo) {
-                    windowVideos.push({
-                        videoId: vDoc.id,
-                        title: (vData.title as string) || "(untitled)",
-                        viewCount,
-                        publishedAt: pubAt,
-                        tags: Array.isArray(vData.tags) ? (vData.tags as string[]) : [],
-                        channelId: tcId,
-                        channelTitle,
-                    });
+                    // Filter by window using ISO string comparison
+                    if (pubAt >= windowFrom && pubAt <= windowTo) {
+                        windowVideos.push({
+                            videoId: vDoc.id,
+                            title: (vData.title as string) || "(untitled)",
+                            viewCount,
+                            publishedAt: pubAt,
+                            tags: Array.isArray(vData.tags) ? (vData.tags as string[]) : [],
+                            channelId: tcId,
+                            channelTitle,
+                        });
+                    }
                 }
-            }
 
-            if (windowVideos.length > 0) {
-                trendChannelIdHints.add(tcId);
-            }
+                if (windowVideos.length > 0) {
+                    trendChannelIdHints.add(tcId);
+                }
 
-            channelResults.push({
-                channelId: tcId,
-                channelTitle,
-                allVideos,
-                windowVideos,
-                lastUpdated,
-            });
-        }
+                return {
+                    channelId: tcId,
+                    channelTitle,
+                    allVideos,
+                    windowVideos,
+                    lastUpdated,
+                };
+            }),
+        );
 
         // --- Per-channel percentiles on FULL video set ---
         const percentileMaps = new Map<string, Map<string, string>>();

@@ -79,8 +79,8 @@ Custom videos создаются с document ID `custom-XXXXX`, а YouTube video
 ## Связанные фичи
 
 - [Telescope Pattern Overview](../README.md)
-- [getChannelOverview](./get-channel-overview-tool.md) — prerequisite (quota gate)
-- [getMultipleVideoDetails](../layer-2-detail/get-multiple-video-details-tool.md) — следующий шаг (full metadata)
+- [getChannelOverview](./1-get-channel-overview-tool.md) — prerequisite (quota gate)
+- [getMultipleVideoDetails](../layer-2-detail/1-get-multiple-video-details-tool.md) — следующий шаг (full metadata)
 
 ---
 

@@ -46,15 +46,15 @@
 
 | Tool | Layer | Док |
 |------|-------|-----|
-| [getChannelOverview](./layer-1-discovery/get-channel-overview-tool.md) | 1 — Discovery | Resolve канала + quota gate |
-| [browseChannelVideos](./layer-1-discovery/browse-channel-videos-tool.md) | 1 — Discovery | Список видео канала + smart cache |
-| [getMultipleVideoDetails](./layer-2-detail/get-multiple-video-details-tool.md) | 2 — Detail | 4-level cascade + traffic snapshot counts |
-| [viewThumbnails](./layer-2-detail/view-thumbnails-tool.md) | 2 — Detail | Visual analysis, approval gate, multi-provider |
-| [analyzeTrafficSources](./layer-3-analysis/analyze-traffic-sources-tool.md) | 3 — Analysis | Gateway: откуда трафик (aggregate breakdown) |
-| [analyzeSuggestedTraffic](./layer-3-analysis/analyze-suggested-traffic-tool.md) | 3 — Analysis | Drill-down: per-video suggested pool |
-| [listTrendChannels](./layer-4-competition/list-trend-channels-tool.md) | 4 — Competition | Entry point: tracked channels + stats |
-| [browseTrendVideos](./layer-4-competition/browse-trend-videos-tool.md) | 4 — Competition | Filter + percentile + delta enrichment |
-| [getNicheSnapshot](./layer-4-competition/get-niche-snapshot-tool.md) | 4 — Competition | Window snapshot + aggregates |
+| [getChannelOverview](./layer-1-discovery/1-get-channel-overview-tool.md) | 1 — Discovery | Resolve канала + quota gate |
+| [browseChannelVideos](./layer-1-discovery/2-browse-channel-videos-tool.md) | 1 — Discovery | Список видео канала + smart cache |
+| [getMultipleVideoDetails](./layer-2-detail/1-get-multiple-video-details-tool.md) | 2 — Detail | 4-level cascade + traffic snapshot counts |
+| [viewThumbnails](./layer-2-detail/2-view-thumbnails-tool.md) | 2 — Detail | Visual analysis, approval gate, multi-provider |
+| [analyzeTrafficSources](./layer-3-analysis/1-analyze-traffic-sources-tool.md) | 3 — Analysis | Gateway: откуда трафик (aggregate breakdown) |
+| [analyzeSuggestedTraffic](./layer-3-analysis/2-analyze-suggested-traffic-tool.md) | 3 — Analysis | Drill-down: per-video suggested pool |
+| [listTrendChannels](./layer-4-competition/1-list-trend-channels-tool.md) | 4 — Competition | Entry point: tracked channels + stats |
+| [browseTrendVideos](./layer-4-competition/2-browse-trend-videos-tool.md) | 4 — Competition | Filter + percentile + delta enrichment |
+| [getNicheSnapshot](./layer-4-competition/3-get-niche-snapshot-tool.md) | 4 — Competition | Window snapshot + aggregates |
 | [mentionVideo](./utility/mention-video-tool.md) | Utility | Interactive video badges |
 
 ---

@@ -87,7 +87,7 @@ Gemini ссылается на конкретные видео, пользова
 - ✅ Unified cache lookup: поиск в `videos/` и `cached_external_videos/` (после консолидации кэшей)
 - ✅ **Delta Enrichment Middleware**: `enrichContextWithDeltas()` автоматически дополняет видео данными о росте просмотров (24h/7d/30d) из trend snapshots перед отправкой в AI. Формат `Views: 111K | 24h: +1.2K / 7d: +5.3K / 30d: +12K`
 - ✅ **Traffic Sources**: 📊 иконка на VideoCardChip → read-only indicator (traffic data exists). Анализ трафика — on-demand через tool `analyzeTrafficSources` / `analyzeSuggestedTraffic`.
-- ✅ **viewThumbnails tool**: AI видит обложки видео как изображения. Gemini: Files API upload + 47h cache + approval gate (≥15 обложек). Claude: inline URL image blocks без gate. Подробнее: [viewThumbnails](./tools/layer-2-detail/view-thumbnails-tool.md).
+- ✅ **viewThumbnails tool**: AI видит обложки видео как изображения. Gemini: Files API upload + 47h cache + approval gate (≥15 обложек). Claude: inline URL image blocks без gate. Подробнее: [viewThumbnails](./tools/layer-2-detail/2-view-thumbnails-tool.md).
 - ✅ **Markdown Normalizer**: `normalizeMarkdown()` — нормализационный слой между LLM-выводом и `ReactMarkdown`. Исправляет структурные ошибки (таблица, склеенная с текстом). Code fence-aware — не трогает содержимое code blocks.
 - ✅ **Competitive Intelligence Этап 1**: Layer 4 (Competition) — 3 инструмента (`listTrendChannels`, `browseTrendVideos`, `getNicheSnapshot`) дают AI доступ к данным конкурентов из Trends. Zero API cost. Подробнее: [Competitive Intelligence](./tools/layer-4-competition/competitive-intelligence.md).
 
@@ -160,8 +160,8 @@ Gemini ссылается на конкретные видео, пользова
 - [Multi-Provider Architecture](./infrastructure/multi-provider.md) — Gemini + Claude, provider router, abstraction layer
 - [Memory System](./context/memory-system.md) — 4-слойная память: L1-L4, summarization, cross-conversation memory
 - [AI Chat Tools](./tools/README.md) — Telescope pattern: getChannelOverview → browseChannelVideos
-- [viewThumbnails](./tools/layer-2-detail/view-thumbnails-tool.md) — AI визуально анализирует обложки видео
-- [analyzeSuggestedTraffic](./tools/layer-3-analysis/analyze-suggested-traffic-tool.md) — анализ suggested traffic с визуальным UI
+- [viewThumbnails](./tools/layer-2-detail/2-view-thumbnails-tool.md) — AI визуально анализирует обложки видео
+- [analyzeSuggestedTraffic](./tools/layer-3-analysis/2-analyze-suggested-traffic-tool.md) — анализ suggested traffic с визуальным UI
 - [Prompt Caching](./context/prompt-caching.md) — кэширование system prompt, tools и истории для экономии ~80% на input tokens
 
 ---

@@ -106,9 +106,9 @@ YouTube API результаты кэшируются в `cached_external_videos
 ## Связанные фичи
 
 - [Telescope Pattern Overview](../README.md)
-- [browseChannelVideos](../layer-1-discovery/browse-channel-videos-tool.md) — часто вызывается перед этим тулом
-- [analyzeTrafficSources](../layer-3-analysis/analyze-traffic-sources-tool.md) — использует `trafficSourceSnapshotCount` для pre-check
-- [analyzeSuggestedTraffic](../layer-3-analysis/analyze-suggested-traffic-tool.md) — использует `suggestedTrafficSnapshotCount` для pre-check
+- [browseChannelVideos](../layer-1-discovery/2-browse-channel-videos-tool.md) — часто вызывается перед этим тулом
+- [analyzeTrafficSources](../layer-3-analysis/1-analyze-traffic-sources-tool.md) — использует `trafficSourceSnapshotCount` для pre-check
+- [analyzeSuggestedTraffic](../layer-3-analysis/2-analyze-suggested-traffic-tool.md) — использует `suggestedTrafficSnapshotCount` для pre-check
 
 ---
 

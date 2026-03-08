@@ -52,7 +52,7 @@ describe("handleListTrendChannels", () => {
                     subscriberCount: 100000,
                     averageViews: 5432.7,
                     lastUpdated: "2025-06-01T00:00:00.000Z",
-                    performanceDistribution: { viral: 2, aboveAverage: 10, average: 20, belowAverage: 10 },
+                    performanceDistribution: { p25: 1200, median: 5400, p75: 18000, max: 120000 },
                 }),
             ],
         });
@@ -74,7 +74,7 @@ describe("handleListTrendChannels", () => {
         expect(ch.subscriberCount).toBe(100000);
         expect(ch.averageViews).toBe(5433); // rounded
         expect(ch.lastUpdated).toBe("2025-06-01T00:00:00.000Z");
-        expect(ch.performanceDistribution).toEqual({ viral: 2, aboveAverage: 10, average: 20, belowAverage: 10 });
+        expect(ch.performanceDistribution).toEqual({ p25: 1200, median: 5400, p75: 18000, max: 120000 });
     });
 
     // --- performanceDistribution ---

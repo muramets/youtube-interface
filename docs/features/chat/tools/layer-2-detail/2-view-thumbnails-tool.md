@@ -255,7 +255,7 @@ src/
 ## Связанные фичи
 
 - [Agentic Architecture](../../infrastructure/agentic-architecture.md) — общая архитектура agentic loop
-- [analyzeSuggestedTraffic](../layer-3-analysis/analyze-suggested-traffic-tool.md) — другой AI инструмент с визуальным UI
+- [analyzeSuggestedTraffic](../layer-3-analysis/2-analyze-suggested-traffic-tool.md) — другой AI инструмент с визуальным UI
 
 ---
 

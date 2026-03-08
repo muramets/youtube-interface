@@ -144,7 +144,7 @@ YouTube API вызывается ТОЛЬКО для videoIdsToFetch (прома
 ## Связанные фичи
 - [Suggested Traffic (README)](./README.md) — основной док фичи
 - [Traffic Sources](../traffic-sources.md) — агрегированные метрики по источникам
-- [analyzeSuggestedTraffic Tool](../../chat/tools/layer-3-analysis/analyze-suggested-traffic-tool.md) — AI-тул потребляет обогащённые данные из `cached_external_videos`
+- [analyzeSuggestedTraffic Tool](../../chat/tools/layer-3-analysis/2-analyze-suggested-traffic-tool.md) — AI-тул потребляет обогащённые данные из `cached_external_videos`
 
 ---
 
