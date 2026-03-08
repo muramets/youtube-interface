@@ -10,7 +10,7 @@
 //   6. Sort by impressions (last snapshot), take top N → attach timeline
 //   7. getTransitions() — new/dropped counts + top examples per period
 //   8. Optionally enrich with cached Firestore video data for content analysis
-//   9. Return structured JSON for Gemini to interpret
+//   9. Return structured JSON for LLM to interpret
 // =============================================================================
 
 import { db, admin } from "../../../shared/db.js";

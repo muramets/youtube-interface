@@ -1,5 +1,5 @@
 // =============================================================================
-// Tool Executor — dispatcher for Gemini Function Calls
+// Tool Executor — dispatcher for LLM Function Calls
 //
 // Routes functionCall.name → handler → FunctionResponse.
 // Handlers are registered in the HANDLERS map below.
@@ -36,7 +36,7 @@ const HANDLERS: Record<ToolName, ToolHandler> = {
 // --- Dispatcher ---
 
 /**
- * Execute a tool call from Gemini and return the result.
+ * Execute a tool call from the LLM and return the result.
  * Unknown tool names return a graceful error (no crash).
  */
 export async function executeTool(

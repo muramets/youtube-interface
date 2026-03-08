@@ -3,8 +3,8 @@
 //
 // Single source of truth for all tools available to the AI agent.
 // Each tool has a ToolDefinition (provider-agnostic) and metadata.
-// Provider-specific adapters (e.g. gemini/toolAdapter.ts) convert these
-// to the native format (e.g. Gemini FunctionDeclaration) at call time.
+// Provider-specific adapters convert these
+// to the native format (e.g. FunctionDeclaration) at call time.
 //
 // To add a new tool:
 //   1. Add the name to TOOL_NAMES
