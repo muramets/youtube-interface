@@ -64,15 +64,15 @@ Final verification — all test suites + lint + typecheck + docs
 | Phase | Goal | Status |
 |-------|------|--------|
 | 1 | Safety net: понять текущие данные, написать тесты для shared percentile | DONE |
-| 2 | Реализация 3 handlers + registration + frontend refactor | IN PROGRESS |
+| 2 | Реализация 3 handlers + registration + frontend refactor | DONE |
 | 3 | Документация инструментов (tool docs) | TODO |
 | FINAL | Double review-fix cycle | TODO |
 
 ## Current Test Count
 
-- **Frontend: 681 tests (47 files)** — verified via `npm run test:run` (2026-03-08)
-- **Backend: 399 tests (25 files)** — verified via `npx vitest run --project functions` (2026-03-08)
-- **Total: 1080 tests** — all passing
+- **Frontend: 718 tests (50 files)** — verified via `npm run test:run` (2026-03-08)
+- **Backend: 436 tests (28 files)** — verified via `npx vitest run --project functions` (2026-03-08)
+- **Total: 1154 tests** — all passing
 
 ---
 
@@ -268,7 +268,7 @@ Fix all findings before moving to Phase 2.
   - `src/features/Chat/components/ToolCallSummary.tsx`: add summary rendering for `listTrendChannels`, `browseTrendVideos`, `getNicheSnapshot`
   - ⚠️ Without this, new tools execute on backend but chat UI won't display results properly
 
-- [ ] **T2.7** — Tests
+- [x] **T2.7** — Tests
   - Create: `functions/src/services/tools/handlers/__tests__/listTrendChannels.test.ts`
     - Mock Firestore (trend channels + videos subcollections)
     - Cases: multiple channels, empty channels, channel with 0 videos
@@ -288,9 +288,9 @@ npm run check                          # lint + typecheck + doc links
 ```
 
 **MANDATORY: Update this file before proceeding:**
-- [ ] Mark completed tasks above
-- [ ] Update Phase Status table: Phase 2 → DONE
-- [ ] Record test count in "Current Test Count" section
+- [x] Mark completed tasks above
+- [x] Update Phase Status table: Phase 2 → DONE
+- [x] Record test count in "Current Test Count" section
 
 ### Review Gate 2
 
