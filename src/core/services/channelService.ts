@@ -17,7 +17,6 @@ export interface CustomLanguage {
 export interface Channel {
     id: string;
     name: string;
-    handle?: string; // Added handle to interface as it was in store but not in context
     avatar?: string;
     createdAt: number;
     customLanguages?: CustomLanguage[];
@@ -51,14 +50,13 @@ export const ChannelService = {
         });
     },
 
-    createChannel: async (userId: string, channelData: { name: string; handle?: string; avatarUrl?: string }) => {
+    createChannel: async (userId: string, channelData: { name: string; avatarUrl?: string }) => {
         const newChannelRef = doc(collection(db, `users/${userId}/channels`));
         const newChannel: Channel = {
             id: newChannelRef.id,
             name: channelData.name,
-            handle: channelData.handle,
-            avatar: channelData.avatarUrl,
-            createdAt: Date.now()
+            createdAt: Date.now(),
+            ...(channelData.avatarUrl && { avatar: channelData.avatarUrl })
         };
         await setDoc(newChannelRef, newChannel);
         return newChannel;
