@@ -65,8 +65,8 @@ Final verification — all test suites + lint + typecheck + docs
 |-------|------|--------|
 | 1 | Safety net: понять текущие данные, написать тесты для shared percentile | DONE |
 | 2 | Реализация 3 handlers + registration + frontend refactor | DONE |
-| 3 | Документация инструментов (tool docs) | TODO |
-| FINAL | Double review-fix cycle | TODO |
+| 3 | Документация инструментов (tool docs) | DONE |
+| FINAL | Double review-fix cycle | DONE |
 
 ## Current Test Count
 
@@ -321,25 +321,25 @@ Fix all findings before moving to Phase 3.
 
 ### Tasks
 
-- [ ] **T3.1** — `docs/features/chat/tools/list-trend-channels.md`
+- [x] **T3.1** — `docs/features/chat/tools/list-trend-channels.md`
   - What it does, when LLM should call it, input/output schema, example response
   - Follow pattern of existing tool docs (e.g., `analyze-suggested-traffic-tool.md`)
 
-- [ ] **T3.2** — `docs/features/chat/tools/browse-trend-videos.md`
+- [x] **T3.2** — `docs/features/chat/tools/browse-trend-videos.md`
   - Filters, sorting, limit, totalMatched, dataFreshness
   - Delta sort fallback behavior
   - Token budget note (50 videos ≈ 6K tokens)
 
-- [ ] **T3.3** — `docs/features/chat/tools/get-niche-snapshot.md`
+- [x] **T3.3** — `docs/features/chat/tools/get-niche-snapshot.md`
   - videoId vs date input, window calculation
   - aggregates section: data + computation (not interpretation)
   - dataFreshness
 
-- [ ] **T3.4** — Update `docs/features/chat/tools/README.md`
+- [x] **T3.4** — Update `docs/features/chat/tools/README.md`
   - Add Layer 4: Competition to telescope pattern diagram
   - Add 3 new tools to tool index table
 
-- [ ] **T3.5** — Update `docs/features/chat/competitive-intelligence.md`
+- [x] **T3.5** — Update `docs/features/chat/competitive-intelligence.md`
   - Move `← YOU ARE HERE` marker
   - Update "Текущее состояние"
   - Mark Этап 1 checklist items as done
@@ -351,8 +351,8 @@ npm run check    # doc link checker validates new files
 ```
 
 **MANDATORY: Update this file before proceeding:**
-- [ ] Mark completed tasks above
-- [ ] Update Phase Status table: Phase 3 → DONE
+- [x] Mark completed tasks above
+- [x] Update Phase Status table: Phase 3 → DONE
 
 ### Review Gate 3
 
@@ -411,12 +411,12 @@ npm run check                          # lint + typecheck + doc links
 ```
 
 **MANDATORY: Update this file:**
-- [ ] Mark all phases DONE in Status table
-- [ ] Record final test count
-- [ ] Update `docs/features/chat/competitive-intelligence.md` — mark Этап 1 checklist complete
+- [x] Mark all phases DONE in Status table
+- [x] Record final test count: 1154 (718 frontend + 436 backend)
+- [x] Update `docs/features/chat/competitive-intelligence.md` — mark Этап 1 checklist complete
 
 ### Final Doc Updates
 
-- [ ] `docs/features/chat/competitive-intelligence.md` — current state, checklist, YOU ARE HERE marker
-- [ ] `docs/features/chat/README.md` — add reference to competitive-intelligence.md in Stage 6
-- [ ] `docs/features/chat/tools/README.md` — Layer 4 in telescope diagram
+- [x] `docs/features/chat/competitive-intelligence.md` — current state, checklist, YOU ARE HERE marker
+- [x] `docs/features/chat/README.md` — add reference to competitive-intelligence.md in Stage 6
+- [x] `docs/features/chat/tools/README.md` — Layer 4 in telescope diagram

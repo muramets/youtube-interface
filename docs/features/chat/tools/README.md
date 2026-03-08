@@ -24,6 +24,16 @@
 │  │      (gateway)         │→ │     (drill-down)       │ │
 │  └────────────────────────┘  └────────────────────────┘ │
 ├─────────────────────────────────────────────────────────┤
+│  LAYER 4: COMPETITION — "что делают конкуренты?"        │
+│  ┌──────────────────┐  ┌─────────────────────────┐     │
+│  │listTrendChannels │→ │  browseTrendVideos      │     │
+│  │  (entry point)   │  │  (filter + percentile)  │     │
+│  └──────────────────┘  └─────────────────────────┘     │
+│                         ┌─────────────────────────┐     │
+│                         │   getNicheSnapshot      │     │
+│                         │  (window + aggregates)  │     │
+│                         └─────────────────────────┘     │
+├─────────────────────────────────────────────────────────┤
 │  UTILITY: mentionVideo                                  │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -42,6 +52,9 @@
 | [viewThumbnails](./view-thumbnails.md) | 2 — Detail | Visual analysis, approval gate, multi-provider |
 | [analyzeTrafficSources](./analyze-traffic-sources-tool.md) | 3 — Analysis | Gateway: откуда трафик (aggregate breakdown) |
 | [analyzeSuggestedTraffic](./analyze-suggested-traffic-tool.md) | 3 — Analysis | Drill-down: per-video suggested pool |
+| [listTrendChannels](./list-trend-channels.md) | 4 — Competition | Entry point: tracked channels + stats |
+| [browseTrendVideos](./browse-trend-videos.md) | 4 — Competition | Filter + percentile + delta enrichment |
+| [getNicheSnapshot](./get-niche-snapshot.md) | 4 — Competition | Window snapshot + aggregates |
 | [mentionVideo](./mention-video-tool.md) | Utility | Interactive video badges |
 
 ---
@@ -86,6 +99,24 @@ LLM → analyzeSuggestedTraffic(id1)          // Layer 3: deep dive
 > *"Сравни мои последние 10 видео с последними 10 у Little Thing"*
 
 LLM вызывает `getChannelOverview` + `browseChannelVideos` для обоих каналов → `getMultipleVideoDetails` для интересных → `viewThumbnails` для сравнения обложек.
+
+### Flow 4: "Что делают конкуренты?"
+
+> *"Что происходило в нише, когда я выпустил последнее видео?"*
+
+```
+LLM → listTrendChannels()                    // Layer 4: ландшафт конкурентов
+  "10 каналов, 8247 видео. MrBeast median 78M, Veritasium median 6.8M"
+
+LLM → getNicheSnapshot(date: "2026-02-20")   // Layer 4: снимок ниши
+  "14 видео в окне ±7 дней. Тег 'iceland' у 4 видео. MrBeast выпустил 3."
+
+LLM → browseTrendVideos(performanceTier: "Top 1%", dateRange: { from: "2026-02-01" })
+  "Топ-хиты за февраль у каждого конкурента"  // Layer 4: фильтрация
+
+LLM → viewThumbnails([id1, id2])             // Layer 2: визуал обложек
+  "Обложки конкурентов используют тот же паттерн"
+```
 
 ---
 
