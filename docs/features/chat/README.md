@@ -79,7 +79,7 @@ Gemini ссылается на конкретные видео, пользова
 - [x] `analyzeSuggestedTraffic` — анализ suggested traffic с визуальным UI
 
 ### Стадия 6 — RAG + Visual Context ← YOU ARE HERE
-**Архитектурный переход:** compact prompt сделан. Visual context (обложки) частично реализован через `viewThumbnails` tool. Осталось: автоматические описания обложек + vector search.
+**Архитектурный переход:** compact prompt + visual context + vector search + competitive intelligence. Embedding infrastructure полностью реализована — semantic search по теме и визуалу работает. Осталось: free-text semantic search по всей базе.
 
 **Что уже сделано (в рамках Stage 5-6):**
 - ✅ Compact L1: system prompt содержит только title + key metrics (views, published, duration)
@@ -89,18 +89,12 @@ Gemini ссылается на конкретные видео, пользова
 - ✅ **Traffic Sources**: 📊 иконка на VideoCardChip → read-only indicator (traffic data exists). Анализ трафика — on-demand через tool `analyzeTrafficSources` / `analyzeSuggestedTraffic`.
 - ✅ **viewThumbnails tool**: AI видит обложки видео как изображения. Gemini: Files API upload + 47h cache + approval gate (≥15 обложек). Claude: inline URL image blocks без gate. Подробнее: [viewThumbnails](./tools/layer-2-detail/2-view-thumbnails-tool.md).
 - ✅ **Markdown Normalizer**: `normalizeMarkdown()` — нормализационный слой между LLM-выводом и `ReactMarkdown`. Исправляет структурные ошибки (таблица, склеенная с текстом). Code fence-aware — не трогает содержимое code blocks.
-- ✅ **Competitive Intelligence Этап 1**: Layer 4 (Competition) — 3 инструмента (`listTrendChannels`, `browseTrendVideos`, `getNicheSnapshot`) дают AI доступ к данным конкурентов из Trends. Zero API cost. Подробнее: [Competitive Intelligence](./tools/layer-4-competition/competitive-intelligence.md).
+- ✅ **Competitive Intelligence Этапы 1–3**: Layer 4 (Competition) — 4 инструмента (`listTrendChannels`, `browseTrendVideos`, `getNicheSnapshot`, `findSimilarVideos`) дают AI полный доступ к данным конкурентов: browsing, niche analytics, semantic search по теме (text embeddings) и визуальному сходству обложек (Vertex AI). Подробнее: [Competitive Intelligence](./tools/layer-4-competition/competitive-intelligence.md).
+- ✅ **Visual Context**: `thumbnailDescription` генерируется автоматически для всех видео конкурентов через Gemini Flash Vision. `scheduledEmbeddingSync` (daily 00:30 UTC) подхватывает новые видео.
+- ✅ **Vector Search Infrastructure**: packaging embeddings (768d, gemini-embedding-001) + visual embeddings (1408d, Vertex AI multimodalembedding@001). Два Firestore vector index. `findSimilarVideos` — search по сходству (3 modes: packaging, visual, both с RRF merge).
 
 **Что осталось:**
-
-**Visual Context (автоматические описания):**
-- [ ] Vision API: batch-описание обложек → `thumbnailDescription` в Firestore
-- [ ] Автоматическое описание при добавлении нового видео
-
-**Vector Search:**
-- [ ] Embedding API: vector embedding для каждого видео
-- [ ] Firestore Vector Index
-- [ ] `searchDatabase(query, filters)` — семантический поиск по всей базе
+- [ ] `searchDatabase(query, filters)` — free-text семантический поиск по всей базе (embedding infrastructure готова, нужен query embedding + handler)
 
 ### Стадия 7 — YouTube Research Agent (частично ✅)
 Ассистент выходит за пределы базы и исследует YouTube по запросу. Telescope pattern: обзор канала → список видео → детали → анализ трафика.
@@ -162,7 +156,9 @@ Gemini ссылается на конкретные видео, пользова
 - [AI Chat Tools](./tools/README.md) — Telescope pattern: getChannelOverview → browseChannelVideos
 - [viewThumbnails](./tools/layer-2-detail/2-view-thumbnails-tool.md) — AI визуально анализирует обложки видео
 - [analyzeSuggestedTraffic](./tools/layer-3-analysis/2-analyze-suggested-traffic-tool.md) — анализ suggested traffic с визуальным UI
+- [Competitive Intelligence](./tools/layer-4-competition/competitive-intelligence.md) — 4 инструмента для анализа конкурентов: browsing, niche analytics, semantic + visual search
 - [Prompt Caching](./context/prompt-caching.md) — кэширование system prompt, tools и истории для экономии ~80% на input tokens
+- [Thinking Persistence](./context/thinking-persistence.md) — сохранение thinking bubbles в Firestore между сессиями
 
 ---
 

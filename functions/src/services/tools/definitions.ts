@@ -28,6 +28,7 @@ export const TOOL_NAMES = {
     LIST_TREND_CHANNELS: "listTrendChannels",
     BROWSE_TREND_VIDEOS: "browseTrendVideos",
     GET_NICHE_SNAPSHOT: "getNicheSnapshot",
+    FIND_SIMILAR_VIDEOS: "findSimilarVideos",
 } as const;
 
 export type ToolName = (typeof TOOL_NAMES)[keyof typeof TOOL_NAMES];
@@ -351,6 +352,44 @@ const getNicheSnapshot: ToolDefinition = {
     },
 };
 
+// --- Layer 4: Competition — Semantic search (embedding-based) ---
+
+const findSimilarVideos: ToolDefinition = {
+    name: TOOL_NAMES.FIND_SIMILAR_VIDEOS,
+    description:
+        "Find competitor videos similar to a given video. Three search modes: " +
+        "'packaging' for topic similarity (title, tags, description), " +
+        "'visual' for thumbnail/visual style similarity, " +
+        "'both' for comprehensive match using Reciprocal Rank Fusion to combine results. " +
+        "Returns ranked results with similarity scores, performance data, and view growth metrics. " +
+        "Use after browseTrendVideos or getMultipleVideoDetails when user asks about similar content, " +
+        "competitive overlap, visual trends, or topic analysis. " +
+        "Pass videoId from any previous tool result.",
+    parametersJsonSchema: {
+        type: "object",
+        properties: {
+            videoId: {
+                type: "string",
+                description:
+                    "The video ID to find similar videos for. Can be own video or competitor video.",
+            },
+            mode: {
+                type: "string",
+                enum: ["packaging", "visual", "both"],
+                description:
+                    "Search mode. 'packaging' = topic similarity (default). " +
+                    "'visual' = thumbnail image similarity. " +
+                    "'both' = combined search with Reciprocal Rank Fusion.",
+            },
+            limit: {
+                type: "number",
+                description: "Max results to return (default 20, max 50).",
+            },
+        },
+        required: ["videoId"],
+    },
+};
+
 // --- Exported registry ---
 
 export const TOOL_DECLARATIONS: ToolDefinition[] = [
@@ -364,4 +403,5 @@ export const TOOL_DECLARATIONS: ToolDefinition[] = [
     listTrendChannels,
     browseTrendVideos,
     getNicheSnapshot,
+    findSimilarVideos,
 ];

@@ -57,6 +57,7 @@ function extractVideoIdsForTool(toolName: string, records: ToolCallRecord[]): st
         case 'viewThumbnails': return extractViewThumbnailVideoIds(records);
         case 'browseTrendVideos': return extractResultVideoIds(records);
         case 'getNicheSnapshot': return extractNicheSnapshotVideoIds(records);
+        case 'findSimilarVideos': return extractSimilarVideoIds(records);
         default: return [];
     }
 }
@@ -108,6 +109,20 @@ function extractResultVideoIds(records: ToolCallRecord[]): string[] {
         const videos = r.result?.videos as Array<{ videoId: string }> | undefined;
         if (videos) {
             for (const v of videos) {
+                if (v.videoId && !ids.includes(v.videoId)) ids.push(v.videoId);
+            }
+        }
+    }
+    return ids;
+}
+
+/** Extract unique video IDs from findSimilarVideos results (result.similar[].videoId). */
+function extractSimilarVideoIds(records: ToolCallRecord[]): string[] {
+    const ids: string[] = [];
+    for (const r of records) {
+        const similar = r.result?.similar as Array<{ videoId: string }> | undefined;
+        if (similar) {
+            for (const v of similar) {
                 if (v.videoId && !ids.includes(v.videoId)) ids.push(v.videoId);
             }
         }
@@ -228,6 +243,18 @@ export function getGroupLabel(group: ToolCallGroup): string {
         return total != null ? `Niche snapshot: ${total} videos` : 'Niche snapshot loaded';
     }
 
+    if (group.toolName === 'findSimilarVideos') {
+        if (group.hasErrors) return "Couldn't find similar videos";
+        if (!group.allResolved) return 'Searching for similar videos...';
+        const result = group.records[0]?.result;
+        const similarCount = (result?.similar as unknown[] | undefined)?.length;
+        const mode = result?.mode as string | undefined;
+        const modeLabel = mode === 'packaging' ? 'by topic' : '';
+        return similarCount != null
+            ? `${similarCount} similar ${pluralVideos(similarCount)}${modeLabel ? ` ${modeLabel}` : ''}`
+            : 'Similar videos found';
+    }
+
     // Fallback for unknown tools
     return group.allResolved ? group.toolName : `Running ${group.toolName}...`;
 }
@@ -243,6 +270,7 @@ export function isExpandable(group: ToolCallGroup): boolean {
     if (group.toolName === 'listTrendChannels' && group.allResolved) return true;
     if (group.toolName === 'browseTrendVideos' && group.allResolved) return true;
     if (group.toolName === 'getNicheSnapshot' && group.allResolved) return true;
+    if (group.toolName === 'findSimilarVideos' && group.allResolved) return true;
     return false;
 }
 

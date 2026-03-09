@@ -19,6 +19,7 @@
     "@aws-sdk/client-s3": "^3.991.0",
     "@aws-sdk/s3-request-presigner": "^3.991.0",
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "@google-cloud/aiplatform": "^6.5.0",
     "@google-cloud/tasks": "^6.2.1",
     "@google/genai": "^1.41.0",
     "@types/fluent-ffmpeg": "^2.1.28",

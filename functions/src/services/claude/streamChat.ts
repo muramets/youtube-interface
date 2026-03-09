@@ -519,9 +519,10 @@ export async function streamChat(
         );
 
         // --- Stream with retry ---
+        const client = await getClaudeClient(apiKey);
         const iterationResult = await withStreamRetry(
             () => streamIteration({
-                client: getClaudeClient(apiKey),
+                client,
                 model,
                 systemPrompt,
                 messages: agenticMessages,

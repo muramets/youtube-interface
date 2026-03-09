@@ -24,5 +24,9 @@ export { concludeConversation } from "./chat/concludeConversation.js";
 export { onConversationDeleted } from "./triggers/onConversationDeleted.js";
 export { onProjectDeleted } from "./triggers/onProjectDeleted.js";
 
+// ─── Embedding Sync ───────────────────────────────────────────────────
+export { scheduledEmbeddingSync } from "./embedding/scheduledEmbeddingSync.js";
+export { backfillEmbeddings } from "./embedding/backfillEmbeddings.js";
+
 // ─── Audio Processing ──────────────────────────────────────────────────
 export { trimAudioFile } from "./audio/trimAudioFile.js";

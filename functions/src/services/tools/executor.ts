@@ -17,6 +17,7 @@ import { handleAnalyzeTrafficSources } from "./handlers/analyzeTrafficSources.js
 import { handleListTrendChannels } from "./handlers/listTrendChannels.js";
 import { handleBrowseTrendVideos } from "./handlers/browseTrendVideos.js";
 import { handleGetNicheSnapshot } from "./handlers/getNicheSnapshot.js";
+import { handleFindSimilarVideos } from "./handlers/findSimilarVideos.js";
 
 // --- Handler registry ---
 
@@ -31,6 +32,7 @@ const HANDLERS: Record<ToolName, ToolHandler> = {
     [TOOL_NAMES.LIST_TREND_CHANNELS]: handleListTrendChannels,
     [TOOL_NAMES.BROWSE_TREND_VIDEOS]: handleBrowseTrendVideos,
     [TOOL_NAMES.GET_NICHE_SNAPSHOT]: handleGetNicheSnapshot,
+    [TOOL_NAMES.FIND_SIMILAR_VIDEOS]: handleFindSimilarVideos,
 };
 
 // --- Dispatcher ---

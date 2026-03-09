@@ -23,6 +23,16 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
+    // Embedding index — admin SDK only (Cloud Functions)
+    match /globalVideoEmbeddings/{docId} {
+      allow read, write: if false;
+    }
+
+    // System config (embedding budget, stats, backfill state) — admin SDK only
+    match /system/{docId} {
+      allow read, write: if false;
+    }
+
     // Collection group query for render presets (channel-wide)
     match /{path=**}/renders/{renderId} {
       allow read: if request.auth != null && resource.data.userId == request.auth.uid;

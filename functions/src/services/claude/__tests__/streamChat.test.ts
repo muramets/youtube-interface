@@ -277,7 +277,7 @@ function mockClientStreams(
         });
     }
 
-    mockGetClaudeClient.mockReturnValue({
+    mockGetClaudeClient.mockResolvedValue({
         messages: { stream: mockStream },
     } as never);
 
@@ -872,7 +872,7 @@ describe("Claude streamChat — retry logic", () => {
     it("retries on transient 529 overloaded error and returns result on success", async () => {
         const onRetry = vi.fn();
         const mockMessagesStream = vi.fn();
-        mockGetClaudeClient.mockReturnValue({
+        mockGetClaudeClient.mockResolvedValue({
             messages: { stream: mockMessagesStream },
         } as never);
 
@@ -909,7 +909,7 @@ describe("Claude streamChat — retry logic", () => {
         const onRetry = vi.fn();
         const mockMessagesStream = vi.fn();
 
-        mockGetClaudeClient.mockReturnValue({
+        mockGetClaudeClient.mockResolvedValue({
             messages: { stream: mockMessagesStream },
         } as never);
 
@@ -948,7 +948,7 @@ describe("Claude streamChat — retry logic", () => {
 describe("Claude streamChat — error handling", () => {
     it("throws immediately on non-transient API error (e.g. 400 bad request)", async () => {
         const mockMessagesStream = vi.fn();
-        mockGetClaudeClient.mockReturnValue({
+        mockGetClaudeClient.mockResolvedValue({
             messages: { stream: mockMessagesStream },
         } as never);
 
@@ -971,7 +971,7 @@ describe("Claude streamChat — error handling", () => {
 
     it("throws immediately on 401 authentication error without retry", async () => {
         const mockMessagesStream = vi.fn();
-        mockGetClaudeClient.mockReturnValue({
+        mockGetClaudeClient.mockResolvedValue({
             messages: { stream: mockMessagesStream },
         } as never);
 
@@ -1363,14 +1363,14 @@ describe("Claude streamChat — normalizedUsage", () => {
             }),
         ]);
 
-        mockGetClaudeClient.mockReturnValue({
+        mockGetClaudeClient.mockResolvedValue({
             messages: {
                 stream: vi.fn(() => {
                     mockStream._run();
                     return mockStream;
                 }),
             },
-        } as unknown as ReturnType<typeof getClaudeClient>);
+        } as never);
 
         return streamChat(makeOpts()).then((result) => {
             expect(result.normalizedUsage).toBeDefined();
@@ -1455,14 +1455,14 @@ describe("Claude streamChat — normalizedUsage", () => {
             }),
         ]);
 
-        mockGetClaudeClient.mockReturnValue({
+        mockGetClaudeClient.mockResolvedValue({
             messages: {
                 stream: vi.fn(() => {
                     mockStream._run();
                     return mockStream;
                 }),
             },
-        } as unknown as ReturnType<typeof getClaudeClient>);
+        } as never);
 
         return streamChat(
             makeOptsWithCallbacks({ thinkingOptionId: "default" }),
@@ -1507,7 +1507,7 @@ describe("Claude streamChat — abort handling (stopped messages)", () => {
             return stream;
         });
 
-        mockGetClaudeClient.mockReturnValue({
+        mockGetClaudeClient.mockResolvedValue({
             messages: { stream: mockStream },
         } as never);
 
@@ -1547,7 +1547,7 @@ describe("Claude streamChat — abort handling (stopped messages)", () => {
             return stream;
         });
 
-        mockGetClaudeClient.mockReturnValue({
+        mockGetClaudeClient.mockResolvedValue({
             messages: { stream: mockStream },
         } as never);
 
@@ -1580,7 +1580,7 @@ describe("Claude streamChat — abort handling (stopped messages)", () => {
             return stream;
         });
 
-        mockGetClaudeClient.mockReturnValue({
+        mockGetClaudeClient.mockResolvedValue({
             messages: { stream: mockStream },
         } as never);
 
@@ -1620,7 +1620,7 @@ describe("Claude streamChat — abort handling (stopped messages)", () => {
             return stream;
         });
 
-        mockGetClaudeClient.mockReturnValue({
+        mockGetClaudeClient.mockResolvedValue({
             messages: { stream: mockStream },
         } as never);
 

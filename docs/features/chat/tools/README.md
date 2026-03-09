@@ -33,6 +33,10 @@
 │                         │   getNicheSnapshot      │     │
 │                         │  (window + aggregates)  │     │
 │                         └─────────────────────────┘     │
+│                         ┌─────────────────────────┐     │
+│                         │  findSimilarVideos      │     │
+│                         │  (embeddings + RRF)     │     │
+│                         └─────────────────────────┘     │
 ├─────────────────────────────────────────────────────────┤
 │  UTILITY: mentionVideo                                  │
 └─────────────────────────────────────────────────────────┘
@@ -55,6 +59,7 @@
 | [listTrendChannels](./layer-4-competition/1-list-trend-channels-tool.md) | 4 — Competition | Entry point: tracked channels + stats |
 | [browseTrendVideos](./layer-4-competition/2-browse-trend-videos-tool.md) | 4 — Competition | Filter + percentile + delta enrichment |
 | [getNicheSnapshot](./layer-4-competition/3-get-niche-snapshot-tool.md) | 4 — Competition | Window snapshot + aggregates |
+| [findSimilarVideos](./layer-4-competition/4-find-similar-videos-tool.md) | 4 — Competition | Semantic search: packaging, visual, RRF merge |
 | [mentionVideo](./utility/mention-video-tool.md) | Utility | Interactive video badges |
 
 ---
