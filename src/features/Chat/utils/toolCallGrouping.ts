@@ -58,6 +58,7 @@ function extractVideoIdsForTool(toolName: string, records: ToolCallRecord[]): st
         case 'browseTrendVideos': return extractResultVideoIds(records);
         case 'getNicheSnapshot': return extractNicheSnapshotVideoIds(records);
         case 'findSimilarVideos': return extractSimilarVideoIds(records);
+        case 'getVideoComments': return extractCommentVideoIds(records);
         default: return [];
     }
 }
@@ -126,6 +127,16 @@ function extractSimilarVideoIds(records: ToolCallRecord[]): string[] {
                 if (v.videoId && !ids.includes(v.videoId)) ids.push(v.videoId);
             }
         }
+    }
+    return ids;
+}
+
+/** Extract unique video IDs from getVideoComments args (single videoId per call). */
+function extractCommentVideoIds(records: ToolCallRecord[]): string[] {
+    const ids: string[] = [];
+    for (const r of records) {
+        const id = r.args.videoId as string | undefined;
+        if (id && !ids.includes(id)) ids.push(id);
     }
     return ids;
 }
@@ -255,12 +266,24 @@ export function getGroupLabel(group: ToolCallGroup): string {
             : 'Similar videos found';
     }
 
+    if (group.toolName === 'getVideoComments') {
+        if (group.hasErrors) return "Couldn't load comments";
+        if (!group.allResolved) return 'Reading comments...';
+        const result = group.records[0]?.result;
+        const fetchedCount = result?.fetchedCount as number | undefined;
+        return fetchedCount != null
+            ? `${fetchedCount} comments loaded`
+            : 'Comments loaded';
+    }
+
     // Fallback for unknown tools
     return group.allResolved ? group.toolName : `Running ${group.toolName}...`;
 }
 
 /** Whether a group should be expandable (has video previews to show, or has result details). */
 export function isExpandable(group: ToolCallGroup): boolean {
+    // Comments: not expandable in Stage 1 (no preview UI yet)
+    if (group.toolName === 'getVideoComments') return false;
     if (group.videoIds.length > 0) return true;
     // Analysis tools are expandable when resolved (show summary stats)
     if (group.toolName === 'analyzeSuggestedTraffic' && group.allResolved) return true;

@@ -1,5 +1,20 @@
 import axios from "axios";
-import { YouTubePlaylistResponse, YouTubeVideoResponse, YouTubeChannelResponse, YouTubePlaylistItem, YouTubeVideoItem } from "../types";
+import { YouTubePlaylistResponse, YouTubeVideoResponse, YouTubeChannelResponse, YouTubePlaylistItem, YouTubeVideoItem, YouTubeCommentThreadResponse } from "../types";
+
+export interface CommentThreadResult {
+    author: string;
+    authorChannelId?: string;
+    text: string;
+    likeCount: number;
+    publishedAt: string;
+    replyCount: number;
+    topReplies?: Array<{
+        author: string;
+        text: string;
+        likeCount: number;
+        publishedAt: string;
+    }>;
+}
 
 export class YouTubeService {
     constructor(private apiKey: string) { }
@@ -206,6 +221,64 @@ export class YouTubeService {
         }
 
         return { channelId: resolved, quotaUsed: 1 };
+    }
+
+    /**
+     * Fetches comment threads for a video (single page).
+     * Handler controls pagination by passing pageToken for subsequent calls.
+     */
+    async getCommentThreads(videoId: string, options?: {
+        order?: "relevance" | "time";
+        maxResults?: number;
+        pageToken?: string;
+    }): Promise<{
+        comments: CommentThreadResult[];
+        totalResults: number;
+        nextPageToken?: string;
+        quotaUsed: number;
+    }> {
+        const res: axios.AxiosResponse<YouTubeCommentThreadResponse> = await axios.get(
+            `https://www.googleapis.com/youtube/v3/commentThreads`,
+            {
+                params: {
+                    part: "snippet,replies",
+                    videoId,
+                    order: options?.order ?? "relevance",
+                    maxResults: options?.maxResults ?? 100,
+                    textFormat: "plainText",
+                    key: this.apiKey,
+                    ...(options?.pageToken ? { pageToken: options.pageToken } : {}),
+                },
+            },
+        );
+
+        const items = res.data.items ?? [];
+        const comments: CommentThreadResult[] = items.map(thread => {
+            const topSnippet = thread.snippet.topLevelComment.snippet;
+            const topReplies = thread.replies?.comments?.map(reply => ({
+                author: reply.snippet.authorDisplayName,
+                text: reply.snippet.textDisplay,
+                likeCount: reply.snippet.likeCount,
+                publishedAt: reply.snippet.publishedAt,
+            }));
+
+            return {
+                author: topSnippet.authorDisplayName,
+                authorChannelId: topSnippet.authorChannelId?.value,
+                text: topSnippet.textDisplay,
+                likeCount: topSnippet.likeCount,
+                publishedAt: topSnippet.publishedAt,
+                replyCount: thread.snippet.totalReplyCount,
+                ...(topReplies && topReplies.length > 0 ? { topReplies } : {}),
+            };
+        });
+
+        return {
+            comments,
+            totalResults: res.data.pageInfo.totalResults,
+            ...(res.data.nextPageToken ? { nextPageToken: res.data.nextPageToken } : {}),
+            quotaUsed: 1,
+        };
     }
 
     /**

@@ -66,6 +66,7 @@ export async function handleGetMultipleVideoDetails(
                             thumbnail: item.snippet.thumbnails?.medium?.url ?? item.snippet.thumbnails?.default?.url,
                             viewCount: parseInt(item.statistics.viewCount ?? "0", 10),
                             likeCount: parseInt(item.statistics.likeCount ?? "0", 10),
+                            commentCount: parseInt(item.statistics.commentCount ?? "0", 10),
                             source: "api_fallback",
                             cachedAt: Date.now(),
                         };
@@ -145,6 +146,7 @@ function formatVideoData(
         channelTitle: data.channelTitle || undefined,
         viewCount: data.viewCount || undefined,
         likeCount: data.likeCount || undefined,
+        commentCount: data.commentCount || undefined,
         publishedAt: data.publishedAt || undefined,
         duration: data.duration || undefined,
         thumbnailUrl: data.thumbnail || undefined,

@@ -22,6 +22,7 @@ export const TOOL_NAMES = {
     GET_MULTIPLE_VIDEO_DETAILS: "getMultipleVideoDetails",
     ANALYZE_SUGGESTED_TRAFFIC: "analyzeSuggestedTraffic",
     VIEW_THUMBNAILS: "viewThumbnails",
+    GET_VIDEO_COMMENTS: "getVideoComments",
     GET_CHANNEL_OVERVIEW: "getChannelOverview",
     BROWSE_CHANNEL_VIDEOS: "browseChannelVideos",
     ANALYZE_TRAFFIC_SOURCES: "analyzeTrafficSources",
@@ -163,6 +164,44 @@ const viewThumbnails: ToolDefinition = {
                     "Use exact titles as they appeared in previous tool results.",
             },
         },
+    },
+};
+
+const getVideoComments: ToolDefinition = {
+    name: TOOL_NAMES.GET_VIDEO_COMMENTS,
+    description:
+        "Read comments from any public YouTube video. Returns top-level comment threads " +
+        "with author, text, like count, reply count, and inline replies. " +
+        "Default: 100 comments sorted by relevance (YouTube ML-ranking). " +
+        "Use after getMultipleVideoDetails when commentCount suggests active discussion. " +
+        "Costs 1 API unit per 100 comments. " +
+        "Pass maxPages (1-3) only if the user explicitly asks for more coverage.",
+    parametersJsonSchema: {
+        type: "object",
+        properties: {
+            videoId: {
+                type: "string",
+                description: "The video ID to read comments from.",
+            },
+            order: {
+                type: "string",
+                enum: ["relevance", "time"],
+                description:
+                    "Sort order. 'relevance' (default) = YouTube ML ranking (best engagement). " +
+                    "'time' = newest first.",
+            },
+            maxResults: {
+                type: "number",
+                description: "Comments per page (1-100, default 100).",
+            },
+            maxPages: {
+                type: "number",
+                description:
+                    "Number of pages to fetch (1-3, default 1). " +
+                    "Only increase if the user EXPLICITLY asks for more comments.",
+            },
+        },
+        required: ["videoId"],
     },
 };
 
@@ -432,6 +471,7 @@ export const TOOL_DECLARATIONS: ToolDefinition[] = [
     getMultipleVideoDetails,
     analyzeSuggestedTraffic,
     viewThumbnails,
+    getVideoComments,
     getChannelOverview,
     browseChannelVideos,
     analyzeTrafficSources,

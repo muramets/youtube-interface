@@ -103,6 +103,41 @@ export interface YouTubeChannelResponse {
     items?: YouTubeChannelItem[];
 }
 
+// --- YouTube Comment Threads ---
+
+export interface YouTubeCommentSnippet {
+    authorDisplayName: string;
+    authorChannelId?: { value: string };
+    textDisplay: string;
+    likeCount: number;
+    publishedAt: string;
+}
+
+export interface YouTubeComment {
+    snippet: YouTubeCommentSnippet;
+}
+
+export interface YouTubeCommentThreadSnippet {
+    topLevelComment: YouTubeComment;
+    totalReplyCount: number;
+}
+
+export interface YouTubeCommentThread {
+    snippet: YouTubeCommentThreadSnippet;
+    replies?: {
+        comments: YouTubeComment[];
+    };
+}
+
+export interface YouTubeCommentThreadResponse {
+    pageInfo: {
+        totalResults: number;
+        resultsPerPage: number;
+    };
+    items?: YouTubeCommentThread[];
+    nextPageToken?: string;
+}
+
 export interface ProcessStats {
     videosProcessed: number;
     quotaList: number;
