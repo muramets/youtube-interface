@@ -138,7 +138,7 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
             <div
                 onClick={() => !isEditing && onClick(niche.id)}
                 className={`
-                    flex items-center pl-2 pr-2 py-1.5 cursor-pointer transition-all rounded-lg
+                    flex items-center pl-2 pr-2 py-1.5 cursor-pointer hover-trail rounded-lg
                     ${isDragTarget
                         ? 'bg-white/20 text-white'
                         : isActive

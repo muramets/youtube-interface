@@ -212,6 +212,8 @@ import { SegmentedControl } from '@/components/ui/molecules/SegmentedControl';
 | `.interactive-text` | Текст `text-tertiary` → `text-primary` при hover |
 | `.scrollbar-hide` | Скрыть scrollbar |
 | `.scrollbar-compact` | Тонкий scrollbar (3px) |
+| `.scrollbar-auto-hide` | Overlay scrollbar (4px), появляется при скролле/hover, исчезает через 1с. Требует JS-класс `.is-scrolling` для анимации при скролле |
+| `.hover-trail` | Асимметричный hover: быстрый snap-in (75ms), медленный fade-out (350ms). Transition для `color`, `background-color`, `border-color`, `opacity` |
 | `.no-spinner` | Убрать стрелки у `<input type="number">` |
 
 ---

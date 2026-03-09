@@ -116,7 +116,7 @@ export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
                 onClick={() => onChannelClick(channel.id)}
                 onMouseEnter={() => setIsHovered(true)}
                 onMouseLeave={handleMouseLeave}
-                className={`flex items-center group cursor-pointer p-2 rounded-lg transition-all duration-200 select-none ${isActive
+                className={`flex items-center group cursor-pointer p-2 rounded-lg hover-trail select-none ${isActive
                     ? 'bg-white/10'
                     : isMenuOpen ? 'bg-white/5' : 'hover:bg-white/5'
                     }`}

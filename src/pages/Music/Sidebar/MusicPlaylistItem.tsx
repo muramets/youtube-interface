@@ -156,7 +156,7 @@ export const MusicPlaylistItem: React.FC<MusicPlaylistItemProps> = ({
                     onClick={() => !isEditing && onClick()}
                     onContextMenu={handleContextMenu}
                     className={`
-                        flex items-center pl-3 pr-2 py-2 cursor-pointer transition-all rounded-lg
+                        flex items-center pl-3 pr-2 py-2 cursor-pointer hover-trail rounded-lg
                         ${isDragTarget
                             ? 'bg-black/10 text-black dark:bg-white/20 dark:text-white'
                             : isActive

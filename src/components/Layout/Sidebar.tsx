@@ -23,7 +23,7 @@ const CollapsedSidebarItem: React.FC<{
 }> = ({ icon, activeIcon, label, active, noBackground, onClick }) => (
   <div
     onClick={onClick}
-    className={`flex flex-col items-center justify-center py-4 px-1 cursor-pointer rounded-lg transition-colors
+    className={`flex flex-col items-center justify-center py-4 px-1 cursor-pointer rounded-lg hover-trail
       ${active && !noBackground ? 'bg-sidebar-active' : 'hover:bg-sidebar-hover'}
       ${active ? 'text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}
   >
@@ -44,7 +44,7 @@ const ExpandedSidebarItem: React.FC<{
 }> = ({ icon, activeIcon, label, active, onClick }) => (
   <div
     onClick={onClick}
-    className={`flex items-center gap-6 py-2.5 px-3 cursor-pointer rounded-lg transition-colors
+    className={`flex items-center gap-6 py-2.5 px-3 cursor-pointer rounded-lg hover-trail
       ${active ? 'bg-sidebar-active' : 'hover:bg-sidebar-hover'}
       ${active ? 'text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}
   >
@@ -198,32 +198,26 @@ export const Sidebar: React.FC = () => {
   const { data: channels, isLoading } = useChannels(user?.uid || '');
 
   const [isResizing, setIsResizing] = React.useState(false);
-  const [hasScrollbar, setHasScrollbar] = React.useState(false);
   const scrollRef = React.useRef<HTMLDivElement>(null);
 
-  // Check for scrollbar presence
+  // Auto-hide scrollbar: add .is-scrolling while scrolling, remove after 1s idle
   React.useEffect(() => {
-    const checkScrollbar = () => {
-      if (scrollRef.current) {
-        const hasScroll = scrollRef.current.scrollHeight > scrollRef.current.clientHeight;
-        setHasScrollbar(hasScroll);
-      }
+    const el = scrollRef.current;
+    if (!el) return;
+
+    let timer: ReturnType<typeof setTimeout>;
+    const onScroll = () => {
+      el.classList.add('is-scrolling');
+      clearTimeout(timer);
+      timer = setTimeout(() => el.classList.remove('is-scrolling'), 1000);
     };
 
-    checkScrollbar();
-    window.addEventListener('resize', checkScrollbar);
-
-    // Create an observer to watch for content changes that might trigger scrollbars
-    const observer = new MutationObserver(checkScrollbar);
-    if (scrollRef.current) {
-      observer.observe(scrollRef.current, { childList: true, subtree: true });
-    }
-
+    el.addEventListener('scroll', onScroll, { passive: true });
     return () => {
-      window.removeEventListener('resize', checkScrollbar);
-      observer.disconnect();
+      el.removeEventListener('scroll', onScroll);
+      clearTimeout(timer);
     };
-  }, [isSidebarExpanded, isLoading]);
+  }, []);
 
   // Resize Logic
   React.useEffect(() => {
@@ -321,7 +315,7 @@ export const Sidebar: React.FC = () => {
       >
         <div
           ref={scrollRef}
-          className={`flex-1 w-full flex flex-col overflow-x-hidden ${isSidebarExpanded ? 'px-3 py-1 overflow-y-auto' : 'overflow-hidden'}`}
+          className={`flex-1 min-w-0 flex flex-col overflow-x-hidden ${isSidebarExpanded ? 'px-3 py-1 overflow-y-auto scrollbar-auto-hide' : 'w-full overflow-hidden'}`}
         >
           {isSidebarExpanded ? (
             // Expanded view - icon left, text right
@@ -422,18 +416,18 @@ export const Sidebar: React.FC = () => {
           )}
         </div>
 
-        {/* Resize Handle - 1px line at right edge of sidebar. Hit area extends inward only (into sidebar). */}
+        {/* Resize border line (in flex flow) + invisible hit area (absolute, wider) */}
         {isSidebarExpanded && (
-          <div
-            className={`absolute top-0 h-full cursor-col-resize z-50 flex items-center justify-center transition-all
-              ${hasScrollbar ? 'w-1 right-0' : 'w-4 right-0'}`}
-            onMouseDown={() => setIsResizing(true)}
-          >
+          <>
             <div
-              className={`w-[1px] h-full transition-colors flex-none
+              className={`flex-none w-[1px] h-full transition-colors
                 ${isResizing ? 'bg-blue-500' : 'bg-border'}`}
             />
-          </div>
+            <div
+              className="absolute top-0 right-0 w-4 h-full cursor-col-resize z-50"
+              onMouseDown={() => setIsResizing(true)}
+            />
+          </>
         )}
       </aside>
 

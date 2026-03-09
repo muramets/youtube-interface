@@ -29,7 +29,7 @@ const LikedPlaylistRow: React.FC<{ isActive: boolean; likedCount: number; onClic
     return (
         <li
             onClick={onClick}
-            className={`flex items-center cursor-pointer p-2 rounded-lg transition-all duration-200 select-none animate-fade-in-down ${isActive ? 'bg-black/10 dark:bg-white/10' : 'hover:bg-black/5 dark:hover:bg-white/5'}`}
+            className={`flex items-center cursor-pointer p-2 rounded-lg hover-trail select-none animate-fade-in-down ${isActive ? 'bg-black/10 dark:bg-white/10' : 'hover:bg-black/5 dark:hover:bg-white/5'}`}
             style={{ animationDelay: '0ms', animationFillMode: 'both' }}
         >
             <div className={`w-6 h-6 rounded-full mr-3 flex items-center justify-center ${isActive ? 'bg-red-500/20 ring-2 ring-red-400/30' : 'bg-black/5 dark:bg-white/5'}`}>
