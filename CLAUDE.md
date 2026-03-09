@@ -147,7 +147,7 @@ UI listens for status changes via Firestore `onSnapshot`. Download links come fr
 
 For multi-phase features requiring coordinated agent execution across sessions, create a **task document** alongside the feature doc. The task doc is the orchestration blueprint — optimized for agents that may lose context between sessions.
 
-**Reference implementation:** `docs/archive/tasks/video-view-deltas-tasks.md` (battle-tested, fully executed).
+**Reference implementation:** `docs/archive/tasks/chat/competitive-intelligence-stage2-3-tasks.md (battle-tested, fully executed).
 
 #### Required sections (in order):
 
