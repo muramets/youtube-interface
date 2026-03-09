@@ -2,7 +2,7 @@
 
 ## Текущее состояние
 
-**Реализовано.** AI работает как агент с 7 инструментами. Оба провайдера (Gemini и Claude) используют одинаковый agentic loop: до 10 итераций tool calling за один ответ. Shared batch executor (`executeToolBatch`) + provider-specific image delivery. 9 SSE event types для стриминга.
+**Реализовано.** AI работает как агент с 13 инструментами в 4 слоях (Telescope Pattern). Оба провайдера (Gemini и Claude) используют одинаковый agentic loop: до 10 итераций tool calling за один ответ. Shared batch executor (`executeToolBatch`) + provider-specific image delivery. 9 SSE event types для стриминга.
 
 ---
 
@@ -55,17 +55,23 @@
 
 ## Доступные инструменты (Tools)
 
-| Tool | Что делает | Когда используется |
-|------|-----------|-------------------|
-| `mentionVideo` | Находит видео по ID, возвращает title + ownership | Каждый раз, когда AI ссылается на видео в тексте |
-| `getMultipleVideoDetails` | Batch-запрос: description, tags, views для N видео | Когда AI нужна детальная информация (prompt содержит только title + метрики) |
-| `viewThumbnails` | Показывает обложки видео как изображения | Когда AI анализирует CTR, дизайн обложек или сравнивает визуально |
-| `analyzeTrafficSources` | Анализ источников трафика видео | Когда пользователь спрашивает откуда приходят зрители |
-| `analyzeSuggestedTraffic` | Анализ suggested traffic (рекомендации YouTube) | Когда нужен анализ какие видео приносят suggested views |
-| `getChannelOverview` | Обзор YouTube канала: подписчики, видео, статистика | Когда AI исследует внешний канал (конкурент, источник трафика) |
-| `browseChannelVideos` | Пагинированный список видео канала с метриками | Когда нужен детальный обзор контента канала |
+| Layer | Tool | Что делает | Когда используется |
+|-------|------|-----------|-------------------|
+| 1 — Discovery | `getChannelOverview` | Обзор YouTube канала: подписчики, видео, статистика | Когда AI исследует внешний канал (конкурент, источник трафика) |
+| 1 — Discovery | `browseChannelVideos` | Пагинированный список видео канала с метриками | Когда нужен детальный обзор контента канала |
+| 2 — Detail | `getMultipleVideoDetails` | Batch-запрос: description, tags, views для N видео | Когда AI нужна детальная информация (prompt содержит только title + метрики) |
+| 2 — Detail | `viewThumbnails` | Показывает обложки видео как изображения | Когда AI анализирует CTR, дизайн обложек или сравнивает визуально |
+| 2 — Detail | `getVideoComments` | Комментарии под видео (YouTube API, 1-3 units) | Когда нужен голос аудитории — тон, вопросы, темы обсуждений |
+| 3 — Analysis | `analyzeTrafficSources` | Анализ источников трафика видео | Когда пользователь спрашивает откуда приходят зрители |
+| 3 — Analysis | `analyzeSuggestedTraffic` | Анализ suggested traffic (рекомендации YouTube) | Когда нужен анализ какие видео приносят suggested views |
+| 4 — Competition | `listTrendChannels` | Список tracked конкурентов + агрегированная статистика | Entry point для анализа конкурентной среды |
+| 4 — Competition | `browseTrendVideos` | Фильтрация видео конкурентов по дате, перформансу | Когда нужно найти конкретные видео конкурентов |
+| 4 — Competition | `getNicheSnapshot` | Снимок ниши за период + агрегаты | Когда нужно понять, что происходило в нише в конкретный момент |
+| 4 — Competition | `findSimilarVideos` | Семантический поиск по теме и визуалу (embeddings + RRF) | Когда нужно найти похожие видео по упаковке или обложке |
+| 4 — Competition | `searchDatabase` | Free-text семантический поиск по базе конкурентов | Когда пользователь ищет видео по теме ("видео про AI") |
+| Utility | `mentionVideo` | Находит видео по ID, возвращает title + ownership | Каждый раз, когда AI ссылается на видео в тексте |
 
-Подробности по каждому tool — в отдельных docs: [Tool Index](../tools/README.md), [viewThumbnails](../tools/layer-2-detail/2-view-thumbnails-tool.md), [analyzeSuggestedTraffic](../tools/layer-3-analysis/2-analyze-suggested-traffic-tool.md).
+Полная документация по каждому tool (параметры, возвращаемые данные, edge cases) — в [Tool Index](../tools/README.md).
 
 ### Как добавить новый tool:
 1. Описать его в `tools/definitions.ts` (что он делает, какие параметры)
