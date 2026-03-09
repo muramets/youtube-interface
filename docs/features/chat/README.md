@@ -78,8 +78,8 @@ Gemini ссылается на конкретные видео, пользова
 - [x] `analyzeTrafficSources` — анализ источников трафика видео on-demand
 - [x] `analyzeSuggestedTraffic` — анализ suggested traffic с визуальным UI
 
-### Стадия 6 — RAG + Visual Context ← YOU ARE HERE
-**Архитектурный переход:** compact prompt + visual context + vector search + competitive intelligence. Embedding infrastructure полностью реализована — semantic search по теме и визуалу работает. Осталось: free-text semantic search по всей базе.
+### Стадия 6 — RAG + Visual Context ✅
+**Архитектурный переход:** compact prompt + visual context + vector search + competitive intelligence. Embedding infrastructure, semantic search, visual search и free-text search — всё реализовано.
 
 **Что уже сделано (в рамках Stage 5-6):**
 - ✅ Compact L1: system prompt содержит только title + key metrics (views, published, duration)
@@ -92,11 +92,9 @@ Gemini ссылается на конкретные видео, пользова
 - ✅ **Competitive Intelligence Этапы 1–3**: Layer 4 (Competition) — 4 инструмента (`listTrendChannels`, `browseTrendVideos`, `getNicheSnapshot`, `findSimilarVideos`) дают AI полный доступ к данным конкурентов: browsing, niche analytics, semantic search по теме (text embeddings) и визуальному сходству обложек (Vertex AI). Подробнее: [Competitive Intelligence](./tools/layer-4-competition/competitive-intelligence.md).
 - ✅ **Visual Context**: `thumbnailDescription` генерируется автоматически для всех видео конкурентов через Gemini Flash Vision. `scheduledEmbeddingSync` (daily 00:30 UTC) подхватывает новые видео.
 - ✅ **Vector Search Infrastructure**: packaging embeddings (768d, gemini-embedding-001) + visual embeddings (1408d, Vertex AI multimodalembedding@001). Два Firestore vector index. `findSimilarVideos` — search по сходству (3 modes: packaging, visual, both с RRF merge).
+- ✅ **searchDatabase** — free-text семантический поиск по всей базе конкурентов. `generateQueryEmbedding` с `taskType: RETRIEVAL_QUERY` → cosine vector search → enrichment (deltas, tiers, coverage). Подробнее: [searchDatabase](./tools/layer-4-competition/5-search-database-tool.md).
 
-**Что осталось:**
-- [ ] `searchDatabase(query, filters)` — free-text семантический поиск по всей базе (embedding infrastructure готова, нужен query embedding + handler)
-
-### Стадия 7 — YouTube Research Agent (частично ✅)
+### Стадия 7 — YouTube Research Agent (частично ✅) ← YOU ARE HERE
 Ассистент выходит за пределы базы и исследует YouTube по запросу. Telescope pattern: обзор канала → список видео → детали → анализ трафика.
 
 **Реализовано (P0–P3):**

@@ -29,6 +29,7 @@ export const TOOL_NAMES = {
     BROWSE_TREND_VIDEOS: "browseTrendVideos",
     GET_NICHE_SNAPSHOT: "getNicheSnapshot",
     FIND_SIMILAR_VIDEOS: "findSimilarVideos",
+    SEARCH_DATABASE: "searchDatabase",
 } as const;
 
 export type ToolName = (typeof TOOL_NAMES)[keyof typeof TOOL_NAMES];
@@ -390,6 +391,40 @@ const findSimilarVideos: ToolDefinition = {
     },
 };
 
+const searchDatabase: ToolDefinition = {
+    name: TOOL_NAMES.SEARCH_DATABASE,
+    description:
+        "Search the competitor video database using free-text semantic search. " +
+        "Use when the user asks about topics, themes, or concepts across competitor videos " +
+        "(e.g., 'what videos exist about AI?', 'find videos about cooking challenges'). " +
+        "Returns semantically relevant videos ranked by relevance with view deltas and performance tiers. " +
+        "Only searches videos from user's tracked trend channels. " +
+        "For finding videos similar to a SPECIFIC video, use findSimilarVideos instead.",
+    parametersJsonSchema: {
+        type: "object",
+        properties: {
+            query: {
+                type: "string",
+                description:
+                    "Free-text search query describing what to find " +
+                    "(e.g., 'Iceland travel vlog', 'AI tools tutorial'). Minimum 3 characters.",
+            },
+            channelIds: {
+                type: "array",
+                items: { type: "string" },
+                description:
+                    "Optional. YouTube channel IDs (UC...) to limit search to specific channels. " +
+                    "If omitted, searches all tracked trend channels.",
+            },
+            limit: {
+                type: "number",
+                description: "Maximum number of results to return. Default: 20, max: 50.",
+            },
+        },
+        required: ["query"],
+    },
+};
+
 // --- Exported registry ---
 
 export const TOOL_DECLARATIONS: ToolDefinition[] = [
@@ -404,4 +439,5 @@ export const TOOL_DECLARATIONS: ToolDefinition[] = [
     browseTrendVideos,
     getNicheSnapshot,
     findSimilarVideos,
+    searchDatabase,
 ];
