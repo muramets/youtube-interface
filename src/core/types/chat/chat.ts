@@ -64,6 +64,10 @@ export interface ChatMessage {
     status?: MessageStatus;
     /** Context breakdown: char sizes of components sent to the model. */
     contextBreakdown?: import('../../../../shared/models').ContextBreakdown;
+    /** Full thinking chain text (persisted to Firestore). */
+    thinking?: string;
+    /** Approximate time spent thinking (ms). */
+    thinkingElapsedMs?: number;
     createdAt: Timestamp;
 }
 

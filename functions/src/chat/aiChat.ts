@@ -187,6 +187,10 @@ export const aiChat = onRequest(
                 ),
             });
 
+            // --- Thinking accumulator for stopped-message persistence ---
+            let thinkingAccumulator = '';
+            let firstThoughtTs = 0; // 0 = no thinking yet
+
             // --- Callbacks: SSE streaming events ---
             const callbacks: StreamCallbacks = {
                 onChunk: (fullText) => {
@@ -199,7 +203,11 @@ export const aiChat = onRequest(
                     writeSSE(res, { type: "toolResult", name, result, toolCallIndex });
                 },
                 onThought: (text) => {
-                    writeSSE(res, { type: "thought", text });
+                    if (text) {
+                        if (!firstThoughtTs) firstThoughtTs = Date.now();
+                        thinkingAccumulator += text;
+                        writeSSE(res, { type: "thought", text });
+                    }
                 },
                 onToolProgress: (toolName, message, toolCallIndex) => {
                     writeSSE(res, { type: "toolProgress", toolName, message, toolCallIndex });
@@ -359,6 +367,10 @@ export const aiChat = onRequest(
                 if (normalizedUsage) stoppedMsg.normalizedUsage = normalizedUsage;
                 if (toolCalls) stoppedMsg.toolCalls = toolCalls;
                 stoppedMsg.contextBreakdown = contextBreakdown;
+                if (thinkingAccumulator) {
+                    stoppedMsg.thinking = thinkingAccumulator;
+                    stoppedMsg.thinkingElapsedMs = firstThoughtTs ? Date.now() - firstThoughtTs : 0;
+                }
                 afterTasks.push(
                     db.collection(messagesPath).add(stoppedMsg)
                         .then(() => console.info(`[aiChat] Persisted stopped message for conv=${body.conversationId}`))

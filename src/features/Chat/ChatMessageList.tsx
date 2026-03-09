@@ -586,7 +586,9 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                                 videoMap={referenceVideoMap}
                                 sessionThinking={
                                     msg.role === 'model'
-                                        ? getSessionThinking(msg.id)
+                                        ? (msg.thinking
+                                            ? { text: msg.thinking, elapsedMs: msg.thinkingElapsedMs ?? 0 }
+                                            : getSessionThinking(msg.id))
                                         : null
                                 }
                             />

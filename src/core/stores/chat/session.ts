@@ -11,6 +11,7 @@ import type { ChatState } from './types';
 // Keyed by messageId → { text, elapsedMs }. Populated after AI response is persisted.
 interface SessionThinkingEntry { text: string; elapsedMs: number; }
 
+const SESSION_THINKING_MAX_ENTRIES = 50;
 const sessionThinkingCache = new Map<string, SessionThinkingEntry>();
 
 /** Get cached thinking data for a specific message (session-only, not persisted). */
@@ -20,6 +21,11 @@ export function getSessionThinking(messageId: string): SessionThinkingEntry | nu
 
 export function cacheSessionThinking(messageId: string, entry: SessionThinkingEntry): void {
     sessionThinkingCache.set(messageId, entry);
+    // Simple eviction: drop oldest entries when cache exceeds limit
+    if (sessionThinkingCache.size > SESSION_THINKING_MAX_ENTRIES) {
+        const oldest = sessionThinkingCache.keys().next().value!;
+        sessionThinkingCache.delete(oldest);
+    }
 }
 
 /**

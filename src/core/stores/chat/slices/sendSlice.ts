@@ -116,17 +116,29 @@ async function streamAiResponse(
     });
 }
 
+/** Params for persisting a model response to Firestore. */
+interface PersistAiResponseParams {
+    userId: string;
+    channelId: string;
+    convId: string;
+    responseText: string;
+    model: string;
+    tokenUsage?: TokenUsage;
+    normalizedUsage?: NormalizedTokenUsage;
+    toolCalls?: ToolCallRecord[];
+    status?: MessageStatus;
+    contextBreakdown?: import('../../../../../shared/models').ContextBreakdown;
+    thinking?: string;
+    thinkingElapsedMs?: number;
+}
+
 /** Persist model response to Firestore. */
-async function persistAiResponse(
-    userId: string, channelId: string, convId: string,
-    responseText: string, model: string,
-    tokenUsage?: TokenUsage,
-    normalizedUsage?: NormalizedTokenUsage,
-    toolCalls?: ToolCallRecord[],
-    status?: MessageStatus,
-    contextBreakdown?: import('../../../../../shared/models').ContextBreakdown,
-): Promise<void> {
-    await ChatService.addMessage(userId, channelId, convId, { role: 'model', text: responseText, model, tokenUsage, normalizedUsage, toolCalls, status: status ?? 'complete', contextBreakdown });
+async function persistAiResponse(params: PersistAiResponseParams): Promise<void> {
+    const { userId, channelId, convId, responseText, model, tokenUsage, normalizedUsage, toolCalls, status, contextBreakdown, thinking, thinkingElapsedMs } = params;
+    await ChatService.addMessage(userId, channelId, convId, {
+        role: 'model', text: responseText, model, tokenUsage, normalizedUsage,
+        toolCalls, status: status ?? 'complete', contextBreakdown, thinking, thinkingElapsedMs,
+    });
 }
 
 /** Auto-generate title for the first exchange (fire-and-forget). */
@@ -197,15 +209,26 @@ async function resumeSendFlow(
     const finalThinkingText = get().thinkingText;
     if (session.streamingNonce === nonce) set({ isStreaming: false, streamingText: '' });
 
-    await persistAiResponse(userId, channelId, convId, responseText, model, tokenUsage, normalizedUsage, toolCalls, undefined, contextBreakdown);
+    // Compute elapsed only when thinking exists — avoids non-null assertion downstream
+    const thinkingElapsedMs = finalThinkingText ? Date.now() - session.streamStartMs : undefined;
 
-    if (finalThinkingText) {
+    // Persist first — thinking is now in Firestore, so onSnapshot delivers
+    // the model message with msg.thinking already set. Session cache is a
+    // redundancy layer for the current session (fallback if onSnapshot is slow).
+    await persistAiResponse({
+        userId, channelId, convId, responseText, model,
+        tokenUsage, normalizedUsage, toolCalls, contextBreakdown,
+        thinking: finalThinkingText || undefined,
+        thinkingElapsedMs,
+    });
+
+    if (finalThinkingText && thinkingElapsedMs !== undefined) {
         const msgs = get().messages;
         const lastModel = [...msgs].reverse().find(m => m.role === 'model');
         if (lastModel) {
             cacheSessionThinking(lastModel.id, {
                 text: finalThinkingText,
-                elapsedMs: Date.now() - session.streamStartMs,
+                elapsedMs: thinkingElapsedMs,
             });
         }
     }

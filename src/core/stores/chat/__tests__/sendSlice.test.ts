@@ -215,6 +215,66 @@ describe('sendMessage — happy path', () => {
     });
 });
 
+describe('sendMessage — thinking persistence', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        session.streamingNonce = 0;
+        session.activeAbortController = null;
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    it('includes thinking and thinkingElapsedMs when thinking text is present', async () => {
+        const THINKING_TEXT = 'Let me think about this...';
+
+        mockChatService.addMessage
+            .mockResolvedValueOnce({ id: 'msg-user-1', role: 'user', text: 'hi', createdAt: Timestamp.now() })
+            .mockResolvedValueOnce({ id: 'msg-ai-1', role: 'model', text: 'Hello', createdAt: Timestamp.now() });
+
+        mockPrepareContext.mockResolvedValueOnce({ appContext: [], persistedContext: [] });
+        mockAiService.generateTitle.mockResolvedValueOnce('New Chat');
+
+        // Mock sendMessage to trigger onThought callback (populates thinkingText in store)
+        mockAiService.sendMessage.mockImplementationOnce(async (params: Record<string, unknown>) => {
+            const onThought = params.onThought as ((t: string) => void) | undefined;
+            onThought?.(THINKING_TEXT);
+            return { text: 'Hello', usedSummary: false };
+        });
+
+        const store = buildStore();
+        await store.getState().sendMessage('hi');
+
+        // Second addMessage call = AI response persist
+        const aiCall = (mockChatService.addMessage as ReturnType<typeof vi.fn>).mock.calls[1];
+        const aiMsg = aiCall[3]; // 4th argument = message object
+        expect(aiMsg.thinking).toBe(THINKING_TEXT);
+        expect(aiMsg.thinkingElapsedMs).toBeTypeOf('number');
+        expect(aiMsg.thinkingElapsedMs).toBeGreaterThanOrEqual(0);
+    });
+
+    it('does NOT include thinking fields when thinking text is empty', async () => {
+        mockChatService.addMessage
+            .mockResolvedValueOnce({ id: 'msg-user-1', role: 'user', text: 'hi', createdAt: Timestamp.now() })
+            .mockResolvedValueOnce({ id: 'msg-ai-1', role: 'model', text: 'Hello', createdAt: Timestamp.now() });
+
+        mockPrepareContext.mockResolvedValueOnce({ appContext: [], persistedContext: [] });
+        mockAiService.generateTitle.mockResolvedValueOnce('New Chat');
+
+        // No onThought called → thinkingText stays empty
+        mockAiService.sendMessage.mockResolvedValueOnce({ text: 'Hello', usedSummary: false });
+
+        const store = buildStore();
+        await store.getState().sendMessage('hi');
+
+        const aiCall = (mockChatService.addMessage as ReturnType<typeof vi.fn>).mock.calls[1];
+        const aiMsg = aiCall[3];
+        expect(aiMsg.thinking).toBeUndefined();
+        expect(aiMsg.thinkingElapsedMs).toBeUndefined();
+    });
+});
+
 describe('retryLastMessage', () => {
     beforeEach(() => {
         vi.clearAllMocks();
