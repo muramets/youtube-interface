@@ -295,9 +295,14 @@ export async function handleFindSimilarVideos(
         }
 
         // --- Step 4: Filter out query video + hidden videos ---
+        // Exclude both internal ID (custom-*) and YouTube ID (publishedVideoId)
+        // to prevent the reference video from appearing in its own results.
+        const excludeIds = new Set([videoId]);
+        if (lookup.youtubeVideoId) excludeIds.add(lookup.youtubeVideoId);
+
         const hiddenIds = await getHiddenVideoIds(basePath);
         const filtered = searchResults.filter(
-            (r) => r.videoId !== videoId && !hiddenIds.has(r.videoId),
+            (r) => !excludeIds.has(r.videoId) && !hiddenIds.has(r.videoId),
         );
 
         const totalFound = filtered.length;
@@ -361,7 +366,7 @@ export async function handleFindSimilarVideos(
                 videoId: r.videoId,
                 title: r.data.title,
                 channelId,
-                channelTitle: r.data.channelTitle ?? channelMeta.get(channelId)?.title ?? channelId,
+                channelTitle: channelMeta.get(channelId)?.title ?? r.data.channelTitle ?? channelId,
                 ...(hasRRF ? { rrfScore: r.rrfScore } : { similarityScore }),
                 publishedAt: r.data.publishedAt,
                 viewCount: r.data.viewCount,

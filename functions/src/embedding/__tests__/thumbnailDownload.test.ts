@@ -57,34 +57,20 @@ describe("downloadThumbnail", () => {
         expect(mockAxiosGet.mock.calls[0][0]).toContain("maxresdefault");
     });
 
-    it("falls back to sddefault when maxresdefault returns 404", async () => {
+    it("falls back to mqdefault when maxresdefault returns 404", async () => {
         mockAxiosGet
-            .mockRejectedValueOnce(notFoundError())
-            .mockResolvedValueOnce(imageResponse("sddefault"));
-
-        const result = await downloadThumbnail("testVideoId");
-
-        expect(result).not.toBeNull();
-        expect(mockAxiosGet).toHaveBeenCalledTimes(2);
-        expect(mockAxiosGet.mock.calls[1][0]).toContain("sddefault");
-    });
-
-    it("falls back to mqdefault when maxres and sd both fail", async () => {
-        mockAxiosGet
-            .mockRejectedValueOnce(notFoundError())
             .mockRejectedValueOnce(notFoundError())
             .mockResolvedValueOnce(imageResponse("mqdefault"));
 
         const result = await downloadThumbnail("testVideoId");
 
         expect(result).not.toBeNull();
-        expect(mockAxiosGet).toHaveBeenCalledTimes(3);
-        expect(mockAxiosGet.mock.calls[2][0]).toContain("mqdefault");
+        expect(mockAxiosGet).toHaveBeenCalledTimes(2);
+        expect(mockAxiosGet.mock.calls[1][0]).toContain("mqdefault");
     });
 
     it("returns null when all resolutions fail (404)", async () => {
         mockAxiosGet
-            .mockRejectedValueOnce(notFoundError())
             .mockRejectedValueOnce(notFoundError())
             .mockRejectedValueOnce(notFoundError());
 
@@ -95,7 +81,6 @@ describe("downloadThumbnail", () => {
 
     it("skips non-image responses (HTML redirect)", async () => {
         mockAxiosGet
-            .mockResolvedValueOnce(htmlResponse())
             .mockResolvedValueOnce(htmlResponse())
             .mockResolvedValueOnce(htmlResponse());
 

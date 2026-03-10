@@ -12,10 +12,12 @@ import axios from "axios";
 // Constants
 // ---------------------------------------------------------------------------
 
-/** Thumbnail resolutions to try, highest quality first */
+/** Thumbnail resolutions to try, highest quality first.
+ *  IMPORTANT: Only 16:9 formats are used. `sddefault` (640×480, 4:3) is
+ *  intentionally excluded — YouTube adds black letterbox bars for 16:9 videos,
+ *  which pollutes visual embeddings and degrades similarity search accuracy.  */
 const THUMBNAIL_RESOLUTIONS = [
     "maxresdefault",  // 1280×720, not always available
-    "sddefault",      // 640×480, fallback
     "mqdefault",      // 320×180, guaranteed
 ] as const;
 
