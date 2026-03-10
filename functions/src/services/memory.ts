@@ -380,7 +380,7 @@ export async function generateConcludeSummary(
     guidance: string | undefined,
     model: string,
     candidateVideos: MemoryVideoRef[] = [],
-): Promise<{ text: string; referencedVideoIds: string[]; tokenUsage: { promptTokens: number; completionTokens: number; totalTokens: number } }> {
+): Promise<{ text: string; referencedVideoIds: string[]; tokenUsage: { promptTokens: number; completionTokens: number; totalTokens: number }; jsonParseFailed?: boolean }> {
     const { getClient } = await import("./gemini/index.js");
     const ai = await getClient(apiKey);
 
@@ -441,7 +441,8 @@ export async function generateConcludeSummary(
         };
     } catch {
         // Fallback: if JSON parsing fails, treat entire response as content
-        console.warn('[generateConcludeSummary] JSON parse failed, falling back to raw text');
-        return { text: rawText, referencedVideoIds: [], tokenUsage };
+        console.warn(`[generateConcludeSummary] JSON parse failed, falling back to raw text.` +
+            ` rawLen=${rawText.length} preview="${rawText.slice(0, 120)}"`);
+        return { text: rawText, referencedVideoIds: [], tokenUsage, jsonParseFailed: true };
     }
 }

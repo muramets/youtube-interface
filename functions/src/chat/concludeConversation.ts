@@ -49,7 +49,7 @@ export const concludeConversation = onCall(
         // Verify channel access
         await verifyChannelAccess(userId, channelId);
 
-        // Read conversation title
+        // Read conversation + messages from Firestore
         const convPath = `users/${userId}/channels/${channelId}/chatConversations/${conversationId}`;
         const convDoc = await db.doc(convPath).get();
         if (!convDoc.exists) {
@@ -57,7 +57,8 @@ export const concludeConversation = onCall(
         }
         const conversationTitle = convDoc.data()?.title || "Untitled";
 
-        // Read all messages with appContext (Layer 2 labels)
+        // Read messages with appContext (Layer 2 labels), capped to last 2000
+        const MAX_MESSAGES = 2000;
         const messagesPath = `${convPath}/messages`;
         const messagesSnap = await db.collection(messagesPath)
             .orderBy("createdAt", "asc")
@@ -67,7 +68,20 @@ export const concludeConversation = onCall(
             throw new HttpsError("failed-precondition", "Cannot memorize an empty conversation.");
         }
 
-        const allMessages = messagesSnap.docs.map(doc => {
+        const totalMessageCount = messagesSnap.size;
+        const cappedDocs = totalMessageCount > MAX_MESSAGES
+            ? messagesSnap.docs.slice(-MAX_MESSAGES)
+            : messagesSnap.docs;
+
+        if (totalMessageCount > MAX_MESSAGES) {
+            console.warn(`[concludeConversation] ── Capped ── conv=${conversationId}` +
+                ` total=${totalMessageCount} using last ${MAX_MESSAGES}`);
+        }
+
+        console.info(`[concludeConversation] ── Data loaded ── conv=${conversationId}` +
+            ` title="${conversationTitle}" messages=${cappedDocs.length}${totalMessageCount > MAX_MESSAGES ? ` (of ${totalMessageCount})` : ''}`);
+
+        const allMessages = cappedDocs.map(doc => {
             const data = doc.data();
             return {
                 id: doc.id,
@@ -103,6 +117,10 @@ export const concludeConversation = onCall(
             content = result.text;
             referencedVideoIds = result.referencedVideoIds;
             tokenUsage = result.tokenUsage;
+            if (result.jsonParseFailed) {
+                console.warn(`[concludeConversation] ── JSON fallback ── conv=${conversationId}` +
+                    ` rawLen=${content.length} (Gemini returned non-JSON, using raw text)`);
+            }
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             console.error(`[concludeConversation] Generation error: conv=${conversationId}`, message);
@@ -118,8 +136,36 @@ export const concludeConversation = onCall(
         const referencedSet = new Set(referencedVideoIds);
         const videoRefs = candidateVideos.filter(v => referencedSet.has(v.videoId));
 
-        // Save to Firestore
+        // Pre-write guards
         const memoriesPath = `users/${userId}/channels/${channelId}/conversationMemories`;
+
+        // Guard 1: Idempotency — check for duplicate memory created in last 60s
+        const recentCutoff = new Date(Date.now() - 60_000);
+        const duplicateSnap = await db.collection(memoriesPath)
+            .where("conversationId", "==", conversationId)
+            .where("createdAt", ">=", recentCutoff)
+            .limit(1)
+            .get();
+
+        if (!duplicateSnap.empty) {
+            const existingId = duplicateSnap.docs[0].id;
+            console.warn(`[concludeConversation] ── Duplicate ── conv=${conversationId}` +
+                ` existing=${existingId} (created <60s ago, returning existing)`);
+            return {
+                memoryId: existingId,
+                content: duplicateSnap.docs[0].data().content as string,
+            };
+        }
+
+        // Guard 2: Re-verify conversation still exists (could be deleted during Gemini generation)
+        const convStillExists = await db.doc(convPath).get();
+        if (!convStillExists.exists) {
+            console.warn(`[concludeConversation] ── Orphan prevented ── conv=${conversationId}` +
+                ` (deleted during generation)`);
+            throw new HttpsError("not-found", "Conversation was deleted during memorization.");
+        }
+
+        // Save to Firestore
         const now = admin.firestore.FieldValue.serverTimestamp();
         const memoryRef = await db.collection(memoriesPath).add({
             conversationId,
@@ -130,6 +176,8 @@ export const concludeConversation = onCall(
             createdAt: now,
             updatedAt: now,
         });
+
+        console.info(`[concludeConversation] ── Persisted ── memory=${memoryRef.id} path=${memoriesPath}`);
 
         const durationMs = Date.now() - startTime;
         console.info(`[concludeConversation] ── Response ── conv=${conversationId}` +

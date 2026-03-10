@@ -9,6 +9,7 @@ import { getAttachmentType, isAllowedMimeTypeForModel } from '../../core/service
 import type { StagedFile, ReadyAttachment } from '../../core/types/chat/chatAttachment';
 import { estimateImageTokens } from '../../../shared/imageTokens';
 import { useChatStore } from '../../core/stores/chat/chatStore';
+import { useUIStore } from '../../core/stores/uiStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useAppContextStore, selectAllItems } from '../../core/stores/appContextStore';
 import { ContextAccordion } from './components/ContextAccordion';
@@ -124,6 +125,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const memorizeConversation = useChatStore(s => s.memorizeConversation);
     const activeConversationId = useChatStore(s => s.activeConversationId);
     const messages = useChatStore(s => s.messages);
+    const showToast = useUIStore(s => s.showToast);
 
     // Sync text with editingMessage changes synchronously during render
     // (standard "store previous props" pattern — ref access during render is intentional)
@@ -181,12 +183,16 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             setIsMemorizing(false);
             setText('');
             if (textareaRef.current) textareaRef.current.style.height = 'auto';
-        } catch {
-            // Error will be visible in console; UI stays in memorize mode
+            showToast('Memory saved', 'success');
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'Unknown error';
+            console.error('[ChatInput] memorize failed:', message, { conversationId: activeConversationId });
+            showToast('Failed to save memory', 'error');
+            setIsMemorizing(false);
         } finally {
             setIsMemorizeSaving(false);
         }
-    }, [text, memorizeConversation]);
+    }, [text, memorizeConversation, showToast, activeConversationId]);
 
     const handleCancelMemorize = useCallback(() => {
         setIsMemorizing(false);
