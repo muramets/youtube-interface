@@ -25,15 +25,18 @@ const mockFetchVideoDetails = vi.fn();
 const mockFetchVideosBatch = vi.fn();
 const mockAddNotification = vi.fn();
 const mockShowToast = vi.fn();
-const mockGetDoc = vi.fn();
+const mockGetDocs = vi.fn();
 
 // ---------------------------------------------------------------------------
 // Mocks
 // ---------------------------------------------------------------------------
 
 vi.mock('firebase/firestore', () => ({
-    doc: (...args: unknown[]) => args, // returns path segments for easy assertion
-    getDoc: (...args: unknown[]) => mockGetDoc(...args),
+    collection: (...args: unknown[]) => args,
+    query: (...args: unknown[]) => args,
+    where: (...args: unknown[]) => args,
+    documentId: () => '__id__',
+    getDocs: (...args: unknown[]) => mockGetDocs(...args),
 }));
 
 vi.mock('../../../config/firebase', () => ({
@@ -104,10 +107,12 @@ function makeVideo(overrides: Partial<VideoDetails> = {}): VideoDetails {
     };
 }
 
-function makeFirestoreSnap(exists: boolean, data: Record<string, unknown> = {}) {
+function makeQuerySnapshot(docs: Array<{ id: string; data: Record<string, unknown> }>) {
     return {
-        exists: () => exists,
-        data: () => data,
+        docs: docs.map(d => ({
+            id: d.id,
+            data: () => d.data,
+        })),
     };
 }
 
@@ -185,7 +190,7 @@ describe('useVideoSync', () => {
                 channelTitle: 'Trend Channel',
                 lastUpdated: 9000, // fresher than video.lastUpdated = 1000
             };
-            mockGetDoc.mockResolvedValue(makeFirestoreSnap(true, trendData));
+            mockGetDocs.mockResolvedValue(makeQuerySnapshot([{ id: 'vid-1', data: trendData }]));
 
             const video = makeVideo({ id: 'vid-1', channelId: 'UC-overlap', lastUpdated: 1000 });
             setVideosInCache(queryClient, [video]);
@@ -229,7 +234,7 @@ describe('useVideoSync', () => {
                 viewCount: 500,
                 lastUpdated: 500, // stale: <= video.lastUpdated 1000
             };
-            mockGetDoc.mockResolvedValue(makeFirestoreSnap(true, staleTrendData));
+            mockGetDocs.mockResolvedValue(makeQuerySnapshot([{ id: 'vid-1', data: staleTrendData }]));
 
             const apiResult = makeVideo({
                 id: 'vid-1',
@@ -259,7 +264,7 @@ describe('useVideoSync', () => {
             const trendChannel = makeTrendChannel('UC-overlap');
             mockFetchTrendChannels.mockResolvedValue([trendChannel]);
 
-            mockGetDoc.mockResolvedValue(makeFirestoreSnap(false));
+            mockGetDocs.mockResolvedValue(makeQuerySnapshot([]));
 
             const apiResult = makeVideo({ id: 'vid-1', channelId: 'UC-overlap', title: 'From API' });
             mockFetchVideosBatch.mockResolvedValue([apiResult]);
@@ -295,7 +300,7 @@ describe('useVideoSync', () => {
                 channelTitle: 'Ch',
                 lastUpdated: 9000,
             };
-            mockGetDoc.mockResolvedValue(makeFirestoreSnap(true, trendData));
+            mockGetDocs.mockResolvedValue(makeQuerySnapshot([{ id: 'vid-1', data: trendData }]));
 
             const video = makeVideo({ id: 'vid-1', channelId: 'UC-overlap', lastUpdated: 1000 });
             setVideosInCache(queryClient, [video]);
@@ -330,7 +335,7 @@ describe('useVideoSync', () => {
                 channelTitle: 'Ch',
                 publishedAt: '2024-01-01T00:00:00Z',
             };
-            mockGetDoc.mockResolvedValue(makeFirestoreSnap(true, trendData));
+            mockGetDocs.mockResolvedValue(makeQuerySnapshot([{ id: 'vid-1', data: trendData }]));
 
             const video = makeVideo({ id: 'vid-1', channelId: 'UC-overlap', lastUpdated: 1000 });
             setVideosInCache(queryClient, [video]);
@@ -427,7 +432,7 @@ describe('useVideoSync', () => {
                 channelTitle: 'Ch',
                 publishedAt: '2024-01-01T00:00:00Z',
             };
-            mockGetDoc.mockResolvedValue(makeFirestoreSnap(true, trendData));
+            mockGetDocs.mockResolvedValue(makeQuerySnapshot([{ id: 'vid-trend', data: trendData }]));
 
             // API result for the non-overlap video
             const apiResult = makeVideo({ id: 'vid-api', channelId: 'UC-other', title: 'From API' });
@@ -774,7 +779,7 @@ describe('useVideoSync', () => {
                 channelTitle: 'Ch',
                 publishedAt: '2024-01-01T00:00:00Z',
             };
-            mockGetDoc.mockResolvedValue(makeFirestoreSnap(true, trendData));
+            mockGetDocs.mockResolvedValue(makeQuerySnapshot([{ id: 'vid-1', data: trendData }]));
 
             const video = makeVideo({ id: 'vid-1', channelId: 'UC-cached', lastUpdated: 1000 });
             setVideosInCache(queryClient, [video]);
@@ -808,7 +813,7 @@ describe('useVideoSync', () => {
                 channelTitle: 'Ch',
                 publishedAt: '2024-01-01T00:00:00Z',
             };
-            mockGetDoc.mockResolvedValue(makeFirestoreSnap(true, trendData));
+            mockGetDocs.mockResolvedValue(makeQuerySnapshot([{ id: 'vid-cached', data: trendData }]));
 
             // API result for non-overlap video
             const apiResult = makeVideo({ id: 'vid-api', channelId: 'UC-other' });
@@ -1066,7 +1071,7 @@ describe('useVideoSync', () => {
                 channelTitle: 'Ch',
                 publishedAt: '2024-01-01T00:00:00Z',
             };
-            mockGetDoc.mockResolvedValue(makeFirestoreSnap(true, trendData));
+            mockGetDocs.mockResolvedValue(makeQuerySnapshot([{ id: 'vid-1', data: trendData }]));
 
             const video = makeVideo({ id: 'vid-1', channelId: 'UC-cached', lastUpdated: 1000 });
             setVideosInCache(queryClient, [video]);
@@ -1098,7 +1103,7 @@ describe('useVideoSync', () => {
                 channelTitle: 'Ch',
                 publishedAt: '2024-01-01T00:00:00Z',
             };
-            mockGetDoc.mockResolvedValue(makeFirestoreSnap(true, trendData));
+            mockGetDocs.mockResolvedValue(makeQuerySnapshot([{ id: 'vid-cached', data: trendData }]));
 
             const apiResult = makeVideo({ id: 'vid-api', channelId: 'UC-other' });
             mockFetchVideosBatch.mockResolvedValue([apiResult]);

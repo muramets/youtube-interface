@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, documentId, getDocs } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { VideoService } from '../services/videoService';
 import { TrendService } from '../services/trendService';
@@ -23,6 +23,7 @@ export const useVideoSync = (userId: string, channelId: string) => {
     ): Promise<{
         cachedCount: number;
         apiSuccessCount: number;
+        apiSkippedCount: number;
         quotaUsed: number;
         hadQuotaError: boolean;
     }> => {
@@ -45,65 +46,85 @@ export const useVideoSync = (userId: string, channelId: string) => {
 
         let cachedCount = 0;
 
-        // --- Phase 1: Read overlap videos from Trends cache ---
+        // --- Phase 1: Read overlap videos from Trends cache (batch query) ---
         if (overlapVideos.length > 0) {
-            const cacheResults = await Promise.all(
-                overlapVideos.map(async (video) => {
-                    try {
-                        const trendVideoRef = doc(db,
-                            `users/${userId}/channels/${channelId}/trendChannels/${video.channelId}/videos/${video.id}`
-                        );
-                        const snap = await getDoc(trendVideoRef);
-                        if (!snap.exists()) return null;
+            // Group videos by trend channel to batch-fetch
+            const videosByChannel = new Map<string, VideoDetails[]>();
+            for (const video of overlapVideos) {
+                const chId = video.channelId!;
+                if (!videosByChannel.has(chId)) videosByChannel.set(chId, []);
+                videosByChannel.get(chId)!.push(video);
+            }
 
-                        const td = snap.data();
-                        // Use cache only if trend data is newer than current video data
-                        const trendUpdated = td.lastUpdated ?? 0;
-                        const videoUpdated = video.lastUpdated ?? 0;
-                        if (trendUpdated <= videoUpdated) return null;
+            // Batch-fetch from each trend channel (Firestore 'in' supports up to 30 IDs)
+            const IN_CHUNK = 30;
+            const trendDataMap = new Map<string, Record<string, unknown>>();
 
-                        return { videoId: video.id, trendData: td, channelId: video.channelId! };
-                    } catch {
-                        return null;
+            await Promise.all(
+                Array.from(videosByChannel.entries()).map(async ([trendChannelId, videos]) => {
+                    const videoIds = videos.map(v => v.id);
+                    const colRef = collection(db,
+                        `users/${userId}/channels/${channelId}/trendChannels/${trendChannelId}/videos`
+                    );
+
+                    for (let i = 0; i < videoIds.length; i += IN_CHUNK) {
+                        const chunk = videoIds.slice(i, i + IN_CHUNK);
+                        try {
+                            const q = query(colRef, where(documentId(), 'in', chunk));
+                            const snapshot = await getDocs(q);
+                            snapshot.docs.forEach(d => {
+                                trendDataMap.set(d.id, d.data());
+                            });
+                        } catch {
+                            // Query failure — these videos will fall back to API
+                        }
                     }
                 })
             );
 
+            // Process results
             const cacheUpdates: { videoId: string; data: Partial<VideoDetails> }[] = [];
 
-            for (let i = 0; i < overlapVideos.length; i++) {
-                const result = cacheResults[i];
-                if (result) {
-                    const td = result.trendData;
-                    const tc = trendChannelMap.get(result.channelId);
-
-                    const cacheData: Record<string, unknown> = {
-                        title: td.title,
-                        thumbnail: td.thumbnail,
-                        viewCount: String(td.viewCount ?? 0),
-                        description: td.description || '',
-                        tags: td.tags || [],
-                        publishedAt: td.publishedAt,
-                        channelTitle: td.channelTitle || '',
-                        channelAvatar: tc?.avatarUrl || '',
-                        lastUpdated: now,
-                        fetchStatus: 'success',
-                        lastFetchAttempt: now
-                    };
-                    // Only include optional fields if they have values (Firestore rejects undefined)
-                    if (td.likeCount != null) cacheData.likeCount = String(td.likeCount);
-                    if (td.duration) cacheData.duration = td.duration;
-                    if (tc?.subscriberCount != null) cacheData.subscriberCount = String(tc.subscriberCount);
-
-                    cacheUpdates.push({
-                        videoId: result.videoId,
-                        data: cacheData as Partial<VideoDetails>
-                    });
-                    cachedCount++;
-                } else {
-                    // Stale or missing in Trends — fall back to API
-                    apiOnlyVideos.push(overlapVideos[i]);
+            for (const video of overlapVideos) {
+                const td = trendDataMap.get(video.id);
+                if (!td) {
+                    apiOnlyVideos.push(video);
+                    continue;
                 }
+
+                // Use cache only if trend data is newer than current video data
+                const trendUpdated = (td.lastUpdated as number) ?? 0;
+                const videoUpdated = video.lastUpdated ?? 0;
+                if (trendUpdated <= videoUpdated) {
+                    apiOnlyVideos.push(video);
+                    continue;
+                }
+
+                const tc = trendChannelMap.get(video.channelId!);
+
+                const cacheData: Record<string, unknown> = {
+                    title: td.title,
+                    thumbnail: td.thumbnail,
+                    viewCount: String(td.viewCount ?? 0),
+                    description: td.description || '',
+                    tags: td.tags || [],
+                    publishedAt: td.publishedAt,
+                    channelTitle: td.channelTitle || '',
+                    channelAvatar: tc?.avatarUrl || '',
+                    lastUpdated: now,
+                    fetchStatus: 'success',
+                    lastFetchAttempt: now
+                };
+                // Only include optional fields if they have values (Firestore rejects undefined)
+                if (td.likeCount != null) cacheData.likeCount = String(td.likeCount);
+                if (td.duration) cacheData.duration = td.duration;
+                if (tc?.subscriberCount != null) cacheData.subscriberCount = String(tc.subscriberCount);
+
+                cacheUpdates.push({
+                    videoId: video.id,
+                    data: cacheData as Partial<VideoDetails>
+                });
+                cachedCount++;
             }
 
             if (cacheUpdates.length > 0) {
@@ -115,6 +136,7 @@ export const useVideoSync = (userId: string, channelId: string) => {
         const CHUNK_SIZE = 50;
         let quotaUsed = 0;
         let apiSuccessCount = 0;
+        let apiSkippedCount = 0;
         let hadQuotaError = false;
 
         for (let i = 0; i < apiOnlyVideos.length; i += CHUNK_SIZE) {
@@ -184,10 +206,11 @@ export const useVideoSync = (userId: string, channelId: string) => {
                     hadQuotaError = true;
                     break;
                 }
+                apiSkippedCount += chunk.length;
             }
         }
 
-        return { cachedCount, apiSuccessCount, quotaUsed, hadQuotaError };
+        return { cachedCount, apiSuccessCount, apiSkippedCount, quotaUsed, hadQuotaError };
     }, [userId, channelId]);
 
     const syncVideo = useCallback(async (videoId: string, apiKey: string, options: { silent?: boolean } = {}) => {
@@ -268,27 +291,28 @@ export const useVideoSync = (userId: string, channelId: string) => {
 
             if (syncableVideos.length === 0) return;
 
-            const { cachedCount, apiSuccessCount, quotaUsed, hadQuotaError } = await syncVideosWithCrossCache(syncableVideos, apiKey);
+            const { cachedCount, apiSuccessCount, apiSkippedCount, quotaUsed, hadQuotaError } = await syncVideosWithCrossCache(syncableVideos, apiKey);
 
             // --- Notification ---
             if (!hadQuotaError) {
                 const totalSynced = cachedCount + apiSuccessCount;
-                if (cachedCount > 0 && quotaUsed === 0) {
+                const skippedSuffix = apiSkippedCount > 0 ? ` ${apiSkippedCount} skipped due to network error.` : '';
+                if (cachedCount > 0 && quotaUsed === 0 && apiSkippedCount === 0) {
                     // All videos served from Trends cache — no notification needed
                 } else if (cachedCount > 0) {
                     useNotificationStore.getState().addNotification({
                         title: `Channel Sync: ${totalSynced} videos updated`,
-                        message: `${cachedCount} from Trends cache, ${apiSuccessCount} from YouTube API.`,
-                        type: 'success',
+                        message: `${cachedCount} from Trends cache, ${apiSuccessCount} from YouTube API.${skippedSuffix}`,
+                        type: apiSkippedCount > 0 ? 'warning' : 'success',
                         meta: `${quotaUsed}`,
                         quotaBreakdown: { details: quotaUsed },
                         category: 'channel'
                     });
-                } else if (totalSynced > 0) {
+                } else if (totalSynced > 0 || apiSkippedCount > 0) {
                     useNotificationStore.getState().addNotification({
                         title: `Channel Sync: ${totalSynced} videos updated`,
-                        message: `Successfully synced ${totalSynced} videos.`,
-                        type: 'success',
+                        message: `Successfully synced ${totalSynced} videos.${skippedSuffix}`,
+                        type: apiSkippedCount > 0 ? 'warning' : 'success',
                         meta: `${quotaUsed}`,
                         quotaBreakdown: { details: quotaUsed },
                         category: 'channel'
@@ -328,19 +352,20 @@ export const useVideoSync = (userId: string, channelId: string) => {
 
             if (videosToUpdate.length === 0) return;
 
-            const { cachedCount, apiSuccessCount, quotaUsed, hadQuotaError } = await syncVideosWithCrossCache(videosToUpdate, apiKey);
+            const { cachedCount, apiSuccessCount, apiSkippedCount, quotaUsed, hadQuotaError } = await syncVideosWithCrossCache(videosToUpdate, apiKey);
 
             // --- Notification ---
             if (!hadQuotaError) {
                 const totalSynced = cachedCount + apiSuccessCount;
-                if (cachedCount > 0 && quotaUsed === 0) {
+                const skippedSuffix = apiSkippedCount > 0 ? ` ${apiSkippedCount} skipped due to network error.` : '';
+                if (cachedCount > 0 && quotaUsed === 0 && apiSkippedCount === 0) {
                     // All from cache — no notification
-                } else if (totalSynced > 0) {
+                } else if (totalSynced > 0 || apiSkippedCount > 0) {
                     if (cachedCount > 0) {
                         useNotificationStore.getState().addNotification({
                             title: `Channel Sync: ${totalSynced} videos updated`,
-                            message: `${cachedCount} from Trends cache, ${apiSuccessCount} from YouTube API.`,
-                            type: 'success',
+                            message: `${cachedCount} from Trends cache, ${apiSuccessCount} from YouTube API.${skippedSuffix}`,
+                            type: apiSkippedCount > 0 ? 'warning' : 'success',
                             meta: `${quotaUsed}`,
                             quotaBreakdown: { details: quotaUsed },
                             category: 'channel'
@@ -348,8 +373,8 @@ export const useVideoSync = (userId: string, channelId: string) => {
                     } else {
                         useNotificationStore.getState().addNotification({
                             title: `Channel Sync: ${totalSynced} videos updated`,
-                            message: `Successfully synced ${totalSynced} videos.`,
-                            type: 'success',
+                            message: `Successfully synced ${totalSynced} videos.${skippedSuffix}`,
+                            type: apiSkippedCount > 0 ? 'warning' : 'success',
                             meta: `${quotaUsed}`,
                             quotaBreakdown: { details: quotaUsed },
                             category: 'channel'

@@ -116,7 +116,13 @@ export const fetchVideoDetails = async (videoId: string, apiKey: string): Promis
         const videoData = await videoResponse.json();
 
         if (videoData.error) {
-            if (videoData.error.code === 403) throw new Error('VIDEO_PRIVATE');
+            const reason = videoData.error.errors?.[0]?.reason;
+            if (videoData.error.code === 403) {
+                if (reason === 'quotaExceeded' || reason === 'rateLimitExceeded') {
+                    throw new Error(`YouTube API error 403: ${reason}`);
+                }
+                throw new Error('VIDEO_PRIVATE');
+            }
             throw new Error(videoData.error.message || 'API_ERROR');
         }
 
@@ -134,6 +140,9 @@ export const fetchVideoDetails = async (videoId: string, apiKey: string): Promis
             `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${snippet.channelId}&key=${apiKey}`
         );
         const channelData = await channelResponse.json();
+        if (channelData.error) {
+            console.warn('Channel API error (non-fatal):', channelData.error.message);
+        }
         const channelItem = channelData.items?.[0];
         const channelAvatar = channelItem?.snippet?.thumbnails?.default?.url || '';
         const subscriberCount = channelItem?.statistics?.subscriberCount;
@@ -141,7 +150,7 @@ export const fetchVideoDetails = async (videoId: string, apiKey: string): Promis
         return {
             id: videoId,
             title: snippet.title,
-            thumbnail: snippet.thumbnails.maxres?.url || snippet.thumbnails.high?.url || snippet.thumbnails.medium?.url,
+            thumbnail: snippet.thumbnails.maxres?.url || snippet.thumbnails.high?.url || snippet.thumbnails.medium?.url || '',
             channelId: snippet.channelId,
             channelTitle: snippet.channelTitle,
             channelAvatar: channelAvatar,
@@ -209,6 +218,12 @@ export const fetchVideosBatch = async (videoIds: string[], apiKey: string): Prom
         );
         const videoData = await videoResponse.json();
 
+        if (videoData.error) {
+            const code = videoData.error.code;
+            const msg = videoData.error.message || 'API_ERROR';
+            throw new Error(`YouTube API error ${code}: ${msg}`);
+        }
+
         if (!videoData.items || videoData.items.length === 0) return [];
 
         const videos = videoData.items as YouTubeVideoItem[];
@@ -227,6 +242,9 @@ export const fetchVideosBatch = async (videoIds: string[], apiKey: string): Prom
                 `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${channelIdsParam}&key=${apiKey}`
             );
             const channelData = await channelResponse.json();
+            if (channelData.error) {
+                console.warn('Channel API error (non-fatal):', channelData.error.message);
+            }
             channelData.items?.forEach((c: YouTubeChannelItem) => {
                 channelMap.set(c.id, c);
             });

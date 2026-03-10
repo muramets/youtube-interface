@@ -173,12 +173,17 @@ export class SyncService {
         const yt = new YouTubeService(apiKey);
         const { counts, quotaUsed } = await yt.getChannelSubscriberCounts(trendChannelIds);
 
-        const batch = this.db.batch();
-        for (const [channelId, subscriberCount] of counts) {
-            const ref = this.db.doc(`users/${userId}/channels/${userChannelId}/trendChannels/${channelId}`);
-            batch.update(ref, { subscriberCount });
+        const entries = Array.from(counts.entries());
+        const batchSize = 400; // Safe margin below Firestore 500-op limit
+        for (let i = 0; i < entries.length; i += batchSize) {
+            const chunk = entries.slice(i, i + batchSize);
+            const batch = this.db.batch();
+            for (const [channelId, subscriberCount] of chunk) {
+                const ref = this.db.doc(`users/${userId}/channels/${userChannelId}/trendChannels/${channelId}`);
+                batch.update(ref, { subscriberCount });
+            }
+            await batch.commit();
         }
-        await batch.commit();
 
         return quotaUsed;
     }
