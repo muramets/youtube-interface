@@ -80,6 +80,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen]);
 
+    // Sync local AI settings when store updates (e.g. Firestore subscription arrives late)
+    useEffect(() => {
+        if (isOpen) setLocalAiSettings(aiSettings);
+    }, [isOpen, aiSettings]);
+
     const handleClose = () => {
         setIsClosing(true);
         setTimeout(() => {
