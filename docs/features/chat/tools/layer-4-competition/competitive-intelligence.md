@@ -571,6 +571,10 @@ Embeddings — это поисковый индекс, а не source data. Ка
 
 **Как handler находит "свои" видео:** при вызове `findSimilarVideos` handler читает список `trendChannelIds` текущего пользователя из Firestore, затем использует `where("youtubeChannelId", "in", channelIds)` для pre-filter перед vector search. Firestore `in` поддерживает до 30 значений за запрос — при >30 каналах запросы batched (ceil(N/30) параллельных запросов, merge результатов по distance). Доступ через Cloud Functions (admin SDK) — security rules не нужны.
 
+**Own-video thumbnail resolution:** для собственных видео с `custom-*` ID handler извлекает `publishedVideoId` из Firestore и использует его для скачивания YouTube thumbnail'а (visual embedding). Для custom-видео без `publishedVideoId` (черновики) — visual search недоступен, handler возвращает packaging-only fallback.
+
+**Firestore vector storage:** embedding'и записываются через `FieldValue.vector()` (не plain `number[]`) — это обязательное условие для работы Firestore `findNearest()` vector search.
+
 **Альтернативы, которые были рассмотрены и отклонены:**
 - **Per-user embedding collection** (`users/{userId}/trendVideoEmbeddings/`) — дублирует и хранение, и API-вызовы per user. При 50 пользователях с 30% overlap каналов: 400K embedding docs вместо 8K, $96 backfill вместо $1.92. Не масштабируется
 - **Vectors на video docs** — collection name `videos` слишком generic для collection group query; документы раздуваются; collection group + findNearest не задокументирован в Firebase docs
@@ -726,7 +730,7 @@ embeddingSyncBatch(offset) — self-chaining batch processor:
        ├─ generatePackagingEmbedding(title+tags+desc)     // gemini-embedding-001 (768d MRL)
        ├─ generateThumbnailDescription(videoId, buffer)   // Gemini Flash Vision
        └─ generateVisualEmbedding(videoId, buffer)        // multimodalembedding@001 (Vertex AI)
-     → save to globalVideoEmbeddings/{videoId}
+     → save to globalVideoEmbeddings/{videoId} (embeddings wrapped in `FieldValue.vector()` for Firestore vector search)
   4. Update syncState counters + per-channel coverage atomically (FieldValue.increment)
   5. If есть ещё videos → enqueue Cloud Task: embeddingSyncBatch(offset+100)
   6. If последний batch → finalize: read coverage from syncState → write embeddingStats + notifications + delete syncState

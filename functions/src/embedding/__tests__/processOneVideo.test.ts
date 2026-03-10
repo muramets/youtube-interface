@@ -49,6 +49,12 @@ vi.mock("../visualEmbedding.js", () => ({
     generateVisualEmbedding: (...args: unknown[]) => mockGenerateVisual(...args),
 }));
 
+vi.mock("firebase-admin/firestore", () => ({
+    FieldValue: {
+        vector: (arr: number[]) => ({ __type: "vector", value: arr }),
+    },
+}));
+
 import { processOneVideo, type VideoInput } from "../processOneVideo.js";
 
 // ---------------------------------------------------------------------------
@@ -120,9 +126,9 @@ describe("processOneVideo", () => {
                 "globalVideoEmbeddings/vid1",
                 expect.objectContaining({
                     videoId: "vid1",
-                    packagingEmbedding: MOCK_VECTOR,
+                    packagingEmbedding: { __type: "vector", value: MOCK_VECTOR },
                     thumbnailDescription: "A colorful thumbnail",
-                    visualEmbedding: MOCK_VISUAL_VECTOR,
+                    visualEmbedding: { __type: "vector", value: MOCK_VISUAL_VECTOR },
                     failCount: 0,
                 }),
                 { merge: true },
@@ -216,7 +222,7 @@ describe("processOneVideo", () => {
                 "globalVideoEmbeddings/vid1",
                 expect.objectContaining({
                     thumbnailUnavailable: true,
-                    packagingEmbedding: MOCK_VECTOR,
+                    packagingEmbedding: { __type: "vector", value: MOCK_VECTOR },
                 }),
                 { merge: true },
             );

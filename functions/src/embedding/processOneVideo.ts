@@ -10,6 +10,7 @@
 // =============================================================================
 
 import { logger } from "firebase-functions/v2";
+import { FieldValue } from "firebase-admin/firestore";
 import { db } from "../shared/db.js";
 import { downloadThumbnail } from "./thumbnailDownload.js";
 import { generatePackagingEmbedding } from "./packagingEmbedding.js";
@@ -130,8 +131,8 @@ export async function processOneVideo(
             failCount: 0,
         };
 
-        if (needsPackaging) {
-            docData.packagingEmbedding = packagingEmbedding;
+        if (needsPackaging && packagingEmbedding) {
+            docData.packagingEmbedding = FieldValue.vector(packagingEmbedding) as unknown as number[];
             docData.packagingEmbeddingVersion = CURRENT_PACKAGING_MODEL_VERSION;
         }
 
@@ -139,8 +140,8 @@ export async function processOneVideo(
             docData.thumbnailDescription = thumbnailDesc;
         }
 
-        if (needsVisual && thumbnail) {
-            docData.visualEmbedding = visualEmb;
+        if (needsVisual && thumbnail && visualEmb) {
+            docData.visualEmbedding = FieldValue.vector(visualEmb) as unknown as number[];
             docData.visualEmbeddingVersion = CURRENT_VISUAL_MODEL_VERSION;
         }
 

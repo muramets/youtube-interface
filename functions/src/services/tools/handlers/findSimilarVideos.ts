@@ -45,6 +45,8 @@ interface VideoLookupResult {
     embeddingDoc?: EmbeddingDoc;
     source: "embedding" | "own" | "trend";
     ownVideoMeta?: { title: string; tags: string[]; description: string };
+    /** YouTube video ID for thumbnail download (differs from videoId for custom-* videos) */
+    youtubeVideoId?: string;
 }
 
 /**
@@ -73,10 +75,14 @@ async function lookupVideo(
         const title = (data.title as string) ?? "";
         const tags = Array.isArray(data.tags) ? (data.tags as string[]) : [];
         const description = (data.description as string) ?? "";
+        const publishedVideoId = typeof data.publishedVideoId === "string"
+            ? data.publishedVideoId
+            : undefined;
         return {
             referenceVideo: { videoId, title, tags },
             source: "own",
             ownVideoMeta: { title, tags, description },
+            youtubeVideoId: publishedVideoId ?? (videoId.startsWith("custom-") ? undefined : videoId),
         };
     }
 
@@ -155,9 +161,13 @@ async function getVisualVector(
     // Own/trend — generate on-the-fly via thumbnail download → Vertex AI
     ctx.reportProgress?.("Generating visual embedding...");
     const videoId = lookup.referenceVideo.videoId;
-    const thumbnail = await downloadThumbnail(videoId);
+    const ytVideoId = lookup.youtubeVideoId ?? videoId;
+    if (!lookup.youtubeVideoId && videoId.startsWith("custom-")) {
+        return { error: "No published YouTube ID for this video. Visual search requires a YouTube thumbnail." };
+    }
+    const thumbnail = await downloadThumbnail(ytVideoId);
     if (!thumbnail) return { error: "Failed to download thumbnail. The video may be unavailable." };
-    const vec = await generateVisualEmbedding(videoId, thumbnail);
+    const vec = await generateVisualEmbedding(ytVideoId, thumbnail);
     if (!vec) return { error: "Failed to generate visual embedding." };
     return vec;
 }
