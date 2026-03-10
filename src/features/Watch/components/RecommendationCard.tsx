@@ -17,7 +17,6 @@ import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
 import { ClonedVideoTooltipContent } from '../../Video/ClonedVideoTooltipContent';
 import { useSettings } from '../../../core/hooks/useSettings';
 import { useUIStore } from '../../../core/stores/uiStore';
-import { Toast } from '../../../components/ui/molecules/Toast';
 
 interface RecommendationCardProps {
     video: VideoDetails;
@@ -34,7 +33,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
     const { removeVideosFromPlaylist } = usePlaylists(user?.uid || '', currentChannel?.id || '');
     const { generalSettings, cloneSettings } = useSettings();
     const apiKey = generalSettings.apiKey;
-    const { setSettingsOpen } = useUIStore();
+    const { setSettingsOpen, showToast } = useUIStore();
 
     const [showMenu, setShowMenu] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
@@ -50,7 +49,6 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
     const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
 
     const [isSyncing, setIsSyncing] = useState(false);
-    const [showToast, setShowToast] = useState(false);
     const [viewMode, setViewMode] = useState<'custom' | 'youtube'>('custom');
     const [isFlipping, setIsFlipping] = useState(false);
 
@@ -77,7 +75,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
         if (isSyncing || !user || !currentChannel) return;
 
         if (!apiKey) {
-            setShowToast(true);
+            showToast('API Key is missing. Click to configure.', 'error', undefined, () => setSettingsOpen(true));
             return;
         }
         setIsSyncing(true);
@@ -380,16 +378,6 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
                 title={confirmation.title}
                 message={confirmation.message}
                 confirmLabel={confirmation.action === 'removeFromPlaylist' ? 'Remove' : 'Delete'}
-            />
-            <Toast
-                message="API Key is missing. Click to configure."
-                isVisible={showToast}
-                onClose={() => setShowToast(false)}
-                type="error"
-                onClick={() => {
-                    setSettingsOpen(true);
-                    setShowToast(false);
-                }}
             />
         </>
     );

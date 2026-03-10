@@ -17,9 +17,9 @@ import type { TrafficSortConfig } from '../../core/types/suggestedTraffic/traffi
 import { useTrafficFilterStore } from '../../core/stores/suggestedTraffic/trafficFilterStore';
 // ... existing imports ...
 
-
 import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
+import { useUIStore } from '../../core/stores/uiStore';
 import { useVideos } from '../../core/hooks/useVideos';
 import { useVersionManagement } from './hooks/useVersionManagement';
 import { useSnapshotManagement } from './hooks/useSnapshotManagement';
@@ -67,6 +67,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
     const { updateVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
+    const { showToast } = useUIStore();
 
 
     // URL State for Tab Persistence
@@ -301,7 +302,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
         user,
         currentChannel,
         updateVideo: async (params) => { await updateVideo(params); },
-        showToast: (msg, type) => console.log(`[Toast] ${type}: ${msg}`), // TODO: use uiStore
+        showToast,
         setSelectedSnapshot,
         activeTab,
         selectedSnapshot,
@@ -351,7 +352,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
         user,
         currentChannel,
         updateVideo,
-        showToast: (msg, type) => console.log(`[Toast] ${type}: ${msg}`), // TODO: use uiStore
+        showToast,
         setSelectedSnapshot,
         setActiveTab: navigateToTab,
         selectedSnapshot,
@@ -441,6 +442,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
     const currentChannelRef = React.useRef(currentChannel);
     const updateVideoRef = React.useRef(updateVideo);
     const videoIdRef = React.useRef(video.id);
+    const showToastRef = React.useRef(showToast);
 
     React.useEffect(() => {
         versionsRef.current = versions;
@@ -448,7 +450,8 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
         currentChannelRef.current = currentChannel;
         updateVideoRef.current = updateVideo;
         videoIdRef.current = video.id;
-    }, [versions, user, currentChannel, updateVideo, video.id]);
+        showToastRef.current = showToast;
+    }, [versions, user, currentChannel, updateVideo, video.id, showToast]);
 
     const handleDeleteDraft = useCallback(async () => {
         const currentUser = userRef.current;
@@ -497,10 +500,10 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
                 }
             });
 
-            console.log('[Toast] success: Draft deleted');
+            showToastRef.current('Draft deleted', 'success');
         } catch (error) {
             console.error('Failed to delete draft:', error);
-            console.log('[Toast] error: Failed to delete draft');
+            showToastRef.current('Failed to delete draft', 'error');
         }
     }, []); // Empty deps = 100% stable callback
 

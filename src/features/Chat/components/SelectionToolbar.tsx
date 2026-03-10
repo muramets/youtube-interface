@@ -18,7 +18,7 @@ import { computeNextNotePosition } from '../../Canvas/utils/notePlacement';
 import { useVideos } from '../../../core/hooks/useVideos';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
-import { Toast } from '../../../components/ui/molecules/Toast';
+import { useUIStore } from '../../../core/stores/uiStore';
 import type { ChatMessage } from '../../../core/types/chat/chat';
 import type { SuggestedTrafficContext } from '../../../core/types/appContext';
 import type { VideoNote } from '../../../core/utils/youtubeApi';
@@ -132,7 +132,7 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({ messages, sc
     const [snippets, setSnippets] = useState<Snippet[]>([]);
     const [pillAnchor, setPillAnchor] = useState<PillAnchor | null>(null);
     const [showPopover, setShowPopover] = useState(false);
-    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error'; videoId?: string } | null>(null);
+    const { showToast } = useUIStore();
     const suppressNextMouseUp = useRef(false);
     const lastMetaKeyRef = useRef(false);
 
@@ -355,7 +355,7 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({ messages, sc
 
         const targetVideo = videos.find((v) => v.id === video.videoId);
         if (!targetVideo) {
-            setToast({ message: 'Video not found', type: 'error' });
+            showToast('Video not found', 'error');
             return;
         }
 
@@ -370,12 +370,12 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({ messages, sc
 
             const updatedNotes = [...(targetVideo.notes || []), newNote];
             await updateVideo({ videoId: video.videoId, updates: { notes: updatedNotes } });
-            setToast({ message: `Saved to "${video.title}" \u2014 click to open`, type: 'success', videoId: video.videoId });
+            showToast(`Saved to "${video.title}" \u2014 click to open`, 'success', undefined, () => navigate(`/watch/${video.videoId}`));
         } catch {
-            setToast({ message: 'Failed to save note', type: 'error' });
+            showToast('Failed to save note', 'error');
         }
         clearState();
-    }, [combinedText, user, currentChannel, videos, updateVideo, clearState]);
+    }, [combinedText, user, currentChannel, videos, updateVideo, clearState, showToast, navigate]);
 
     const handleSaveToCanvas = useCallback((pageId: string) => {
         if (!combinedText) return;
@@ -389,12 +389,12 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({ messages, sc
             );
 
             const page = canvasPages.find((p) => p.id === pageId);
-            setToast({ message: `Saved to canvas "${page?.title || 'Page'}"`, type: 'success' });
+            showToast(`Saved to canvas "${page?.title || 'Page'}"`, 'success');
         } catch {
-            setToast({ message: 'Failed to save to canvas', type: 'error' });
+            showToast('Failed to save to canvas', 'error');
         }
         clearState();
-    }, [combinedText, canvasSwitchPage, canvasNodes, canvasNodeSizes, addNodeAt, canvasPages, clearState]);
+    }, [combinedText, canvasSwitchPage, canvasNodes, canvasNodeSizes, addNodeAt, canvasPages, clearState, showToast]);
 
     // Hide UI when scrolling OR when active component resets layout
     // (This ensures smooth UI transitions without flicker)
@@ -427,18 +427,6 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({ messages, sc
                 />
             )}
 
-            {/* Toast notification */}
-            {toast && (
-                <Toast
-                    message={toast.message}
-                    isVisible={!!toast}
-                    type={toast.type}
-                    onClose={() => setToast(null)}
-                    duration={5000}
-                    actionLabel={toast.videoId ? 'Open' : undefined}
-                    onAction={toast.videoId ? () => navigate(`/watch/${toast.videoId}`) : undefined}
-                />
-            )}
         </>
     );
 };

@@ -20,7 +20,6 @@ import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
 import { useSettings } from '../../core/hooks/useSettings';
 import { useUIStore } from '../../core/stores/uiStore';
-import { Toast } from '../../components/ui/molecules/Toast';
 import type { VideoDeltaStats } from '../../../shared/viewDeltas';
 
 export interface VideoCardAnonymizeData {
@@ -61,7 +60,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   const { generalSettings } = useSettings();
   const apiKey = generalSettings.apiKey;
 
-  const { setSettingsOpen, videoViewModes, setVideoViewMode } = useUIStore();
+  const { setSettingsOpen, videoViewModes, setVideoViewMode, showToast } = useUIStore();
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
@@ -70,7 +69,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   const [isSyncing, setIsSyncing] = useState(false);
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number>(0);
-  const [showToast, setShowToast] = useState(false);
   const [hasSyncError, setHasSyncError] = useState(false);
   const [attemptedAutoSync, setAttemptedAutoSync] = useState(false);
 
@@ -221,7 +219,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
     if (isSyncing || !user || !currentChannel) return;
 
     if (!apiKey) {
-      setShowToast(true);
+      showToast('API Key is missing. Click to configure.', 'error', undefined, () => setSettingsOpen(true));
       return;
     }
     setIsSyncing(true);
@@ -681,17 +679,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
         confirmLabel="Confirm"
       />
 
-      {/* API Key Missing Toast */}
-      <Toast
-        message="API Key is missing. Click to configure."
-        isVisible={showToast}
-        onClose={() => setShowToast(false)}
-        type="error"
-        onClick={() => {
-          setSettingsOpen(true);
-          setShowToast(false);
-        }}
-      />
     </>
   );
 };

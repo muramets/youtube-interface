@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useAuth } from '../../../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../../../core/stores/channelStore';
+import { useUIStore } from '../../../../../core/stores/uiStore';
 import { useSettings } from '../../../../../core/hooks/useSettings';
 import { useVideos } from '../../../../../core/hooks/useVideos';
 import { useVideoForm } from '../../../hooks/useVideoForm';
@@ -59,11 +60,8 @@ export function useAddCustomVideo({
         versionNumber: null
     });
 
-    // Toast State
-    const [toastMessage, setToastMessage] = useState('');
-    const [showToast, setShowToast] = useState(false);
-    const [toastType, setToastType] = useState<'success' | 'error'>('success');
-    const [toastPosition, setToastPosition] = useState<'top' | 'bottom'>('bottom');
+    // Toast — use global singleton
+    const { showToast } = useUIStore();
 
     // Form State (from useVideoForm)
     const videoForm = useVideoForm(initialData, isOpen);
@@ -180,9 +178,7 @@ export function useAddCustomVideo({
                     }
                 } catch (error) {
                     console.error('Error uploading A/B variants:', error);
-                    setToastMessage('Failed to upload A/B variants');
-                    setToastType('error');
-                    setShowToast(true);
+                    showToast('Failed to upload A/B variants', 'error');
                 } finally {
                     setIsImageUploading(false);
                     // Check against the current active promise
@@ -397,9 +393,7 @@ export function useAddCustomVideo({
                 return downloadURL;
             } catch (error) {
                 console.error('Error uploading image:', error);
-                setToastMessage('Failed to upload image');
-                setToastType('error');
-                setShowToast(true);
+                showToast('Failed to upload image', 'error');
                 throw error;
             } finally {
                 setIsImageUploading(false);
@@ -439,9 +433,7 @@ export function useAddCustomVideo({
                 return undefined;
             }
         } else if (coverImage.startsWith('blob:')) {
-            setToastMessage("Please wait for image upload to complete");
-            setToastType('error');
-            setShowToast(true);
+            showToast('Please wait for image upload to complete', 'error');
             return undefined;
         } else if (coverImage.startsWith('data:image')) {
             try {
@@ -451,9 +443,7 @@ export function useAddCustomVideo({
                 setCoverImage(uploadedUrl);
             } catch (e) {
                 console.error("Failed to upload base64 cover image:", e);
-                setToastMessage("Failed to save cover image.");
-                setToastType('error');
-                setShowToast(true);
+                showToast('Failed to save cover image.', 'error');
                 setIsSaving(false);
                 return undefined;
             }
@@ -626,12 +616,10 @@ export function useAddCustomVideo({
             console.error("Failed to save video:", error);
             const errorMessage = error instanceof Error ? error.message : String(error);
             if (errorMessage.includes('exceeds the maximum allowed size')) {
-                setToastMessage("File too large! The cover image is too big for the database. Please try a smaller image.");
+                showToast('File too large! The cover image is too big for the database. Please try a smaller image.', 'error');
             } else {
-                setToastMessage("Failed to save video.");
+                showToast('Failed to save video.', 'error');
             }
-            setToastType('error');
-            setShowToast(true);
             return undefined;
         } finally {
             setIsSaving(false);
@@ -745,7 +733,7 @@ export function useAddCustomVideo({
         isImageUploading,
         cloningVersion,
         deleteConfirmation,
-        toastMessage, showToast, setShowToast, toastType, toastPosition,
+        showToast,
         draftId,
         isEffectivePackagingDirty,
         currentChannel, // Exported for language list
@@ -761,7 +749,6 @@ export function useAddCustomVideo({
         handleDeleteHistoryItem,
         handleCloneWithSave,
         handleSaveAsVersion,
-        setToastMessage, setToastType, setToastPosition,
         setDeleteConfirmation, // Used by confirmation modal state if needed, though simpler now
 
         // A/B Test Exports

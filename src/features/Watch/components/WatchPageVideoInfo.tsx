@@ -3,7 +3,7 @@ import { ThumbsUp, ThumbsDown, Share2, MoreHorizontal, User } from 'lucide-react
 import { formatViewCount } from '../../../core/utils/formatUtils';
 import type { VideoDetails } from '../../../core/utils/youtubeApi';
 import { useChannelStore } from '../../../core/stores/channelStore';
-import { Toast } from '../../../components/ui/molecules/Toast';
+import { useUIStore } from '../../../core/stores/uiStore';
 
 interface WatchPageVideoInfoProps {
     video: VideoDetails;
@@ -11,9 +11,8 @@ interface WatchPageVideoInfoProps {
 
 export const WatchPageVideoInfo: React.FC<WatchPageVideoInfoProps> = ({ video }) => {
     const { currentChannel } = useChannelStore();
+    const { showToast } = useUIStore();
     const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
-    const [toastMessage, setToastMessage] = useState('');
-    const [showToast, setShowToast] = useState(false);
 
     const description = video?.description || '';
 
@@ -108,8 +107,7 @@ export const WatchPageVideoInfo: React.FC<WatchPageVideoInfoProps> = ({ video })
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     navigator.clipboard.writeText(tag);
-                                    setToastMessage(`Tag "${tag}" copied to clipboard`);
-                                    setShowToast(true);
+                                    showToast(`Tag "${tag}" copied to clipboard`);
                                 }}
                                 className="text-blue-500 text-sm cursor-pointer hover:underline bg-transparent border-none p-0"
                                 title="Click to copy"
@@ -123,11 +121,6 @@ export const WatchPageVideoInfo: React.FC<WatchPageVideoInfoProps> = ({ video })
                     ))}
                 </div>
             )}
-            <Toast
-                message={toastMessage}
-                isVisible={showToast}
-                onClose={() => setShowToast(false)}
-            />
         </>
     );
 };

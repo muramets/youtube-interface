@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 import { type VideoDetails, type CoverVersion } from '../../../../core/utils/youtubeApi';
-import { Toast } from '../../../../components/ui/molecules/Toast';
 import { VideoForm } from './components/VideoForm';
 import { SaveMenu } from './components/SaveMenu';
 import { ConfirmationModal } from '../../../../components/ui/organisms/ConfirmationModal';
@@ -30,7 +29,7 @@ export const AddCustomVideoModal: React.FC<AddCustomVideoModalProps> = (props) =
         isSaving,
         cloningVersion,
         deleteConfirmation, setDeleteConfirmation,
-        toastMessage, showToast, setShowToast, toastType, toastPosition,
+        showToast,
         isEffectivePackagingDirty,
         currentChannel,
         isImageUploading,
@@ -71,7 +70,6 @@ export const AddCustomVideoModal: React.FC<AddCustomVideoModalProps> = (props) =
         handleSaveAsVersion,
         handleAddLanguage,
         handleDeleteCustomLanguage,
-        setToastMessage, setToastType,
 
         // A/B Testing
         abTestVariants,
@@ -207,11 +205,7 @@ export const AddCustomVideoModal: React.FC<AddCustomVideoModalProps> = (props) =
                                             setVideoRender={setVideoRender}
                                             audioRender={audioRender}
                                             setAudioRender={setAudioRender}
-                                            onShowToast={(msg, type) => {
-                                                setToastMessage(msg);
-                                                setToastType(type);
-                                                setShowToast(true);
-                                            }}
+                                            onShowToast={(msg, type) => showToast(msg, type)}
                                             readOnly={!isShowingCurrent}
                                             abTestTitles={abTestTitles}
                                             onTitleABTestClick={handleOpenTitleABTest}
@@ -263,14 +257,6 @@ export const AddCustomVideoModal: React.FC<AddCustomVideoModalProps> = (props) =
                 </div>
             </div>
 
-            <Toast
-                message={toastMessage}
-                isVisible={showToast}
-                duration={4000}
-                onClose={() => setShowToast(false)}
-                type={toastType}
-                position={toastPosition}
-            />
         </>,
         document.body
     );
