@@ -416,18 +416,12 @@ export const Sidebar: React.FC = () => {
           )}
         </div>
 
-        {/* Resize border line (in flex flow) + invisible hit area (absolute, wider) */}
+        {/* Invisible resize hit area (no visible divider for cleaner UI) */}
         {isSidebarExpanded && (
-          <>
-            <div
-              className={`flex-none w-[1px] h-full transition-colors
-                ${isResizing ? 'bg-blue-500' : 'bg-border'}`}
-            />
-            <div
-              className="absolute top-0 right-0 w-4 h-full cursor-col-resize z-50"
-              onMouseDown={() => setIsResizing(true)}
-            />
-          </>
+          <div
+            className="absolute top-0 right-0 w-4 h-full cursor-col-resize z-50"
+            onMouseDown={() => setIsResizing(true)}
+          />
         )}
       </aside>
 
