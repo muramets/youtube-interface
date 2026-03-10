@@ -45,7 +45,10 @@ export const useSelectionContextBridge = () => {
         // Dedup: merge with existing slot items, replace by videoId
         const existing = useAppContextStore.getState().slots.playlist;
         const existingIds = new Set(existing.map(i => i.type === 'video-card' ? i.videoId : ''));
-        const toAdd = newItems.filter(i => i.type === 'video-card' && !existingIds.has(i.videoId));
+        const now = Date.now();
+        const toAdd = newItems
+            .filter(i => i.type === 'video-card' && !existingIds.has(i.videoId))
+            .map(i => ({ ...i, addedAt: now }));
 
         if (toAdd.length > 0) {
             debug.context(`🔗 SelectionBridge: adding ${toAdd.length} new items (${existing.length} existing)`);

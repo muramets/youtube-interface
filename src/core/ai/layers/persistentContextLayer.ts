@@ -69,10 +69,11 @@ function formatVideoContext(items: VideoCardContext[]): string {
     lines.push(VIDEO_CONTEXT_PREAMBLE);
     lines.push('');
 
-    // Group by ownership
-    const drafts = items.filter(v => v.ownership === 'own-draft');
-    const published = items.filter(v => v.ownership === 'own-published');
-    const competitors = items.filter(v => v.ownership === 'competitor');
+    // Group by ownership, sorted by addedAt for chronological numbering
+    const byAddedAt = (a: VideoCardContext, b: VideoCardContext) => (a.addedAt ?? 0) - (b.addedAt ?? 0);
+    const drafts = items.filter(v => v.ownership === 'own-draft').sort(byAddedAt);
+    const published = items.filter(v => v.ownership === 'own-published').sort(byAddedAt);
+    const competitors = items.filter(v => v.ownership === 'competitor').sort(byAddedAt);
 
     if (drafts.length > 0) {
         lines.push(VIDEO_SECTION_DRAFT);

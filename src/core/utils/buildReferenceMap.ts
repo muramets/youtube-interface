@@ -6,8 +6,8 @@
 //   - ChatMessageList.tsx (UI) — to resolve "Video #N" / "SV N" tooltips
 //
 // Both sides MUST use the same iteration order:
-//   1. Canvas video nodes → keyed by ownership (video-N, draft-N, competitor-N)
-//   2. Standalone video-cards → same ownership keys, continuing counters
+//   1. Standalone video-cards → sorted by addedAt for chronological numbering
+//   2. Canvas video nodes → continuing counters (ownership-based keys)
 //   3. Traffic suggested videos (suggested-1, suggested-2, ...)
 // =============================================================================
 
@@ -26,13 +26,13 @@ export interface VideoReference {
  * Builds a Map<referenceKey, VideoCardContext> from context items.
  *
  * Iteration order matches the system prompt numbering exactly:
- * 1. Canvas context nodes (type: video, traffic-source) → keyed by ownership
- * 2. Standalone video cards → same ownership keys, continuing counters
+ * 1. Standalone video cards → sorted by addedAt for chronological numbering
+ * 2. Canvas context nodes (type: video, traffic-source) → continuing counters
  * 3. Traffic suggested videos → "suggested-N"
  */
 export function buildReferenceMap(ctx: AppContextItem[]): Map<string, VideoCardContext> {
     const map = new Map<string, VideoCardContext>();
-    // Shared counters per refType — canvas and standalone increment the same numbers
+    // Shared counters per refType — standalone and canvas increment the same numbers
     const counters: Record<string, number> = {};
 
     const nextKey = (ownership: string | undefined): string => {
@@ -41,7 +41,13 @@ export function buildReferenceMap(ctx: AppContextItem[]): Map<string, VideoCardC
         return `${refType}-${counters[refType]}`;
     };
 
-    // 1. Canvas context — ownership-based keys (processed first to preserve visual order)
+    // 1. Standalone video cards FIRST — sorted by addedAt for chronological numbering
+    const videoCards = [...getVideoCards(ctx)].sort((a, b) => (a.addedAt ?? 0) - (b.addedAt ?? 0));
+    for (const vc of videoCards) {
+        map.set(nextKey(vc.ownership), vc);
+    }
+
+    // 2. Canvas context — ownership-based keys (continuing counters)
     for (const cc of getCanvasContexts(ctx)) {
         for (const node of cc.nodes) {
             if (node.nodeType === 'video') {
@@ -70,11 +76,6 @@ export function buildReferenceMap(ctx: AppContextItem[]): Map<string, VideoCardC
                 });
             }
         }
-    }
-
-    // 2. Standalone video cards — same ownership keys, continuing counters
-    for (const vc of getVideoCards(ctx)) {
-        map.set(nextKey(vc.ownership), vc);
     }
 
     // 3. Traffic suggested videos — keyed as "suggested-N"

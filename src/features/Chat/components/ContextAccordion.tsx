@@ -7,7 +7,7 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { Paperclip, X, ChevronUp } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
-import type { AppContextItem, VideoCardContext, SuggestedTrafficContext, CanvasSelectionContext } from '../../../core/types/appContext';
+import type { AppContextItem, VideoCardContext } from '../../../core/types/appContext';
 import { getVideoCards, getTrafficContexts, getCanvasContexts } from '../../../core/types/appContext';
 import { buildVideoBadgeMap } from '../../../core/utils/buildReferenceMap';
 import { useChatStore } from '../../../core/stores/chat/chatStore';
@@ -142,26 +142,31 @@ export const ContextAccordion: React.FC<ContextAccordionProps> = ({
                     <div ref={scrollRef} className="px-2.5 pb-2 max-h-[40vh] overflow-y-auto scrollbar-compact">
                         {(() => {
                             const badgeMap = buildVideoBadgeMap(items);
-                            // Cumulative canvas video counter across all canvas groups
-                            let canvasVideoOffset = 0;
 
-                            // Group contiguous items of the same type for visual cohesion,
-                            // but preserve the chronological order from selectAllItems.
-                            const groups: { type: string; items: AppContextItem[] }[] = [];
-                            for (const item of items) {
-                                const last = groups[groups.length - 1];
-                                if (last && last.type === item.type) {
-                                    last.items.push(item);
-                                } else {
-                                    groups.push({ type: item.type, items: [item] });
-                                }
-                            }
+                            // Semantic grouping by ownership (sorted by addedAt within each group)
+                            const sortByAdded = (a: VideoCardContext, b: VideoCardContext) =>
+                                (a.addedAt ?? 0) - (b.addedAt ?? 0);
+                            const myVids = videoItems
+                                .filter(v => v.ownership === 'own-draft' || v.ownership === 'own-published')
+                                .sort(sortByAdded);
+                            const compVids = videoItems
+                                .filter(v => v.ownership === 'competitor')
+                                .sort(sortByAdded);
 
-                            return groups.map((group, gi) => {
-                                if (group.type === 'video-card') {
-                                    return (
-                                        <div key={`g-${gi}`} className="flex flex-wrap gap-1.5 mb-2">
-                                            {(group.items as VideoCardContext[]).map(v => {
+                            // Canvas video offset: starts after all standalone video cards
+                            let canvasVideoOffset = videoItems.length;
+
+                            // Show group headers when 2+ distinct groups are visible
+                            const groupCount = [myVids.length > 0, compVids.length > 0, trafficItems.length > 0, canvasItems.length > 0].filter(Boolean).length;
+                            const showHeaders = groupCount > 1;
+
+                            const renderVideoGroup = (label: string, vids: VideoCardContext[]) => {
+                                if (vids.length === 0) return null;
+                                return (
+                                    <div key={label} className="mb-2">
+                                        {showHeaders && <div className="text-[10px] text-text-tertiary uppercase tracking-wider px-0.5 mb-1">{label}</div>}
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {vids.map(v => {
                                                 const badge = badgeMap.get(v.videoId);
                                                 return (
                                                     <VideoCardChip
@@ -177,44 +182,51 @@ export const ContextAccordion: React.FC<ContextAccordionProps> = ({
                                                 );
                                             })}
                                         </div>
-                                    );
-                                }
-                                if (group.type === 'suggested-traffic') {
-                                    return (
-                                        <div key={`g-${gi}`} className="flex flex-wrap gap-1.5 mb-2">
-                                            {group.items.map((tc, i) => (
-                                                <SuggestedTrafficChip
-                                                    key={`traffic-${gi}-${i}`}
-                                                    context={tc as SuggestedTrafficContext}
-                                                    onRemove={onRemoveItem ? () => onRemoveItem(tc) : undefined}
-                                                    onSelect={isSelecting ? () => commitOverride(`suggested-${gi + 1}`) : undefined}
-                                                />
-                                            ))}
-                                        </div>
-                                    );
-                                }
-                                if (group.type === 'canvas-selection') {
-                                    return (
-                                        <div key={`g-${gi}`} className="flex flex-col gap-1.5 mb-2">
-                                            {group.items.map((cc, i) => {
-                                                const ctx = cc as CanvasSelectionContext;
-                                                const offset = canvasVideoOffset;
-                                                canvasVideoOffset += ctx.nodes.filter(n => n.nodeType === 'video' || n.nodeType === 'traffic-source').length;
-                                                return (
-                                                    <CanvasSelectionChip
-                                                        key={`canvas-${gi}-${i}`}
-                                                        context={ctx}
-                                                        onRemove={onRemoveItem ? () => onRemoveItem(cc) : undefined}
-                                                        videoStartIndex={offset}
-                                                        onSelect={isSelecting ? () => commitOverride(`video-${offset + 1}`) : undefined}
+                                    </div>
+                                );
+                            };
+
+                            return (
+                                <>
+                                    {renderVideoGroup('My Videos', myVids)}
+                                    {renderVideoGroup('Competitors', compVids)}
+                                    {trafficItems.length > 0 && (
+                                        <div className="mb-2">
+                                            {showHeaders && <div className="text-[10px] text-text-tertiary uppercase tracking-wider px-0.5 mb-1">Suggested Traffic</div>}
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {trafficItems.map((tc, i) => (
+                                                    <SuggestedTrafficChip
+                                                        key={`traffic-${i}`}
+                                                        context={tc}
+                                                        onRemove={onRemoveItem ? () => onRemoveItem(tc) : undefined}
+                                                        onSelect={isSelecting ? () => commitOverride(`suggested-${i + 1}`) : undefined}
                                                     />
-                                                );
-                                            })}
+                                                ))}
+                                            </div>
                                         </div>
-                                    );
-                                }
-                                return null;
-                            });
+                                    )}
+                                    {canvasItems.length > 0 && (
+                                        <div className="mb-2">
+                                            {showHeaders && <div className="text-[10px] text-text-tertiary uppercase tracking-wider px-0.5 mb-1">Canvas</div>}
+                                            <div className="flex flex-col gap-1.5">
+                                                {canvasItems.map((cc, i) => {
+                                                    const offset = canvasVideoOffset;
+                                                    canvasVideoOffset += cc.nodes.filter(n => n.nodeType === 'video' || n.nodeType === 'traffic-source').length;
+                                                    return (
+                                                        <CanvasSelectionChip
+                                                            key={`canvas-${i}`}
+                                                            context={cc}
+                                                            onRemove={onRemoveItem ? () => onRemoveItem(cc) : undefined}
+                                                            videoStartIndex={offset}
+                                                            onSelect={isSelecting ? () => commitOverride(`video-${offset + 1}`) : undefined}
+                                                        />
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            );
                         })()}
                     </div>
                 )

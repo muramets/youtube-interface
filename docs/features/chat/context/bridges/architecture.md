@@ -98,6 +98,7 @@ AppContextItem = VideoCardContext          (type: 'video-card')
 
 Ключевые поля:
 - `ownership`: `'own-draft'` | `'own-published'` | `'competitor'` — определяет группировку в system prompt и badge prefix в UI
+- `addedAt`: `number` — epoch ms, момент добавления в контекст. Используется для хронологической сортировки внутри ownership-групп (чтобы номера бейджей не зависели от слота-источника)
 - `videoId`, `title`, `thumbnailUrl` — идентификация и отображение
 - `viewCount`, `publishedAt`, `duration` — метрики
 - `delta24h`, `delta7d`, `delta30d` — рост просмотров (добавляется enrichment middleware перед отправкой в AI, не при создании)
@@ -151,11 +152,21 @@ AppContextItem = VideoCardContext          (type: 'video-card')
 Когда контекст попадает в system prompt, каждое видео получает номер: `Video #1`, `Draft #2`, `Competitor #3`. Этот же номер отображается как badge на chip в ChatInput.
 
 `buildReferenceMap()` — SSOT (single source of truth) для нумерации. Порядок обхода строго фиксирован:
-1. Canvas video nodes (по ownership)
-2. Standalone video cards (продолжая счётчик)
+1. Standalone video cards — отсортированные по `addedAt` (хронологическая нумерация)
+2. Canvas video nodes (продолжая счётчик, по ownership)
 3. Traffic suggested videos (`suggested-1`, `suggested-2`, ...)
 
 Этот порядок используется и в system prompt (`persistentContextLayer.ts`), и в UI (`ContextAccordion.tsx`), обеспечивая консистентность — AI говорит "Video #3", и пользователь видит badge #3 на том же видео.
+
+### Semantic grouping (ContextAccordion)
+
+UI группирует контекст по смыслу, а не по слоту-источнику:
+1. **My Videos** — `own-draft` + `own-published` video cards
+2. **Competitors** — `competitor` video cards
+3. **Suggested Traffic** — traffic context items
+4. **Canvas** — canvas selection nodes
+
+Заголовки групп показываются только когда видимы 2+ группы. Внутри каждой группы видео отсортированы по `addedAt`.
 
 ---
 

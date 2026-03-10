@@ -28,6 +28,8 @@ export interface VideoCardContext {
     duration?: string;
     /** Canvas-only: accent color for visual grouping */
     color?: string;
+    /** Epoch ms when this item was added to context (for chronological ordering within groups) */
+    addedAt?: number;
     // Delta views from Trend Snapshots (enriched by middleware before sending to AI)
     delta24h?: number | null;
     delta7d?: number | null;
