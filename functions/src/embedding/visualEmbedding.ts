@@ -1,14 +1,17 @@
 // =============================================================================
 // Visual Embedding Generator
 //
-// Downloads a YouTube video thumbnail and generates a 1408-dimensional
-// visual embedding using Vertex AI multimodalembedding@001.
+// Generates a 1408-dimensional visual embedding from a pre-downloaded
+// YouTube video thumbnail using Vertex AI multimodalembedding@001.
 // Auth: Application Default Credentials (service account in Cloud Functions).
 // Cost: ~$0.0001 per image.
+//
+// Accepts a pre-downloaded thumbnail buffer — caller is responsible for
+// downloading (see processOneVideo.ts). This avoids duplicate downloads
+// when both description and visual embedding are needed.
 // =============================================================================
 
 import { logger } from "firebase-functions/v2";
-import { downloadThumbnail } from "./thumbnailDownload.js";
 
 // ---------------------------------------------------------------------------
 // Lazy-initialized Vertex AI client (dynamic import + module-level cache)
@@ -47,23 +50,18 @@ export function resetVertexClient(): void {
 // ---------------------------------------------------------------------------
 
 /**
- * Generate a visual embedding from a YouTube video thumbnail.
+ * Generate a visual embedding from a pre-downloaded thumbnail.
  *
- * @param videoId - YouTube video ID (used to download thumbnail)
+ * @param videoId - YouTube video ID (for logging only)
+ * @param thumbnail - Pre-downloaded thumbnail image
  * @returns 1408-dimensional embedding vector, or null on error
  */
 export async function generateVisualEmbedding(
     videoId: string,
+    thumbnail: { buffer: Buffer; mimeType: string },
 ): Promise<number[] | null> {
     try {
-        // Download thumbnail
-        const downloaded = await downloadThumbnail(videoId);
-        if (!downloaded) {
-            logger.warn("visualEmbedding:downloadFailed", { videoId });
-            return null;
-        }
-
-        const base64 = downloaded.buffer.toString("base64");
+        const base64 = thumbnail.buffer.toString("base64");
 
         // Get project ID
         const projectId = process.env.GCLOUD_PROJECT

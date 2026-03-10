@@ -4,11 +4,14 @@
 // Uses Gemini 2.0 Flash Vision to generate a detailed text description
 // of a YouTube video thumbnail for similarity search.
 // Cost: ~$0.0001 per call.
+//
+// Accepts a pre-downloaded thumbnail buffer — caller is responsible for
+// downloading (see processOneVideo.ts). This avoids duplicate downloads
+// when both description and visual embedding are needed.
 // =============================================================================
 
 import { logger } from "firebase-functions/v2";
 import { getClient } from "../services/gemini/client.js";
-import { downloadThumbnail } from "./thumbnailDownload.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -26,22 +29,18 @@ const VISION_PROMPT =
 /**
  * Generate a text description of a video thumbnail using Gemini Flash Vision.
  *
- * @param videoId - YouTube video ID (used to construct thumbnail URLs)
+ * @param videoId - YouTube video ID (for logging only)
+ * @param thumbnail - Pre-downloaded thumbnail image
  * @param apiKey - Gemini API key
  * @returns Description string, or null on error
  */
 export async function generateThumbnailDescription(
     videoId: string,
+    thumbnail: { buffer: Buffer; mimeType: string },
     apiKey: string,
 ): Promise<string | null> {
     try {
-        const downloaded = await downloadThumbnail(videoId);
-        if (!downloaded) {
-            logger.warn("thumbnailDescription:downloadFailed", { videoId });
-            return null;
-        }
-
-        const base64 = downloaded.buffer.toString("base64");
+        const base64 = thumbnail.buffer.toString("base64");
         const client = await getClient(apiKey);
 
         const response = await client.models.generateContent({
@@ -52,7 +51,7 @@ export async function generateThumbnailDescription(
                         { text: VISION_PROMPT },
                         {
                             inlineData: {
-                                mimeType: downloaded.mimeType,
+                                mimeType: thumbnail.mimeType,
                                 data: base64,
                             },
                         },

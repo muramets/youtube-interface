@@ -10,100 +10,29 @@
 import { onRequest } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { logger } from "firebase-functions/v2";
-import { CloudTasksClient } from "@google-cloud/tasks";
 import { db } from "../shared/db.js";
 import { discoverChannels } from "./embeddingSync.js";
 import { checkBudget, recordCost } from "./budgetTracker.js";
-import { generatePackagingEmbedding } from "./packagingEmbedding.js";
-import { generateThumbnailDescription } from "./thumbnailDescription.js";
-import { generateVisualEmbedding } from "./visualEmbedding.js";
+import { processOneVideo, type VideoInput } from "./processOneVideo.js";
+import { enqueueBatch, pLimit } from "./taskQueue.js";
 import {
     BACKFILL_BATCH_SIZE,
     COST_PER_VIDEO,
-    CURRENT_PACKAGING_MODEL_VERSION,
-    CURRENT_VISUAL_MODEL_VERSION,
     type BackfillState,
     type BackfillBatchResult,
-    type EmbeddingDoc,
 } from "./types.js";
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-const QUEUE_NAME = "embedding-backfill";
-const LOCATION = "us-central1";
 const BACKFILL_CONCURRENCY = 10;
-
-// ---------------------------------------------------------------------------
-// Inline concurrency limiter (zero dependencies, same API as p-limit)
-// ---------------------------------------------------------------------------
-
-function pLimit(concurrency: number) {
-    let active = 0;
-    const queue: Array<() => void> = [];
-    const next = () => {
-        if (queue.length > 0 && active < concurrency) {
-            active++;
-            queue.shift()!();
-        }
-    };
-    return <T>(fn: () => Promise<T>): Promise<T> =>
-        new Promise<T>((resolve, reject) => {
-            const run = () =>
-                fn()
-                    .then(resolve, reject)
-                    .finally(() => {
-                        active--;
-                        next();
-                    });
-            queue.push(run);
-            next();
-        });
-}
 
 // ---------------------------------------------------------------------------
 // Gemini API key
 // ---------------------------------------------------------------------------
 
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
-
-// ---------------------------------------------------------------------------
-// Cloud Task enqueue helper
-// ---------------------------------------------------------------------------
-
-export async function enqueueNextBatch(
-    selfUrl: string,
-    nextOffset: number,
-): Promise<void> {
-    const projectId = process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT;
-    if (!projectId) {
-        throw new Error("Missing GCLOUD_PROJECT / GOOGLE_CLOUD_PROJECT env var");
-    }
-
-    const tasksClient = new CloudTasksClient();
-    const queuePath = tasksClient.queuePath(projectId, LOCATION, QUEUE_NAME);
-    const serviceAccountEmail = `${projectId}@appspot.gserviceaccount.com`;
-
-    await tasksClient.createTask({
-        parent: queuePath,
-        task: {
-            httpRequest: {
-                httpMethod: "POST",
-                url: selfUrl,
-                body: Buffer.from(JSON.stringify({ offset: nextOffset })).toString("base64"),
-                headers: { "Content-Type": "application/json" },
-                oidcToken: {
-                    serviceAccountEmail,
-                    audience: selfUrl,
-                },
-            },
-            dispatchDeadline: { seconds: 600 },
-        },
-    });
-
-    logger.info("backfill:nextEnqueued", { nextOffset, url: selfUrl });
-}
 
 // ---------------------------------------------------------------------------
 // Core logic — exported for testing
@@ -213,115 +142,49 @@ export async function processBackfill(params: {
         const limit = pLimit(BACKFILL_CONCURRENCY);
 
         await Promise.all(batch.map(({ videoId, youtubeChannelId }) => limit(async () => {
-            try {
-                // Check existing embedding doc
-                const embeddingRef = db.doc(`globalVideoEmbeddings/${videoId}`);
-                const embeddingSnap = await embeddingRef.get();
-                const existingDoc = embeddingSnap.exists
-                    ? (embeddingSnap.data() as EmbeddingDoc)
-                    : null;
-
-                // Idempotent: skip if all embeddings current
-                if (
-                    existingDoc &&
-                    (existingDoc.packagingEmbeddingVersion ?? 0) >= CURRENT_PACKAGING_MODEL_VERSION &&
-                    existingDoc.thumbnailDescription != null &&
-                    (existingDoc.visualEmbeddingVersion ?? 0) >= CURRENT_VISUAL_MODEL_VERSION
-                ) {
-                    return;
-                }
-
-                // Read video doc from trendChannel for description
-                const cp = state.channelPaths[youtubeChannelId];
-                if (!cp) {
-                    logger.warn("backfill:missingChannelPath", { videoId, youtubeChannelId });
-                    batchFailed++;
-                    return;
-                }
-
-                const videoDocSnap = await db.doc(
-                    `users/${cp.userId}/channels/${cp.channelId}/trendChannels/${cp.trendChannelId}/videos/${videoId}`,
-                ).get();
-
-                if (!videoDocSnap.exists) {
-                    logger.warn("backfill:videoDocNotFound", { videoId });
-                    batchFailed++;
-                    return;
-                }
-
-                const videoData = videoDocSnap.data()!;
-                const title = (videoData.title as string) ?? "(untitled)";
-                const tags = Array.isArray(videoData.tags) ? (videoData.tags as string[]) : [];
-                const description = (videoData.description as string) ?? "";
-                const viewCount = typeof videoData.viewCount === "number" ? videoData.viewCount : 0;
-                const publishedAt = (videoData.publishedAt as string) ?? "";
-                const thumbnailUrl = (videoData.thumbnail as string) ??
-                    `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`;
-                const channelTitle = (videoData.channelTitle as string) ?? youtubeChannelId;
-
-                // Determine what needs generation
-                const needsPackaging = !existingDoc
-                    || (existingDoc.packagingEmbeddingVersion ?? 0) < CURRENT_PACKAGING_MODEL_VERSION;
-                const needsDescription = !existingDoc
-                    || existingDoc.thumbnailDescription == null;
-                const needsVisual = !existingDoc
-                    || (existingDoc.visualEmbeddingVersion ?? 0) < CURRENT_VISUAL_MODEL_VERSION;
-
-                // Generate packaging + description + visual in parallel (per video)
-                const [packagingEmbedding, thumbnailDesc, visualEmb] = await Promise.all([
-                    needsPackaging
-                        ? generatePackagingEmbedding(title, tags, description, apiKey)
-                        : Promise.resolve(existingDoc?.packagingEmbedding ?? null),
-                    needsDescription
-                        ? generateThumbnailDescription(videoId, apiKey)
-                        : Promise.resolve(existingDoc?.thumbnailDescription ?? null),
-                    needsVisual
-                        ? generateVisualEmbedding(videoId)
-                        : Promise.resolve(existingDoc?.visualEmbedding ?? null),
-                ]);
-
-                // Save to globalVideoEmbeddings
-                const docData: Partial<EmbeddingDoc> = {
-                    videoId,
-                    youtubeChannelId,
-                    channelTitle,
-                    title,
-                    tags,
-                    viewCount,
-                    publishedAt,
-                    thumbnailUrl,
-                    updatedAt: Date.now(),
-                    failCount: 0,
-                };
-
-                if (needsPackaging) {
-                    docData.packagingEmbedding = packagingEmbedding;
-                    docData.packagingEmbeddingVersion = CURRENT_PACKAGING_MODEL_VERSION;
-                }
-
-                if (needsDescription) {
-                    docData.thumbnailDescription = thumbnailDesc;
-                }
-
-                if (needsVisual) {
-                    docData.visualEmbedding = visualEmb;
-                    docData.visualEmbeddingVersion = CURRENT_VISUAL_MODEL_VERSION;
-                }
-
-                await embeddingRef.set(docData, { merge: true });
-
-                batchEstimatedCost += COST_PER_VIDEO;
-                batchGenerated++;
-            } catch (error) {
+            // Read video doc from trendChannel path
+            const cp = state.channelPaths[youtubeChannelId];
+            if (!cp) {
+                logger.warn("backfill:missingChannelPath", { videoId, youtubeChannelId });
                 batchFailed++;
-                logger.warn("backfill:videoFailed", {
-                    videoId,
-                    error: error instanceof Error ? error.message : String(error),
-                });
+                return;
+            }
+
+            const videoDocSnap = await db.doc(
+                `users/${cp.userId}/channels/${cp.channelId}/trendChannels/${cp.trendChannelId}/videos/${videoId}`,
+            ).get();
+
+            if (!videoDocSnap.exists) {
+                logger.warn("backfill:videoDocNotFound", { videoId });
+                batchFailed++;
+                return;
+            }
+
+            const videoData = videoDocSnap.data()!;
+            const videoInput: VideoInput = {
+                videoId,
+                youtubeChannelId,
+                title: (videoData.title as string) ?? "(untitled)",
+                tags: Array.isArray(videoData.tags) ? (videoData.tags as string[]) : [],
+                description: (videoData.description as string) ?? "",
+                viewCount: typeof videoData.viewCount === "number" ? videoData.viewCount : 0,
+                publishedAt: (videoData.publishedAt as string) ?? "",
+                thumbnailUrl: (videoData.thumbnail as string) ??
+                    `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
+                channelTitle: (videoData.channelTitle as string) ?? youtubeChannelId,
+            };
+
+            const result = await processOneVideo(videoInput, apiKey);
+
+            if (result.status === "generated") {
+                batchGenerated++;
+            } else if (result.status === "failed") {
+                batchFailed++;
             }
         })));
 
-        // Record cost for this batch
+        // Calculate and record cost for this batch
+        batchEstimatedCost = batchGenerated * COST_PER_VIDEO;
         if (batchEstimatedCost > 0) {
             await recordCost(batchEstimatedCost);
         }
@@ -343,7 +206,7 @@ export async function processBackfill(params: {
 
         if (nextOffset < state.totalVideos) {
             // More videos — enqueue next batch via Cloud Task
-            await enqueueNextBatch(selfUrl, nextOffset);
+            await enqueueBatch(selfUrl, nextOffset);
             return { body: { ...batchResult, message: "Batch complete, next enqueued" } };
         } else {
             // Last batch — cleanup
@@ -380,7 +243,7 @@ export const backfillEmbeddings = onRequest(
         }
 
         const offset = typeof req.body?.offset === "number" ? req.body.offset : 0;
-        const selfUrl = `https://${req.hostname}`;
+        const selfUrl = `${req.protocol}://${req.get("host")}${req.originalUrl.split("?")[0]}`;
 
         const result = await processBackfill({ apiKey, offset, selfUrl });
 

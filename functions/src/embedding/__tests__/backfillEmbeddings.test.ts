@@ -12,12 +12,9 @@ const {
     mockLoggerError,
     mockCheckBudget,
     mockRecordCost,
-    mockGeneratePackaging,
-    mockGenerateThumbnailDesc,
-    mockGenerateVisual,
+    mockProcessOneVideo,
     mockDiscoverChannels,
-    mockCreateTask,
-    mockQueuePath,
+    mockEnqueueBatch,
 } = vi.hoisted(() => ({
     mockCollectionGet: vi.fn(),
     mockDocGet: vi.fn(),
@@ -28,14 +25,9 @@ const {
     mockLoggerError: vi.fn(),
     mockCheckBudget: vi.fn(),
     mockRecordCost: vi.fn(),
-    mockGeneratePackaging: vi.fn(),
-    mockGenerateThumbnailDesc: vi.fn(),
-    mockGenerateVisual: vi.fn(),
+    mockProcessOneVideo: vi.fn(),
     mockDiscoverChannels: vi.fn(),
-    mockCreateTask: vi.fn(),
-    mockQueuePath: vi.fn().mockReturnValue(
-        "projects/test-project/locations/us-central1/queues/embedding-backfill",
-    ),
+    mockEnqueueBatch: vi.fn(),
 }));
 
 vi.mock("../../shared/db.js", () => ({
@@ -64,26 +56,19 @@ vi.mock("../budgetTracker.js", () => ({
     recordCost: (...args: unknown[]) => mockRecordCost(...args),
 }));
 
-vi.mock("../packagingEmbedding.js", () => ({
-    generatePackagingEmbedding: (...args: unknown[]) => mockGeneratePackaging(...args),
-}));
-
-vi.mock("../thumbnailDescription.js", () => ({
-    generateThumbnailDescription: (...args: unknown[]) => mockGenerateThumbnailDesc(...args),
-}));
-
-vi.mock("../visualEmbedding.js", () => ({
-    generateVisualEmbedding: (...args: unknown[]) => mockGenerateVisual(...args),
+vi.mock("../processOneVideo.js", () => ({
+    processOneVideo: (...args: unknown[]) => mockProcessOneVideo(...args),
 }));
 
 vi.mock("../embeddingSync.js", () => ({
     discoverChannels: (...args: unknown[]) => mockDiscoverChannels(...args),
 }));
 
-vi.mock("@google-cloud/tasks", () => ({
-    CloudTasksClient: class {
-        queuePath(...args: unknown[]) { return mockQueuePath(...args); }
-        createTask(...args: unknown[]) { return mockCreateTask(...args); }
+vi.mock("../taskQueue.js", () => ({
+    enqueueBatch: (...args: unknown[]) => mockEnqueueBatch(...args),
+    pLimit: () => {
+        // Simple pass-through for testing (no actual concurrency limiting needed)
+        return <T>(fn: () => Promise<T>) => fn();
     },
 }));
 
@@ -93,8 +78,6 @@ import { processBackfill } from "../backfillEmbeddings.js";
 // Helpers
 // ---------------------------------------------------------------------------
 
-const MOCK_VECTOR = Array.from({ length: 768 }, () => 0.1);
-const MOCK_VISUAL_VECTOR = Array.from({ length: 1408 }, () => 0.05);
 const SELF_URL = "https://backfill-abc-uc.a.run.app";
 
 function makeChannelMap(channels: Array<{ id: string; userId: string; channelId: string }>) {
@@ -118,13 +101,6 @@ function makeVideoDoc(videoId: string, data: Record<string, unknown> = {}) {
             channelTitle: "Test Channel",
             ...data,
         }),
-    };
-}
-
-function embeddingSnap(exists: boolean, data?: Record<string, unknown>) {
-    return {
-        exists,
-        data: () => data ?? null,
     };
 }
 
@@ -165,6 +141,19 @@ function backfillStateAtOffset(
     };
 }
 
+/** Default ProcessResult returned by mockProcessOneVideo */
+function generatedResult() {
+    return { status: "generated" as const, hasPackaging: true, hasVisual: true, thumbnailUnavailable: false };
+}
+
+function alreadyCurrentResult() {
+    return { status: "alreadyCurrent" as const, hasPackaging: true, hasVisual: true, thumbnailUnavailable: false };
+}
+
+function failedResult() {
+    return { status: "failed" as const, hasPackaging: false, hasVisual: false, thumbnailUnavailable: false };
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -176,8 +165,8 @@ describe("processBackfill", () => {
         mockRecordCost.mockResolvedValue(undefined);
         mockDocSet.mockResolvedValue(undefined);
         mockDocDelete.mockResolvedValue(undefined);
-        mockCreateTask.mockResolvedValue([]);
-        mockGenerateVisual.mockResolvedValue(MOCK_VISUAL_VECTOR);
+        mockEnqueueBatch.mockResolvedValue(undefined);
+        mockProcessOneVideo.mockResolvedValue(generatedResult());
         process.env.GCLOUD_PROJECT = "test-project";
     });
 
@@ -202,11 +191,7 @@ describe("processBackfill", () => {
                 if (path === "system/backfillState") {
                     return Promise.resolve({ exists: false, data: () => null });
                 }
-                // Embedding docs don't exist
-                if (path.startsWith("globalVideoEmbeddings/")) {
-                    return Promise.resolve(embeddingSnap(false));
-                }
-                // Video docs for description
+                // Video docs for reading video data
                 const videoId = path.split("/").pop();
                 return Promise.resolve(videoDocSnap(true, {
                     title: `Video ${videoId}`,
@@ -218,9 +203,6 @@ describe("processBackfill", () => {
                     channelTitle: "Test Channel",
                 }));
             });
-
-            mockGeneratePackaging.mockResolvedValue(MOCK_VECTOR);
-            mockGenerateThumbnailDesc.mockResolvedValue("A colorful thumbnail");
 
             const result = await processBackfill({ apiKey: "test-key", offset: 0, selfUrl: SELF_URL });
 
@@ -236,6 +218,9 @@ describe("processBackfill", () => {
                 }),
                 undefined,
             );
+
+            // processOneVideo was called for each video
+            expect(mockProcessOneVideo).toHaveBeenCalledTimes(2);
 
             // Videos were processed
             expect(result.body).toMatchObject({
@@ -262,6 +247,7 @@ describe("processBackfill", () => {
                 totalVideos: 0,
             });
             expect(mockLoggerWarn).toHaveBeenCalledWith("backfill:noChannelsFound");
+            expect(mockProcessOneVideo).not.toHaveBeenCalled();
         });
     });
 
@@ -290,9 +276,6 @@ describe("processBackfill", () => {
                         }),
                     });
                 }
-                if (path.startsWith("globalVideoEmbeddings/")) {
-                    return Promise.resolve(embeddingSnap(false));
-                }
                 // Video docs for description
                 return Promise.resolve(videoDocSnap(true, {
                     title: "A video",
@@ -305,13 +288,13 @@ describe("processBackfill", () => {
                 }));
             });
 
-            mockGeneratePackaging.mockResolvedValue(MOCK_VECTOR);
-            mockGenerateThumbnailDesc.mockResolvedValue("thumbnail desc");
-
             const result = await processBackfill({ apiKey: "test-key", offset: 100, selfUrl: SELF_URL });
 
             // Should NOT call discoverChannels (reads from state)
             expect(mockDiscoverChannels).not.toHaveBeenCalled();
+
+            // processOneVideo called for 50 videos (150 - 100)
+            expect(mockProcessOneVideo).toHaveBeenCalledTimes(50);
 
             // Processed batch of 50 (150 - 100)
             expect(result.body).toMatchObject({
@@ -322,7 +305,7 @@ describe("processBackfill", () => {
             });
         });
 
-        it("reads video doc from trendChannel for description", async () => {
+        it("reads video doc from trendChannel and passes correct VideoInput to processOneVideo", async () => {
             const channels = [{ id: "UCabc", userId: "user1", channelId: "ch1" }];
             mockDocGet.mockImplementation((path: string) => {
                 if (path === "system/backfillState") {
@@ -331,9 +314,6 @@ describe("processBackfill", () => {
                         [{ videoId: "vid1", youtubeChannelId: "UCabc" }],
                         channels,
                     ));
-                }
-                if (path === "globalVideoEmbeddings/vid1") {
-                    return Promise.resolve(embeddingSnap(false));
                 }
                 if (path === "users/user1/channels/ch1/trendChannels/UCabc/videos/vid1") {
                     return Promise.resolve(videoDocSnap(true, {
@@ -349,21 +329,26 @@ describe("processBackfill", () => {
                 return Promise.resolve({ exists: false, data: () => null });
             });
 
-            mockGeneratePackaging.mockResolvedValue(MOCK_VECTOR);
-            mockGenerateThumbnailDesc.mockResolvedValue("desc");
-
             await processBackfill({ apiKey: "test-key", offset: 100, selfUrl: SELF_URL });
 
-            // Verify packaging was called with description from video doc
-            expect(mockGeneratePackaging).toHaveBeenCalledWith(
-                "Video vid1",
-                ["special"],
-                "Special description for packaging",
+            // Verify processOneVideo was called with correct VideoInput built from the video doc
+            expect(mockProcessOneVideo).toHaveBeenCalledWith(
+                {
+                    videoId: "vid1",
+                    youtubeChannelId: "UCabc",
+                    title: "Video vid1",
+                    tags: ["special"],
+                    description: "Special description for packaging",
+                    viewCount: 5000,
+                    publishedAt: "2026-02-01",
+                    thumbnailUrl: "https://i.ytimg.com/vi/vid1/mqdefault.jpg",
+                    channelTitle: "Test Channel",
+                },
                 "test-key",
             );
         });
 
-        it("skips videos with current version (idempotent)", async () => {
+        it("counts alreadyCurrent results as neither generated nor failed", async () => {
             const channels = [{ id: "UCabc", userId: "user1", channelId: "ch1" }];
             mockDocGet.mockImplementation((path: string) => {
                 if (path === "system/backfillState") {
@@ -376,38 +361,30 @@ describe("processBackfill", () => {
                         channels,
                     ));
                 }
-                if (path === "globalVideoEmbeddings/vid1") {
-                    // vid1: all current → skip
-                    return Promise.resolve(embeddingSnap(true, {
-                        packagingEmbeddingVersion: 1,
-                        thumbnailDescription: "existing desc",
-                        visualEmbeddingVersion: 1,
-                    }));
-                }
-                if (path === "globalVideoEmbeddings/vid2") {
-                    // vid2: no embedding doc → needs generation
-                    return Promise.resolve(embeddingSnap(false));
-                }
-                // Video doc for vid2
+                // Video docs
+                const videoId = path.split("/").pop();
                 return Promise.resolve(videoDocSnap(true, {
-                    title: "Video vid2",
+                    title: `Video ${videoId}`,
                     tags: ["tag1"],
                     description: "desc",
                     viewCount: 1000,
                     publishedAt: "2026-01-01",
-                    thumbnail: "https://i.ytimg.com/vi/vid2/mqdefault.jpg",
+                    thumbnail: `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
                     channelTitle: "Test Channel",
                 }));
             });
 
-            mockGeneratePackaging.mockResolvedValue(MOCK_VECTOR);
-            mockGenerateThumbnailDesc.mockResolvedValue("desc");
+            // vid1 is already current, vid2 generates
+            mockProcessOneVideo
+                .mockResolvedValueOnce(alreadyCurrentResult())
+                .mockResolvedValueOnce(generatedResult());
 
             const result = await processBackfill({ apiKey: "test-key", offset: 100, selfUrl: SELF_URL });
 
-            // Only vid2 was generated (vid1 skipped)
-            expect(result.body).toMatchObject({ batchGenerated: 1 });
-            expect(mockGeneratePackaging).toHaveBeenCalledTimes(1);
+            // Only vid2 was generated (vid1 was alreadyCurrent — not counted as generated)
+            expect(result.body).toMatchObject({ batchGenerated: 1, batchFailed: 0 });
+            // processOneVideo was called for BOTH videos
+            expect(mockProcessOneVideo).toHaveBeenCalledTimes(2);
         });
 
         it("generates 0 when all videos are current", async () => {
@@ -423,22 +400,27 @@ describe("processBackfill", () => {
                         channels,
                     ));
                 }
-                // Both have all current versions
-                if (path.startsWith("globalVideoEmbeddings/")) {
-                    return Promise.resolve(embeddingSnap(true, {
-                        packagingEmbeddingVersion: 1,
-                        thumbnailDescription: "existing",
-                        visualEmbeddingVersion: 1,
-                    }));
-                }
-                return Promise.resolve({ exists: false, data: () => null });
+                // Video docs
+                const videoId = path.split("/").pop();
+                return Promise.resolve(videoDocSnap(true, {
+                    title: `Video ${videoId}`,
+                    tags: ["tag1"],
+                    description: "desc",
+                    viewCount: 1000,
+                    publishedAt: "2026-01-01",
+                    thumbnail: `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
+                    channelTitle: "Test Channel",
+                }));
             });
+
+            // Both videos are already current
+            mockProcessOneVideo.mockResolvedValue(alreadyCurrentResult());
 
             const result = await processBackfill({ apiKey: "test-key", offset: 100, selfUrl: SELF_URL });
 
             expect(result.body).toMatchObject({ batchGenerated: 0 });
-            expect(mockGeneratePackaging).not.toHaveBeenCalled();
-            expect(mockGenerateThumbnailDesc).not.toHaveBeenCalled();
+            // processOneVideo IS called for both (it decides internally to skip)
+            expect(mockProcessOneVideo).toHaveBeenCalledTimes(2);
         });
     });
 
@@ -468,16 +450,20 @@ describe("processBackfill", () => {
                         }),
                     });
                 }
-                if (path.startsWith("globalVideoEmbeddings/")) {
-                    // All already have current versions → skip generation
-                    return Promise.resolve(embeddingSnap(true, {
-                        packagingEmbeddingVersion: 1,
-                        thumbnailDescription: "existing",
-                        visualEmbeddingVersion: 1,
-                    }));
-                }
-                return Promise.resolve({ exists: false, data: () => null });
+                // Video docs
+                return Promise.resolve(videoDocSnap(true, {
+                    title: "A video",
+                    tags: ["tag1"],
+                    description: "desc",
+                    viewCount: 1000,
+                    publishedAt: "2026-01-01",
+                    thumbnail: "https://i.ytimg.com/vi/x/mqdefault.jpg",
+                    channelTitle: "Test Channel",
+                }));
             });
+
+            // All already current (no cost recorded)
+            mockProcessOneVideo.mockResolvedValue(alreadyCurrentResult());
 
             const result = await processBackfill({ apiKey: "test-key", offset: 100, selfUrl: SELF_URL });
 
@@ -486,22 +472,12 @@ describe("processBackfill", () => {
                 totalRemaining: 50,
             });
 
-            // Cloud Task was created with offset=200
-            expect(mockCreateTask).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    parent: "projects/test-project/locations/us-central1/queues/embedding-backfill",
-                    task: expect.objectContaining({
-                        httpRequest: expect.objectContaining({
-                            url: SELF_URL,
-                            body: Buffer.from(JSON.stringify({ offset: 200 })).toString("base64"),
-                        }),
-                    }),
-                }),
-            );
+            // enqueueBatch was called with selfUrl and next offset
+            expect(mockEnqueueBatch).toHaveBeenCalledWith(SELF_URL, 200);
         });
 
         it("last batch deletes backfillState and does NOT enqueue", async () => {
-            // 50 remaining (< BATCH_SIZE)
+            // 150 videos total, offset 100 → batch of 50 (last batch)
             const videos = Array.from({ length: 150 }, (_, i) => ({
                 videoId: `vid${String(i).padStart(3, "0")}`,
                 youtubeChannelId: "UCabc",
@@ -521,20 +497,25 @@ describe("processBackfill", () => {
                         }),
                     });
                 }
-                if (path.startsWith("globalVideoEmbeddings/")) {
-                    return Promise.resolve(embeddingSnap(true, {
-                        packagingEmbeddingVersion: 1,
-                        thumbnailDescription: "existing",
-                    }));
-                }
-                return Promise.resolve({ exists: false, data: () => null });
+                // Video docs
+                return Promise.resolve(videoDocSnap(true, {
+                    title: "A video",
+                    tags: ["tag1"],
+                    description: "desc",
+                    viewCount: 1000,
+                    publishedAt: "2026-01-01",
+                    thumbnail: "https://i.ytimg.com/vi/x/mqdefault.jpg",
+                    channelTitle: "Test Channel",
+                }));
             });
+
+            mockProcessOneVideo.mockResolvedValue(alreadyCurrentResult());
 
             const result = await processBackfill({ apiKey: "test-key", offset: 100, selfUrl: SELF_URL });
 
             expect(result.body).toMatchObject({ message: "Backfill complete" });
             expect(mockDocDelete).toHaveBeenCalledWith("system/backfillState");
-            expect(mockCreateTask).not.toHaveBeenCalled();
+            expect(mockEnqueueBatch).not.toHaveBeenCalled();
             expect(mockLoggerInfo).toHaveBeenCalledWith(
                 "backfill:complete",
                 expect.objectContaining({ totalProcessed: 150 }),
@@ -562,9 +543,9 @@ describe("processBackfill", () => {
                 message: "Budget exhausted — chain stopped",
                 batch: 1,
             });
-            expect(mockCreateTask).not.toHaveBeenCalled();
+            expect(mockEnqueueBatch).not.toHaveBeenCalled();
             expect(mockDocDelete).not.toHaveBeenCalled();
-            expect(mockGeneratePackaging).not.toHaveBeenCalled();
+            expect(mockProcessOneVideo).not.toHaveBeenCalled();
         });
     });
 
@@ -586,9 +567,6 @@ describe("processBackfill", () => {
                         channels,
                     ));
                 }
-                if (path.startsWith("globalVideoEmbeddings/")) {
-                    return Promise.resolve(embeddingSnap(false));
-                }
                 // Video docs
                 return Promise.resolve(videoDocSnap(true, {
                     title: "A video",
@@ -601,13 +579,10 @@ describe("processBackfill", () => {
                 }));
             });
 
-            // vid1 fails, vid2 succeeds (mock by videoId argument — order-independent for concurrency)
-            mockGeneratePackaging.mockResolvedValue(MOCK_VECTOR);
-            mockGenerateThumbnailDesc.mockImplementation(
-                (videoId: string) => videoId === "vid1"
-                    ? Promise.reject(new Error("API error"))
-                    : Promise.resolve("desc for vid2"),
-            );
+            // vid1 fails (processOneVideo returns failed), vid2 succeeds
+            mockProcessOneVideo
+                .mockResolvedValueOnce(failedResult())
+                .mockResolvedValueOnce(generatedResult());
 
             const result = await processBackfill({ apiKey: "test-key", offset: 100, selfUrl: SELF_URL });
 
@@ -615,9 +590,65 @@ describe("processBackfill", () => {
                 batchGenerated: 1,
                 batchFailed: 1,
             });
+        });
+
+        it("counts missing video doc as failed", async () => {
+            const channels = [{ id: "UCabc", userId: "user1", channelId: "ch1" }];
+            mockDocGet.mockImplementation((path: string) => {
+                if (path === "system/backfillState") {
+                    return Promise.resolve(backfillStateAtOffset(
+                        100,
+                        [{ videoId: "vid1", youtubeChannelId: "UCabc" }],
+                        channels,
+                    ));
+                }
+                // Video doc does not exist
+                return Promise.resolve({ exists: false, data: () => null });
+            });
+
+            const result = await processBackfill({ apiKey: "test-key", offset: 100, selfUrl: SELF_URL });
+
+            expect(result.body).toMatchObject({ batchFailed: 1, batchGenerated: 0 });
+            expect(mockProcessOneVideo).not.toHaveBeenCalled();
             expect(mockLoggerWarn).toHaveBeenCalledWith(
-                "backfill:videoFailed",
+                "backfill:videoDocNotFound",
                 expect.objectContaining({ videoId: "vid1" }),
+            );
+        });
+
+        it("counts missing channel path as failed", async () => {
+            // Create state where channelPaths does NOT include the video's youtubeChannelId
+            mockDocGet.mockImplementation((path: string) => {
+                if (path === "system/backfillState") {
+                    return Promise.resolve({
+                        exists: true,
+                        data: () => ({
+                            channelPaths: {
+                                // No entry for "UCmissing"
+                                UCabc: { userId: "user1", channelId: "ch1", trendChannelId: "UCabc" },
+                            },
+                            videos: [
+                                ...Array.from({ length: 100 }, (_, i) => ({
+                                    videoId: `_pad_${String(i).padStart(4, "0")}`,
+                                    youtubeChannelId: "UCabc",
+                                })),
+                                { videoId: "vid1", youtubeChannelId: "UCmissing" },
+                            ],
+                            totalVideos: 101,
+                            createdAt: Date.now(),
+                        }),
+                    });
+                }
+                return Promise.resolve({ exists: false, data: () => null });
+            });
+
+            const result = await processBackfill({ apiKey: "test-key", offset: 100, selfUrl: SELF_URL });
+
+            expect(result.body).toMatchObject({ batchFailed: 1, batchGenerated: 0 });
+            expect(mockProcessOneVideo).not.toHaveBeenCalled();
+            expect(mockLoggerWarn).toHaveBeenCalledWith(
+                "backfill:missingChannelPath",
+                expect.objectContaining({ videoId: "vid1", youtubeChannelId: "UCmissing" }),
             );
         });
 
@@ -631,9 +662,6 @@ describe("processBackfill", () => {
                         channels,
                     ));
                 }
-                if (path.startsWith("globalVideoEmbeddings/")) {
-                    return Promise.resolve(embeddingSnap(false));
-                }
                 return Promise.resolve(videoDocSnap(true, {
                     title: "Video",
                     tags: [],
@@ -644,9 +672,6 @@ describe("processBackfill", () => {
                     channelTitle: "Ch",
                 }));
             });
-
-            mockGeneratePackaging.mockResolvedValue(MOCK_VECTOR);
-            mockGenerateThumbnailDesc.mockResolvedValue("desc");
 
             await processBackfill({ apiKey: "test-key", offset: 100, selfUrl: SELF_URL });
 
@@ -665,121 +690,85 @@ describe("processBackfill", () => {
     });
 
     // =======================================================================
-    // Visual embedding
+    // processOneVideo integration
     // =======================================================================
 
-    describe("visual embedding", () => {
-        it("generates visual embedding alongside packaging + description", async () => {
+    describe("processOneVideo integration", () => {
+        it("calls processOneVideo for every video in batch", async () => {
             const channels = [{ id: "UCabc", userId: "user1", channelId: "ch1" }];
             mockDocGet.mockImplementation((path: string) => {
                 if (path === "system/backfillState") {
                     return Promise.resolve(backfillStateAtOffset(
                         100,
-                        [{ videoId: "vid1", youtubeChannelId: "UCabc" }],
+                        [
+                            { videoId: "vid1", youtubeChannelId: "UCabc" },
+                            { videoId: "vid2", youtubeChannelId: "UCabc" },
+                            { videoId: "vid3", youtubeChannelId: "UCabc" },
+                        ],
                         channels,
                     ));
                 }
-                if (path === "globalVideoEmbeddings/vid1") {
-                    return Promise.resolve(embeddingSnap(false));
-                }
+                const videoId = path.split("/").pop();
                 return Promise.resolve(videoDocSnap(true, {
-                    title: "Video vid1",
+                    title: `Video ${videoId}`,
                     tags: ["tag1"],
                     description: "desc",
                     viewCount: 1000,
                     publishedAt: "2026-01-01",
-                    thumbnail: "https://i.ytimg.com/vi/vid1/mqdefault.jpg",
+                    thumbnail: `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
                     channelTitle: "Test Channel",
                 }));
             });
-
-            mockGeneratePackaging.mockResolvedValue(MOCK_VECTOR);
-            mockGenerateThumbnailDesc.mockResolvedValue("desc");
-            mockGenerateVisual.mockResolvedValue(MOCK_VISUAL_VECTOR);
 
             await processBackfill({ apiKey: "test-key", offset: 100, selfUrl: SELF_URL });
 
-            expect(mockGenerateVisual).toHaveBeenCalledWith("vid1");
-
-            const embeddingCall = mockDocSet.mock.calls.find(
-                (c: unknown[]) => c[0] === "globalVideoEmbeddings/vid1",
-            );
-            expect(embeddingCall![1]).toEqual(
-                expect.objectContaining({
-                    visualEmbedding: MOCK_VISUAL_VECTOR,
-                    visualEmbeddingVersion: 1,
-                }),
-            );
+            expect(mockProcessOneVideo).toHaveBeenCalledTimes(3);
+            // Each call should pass apiKey as second argument
+            for (const call of mockProcessOneVideo.mock.calls) {
+                expect(call[1]).toBe("test-key");
+            }
         });
 
-        it("skips visual when visualEmbeddingVersion is current", async () => {
+        it("records cost only for generated videos", async () => {
             const channels = [{ id: "UCabc", userId: "user1", channelId: "ch1" }];
             mockDocGet.mockImplementation((path: string) => {
                 if (path === "system/backfillState") {
                     return Promise.resolve(backfillStateAtOffset(
                         100,
-                        [{ videoId: "vid1", youtubeChannelId: "UCabc" }],
+                        [
+                            { videoId: "vid1", youtubeChannelId: "UCabc" },
+                            { videoId: "vid2", youtubeChannelId: "UCabc" },
+                        ],
                         channels,
                     ));
                 }
-                if (path === "globalVideoEmbeddings/vid1") {
-                    // Has packaging + description + visual → fully current
-                    return Promise.resolve(embeddingSnap(true, {
-                        packagingEmbeddingVersion: 1,
-                        thumbnailDescription: "existing",
-                        visualEmbeddingVersion: 1,
-                    }));
-                }
-                return Promise.resolve({ exists: false, data: () => null });
-            });
-
-            const result = await processBackfill({ apiKey: "test-key", offset: 100, selfUrl: SELF_URL });
-
-            expect(result.body).toMatchObject({ batchGenerated: 0 });
-            expect(mockGenerateVisual).not.toHaveBeenCalled();
-        });
-
-        it("generates only visual when packaging is current but visual is missing", async () => {
-            const channels = [{ id: "UCabc", userId: "user1", channelId: "ch1" }];
-            mockDocGet.mockImplementation((path: string) => {
-                if (path === "system/backfillState") {
-                    return Promise.resolve(backfillStateAtOffset(
-                        100,
-                        [{ videoId: "vid1", youtubeChannelId: "UCabc" }],
-                        channels,
-                    ));
-                }
-                if (path === "globalVideoEmbeddings/vid1") {
-                    // Has packaging + description, missing visual
-                    return Promise.resolve(embeddingSnap(true, {
-                        packagingEmbeddingVersion: 1,
-                        thumbnailDescription: "existing",
-                        packagingEmbedding: MOCK_VECTOR,
-                        // no visualEmbeddingVersion → needs visual
-                    }));
-                }
+                const videoId = path.split("/").pop();
                 return Promise.resolve(videoDocSnap(true, {
-                    title: "Video vid1",
+                    title: `Video ${videoId}`,
                     tags: ["tag1"],
                     description: "desc",
                     viewCount: 1000,
                     publishedAt: "2026-01-01",
-                    thumbnail: "https://i.ytimg.com/vi/vid1/mqdefault.jpg",
+                    thumbnail: `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
                     channelTitle: "Test Channel",
                 }));
             });
 
-            mockGenerateVisual.mockResolvedValue(MOCK_VISUAL_VECTOR);
+            // vid1 already current (no cost), vid2 generated (cost)
+            mockProcessOneVideo
+                .mockResolvedValueOnce(alreadyCurrentResult())
+                .mockResolvedValueOnce(generatedResult());
 
-            const result = await processBackfill({ apiKey: "test-key", offset: 100, selfUrl: SELF_URL });
+            await processBackfill({ apiKey: "test-key", offset: 100, selfUrl: SELF_URL });
 
-            expect(result.body).toMatchObject({ batchGenerated: 1 });
-            expect(mockGenerateVisual).toHaveBeenCalledWith("vid1");
-            // Packaging should NOT be regenerated (reuses existing)
-            expect(mockGeneratePackaging).not.toHaveBeenCalled();
+            // recordCost should be called with cost for 1 generated video
+            expect(mockRecordCost).toHaveBeenCalledTimes(1);
+            expect(mockRecordCost).toHaveBeenCalledWith(expect.any(Number));
+            // Cost should be > 0 (1 video * COST_PER_VIDEO)
+            expect(mockRecordCost.mock.calls[0][0]).toBeGreaterThan(0);
         });
 
-        it("saves packaging + description when visual fails (partial save)", async () => {
+        it("does not record cost when all videos are already current", async () => {
             const channels = [{ id: "UCabc", userId: "user1", channelId: "ch1" }];
             mockDocGet.mockImplementation((path: string) => {
                 if (path === "system/backfillState") {
@@ -789,39 +778,23 @@ describe("processBackfill", () => {
                         channels,
                     ));
                 }
-                if (path === "globalVideoEmbeddings/vid1") {
-                    return Promise.resolve(embeddingSnap(false));
-                }
                 return Promise.resolve(videoDocSnap(true, {
-                    title: "Video vid1",
-                    tags: ["tag1"],
-                    description: "desc",
-                    viewCount: 1000,
+                    title: "Video",
+                    tags: [],
+                    description: "",
+                    viewCount: 100,
                     publishedAt: "2026-01-01",
                     thumbnail: "https://i.ytimg.com/vi/vid1/mqdefault.jpg",
-                    channelTitle: "Test Channel",
+                    channelTitle: "Ch",
                 }));
             });
 
-            mockGeneratePackaging.mockResolvedValue(MOCK_VECTOR);
-            mockGenerateThumbnailDesc.mockResolvedValue("desc");
-            mockGenerateVisual.mockResolvedValue(null); // visual failed
+            mockProcessOneVideo.mockResolvedValue(alreadyCurrentResult());
 
-            const result = await processBackfill({ apiKey: "test-key", offset: 100, selfUrl: SELF_URL });
+            await processBackfill({ apiKey: "test-key", offset: 100, selfUrl: SELF_URL });
 
-            expect(result.body).toMatchObject({ batchGenerated: 1 });
-
-            const embeddingCall = mockDocSet.mock.calls.find(
-                (c: unknown[]) => c[0] === "globalVideoEmbeddings/vid1",
-            );
-            expect(embeddingCall![1]).toEqual(
-                expect.objectContaining({
-                    packagingEmbedding: MOCK_VECTOR,
-                    thumbnailDescription: "desc",
-                    visualEmbedding: null,
-                    visualEmbeddingVersion: 1,
-                }),
-            );
+            // No cost recorded when 0 generated
+            expect(mockRecordCost).not.toHaveBeenCalled();
         });
     });
 
@@ -851,15 +824,19 @@ describe("processBackfill", () => {
                         }),
                     });
                 }
-                if (path.startsWith("globalVideoEmbeddings/")) {
-                    return Promise.resolve(embeddingSnap(true, {
-                        packagingEmbeddingVersion: 1,
-                        thumbnailDescription: "existing",
-                        visualEmbeddingVersion: 1,
-                    }));
-                }
-                return Promise.resolve({ exists: false, data: () => null });
+                // Video docs
+                return Promise.resolve(videoDocSnap(true, {
+                    title: "A video",
+                    tags: ["tag1"],
+                    description: "desc",
+                    viewCount: 1000,
+                    publishedAt: "2026-01-01",
+                    thumbnail: "https://i.ytimg.com/vi/x/mqdefault.jpg",
+                    channelTitle: "Test Channel",
+                }));
             });
+
+            mockProcessOneVideo.mockResolvedValue(alreadyCurrentResult());
 
             const result = await processBackfill({ apiKey: "test-key", offset: 200, selfUrl: SELF_URL });
 

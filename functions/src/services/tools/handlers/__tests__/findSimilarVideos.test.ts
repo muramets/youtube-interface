@@ -38,6 +38,11 @@ vi.mock("../../../../embedding/visualEmbedding.js", () => ({
     generateVisualEmbedding: (...args: unknown[]) => mockGenerateVisualEmbedding(...args),
 }));
 
+const mockDownloadThumbnail = vi.fn();
+vi.mock("../../../../embedding/thumbnailDownload.js", () => ({
+    downloadThumbnail: (...args: unknown[]) => mockDownloadThumbnail(...args),
+}));
+
 const mockGetViewDeltas = vi.fn();
 vi.mock("../../../trendSnapshotService.js", () => ({
     getViewDeltas: (...args: unknown[]) => mockGetViewDeltas(...args),
@@ -208,6 +213,7 @@ describe("handleFindSimilarVideos — mode: packaging", () => {
         mockGetViewDeltas.mockResolvedValue(new Map());
         mockFindNearestVideos.mockResolvedValue([]);
         mockAssignPercentileGroups.mockReturnValue(new Map());
+        mockDownloadThumbnail.mockResolvedValue({ buffer: Buffer.from("fake"), mimeType: "image/jpeg" });
     });
 
     it("uses stored embedding for competitor video", async () => {
@@ -438,6 +444,7 @@ describe("handleFindSimilarVideos — mode: visual", () => {
         mockGetViewDeltas.mockResolvedValue(new Map());
         mockFindNearestVideos.mockResolvedValue([]);
         mockAssignPercentileGroups.mockReturnValue(new Map());
+        mockDownloadThumbnail.mockResolvedValue({ buffer: Buffer.from("fake"), mimeType: "image/jpeg" });
     });
 
     it("uses stored visual embedding for competitor video", async () => {
@@ -515,7 +522,8 @@ describe("handleFindSimilarVideos — mode: visual", () => {
             CTX,
         );
 
-        expect(mockGenerateVisualEmbedding).toHaveBeenCalledWith("my-video");
+        expect(mockDownloadThumbnail).toHaveBeenCalledWith("my-video");
+        expect(mockGenerateVisualEmbedding).toHaveBeenCalledWith("my-video", expect.objectContaining({ buffer: expect.any(Buffer), mimeType: "image/jpeg" }));
         expect(mockFindNearestVideos).toHaveBeenCalledWith(
             expect.objectContaining({
                 queryVector: dummyVisualVector,
@@ -565,6 +573,7 @@ describe("handleFindSimilarVideos — mode: both", () => {
         mockGetViewDeltas.mockResolvedValue(new Map());
         mockFindNearestVideos.mockResolvedValue([]);
         mockAssignPercentileGroups.mockReturnValue(new Map());
+        mockDownloadThumbnail.mockResolvedValue({ buffer: Buffer.from("fake"), mimeType: "image/jpeg" });
     });
 
     it("merges packaging + visual results with RRF when both vectors available", async () => {
@@ -772,7 +781,8 @@ describe("handleFindSimilarVideos — mode: both", () => {
         );
 
         expect(mockGeneratePackagingEmbedding).toHaveBeenCalled();
-        expect(mockGenerateVisualEmbedding).toHaveBeenCalledWith("my-video");
+        expect(mockDownloadThumbnail).toHaveBeenCalledWith("my-video");
+        expect(mockGenerateVisualEmbedding).toHaveBeenCalledWith("my-video", expect.objectContaining({ buffer: expect.any(Buffer), mimeType: "image/jpeg" }));
         expect(mockFindNearestVideos).toHaveBeenCalledTimes(2);
     });
 });

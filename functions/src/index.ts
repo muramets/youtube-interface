@@ -26,6 +26,7 @@ export { onProjectDeleted } from "./triggers/onProjectDeleted.js";
 
 // ─── Embedding Sync ───────────────────────────────────────────────────
 export { scheduledEmbeddingSync } from "./embedding/scheduledEmbeddingSync.js";
+export { embeddingSyncBatch } from "./embedding/embeddingSyncBatch.js";
 export { backfillEmbeddings } from "./embedding/backfillEmbeddings.js";
 
 // ─── Audio Processing ──────────────────────────────────────────────────

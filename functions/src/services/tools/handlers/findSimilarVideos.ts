@@ -19,6 +19,7 @@ import { findNearestVideos } from "../../../embedding/vectorSearch.js";
 import type { VectorSearchResult } from "../../../embedding/vectorSearch.js";
 import { generatePackagingEmbedding } from "../../../embedding/packagingEmbedding.js";
 import { generateVisualEmbedding } from "../../../embedding/visualEmbedding.js";
+import { downloadThumbnail } from "../../../embedding/thumbnailDownload.js";
 import { rrfMerge } from "../../../embedding/rrfMerge.js";
 import type { EmbeddingDoc, EmbeddingStats } from "../../../embedding/types.js";
 import type { ToolContext } from "../types.js";
@@ -153,8 +154,11 @@ async function getVisualVector(
 
     // Own/trend — generate on-the-fly via thumbnail download → Vertex AI
     ctx.reportProgress?.("Generating visual embedding...");
-    const vec = await generateVisualEmbedding(lookup.referenceVideo.videoId);
-    if (!vec) return { error: "Failed to generate visual embedding. Thumbnail may be unavailable." };
+    const videoId = lookup.referenceVideo.videoId;
+    const thumbnail = await downloadThumbnail(videoId);
+    if (!thumbnail) return { error: "Failed to download thumbnail. The video may be unavailable." };
+    const vec = await generateVisualEmbedding(videoId, thumbnail);
+    if (!vec) return { error: "Failed to generate visual embedding." };
     return vec;
 }
 

@@ -22,6 +22,12 @@ export const BUDGET_WARN_THRESHOLD = 0.8;
 /** Number of videos per backfill Cloud Task batch */
 export const BACKFILL_BATCH_SIZE = 100;
 
+/** Number of videos per scheduled sync Cloud Task batch */
+export const SYNC_BATCH_SIZE = 100;
+
+/** Cloud Tasks queue name for all embedding batch operations */
+export const EMBEDDING_TASK_QUEUE = "embedding-backfill";
+
 /** Embedding vector dimensions by type */
 export const EMBEDDING_DIMENSIONS = {
     /** gemini-embedding-001 with MRL (Matryoshka Representation Learning) */
@@ -63,6 +69,9 @@ export interface EmbeddingDoc {
     /** Model version that generated the visual embedding */
     visualEmbeddingVersion?: number;
 
+    /** Whether thumbnail download failed (video deleted/private on YouTube) */
+    thumbnailUnavailable?: boolean;
+
     /** Consecutive generation failure count (reset to 0 on success) */
     failCount: number;
     /** Last update timestamp (epoch ms) */
@@ -101,25 +110,6 @@ export interface EmbeddingStats {
     updatedAt: number;
 }
 
-// --- Sync result summary ---
-
-export interface EmbeddingSyncResult {
-    /** Total videos discovered across all channels */
-    discovered: number;
-    /** Videos already at current version (skipped) */
-    alreadyCurrent: number;
-    /** Videos with newly generated embeddings */
-    generated: number;
-    /** Videos that failed generation */
-    failed: number;
-    /** Videos skipped due to budget exhaustion */
-    skippedBudget: number;
-    /** Total sync duration in ms */
-    durationMs: number;
-    /** Estimated cost of this sync run in USD */
-    estimatedCost: number;
-}
-
 // --- Firestore document: system/backfillState ---
 
 export interface BackfillState {
@@ -141,6 +131,39 @@ export interface BackfillState {
     totalVideos: number;
     /** Timestamp when backfill state was created (epoch ms) */
     createdAt: number;
+}
+
+// --- Firestore document: system/syncState ---
+
+export interface SyncState {
+    /** YouTube channel ID → Firestore path for reading video docs */
+    channelPaths: Record<
+        string,
+        {
+            userId: string;
+            channelId: string;
+            trendChannelId: string;
+        }
+    >;
+    /** Sorted list of videos to process */
+    videos: Array<{
+        videoId: string;
+        youtubeChannelId: string;
+    }>;
+    /** Total number of videos in the list */
+    totalVideos: number;
+    /** Timestamp when sync state was created (epoch ms) */
+    createdAt: number;
+    /** Running total: embeddings generated across all batches */
+    totalGenerated: number;
+    /** Running total: failures across all batches */
+    totalFailed: number;
+    /** Running total: videos skipped due to budget */
+    totalSkippedBudget: number;
+    /** Running total: estimated cost in USD */
+    estimatedCost: number;
+    /** Per-channel coverage counters (packaging/visual accumulated by batches, total set by launcher) */
+    coverageByChannel: Record<string, { packaging: number; visual: number; total: number }>;
 }
 
 // --- Backfill batch result ---
