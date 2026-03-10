@@ -32,6 +32,7 @@ import { TokenBreakdown } from './components/TokenBreakdown';
 import { CostAlertBanner } from './components/CostAlertBanner';
 import { useCostAlerts } from './hooks/useCostAlerts';
 import type { ReadyAttachment } from '../../core/types/chat/chatAttachment';
+import { buildConversationTrace, downloadJson } from './utils/exportConversation';
 
 export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number; anchorRightPx?: number }> = ({ onClose, anchorBottomPx = 32, anchorRightPx = 32 }) => {
     const { user } = useAuth();
@@ -158,6 +159,16 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
         if (!userId || !channelId || !activeConversationId) return;
         return subscribeToMessages(activeConversationId);
     }, [userId, channelId, activeConversationId, subscribeToMessages]);
+
+    // --- Export handler ---
+    const handleExportConversation = useCallback(async (convId: string) => {
+        if (!userId || !channelId) return;
+        const conv = conversations.find(c => c.id === convId);
+        if (!conv) return;
+        const trace = await buildConversationTrace(userId, channelId, conv);
+        const slug = conv.title.replace(/[^a-zA-Z0-9]+/g, '-').slice(0, 40).toLowerCase();
+        downloadJson(trace, `trace-${slug}-${convId.slice(0, 8)}.json`);
+    }, [userId, channelId, conversations]);
 
     // --- Send handler ---
     const sendingRef = useRef(false);
@@ -311,6 +322,7 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
                         activeConversationId={activeConversationId}
                         onSelect={(id) => { clearAndCleanup(); setActiveConversation(id); }}
                         onRename={(id, title) => renameConversation(id, title)}
+                        onExport={userId && channelId ? handleExportConversation : undefined}
                         onDelete={userId && channelId
                             ? (id) => {
                                 setPendingDelete({ type: 'conversation', id, name: conversations.find(c => c.id === id)?.title || 'this conversation' });

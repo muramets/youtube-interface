@@ -234,6 +234,18 @@ export const ChatService = {
         );
     },
 
+    /** Fetch ALL messages in a conversation (no pagination). Used for debug export. */
+    async getAllMessages(
+        userId: string,
+        channelId: string,
+        conversationId: string,
+    ): Promise<ChatMessage[]> {
+        return fetchCollection<ChatMessage>(
+            messagesPath(userId, channelId, conversationId),
+            [orderBy('createdAt', 'asc')]
+        );
+    },
+
     async getOlderMessages(
         userId: string,
         channelId: string,

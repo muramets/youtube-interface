@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { MessageSquare, Pencil, Trash2, ChevronDown } from 'lucide-react';
+import { MessageSquare, Pencil, Trash2, ChevronDown, Download } from 'lucide-react';
 import { formatRelativeTime } from '../formatRelativeTime';
 import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
 import type { ChatConversation } from '../../../core/types/chat/chat';
@@ -10,6 +10,7 @@ interface ConversationListProps {
     onSelect: (id: string) => void;
     onDelete?: (id: string) => void;
     onRename?: (id: string, title: string) => void;
+    onExport?: (id: string) => void;
     hasMore?: boolean;
     onLoadMore?: () => void;
 }
@@ -24,10 +25,11 @@ const ConversationItem: React.FC<{
     onSelect: () => void;
     onDelete?: () => void;
     onRename?: () => void;
+    onExport?: () => void;
     onEditChange: (v: string) => void;
     onEditCommit: () => void;
     onEditCancel: () => void;
-}> = ({ conv, isActive, isEditing, editingTitle, inputRef, onSelect, onDelete, onRename, onEditChange, onEditCommit, onEditCancel }) => {
+}> = ({ conv, isActive, isEditing, editingTitle, inputRef, onSelect, onDelete, onRename, onExport, onEditChange, onEditCommit, onEditCancel }) => {
     const nameRef = useRef<HTMLSpanElement>(null);
     const [isTruncated, setIsTruncated] = useState(false);
 
@@ -98,6 +100,15 @@ const ConversationItem: React.FC<{
                         <Pencil size={14} />
                     </button>
                 )}
+                {onExport && (
+                    <button
+                        className={actionBtnClass}
+                        onClick={(e) => { e.stopPropagation(); onExport(); }}
+                        title="Export debug trace"
+                    >
+                        <Download size={14} />
+                    </button>
+                )}
                 {onDelete && (
                     <button
                         className={`${actionBtnClass} hover:!text-red-400`}
@@ -118,6 +129,7 @@ export const ConversationList: React.FC<ConversationListProps> = ({
     onSelect,
     onDelete,
     onRename,
+    onExport,
     hasMore,
     onLoadMore,
 }) => {
@@ -155,6 +167,7 @@ export const ConversationList: React.FC<ConversationListProps> = ({
                     onSelect={() => onSelect(conv.id)}
                     onDelete={onDelete ? () => onDelete(conv.id) : undefined}
                     onRename={onRename ? () => startEditing(conv) : undefined}
+                    onExport={onExport ? () => onExport(conv.id) : undefined}
                     onEditChange={setEditingTitle}
                     onEditCommit={commitRename}
                     onEditCancel={cancelEditing}

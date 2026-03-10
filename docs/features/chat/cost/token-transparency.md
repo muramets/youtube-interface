@@ -420,7 +420,7 @@ Proactive cost management — warnings before a conversation becomes expensive, 
 
 - `scripts/measure-image-tokens.mjs` — Gemini image token measurement via `countTokens` API
 - `scripts/audit-tokens.mjs` — Firestore conversation token audit
-- `scripts/dump-conversation.mjs` — Full conversation dump
+- Export Debug Trace button in Chat UI (`src/features/Chat/utils/exportConversation.ts`) — full conversation JSON export
 
 #### Cache breakpoints (don't touch)
 
