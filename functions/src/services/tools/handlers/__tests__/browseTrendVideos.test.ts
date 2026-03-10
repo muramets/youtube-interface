@@ -15,6 +15,8 @@ vi.mock("../../../../shared/db.js", () => ({
                 get: () => mockDocGet(path, id),
             }),
         }),
+        getAll: (...refs: { get: () => Promise<unknown> }[]) =>
+            Promise.all(refs.map(r => r.get())),
     },
 }));
 

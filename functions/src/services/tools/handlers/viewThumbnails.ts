@@ -1,9 +1,10 @@
 // =============================================================================
 // viewThumbnails handler — batch fetch thumbnail URLs for visual context
 //
-// Searches in two collections (same as getMultipleVideoDetails):
-//   1. videos/{videoId}                          — own/competitor videos
-//   2. cached_external_videos/{videoId}  — suggested traffic
+// Title resolution searches three collection layers (cheapest first):
+//   1. videos/{videoId}                          — own videos
+//   2. cached_external_videos/{videoId}          — traffic cache
+//   3. trendChannels/{channelId}/videos/{videoId} — competitor videos
 //
 // Accepts videoIds directly OR titles for lookup (fallback when IDs are unknown).
 // Returns visualContextUrls for thumbnailMiddleware to process.
@@ -15,8 +16,12 @@ import { resolveVideosByIds } from "../utils/resolveVideos.js";
 import type { ToolContext } from "../types.js";
 
 /**
- * Resolve video titles to videoIds by querying both Firestore collections.
+ * Resolve video titles to videoIds by querying all Firestore collections.
  * Returns a map of title → videoId for successfully resolved titles.
+ *
+ * Search order: videos/ → cached_external_videos/ → trendChannels/{ch}/videos/
+ * Trade-off: trendChannels search = N channels × M titles queries.
+ * Acceptable because title search is a rare fallback path (~5% of calls).
  */
 async function resolveVideoIdsByTitle(
     basePath: string,
@@ -25,7 +30,11 @@ async function resolveVideoIdsByTitle(
     const resolved = new Map<string, string>();
     const unresolved: string[] = [];
 
-    // Query both collections in parallel for each title
+    // Get trend channel list once for fallback search
+    const trendChannelsSnap = await db.collection(`${basePath}/trendChannels`).get();
+    const trendChannelIds = trendChannelsSnap.docs.map(d => d.id);
+
+    // Query collections for each title
     const queries = titles.map(async (title) => {
         const [videoSnap, suggestedSnap] = await Promise.all([
             db.collection(`${basePath}/videos`).where("title", "==", title).limit(1).get(),
@@ -33,13 +42,31 @@ async function resolveVideoIdsByTitle(
         ]);
 
         // Prefer main videos/ collection
-        const doc = !videoSnap.empty ? videoSnap.docs[0] : (!suggestedSnap.empty ? suggestedSnap.docs[0] : null);
-
-        if (doc) {
-            resolved.set(title, doc.id);
-        } else {
-            unresolved.push(title);
+        if (videoSnap.docs.length > 0) {
+            resolved.set(title, videoSnap.docs[0].id);
+            return;
         }
+        if (suggestedSnap.docs.length > 0) {
+            resolved.set(title, suggestedSnap.docs[0].id);
+            return;
+        }
+
+        // Fallback: search in trendChannels (parallel queries)
+        const trendResults = await Promise.all(
+            trendChannelIds.map(tcId =>
+                db.collection(`${basePath}/trendChannels/${tcId}/videos`)
+                    .where("title", "==", title)
+                    .limit(1)
+                    .get(),
+            ),
+        );
+        const trendHit = trendResults.find(snap => snap.docs.length > 0);
+        if (trendHit) {
+            resolved.set(title, trendHit.docs[0].id);
+            return;
+        }
+
+        unresolved.push(title);
     });
 
     await Promise.all(queries);

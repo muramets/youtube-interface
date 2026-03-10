@@ -96,9 +96,9 @@ export async function handleBrowseTrendVideos(
         // --- Read trend channels ---
         const trendChannelsRef = db.collection(`${basePath}/trendChannels`);
         const trendChannelsSnap = channelIds && channelIds.length > 0
-            ? await Promise.all(
-                channelIds.map((id) => trendChannelsRef.doc(id).get()),
-            ).then((docs) => docs.filter((d) => d.exists))
+            ? (await db.getAll(
+                ...channelIds.map((id) => trendChannelsRef.doc(id)),
+            )).filter((d) => d.exists)
             : (await trendChannelsRef.get()).docs;
 
         const trendChannelDocs = trendChannelsSnap;

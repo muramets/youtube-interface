@@ -58,14 +58,14 @@
 
 | Phase | Goal | Status |
 |-------|------|--------|
-| P1 | Extend resolver + tests | TODO |
-| P2 | Update consumers (mentionVideo, getMultipleVideoDetails, viewThumbnails) | TODO |
-| P3 | Batch-read alignment (findSimilarVideos, browseTrendVideos) | TODO |
-| FINAL | Double review | TODO |
+| P1 | Extend resolver + tests | DONE |
+| P2 | Update consumers (mentionVideo, getMultipleVideoDetails, viewThumbnails) | DONE |
+| P3 | Batch-read alignment (findSimilarVideos, browseTrendVideos) | DONE |
+| FINAL | Double review | DONE |
 
 ## Current Test Count
 
-**360 frontend (25 files) + 684 backend (47 files) = 1044 total (72 files)**
+**360 frontend (25 files) + 699 backend (48 files) = 1059 total (73 files)**
 
 ---
 
@@ -117,11 +117,11 @@
 
 ### Tasks
 
-- [ ] **T1.1** Добавить source тип `"trend_channel"` в `ResolvedVideo.source`
+- [x] **T1.1** Добавить source тип `"trend_channel"` в `ResolvedVideo.source`
   - Файл: `functions/src/services/tools/utils/resolveVideos.ts` строка 29
   - Изменить: `source: "video_grid" | "external_cache" | "trend_channel"`
 
-- [ ] **T1.2** Реализовать `resolveFromTrendChannels()` — новый internal helper
+- [x] **T1.2** Реализовать `resolveFromTrendChannels()` — новый internal helper
   - Файл: `functions/src/services/tools/utils/resolveVideos.ts`
   - Логика:
     1. `db.collection(basePath/trendChannels).get()` → массив channel IDs
@@ -134,14 +134,14 @@
   - ⚠️ Кешировать trendChannelIds: один collection read на весь вызов resolver'а
   - ⚠️ Обернуть в `try/catch`: при failure → `console.warn("[resolveVideos] Step 3 failed:", err)`, return без изменений в `resolved`
 
-- [ ] **T1.3** Интегрировать Step 3 в main `resolveVideosByIds()`
+- [x] **T1.3** Интегрировать Step 3 в main `resolveVideosByIds()`
   - Файл: `functions/src/services/tools/utils/resolveVideos.ts` строки 91-96
   - Вставить после existing Step 2, до финального `missingIds` вычисления
   - Guard 1: `skipExternal` → skip Step 3 целиком
   - Guard 2: `missingAfterStep2.length === 0` → skip Step 3
   - Логировать: `[resolveVideos] Step 3: N checked → M found in trendChannels`
 
-- [ ] **T1.4** Тесты для Step 3
+- [x] **T1.4** Тесты для Step 3
   - Файл: `functions/src/services/tools/utils/__tests__/resolveVideos.test.ts`
   - Новая describe секция: `"resolveVideosByIds — trendChannels lookup (Step 3)"`
   - Кейсы:
@@ -189,27 +189,27 @@ npm run typecheck
 
 ### Tasks
 
-- [ ] **T2.1** `mentionVideo` — обработать `source: "trend_channel"`
+- [x] **T2.1** `mentionVideo` — обработать `source: "trend_channel"`
   - Файл: `functions/src/services/tools/handlers/mentionVideo.ts`
   - Изменить: `ownership` для `trend_channel` source → `"competitor"`
   - `channelTitle` — уже есть в `data` (нормализован resolver'ом в T1.2)
   - Thumbnail fallback: `data.thumbnail` || YouTube CDN URL (как сейчас)
 
-- [ ] **T2.2** `getMultipleVideoDetails` — обработать `source: "trend_channel"`
+- [x] **T2.2** `getMultipleVideoDetails` — обработать `source: "trend_channel"`
   - Файл: `functions/src/services/tools/handlers/getMultipleVideoDetails.ts`
   - `CollectionSource` type (строка 126): добавить `"competitor"`
   - Маппинг в цикле (строка 39): `entry.source === "trend_channel"` → `collectionSource = "competitor"`
   - `formatVideoData` (строка 128): `"competitor"` → `ownership: "external"`, включить `channelId` из data
   - YouTube API fallback: без изменений — срабатывает для оставшихся `notFoundIds` (которых теперь меньше)
 
-- [ ] **T2.3** `viewThumbnails` — расширить `resolveVideoIdsByTitle()`
+- [x] **T2.3** `viewThumbnails` — расширить `resolveVideoIdsByTitle()`
   - Файл: `functions/src/services/tools/handlers/viewThumbnails.ts` строки 22-47
   - Добавить 3-й параллельный query: для каждого title → query каждый trendChannel
   - Паттерн: `db.collection(basePath/trendChannels).get()` → для каждого channel × каждого title → `.where("title", "==", title).limit(1).get()`
   - Приоритет: videos/ > cached_external_videos/ > trendChannels/
   - ⚠️ Trade-off: N channels × M titles queries. Для 10 каналов × 5 titles = 50 queries. Приемлемо — title search редкий path (в 95% случаев LLM уже имеет video ID из предыдущего tool call). Зафиксировать trade-off комментарием в коде, не добавлять safeguard cap
 
-- [ ] **T2.4** Тесты consumers
+- [x] **T2.4** Тесты consumers
   - Файлы: создать или расширить тесты для каждого consumer
   - `mentionVideo`: тест — competitor video resolved via trendChannels → `ownership: "competitor"`, `channelTitle` присутствует
   - `getMultipleVideoDetails`: тест — competitor video resolved из trendChannels → ownership `"external"`, YouTube API fallback НЕ вызывается для этого ID
@@ -249,7 +249,7 @@ npm run lint
 
 ### Tasks
 
-- [ ] **T3.1** `findSimilarVideos.lookupVideo()` — заменить Promise.all на db.getAll
+- [x] **T3.1** `findSimilarVideos.lookupVideo()` — заменить Promise.all на db.getAll
   - Файл: `functions/src/services/tools/handlers/findSimilarVideos.ts` строки 89-96
   - Сейчас:
     ```typescript
@@ -268,13 +268,13 @@ npm run lint
     ```
   - ⚠️ Семантика идентична — `getAll` возвращает snaps в том же порядке что refs
 
-- [ ] **T3.2** `browseTrendVideos` — batch channel doc reads
+- [x] **T3.2** `browseTrendVideos` — batch channel doc reads
   - Файл: `functions/src/services/tools/handlers/browseTrendVideos.ts` строки 98-101
   - Сейчас: `Promise.all(channelIds.map(id => trendChannelsRef.doc(id).get()))` → filter exists
   - После: `db.getAll(...channelIds.map(id => trendChannelsRef.doc(id)))` → filter exists
   - Минорная оптимизация (обычно 2-5 channels), но выравнивает паттерн
 
-- [ ] **T3.3** Тесты — убедиться что существующие тесты проходят
+- [x] **T3.3** Тесты — убедиться что существующие тесты проходят
   - Никаких новых тестов не нужно — поведение не меняется, только latency
   - Если mock'и завязаны на `doc().get()` pattern → обновить mock'и для `getAll`
 

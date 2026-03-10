@@ -56,10 +56,11 @@ User message
      │
      ▼
 [handleViewThumbnails]
-  ─ resolveVideosByIds(): direct lookup + publishedVideoId reverse lookup for custom videos
-      users/{userId}/channels/{channelId}/videos/{id}        ← own videos (direct + custom)
-      users/{userId}/channels/{channelId}/cached_external_videos/{id}  ← external videos
-  ─ own videos preferred; fallback to cached_external if not found
+  ─ resolveVideosByIds(): 3-step resolution (direct + publishedVideoId + trendChannels)
+      users/{userId}/channels/{channelId}/videos/{id}                    ← own videos (direct + custom)
+      users/{userId}/channels/{channelId}/cached_external_videos/{id}    ← external videos
+      users/{userId}/channels/{channelId}/trendChannels/{ch}/videos/{id} ← competitor videos
+  ─ priority: own > external_cache > trendChannels
   ─ caps at 50 IDs
   ─ returns { videos: [{videoId, title, thumbnailUrl, ...}], notFound: [], visualContextUrls: [...] }
      │

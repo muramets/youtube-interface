@@ -11,6 +11,8 @@ const mockGetVideoDetails = vi.fn();
 
 // --- Mock Firestore ---
 
+const mockCollectionGet = vi.fn().mockResolvedValue({ docs: [] });
+
 vi.mock('../../../../shared/db.js', () => ({
     db: {
         doc: (path: string) => ({ path }),
@@ -21,6 +23,7 @@ vi.mock('../../../../shared/db.js', () => ({
         }),
         collection: () => ({
             where: () => ({ get: () => Promise.resolve({ docs: [] }) }),
+            get: () => mockCollectionGet(),
         }),
     },
 }));
@@ -45,6 +48,7 @@ const MISS = makeSnap(false);
 beforeEach(() => {
     vi.clearAllMocks();
     mockBatchCommit.mockResolvedValue(undefined);
+    mockCollectionGet.mockResolvedValue({ docs: [] });
 });
 
 // ─────────────────────────────────────────────────────────────────
@@ -289,5 +293,53 @@ describe('getMultipleVideoDetails — YouTube API fallback', () => {
         expect(result.videos.find(v => v.videoId === 'api1')?.title).toBe('From YouTube');
         expect(result.notFound).toHaveLength(0);
         expect(result.quotaUsed).toBe(1);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────
+// Competitor video via trendChannels (Step 3 resolver)
+// ─────────────────────────────────────────────────────────────────
+
+describe('getMultipleVideoDetails — competitor video from trendChannels', () => {
+    it('resolves competitor video with external ownership, skips YouTube API', async () => {
+        // Step 1: not found in own or external
+        mockGetAll
+            .mockResolvedValueOnce([MISS])
+            .mockResolvedValueOnce([MISS]);
+
+        // Step 3: one trend channel
+        mockCollectionGet.mockResolvedValueOnce({
+            docs: [{ id: 'UCcompetitor' }],
+        });
+
+        // Step 3: getAll finds the video
+        mockGetAll.mockResolvedValueOnce([
+            makeSnap(true, {
+                title: 'Competitor Hit',
+                thumbnail: 'https://comp/thumb.jpg',
+                channelId: 'UCcompetitor',
+                viewCount: 50000,
+                tags: ['trending'],
+            }),
+        ]);
+
+        const result = await handleGetMultipleVideoDetails(
+            { videoIds: ['comp1'] },
+            CTX_WITH_YT,
+        ) as {
+            videos: Array<{ videoId: string; title: string; ownership: string; channelId: string }>;
+            notFound: string[];
+            quotaUsed?: number;
+        };
+
+        expect(result.videos).toHaveLength(1);
+        expect(result.videos[0].videoId).toBe('comp1');
+        expect(result.videos[0].title).toBe('Competitor Hit');
+        expect(result.videos[0].ownership).toBe('external');
+        expect(result.videos[0].channelId).toBe('UCcompetitor');
+        expect(result.notFound).toHaveLength(0);
+        // YouTube API should NOT be called — video was resolved from trendChannels
+        expect(mockGetVideoDetails).not.toHaveBeenCalled();
+        expect(result.quotaUsed).toBeUndefined();
     });
 });

@@ -37,7 +37,9 @@ export async function handleGetMultipleVideoDetails(
         if (!entry) continue;
 
         const collectionSource: CollectionSource =
-            entry.source === "video_grid" ? "own" : "external_cache";
+            entry.source === "video_grid" ? "own"
+                : entry.source === "trend_channel" ? "competitor"
+                    : "external_cache";
         videos.push(formatVideoData(id, entry.data, collectionSource));
     }
 
@@ -123,7 +125,7 @@ export async function handleGetMultipleVideoDetails(
 // --- Helpers ---
 
 /** Which Firestore collection (or API) the video data came from. */
-type CollectionSource = "own" | "external_cache" | "youtube_api";
+type CollectionSource = "own" | "external_cache" | "competitor" | "youtube_api";
 
 function formatVideoData(
     videoId: string,

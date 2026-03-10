@@ -86,14 +86,13 @@ async function lookupVideo(
         };
     }
 
-    // 3. Check trend channel videos (parallel lookup across all channels)
+    // 3. Check trend channel videos (single getAll across all channels)
     const trendSnap = await db.collection(`${basePath}/trendChannels`).get();
     if (!trendSnap.empty) {
-        const checks = await Promise.all(
-            trendSnap.docs.map((ch) =>
-                db.doc(`${basePath}/trendChannels/${ch.id}/videos/${videoId}`).get(),
-            ),
+        const refs = trendSnap.docs.map((ch) =>
+            db.doc(`${basePath}/trendChannels/${ch.id}/videos/${videoId}`),
         );
+        const checks = await db.getAll(...refs);
         const found = checks.find((d) => d.exists);
         if (found) {
             const data = found.data()!;

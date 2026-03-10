@@ -5,9 +5,10 @@
 // store the YouTube video ID in a `publishedVideoId` field. Direct document
 // lookups by YouTube ID miss these videos entirely.
 //
-// Solution: 2-step resolution
+// Solution: 3-step resolution
 //   1. Direct document lookup by ID (fast, O(1) per video)
 //   2. Reverse lookup via `publishedVideoId` field for any remaining misses
+//   3. Trend channel videos lookup via trendChannels/*/videos/
 //
 // All tool handlers should use this instead of raw db.doc() lookups.
 // =============================================================================
@@ -26,7 +27,7 @@ export interface ResolvedVideo {
     /** Document data. */
     data: Record<string, unknown>;
     /** Which collection the document was found in. */
-    source: "video_grid" | "external_cache";
+    source: "video_grid" | "external_cache" | "trend_channel";
 }
 
 export interface ResolveResult {
@@ -37,7 +38,7 @@ export interface ResolveResult {
 }
 
 export interface ResolveOptions {
-    /** Skip cached_external_videos/ collection (e.g. for traffic analysis of own videos). */
+    /** Skip external sources: cached_external_videos/ and trendChannels/ (e.g. for traffic analysis of own videos). */
     skipExternal?: boolean;
 }
 
@@ -51,12 +52,16 @@ const DOC_BATCH_SIZE = 100;
 /** Firestore `in` query limit. */
 const IN_QUERY_LIMIT = 30;
 
+/** Firestore getAll() hard limit per call. */
+const GETALL_BATCH_SIZE = 500;
+
 // ---------------------------------------------------------------------------
 // Main resolver
 // ---------------------------------------------------------------------------
 
 /**
- * Resolves YouTube video IDs to Firestore documents across both collections,
+ * Resolves YouTube video IDs to Firestore documents across all collections
+ * (videos/, cached_external_videos/, trendChannels/{channelId}/videos/),
  * including custom videos that store YouTube IDs in `publishedVideoId`.
  *
  * @param basePath - Firestore path prefix: `users/{uid}/channels/{chId}`
@@ -87,6 +92,12 @@ export async function resolveVideosByIds(
         const step2VideoGrid = [...resolved.values()].filter(v => v.source === "video_grid").length;
         const upgraded = step2VideoGrid - step1VideoGrid;
         console.log(`[resolveVideos] Step 2: ${needsReverseLookup.length} checked → ${upgraded} upgraded to video_grid, ${step2VideoGrid} total video_grid`);
+    }
+
+    // --- Step 3: Trend channel videos lookup ---
+    const missingAfterStep2 = youtubeVideoIds.filter(id => !resolved.has(id));
+    if (!options?.skipExternal && missingAfterStep2.length > 0) {
+        await resolveFromTrendChannels(basePath, missingAfterStep2, resolved);
     }
 
     // Whatever is still not in `resolved` is truly missing
@@ -196,5 +207,53 @@ async function resolveByPublishedVideoId(
                 });
             }
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Step 3: Trend channel videos lookup
+// ---------------------------------------------------------------------------
+
+async function resolveFromTrendChannels(
+    basePath: string,
+    missingIds: string[],
+    resolved: Map<string, ResolvedVideo>,
+): Promise<void> {
+    try {
+        const trendChannelsSnap = await db.collection(`${basePath}/trendChannels`).get();
+        const channelIds = trendChannelsSnap.docs.map(d => d.id);
+        if (channelIds.length === 0) return;
+
+        // Build ref descriptors: each missing ID × each channel
+        const entries = missingIds.flatMap(videoId =>
+            channelIds.map(channelId => ({
+                ref: db.doc(`${basePath}/trendChannels/${channelId}/videos/${videoId}`),
+                videoId,
+                channelId,
+            })),
+        );
+
+        let found = 0;
+        for (let i = 0; i < entries.length; i += GETALL_BATCH_SIZE) {
+            const batch = entries.slice(i, i + GETALL_BATCH_SIZE);
+            const snaps = await db.getAll(...batch.map(e => e.ref));
+
+            for (let j = 0; j < snaps.length; j++) {
+                if (snaps[j].exists && !resolved.has(batch[j].videoId)) {
+                    const data = snaps[j].data() as Record<string, unknown>;
+                    resolved.set(batch[j].videoId, {
+                        requestedId: batch[j].videoId,
+                        docId: batch[j].videoId,
+                        data: { ...data, channelId: batch[j].channelId },
+                        source: "trend_channel",
+                    });
+                    found++;
+                }
+            }
+        }
+
+        console.log(`[resolveVideos] Step 3: ${entries.length} checked → ${found} found in trendChannels`);
+    } catch (err) {
+        console.warn("[resolveVideos] Step 3 failed:", err);
     }
 }

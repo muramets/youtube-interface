@@ -6,13 +6,19 @@ import type { ToolContext } from '../../types.js';
 
 const mockGetAll = vi.fn();
 const mockDoc = vi.fn((path: string) => ({ path }));
+const mockWhereGet = vi.fn().mockResolvedValue({ docs: [] });
+const mockCollectionGet = vi.fn().mockResolvedValue({ docs: [] });
 
 vi.mock('../../../../shared/db.js', () => ({
     db: {
         doc: (path: string) => mockDoc(path),
         getAll: (..._refs: unknown[]) => mockGetAll(..._refs),
         collection: () => ({
-            where: () => ({ get: () => Promise.resolve({ docs: [] }) }),
+            where: () => ({
+                get: () => mockWhereGet(),
+                limit: () => ({ get: () => mockWhereGet() }),
+            }),
+            get: () => mockCollectionGet(),
         }),
     },
 }));
@@ -27,6 +33,8 @@ function makeSnap(exists: boolean, data?: Record<string, unknown>) {
 
 beforeEach(() => {
     vi.clearAllMocks();
+    mockWhereGet.mockResolvedValue({ docs: [] });
+    mockCollectionGet.mockResolvedValue({ docs: [] });
 });
 
 // --- Tests ---
@@ -169,5 +177,44 @@ describe('handleViewThumbnails', () => {
 
         expect(mockDoc).toHaveBeenCalledWith(`${BASE}/videos/vid1`);
         expect(mockDoc).toHaveBeenCalledWith(`${BASE}/cached_external_videos/vid1`);
+    });
+
+    it('resolves title from trendChannels when videos/ and cached_external/ miss', async () => {
+        // 1. resolveVideoIdsByTitle: trendChannels list
+        // 2. resolver Step 3: trendChannels list (called twice — once per function)
+        mockCollectionGet
+            .mockResolvedValueOnce({ docs: [{ id: 'UCcomp' }] })   // resolveVideoIdsByTitle
+            .mockResolvedValueOnce({ docs: [{ id: 'UCcomp' }] });  // resolver Step 3
+
+        // resolveVideoIdsByTitle: title queries
+        // Call 1: videos/ title search → empty
+        // Call 2: cached_external/ title search → empty
+        // Call 3: trendChannels/UCcomp/videos/ title search → found
+        mockWhereGet
+            .mockResolvedValueOnce({ docs: [] })
+            .mockResolvedValueOnce({ docs: [] })
+            .mockResolvedValueOnce({ docs: [{ id: 'compVid' }] });
+
+        // resolver Step 1: compVid not in own or external
+        mockGetAll
+            .mockResolvedValueOnce([makeSnap(false)])
+            .mockResolvedValueOnce([makeSnap(false)]);
+
+        // resolver Step 3: getAll finds compVid
+        mockGetAll.mockResolvedValueOnce([
+            makeSnap(true, { title: 'Competitor Video', thumbnail: 'https://comp/thumb.jpg' }),
+        ]);
+
+        const result = await handleViewThumbnails({ titles: ['Competitor Video'] }, CTX) as {
+            videos: Array<{ videoId: string; title: string; thumbnailUrl: string }>;
+            visualContextUrls: string[];
+            notFound: string[];
+        };
+
+        expect(result.videos).toHaveLength(1);
+        expect(result.videos[0].videoId).toBe('compVid');
+        expect(result.videos[0].thumbnailUrl).toBe('https://comp/thumb.jpg');
+        expect(result.visualContextUrls).toEqual(['https://comp/thumb.jpg']);
+        expect(result.notFound).toHaveLength(0);
     });
 });
