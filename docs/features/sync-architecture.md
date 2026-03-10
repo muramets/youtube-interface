@@ -11,6 +11,10 @@
 - [x] Notification categories → `docs/features/notification-categories.md`
 - [x] Custom видео с `publishedVideoId` синхронизируются в Channel Sync (batch + ID mapping)
 - [x] Все 5 пайплайнов покрыты тестами
+- [x] YouTube API error handling: `fetchVideosBatch` и `fetchVideoDetails` проверяют `videoData.error`, различают quota/rateLimit vs private (403 reason parsing)
+- [x] Cross-cache оптимизирован: batch `getDocs` queries вместо N отдельных `getDoc` (30 IDs per query)
+- [x] `refreshSubscriberCounts` чанкуется по 400 (защита от Firestore 500-op batch limit)
+- [x] Partial failure observability: `apiSkippedCount` + warning notification при network errors
 - [ ] Деплой backend (functions) с последними изменениями
 
 ---
@@ -88,7 +92,8 @@
                   │    videos/{videoId}    │
                   │    (TrendChannel doc)  │
                   └──────────┬─────────────┘
-                             │ Phase 1: getDoc()
+                             │ Phase 1: getDocs() batch query
+                             │ grouped by channel, 30 IDs per query
                              │ if fresh → use cache
                              ▼
 ┌─────────────┐    ┌──────────────────┐    ┌──────────────┐
@@ -106,7 +111,7 @@
 
 **Как работает:**
 1. `fetchTrendChannels()` — один `getDocs` запрос (5-20 документов), работает всегда (не зависит от состояния UI)
-2. Для каждого видео: если `channelId` совпадает с trend channel → overlap → читать из Trends Firestore
+2. Overlap-видео группируются по `channelId`, и для каждой группы выполняется batch `getDocs` с `where(documentId(), 'in', [...30 IDs])` — вместо N отдельных `getDoc` вызовов
 3. **Freshness check:** `trendVideo.lastUpdated > video.lastUpdated` → использовать кэш. Иначе → fallback на YouTube API
 4. `subscriberCount` и `channelAvatar` берутся из родительского `TrendChannel` документа
 5. Конвертация типов: `viewCount: String(number)`, `likeCount: String(number)`
