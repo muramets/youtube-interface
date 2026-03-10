@@ -113,7 +113,8 @@ export const useCheckinScheduler = () => {
                             internalId: notificationId,
                             customColor: rule.badgeColor,
                             thumbnail: video.thumbnail || video.customImage,
-                            isPersistent: true
+                            isPersistent: true,
+                            category: 'checkin'
                         });
                     } catch (e) {
                         processedIdsRef.current.delete(notificationId);

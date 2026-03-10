@@ -67,13 +67,14 @@ export const AddChannelModal: React.FC<AddChannelModalProps> = ({ isOpen, onClos
             showToast(`${channel.title} added successfully.`, 'success');
 
             await addNotification({
-                title: `${channel.title} Visual Data Added`,
+                title: `Trends Sync: ${channel.title}`,
                 message: `Initial sync complete. Added ${totalNewVideos} videos.`,
                 type: 'success',
                 meta: quotaCost.toString(),
                 avatarUrl: channel.avatarUrl,
                 quotaBreakdown,
-                link: '/trends'
+                link: '/trends',
+                category: 'trends'
             });
 
             onClose();

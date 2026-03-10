@@ -35,6 +35,8 @@ export interface TrendVideo {
     title: string;
     thumbnail: string;
     viewCount: number;
+    likeCount?: number;
+    commentCount?: number;
     duration?: string;
     tags?: string[];
     description?: string;

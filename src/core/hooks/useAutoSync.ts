@@ -40,7 +40,7 @@ export const useAutoSync = () => {
 
                     // Check both the store (persistent) and our local ref (immediate)
                     const hasRecentAlertInStore = notifications.some(n =>
-                        n.title === 'Auto-Sync Failed' &&
+                        n.title === 'Channel Sync Failed' &&
                         n.message.includes('Missing API Key') &&
                         (now - (n.timestamp || 0)) < 24 * 60 * 60 * 1000 // 24 hours
                     );
@@ -52,10 +52,11 @@ export const useAutoSync = () => {
                     if (!hasRecentAlertInStore && !hasRecentAlertLocal) {
                         lastAlertRef.current = now; // Update local ref immediately
                         addNotification({
-                            title: 'Auto-Sync Failed',
+                            title: 'Channel Sync Failed',
                             message: 'Missing API Key. Please configure it in Settings.',
                             type: 'error',
-                            link: 'settings'
+                            link: 'settings',
+                            category: 'channel'
                         });
                     }
 

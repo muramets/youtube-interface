@@ -350,4 +350,309 @@ describe("YouTubeService", () => {
             expect("nextPageToken" in result).toBe(false);
         });
     });
+
+    // =========================================================================
+    // getPlaylistVideos
+    // =========================================================================
+
+    describe("getPlaylistVideos", () => {
+        const PLAYLIST_ITEMS_URL = "https://www.googleapis.com/youtube/v3/playlistItems";
+
+        it("returns all videoIds from a single page (no nextPageToken)", async () => {
+            mockedAxios.get.mockResolvedValueOnce({
+                data: {
+                    items: [
+                        { contentDetails: { videoId: "vid1" } },
+                        { contentDetails: { videoId: "vid2" } },
+                        { contentDetails: { videoId: "vid3" } },
+                    ],
+                },
+            });
+
+            const result = await svc.getPlaylistVideos("PLtest123");
+            expect(result.videoIds).toEqual(["vid1", "vid2", "vid3"]);
+            expect(result.quotaUsed).toBe(1);
+            expect(mockedAxios.get).toHaveBeenCalledTimes(1);
+            expect(mockedAxios.get).toHaveBeenCalledWith(
+                PLAYLIST_ITEMS_URL,
+                expect.objectContaining({
+                    params: expect.objectContaining({
+                        part: "contentDetails",
+                        playlistId: "PLtest123",
+                        maxResults: 50,
+                        key: "test-api-key",
+                    }),
+                }),
+            );
+        });
+
+        it("follows nextPageToken across multiple pages", async () => {
+            mockedAxios.get
+                .mockResolvedValueOnce({
+                    data: {
+                        items: [
+                            { contentDetails: { videoId: "vid1" } },
+                            { contentDetails: { videoId: "vid2" } },
+                        ],
+                        nextPageToken: "page2token",
+                    },
+                })
+                .mockResolvedValueOnce({
+                    data: {
+                        items: [
+                            { contentDetails: { videoId: "vid3" } },
+                        ],
+                    },
+                });
+
+            const result = await svc.getPlaylistVideos("PLpaginated");
+            expect(result.videoIds).toEqual(["vid1", "vid2", "vid3"]);
+            expect(result.quotaUsed).toBe(2);
+            expect(mockedAxios.get).toHaveBeenCalledTimes(2);
+            expect(mockedAxios.get).toHaveBeenNthCalledWith(
+                2,
+                PLAYLIST_ITEMS_URL,
+                expect.objectContaining({
+                    params: expect.objectContaining({ pageToken: "page2token" }),
+                }),
+            );
+        });
+
+        it("returns empty array for empty playlist", async () => {
+            mockedAxios.get.mockResolvedValueOnce({
+                data: { items: [] },
+            });
+
+            const result = await svc.getPlaylistVideos("PLempty");
+            expect(result.videoIds).toEqual([]);
+            expect(result.quotaUsed).toBe(1);
+        });
+
+        it("throws on API error", async () => {
+            mockedAxios.get.mockRejectedValueOnce(new Error("API quota exceeded"));
+            await expect(svc.getPlaylistVideos("PLfail")).rejects.toThrow("API quota exceeded");
+        });
+    });
+
+    // =========================================================================
+    // getVideoDetails
+    // =========================================================================
+
+    describe("getVideoDetails", () => {
+        const VIDEOS_URL = "https://www.googleapis.com/youtube/v3/videos";
+
+        it("returns immediately for empty array with 0 quota", async () => {
+            const result = await svc.getVideoDetails([]);
+            expect(result).toEqual({ videos: [], quotaUsed: 0 });
+            expect(mockedAxios.get).not.toHaveBeenCalled();
+        });
+
+        it("fetches a single batch (≤50 IDs) in 1 API call", async () => {
+            const mockVideos = [
+                { id: "vid1", snippet: { title: "Video 1" } },
+                { id: "vid2", snippet: { title: "Video 2" } },
+            ];
+
+            mockedAxios.get.mockResolvedValueOnce({
+                data: { items: mockVideos },
+            });
+
+            const result = await svc.getVideoDetails(["vid1", "vid2"]);
+            expect(result.videos).toEqual(mockVideos);
+            expect(result.quotaUsed).toBe(1);
+            expect(mockedAxios.get).toHaveBeenCalledTimes(1);
+            expect(mockedAxios.get).toHaveBeenCalledWith(
+                VIDEOS_URL,
+                expect.objectContaining({
+                    params: expect.objectContaining({
+                        part: "snippet,statistics,contentDetails",
+                        id: "vid1,vid2",
+                        key: "test-api-key",
+                    }),
+                }),
+            );
+        });
+
+        it("chunks IDs into batches of 50 for large requests", async () => {
+            // Create 75 video IDs → should produce 2 batches (50 + 25)
+            const ids = Array.from({ length: 75 }, (_, i) => `vid${i}`);
+            const batch1Items = ids.slice(0, 50).map(id => ({ id }));
+            const batch2Items = ids.slice(50).map(id => ({ id }));
+
+            mockedAxios.get
+                .mockResolvedValueOnce({ data: { items: batch1Items } })
+                .mockResolvedValueOnce({ data: { items: batch2Items } });
+
+            const result = await svc.getVideoDetails(ids);
+            expect(result.videos).toHaveLength(75);
+            expect(result.quotaUsed).toBe(2);
+            expect(mockedAxios.get).toHaveBeenCalledTimes(2);
+
+            // Verify first batch has 50 IDs
+            const firstCallIds = mockedAxios.get.mock.calls[0][1]?.params.id as string;
+            expect(firstCallIds.split(",")).toHaveLength(50);
+
+            // Verify second batch has 25 IDs
+            const secondCallIds = mockedAxios.get.mock.calls[1][1]?.params.id as string;
+            expect(secondCallIds.split(",")).toHaveLength(25);
+        });
+
+        it("throws on API error", async () => {
+            mockedAxios.get.mockRejectedValueOnce(new Error("Video not found"));
+            await expect(svc.getVideoDetails(["vid1"])).rejects.toThrow("Video not found");
+        });
+    });
+
+    // =========================================================================
+    // getChannelSubscriberCounts
+    // =========================================================================
+
+    describe("getChannelSubscriberCounts", () => {
+        const CHANNELS_URL = "https://www.googleapis.com/youtube/v3/channels";
+
+        it("returns empty Map and 0 quota for empty array", async () => {
+            const result = await svc.getChannelSubscriberCounts([]);
+            expect(result.counts).toEqual(new Map());
+            expect(result.quotaUsed).toBe(0);
+            expect(mockedAxios.get).not.toHaveBeenCalled();
+        });
+
+        it("returns correct subscriber counts from a single batch", async () => {
+            mockedAxios.get.mockResolvedValueOnce({
+                data: {
+                    items: [
+                        { id: "UC_ch1", statistics: { subscriberCount: "50000" } },
+                        { id: "UC_ch2", statistics: { subscriberCount: "1200" } },
+                    ],
+                },
+            });
+
+            const result = await svc.getChannelSubscriberCounts(["UC_ch1", "UC_ch2"]);
+            expect(result.counts.get("UC_ch1")).toBe(50000);
+            expect(result.counts.get("UC_ch2")).toBe(1200);
+            expect(result.quotaUsed).toBe(1);
+            expect(mockedAxios.get).toHaveBeenCalledWith(
+                CHANNELS_URL,
+                expect.objectContaining({
+                    params: expect.objectContaining({
+                        part: "statistics",
+                        id: "UC_ch1,UC_ch2",
+                        key: "test-api-key",
+                    }),
+                }),
+            );
+        });
+
+        it("chunks into batches of 50 for large requests", async () => {
+            const channelIds = Array.from({ length: 60 }, (_, i) => `UC_ch${i}`);
+            const batch1Items = channelIds.slice(0, 50).map(id => ({
+                id,
+                statistics: { subscriberCount: "100" },
+            }));
+            const batch2Items = channelIds.slice(50).map(id => ({
+                id,
+                statistics: { subscriberCount: "200" },
+            }));
+
+            mockedAxios.get
+                .mockResolvedValueOnce({ data: { items: batch1Items } })
+                .mockResolvedValueOnce({ data: { items: batch2Items } });
+
+            const result = await svc.getChannelSubscriberCounts(channelIds);
+            expect(result.counts.size).toBe(60);
+            expect(result.quotaUsed).toBe(2);
+            expect(mockedAxios.get).toHaveBeenCalledTimes(2);
+
+            // First 50 channels get count 100
+            expect(result.counts.get("UC_ch0")).toBe(100);
+            // Last 10 channels get count 200
+            expect(result.counts.get("UC_ch55")).toBe(200);
+        });
+
+        it("defaults to 0 when subscriberCount is missing", async () => {
+            mockedAxios.get.mockResolvedValueOnce({
+                data: {
+                    items: [
+                        { id: "UC_hidden", statistics: {} },
+                    ],
+                },
+            });
+
+            const result = await svc.getChannelSubscriberCounts(["UC_hidden"]);
+            expect(result.counts.get("UC_hidden")).toBe(0);
+        });
+    });
+
+    // =========================================================================
+    // getChannelAvatar
+    // =========================================================================
+
+    describe("getChannelAvatar", () => {
+        const CHANNELS_URL = "https://www.googleapis.com/youtube/v3/channels";
+
+        it("returns medium thumbnail URL when available", async () => {
+            mockedAxios.get.mockResolvedValueOnce({
+                data: {
+                    items: [{
+                        snippet: {
+                            thumbnails: {
+                                medium: { url: "https://yt3.com/medium-avatar.jpg" },
+                                default: { url: "https://yt3.com/default-avatar.jpg" },
+                            },
+                        },
+                    }],
+                },
+            });
+
+            const result = await svc.getChannelAvatar("UCtest123");
+            expect(result.avatarUrl).toBe("https://yt3.com/medium-avatar.jpg");
+            expect(result.quotaUsed).toBe(1);
+            expect(mockedAxios.get).toHaveBeenCalledWith(
+                CHANNELS_URL,
+                expect.objectContaining({
+                    params: expect.objectContaining({
+                        part: "snippet",
+                        id: "UCtest123",
+                        key: "test-api-key",
+                    }),
+                }),
+            );
+        });
+
+        it("falls back to default thumbnail when medium is missing", async () => {
+            mockedAxios.get.mockResolvedValueOnce({
+                data: {
+                    items: [{
+                        snippet: {
+                            thumbnails: {
+                                default: { url: "https://yt3.com/default-avatar.jpg" },
+                            },
+                        },
+                    }],
+                },
+            });
+
+            const result = await svc.getChannelAvatar("UCtest456");
+            expect(result.avatarUrl).toBe("https://yt3.com/default-avatar.jpg");
+            expect(result.quotaUsed).toBe(1);
+        });
+
+        it("returns undefined avatarUrl when no items in response", async () => {
+            mockedAxios.get.mockResolvedValueOnce({
+                data: { items: [] },
+            });
+
+            const result = await svc.getChannelAvatar("UCnotfound");
+            expect(result.avatarUrl).toBeUndefined();
+            expect(result.quotaUsed).toBe(1);
+        });
+
+        it("swallows errors and returns quotaUsed=0", async () => {
+            mockedAxios.get.mockRejectedValueOnce(new Error("Network error"));
+
+            const result = await svc.getChannelAvatar("UCfail");
+            expect(result.avatarUrl).toBeUndefined();
+            expect(result.quotaUsed).toBe(0);
+        });
+    });
 });

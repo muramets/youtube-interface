@@ -209,8 +209,9 @@ describe('scheduledTrendSnapshot', () => {
         expect(ctx.notificationsAdded).toHaveLength(1);
         expect(ctx.notificationsAdded[0].path).toContain('notifications');
         expect(ctx.notificationsAdded[0].data).toMatchObject({
-            title: 'Daily Trend Sync',
+            title: expect.stringContaining('Trends Sync (daily):'),
             type: 'success',
+            category: 'trends',
         });
     });
 

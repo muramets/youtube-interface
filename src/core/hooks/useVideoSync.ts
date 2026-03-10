@@ -1,19 +1,203 @@
-import { useState } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../../config/firebase';
 import { VideoService } from '../services/videoService';
+import { TrendService } from '../services/trendService';
 import { fetchVideoDetails, fetchVideosBatch, type VideoDetails } from '../utils/youtubeApi';
 import { useNotificationStore } from '../stores/notificationStore';
 import { useUIStore } from '../stores/uiStore';
 
 export const useVideoSync = (userId: string, channelId: string) => {
     const [isSyncing, setIsSyncing] = useState(false);
+    const isSyncingRef = useRef(false);
     const queryClient = useQueryClient();
-    const queryKey = ['videos', userId, channelId];
 
-    const syncVideo = async (videoId: string, apiKey: string, options: { silent?: boolean } = {}) => {
+    /**
+     * Shared sync engine: cross-cache read from Trends Firestore + YouTube API batch fallback.
+     * Used by both syncAllVideos and manualSync.
+     */
+    const syncVideosWithCrossCache = useCallback(async (
+        videosToSync: VideoDetails[],
+        apiKey: string
+    ): Promise<{
+        cachedCount: number;
+        apiSuccessCount: number;
+        quotaUsed: number;
+        hadQuotaError: boolean;
+    }> => {
+        const now = Date.now();
+
+        // --- Cross-cache: fetch trend channels from Firestore ---
+        const trendChannels = await TrendService.fetchTrendChannels(userId, channelId);
+        const trendChannelMap = new Map(trendChannels.map(c => [c.id, c]));
+
+        const overlapVideos: VideoDetails[] = [];
+        const apiOnlyVideos: VideoDetails[] = [];
+
+        for (const video of videosToSync) {
+            if (video.channelId && trendChannelMap.has(video.channelId)) {
+                overlapVideos.push(video);
+            } else {
+                apiOnlyVideos.push(video);
+            }
+        }
+
+        let cachedCount = 0;
+
+        // --- Phase 1: Read overlap videos from Trends cache ---
+        if (overlapVideos.length > 0) {
+            const cacheResults = await Promise.all(
+                overlapVideos.map(async (video) => {
+                    try {
+                        const trendVideoRef = doc(db,
+                            `users/${userId}/channels/${channelId}/trendChannels/${video.channelId}/videos/${video.id}`
+                        );
+                        const snap = await getDoc(trendVideoRef);
+                        if (!snap.exists()) return null;
+
+                        const td = snap.data();
+                        // Use cache only if trend data is newer than current video data
+                        const trendUpdated = td.lastUpdated ?? 0;
+                        const videoUpdated = video.lastUpdated ?? 0;
+                        if (trendUpdated <= videoUpdated) return null;
+
+                        return { videoId: video.id, trendData: td, channelId: video.channelId! };
+                    } catch {
+                        return null;
+                    }
+                })
+            );
+
+            const cacheUpdates: { videoId: string; data: Partial<VideoDetails> }[] = [];
+
+            for (let i = 0; i < overlapVideos.length; i++) {
+                const result = cacheResults[i];
+                if (result) {
+                    const td = result.trendData;
+                    const tc = trendChannelMap.get(result.channelId);
+
+                    const cacheData: Record<string, unknown> = {
+                        title: td.title,
+                        thumbnail: td.thumbnail,
+                        viewCount: String(td.viewCount ?? 0),
+                        description: td.description || '',
+                        tags: td.tags || [],
+                        publishedAt: td.publishedAt,
+                        channelTitle: td.channelTitle || '',
+                        channelAvatar: tc?.avatarUrl || '',
+                        lastUpdated: now,
+                        fetchStatus: 'success',
+                        lastFetchAttempt: now
+                    };
+                    // Only include optional fields if they have values (Firestore rejects undefined)
+                    if (td.likeCount != null) cacheData.likeCount = String(td.likeCount);
+                    if (td.duration) cacheData.duration = td.duration;
+                    if (tc?.subscriberCount != null) cacheData.subscriberCount = String(tc.subscriberCount);
+
+                    cacheUpdates.push({
+                        videoId: result.videoId,
+                        data: cacheData as Partial<VideoDetails>
+                    });
+                    cachedCount++;
+                } else {
+                    // Stale or missing in Trends — fall back to API
+                    apiOnlyVideos.push(overlapVideos[i]);
+                }
+            }
+
+            if (cacheUpdates.length > 0) {
+                await VideoService.batchUpdateVideos(userId, channelId, cacheUpdates);
+            }
+        }
+
+        // --- Phase 2: Fetch remaining videos from YouTube API ---
+        const CHUNK_SIZE = 50;
+        let quotaUsed = 0;
+        let apiSuccessCount = 0;
+        let hadQuotaError = false;
+
+        for (let i = 0; i < apiOnlyVideos.length; i += CHUNK_SIZE) {
+            const chunk = apiOnlyVideos.slice(i, i + CHUNK_SIZE);
+
+            // Build ID mapping: custom videos use publishedVideoId for YouTube API,
+            // but results are saved under the internal video.id
+            const youtubeToInternalId = new Map<string, string>();
+            const youtubeIds = chunk.map(v => {
+                const ytId = v.publishedVideoId || v.id;
+                if (v.publishedVideoId) {
+                    youtubeToInternalId.set(v.publishedVideoId, v.id);
+                }
+                return ytId;
+            });
+
+            try {
+                const updatedDetails = await fetchVideosBatch(youtubeIds, apiKey);
+                const returnedYoutubeIds = new Set(updatedDetails.map(d => d.id));
+                quotaUsed += 2; // ~2 units per batch (videos.list + channels.list)
+                apiSuccessCount += updatedDetails.length;
+
+                const updates: { videoId: string; data: Partial<VideoDetails> }[] = updatedDetails.map(details => {
+                    // Strip undefined values — Firestore rejects them
+                    const clean: Record<string, unknown> = {};
+                    for (const [key, value] of Object.entries(details)) {
+                        if (value !== undefined) clean[key] = value;
+                    }
+                    return {
+                        videoId: youtubeToInternalId.get(details.id) || details.id,
+                        data: {
+                            ...clean,
+                            lastUpdated: now,
+                            fetchStatus: 'success' as const,
+                            lastFetchAttempt: now
+                        } as Partial<VideoDetails>
+                    };
+                });
+
+                // Handle missing videos (likely deleted or private)
+                youtubeIds.forEach(ytId => {
+                    if (!returnedYoutubeIds.has(ytId)) {
+                        updates.push({
+                            videoId: youtubeToInternalId.get(ytId) || ytId,
+                            data: {
+                                fetchStatus: 'failed',
+                                lastFetchAttempt: now
+                            }
+                        });
+                    }
+                });
+
+                if (updates.length > 0) {
+                    await VideoService.batchUpdateVideos(userId, channelId, updates);
+                }
+            } catch (error: unknown) {
+                console.error("Batch sync failed:", error);
+                const errorMessage = error instanceof Error ? error.message : String(error);
+
+                if (errorMessage.includes('403') || errorMessage.includes('quota')) {
+                    useNotificationStore.getState().addNotification({
+                        title: 'Channel Sync Failed',
+                        message: 'YouTube API quota exceeded. Please try again later.',
+                        type: 'error',
+                        category: 'channel'
+                    });
+                    hadQuotaError = true;
+                    break;
+                }
+            }
+        }
+
+        return { cachedCount, apiSuccessCount, quotaUsed, hadQuotaError };
+    }, [userId, channelId]);
+
+    const syncVideo = useCallback(async (videoId: string, apiKey: string, options: { silent?: boolean } = {}) => {
+        const queryKey = ['videos', userId, channelId];
         const videos = queryClient.getQueryData<VideoDetails[]>(queryKey) || [];
         const video = videos.find(v => v.id === videoId);
         if (!video) return;
+
+        // Skip cloned videos — they are copies, not YouTube-synced
+        if (video.isCloned) return;
 
         const targetId = video.publishedVideoId || videoId;
         if (video.isCustom && !video.publishedVideoId) return;
@@ -31,6 +215,9 @@ export const useVideoSync = (userId: string, channelId: string) => {
                     tags: details.tags,
                     channelTitle: details.channelTitle,
                     channelId: details.channelId,
+                    channelAvatar: details.channelAvatar,
+                    subscriberCount: details.subscriberCount,
+                    likeCount: details.likeCount,
                     lastUpdated: Date.now(),
                     fetchStatus: 'success' as const,
                     lastFetchAttempt: Date.now()
@@ -67,101 +254,73 @@ export const useVideoSync = (userId: string, channelId: string) => {
                 useUIStore.getState().showToast('Failed to sync video', 'error');
             }
         }
-    };
+    }, [userId, channelId, queryClient]);
 
-    const syncAllVideos = async (apiKey: string) => {
-        if (isSyncing) return;
+    const syncAllVideos = useCallback(async (apiKey: string) => {
+        if (isSyncingRef.current) return;
+        isSyncingRef.current = true;
         setIsSyncing(true);
 
         try {
+            const queryKey = ['videos', userId, channelId];
             const videos = queryClient.getQueryData<VideoDetails[]>(queryKey) || [];
-            const syncableVideos = videos.filter(v => !v.isCustom && !v.isCloned);
+            const syncableVideos = videos.filter(v => !v.isCloned && (!v.isCustom || v.publishedVideoId));
 
             if (syncableVideos.length === 0) return;
 
-            const CHUNK_SIZE = 50;
-            const now = Date.now();
+            const { cachedCount, apiSuccessCount, quotaUsed, hadQuotaError } = await syncVideosWithCrossCache(syncableVideos, apiKey);
 
-            for (let i = 0; i < syncableVideos.length; i += CHUNK_SIZE) {
-                const chunk = syncableVideos.slice(i, i + CHUNK_SIZE);
-                const videoIds = chunk.map(v => v.id);
-
-                try {
-                    const updatedDetails = await fetchVideosBatch(videoIds, apiKey);
-                    const returnedIds = new Set(updatedDetails.map(d => d.id));
-
-                    const updates: { videoId: string; data: Partial<VideoDetails> }[] = updatedDetails.map(details => ({
-                        videoId: details.id,
-                        data: {
-                            ...details,
-                            lastUpdated: now,
-                            fetchStatus: 'success',
-                            lastFetchAttempt: now
-                        }
-                    }));
-
-                    // Handle missing videos (likely deleted or private)
-                    videoIds.forEach(id => {
-                        if (!returnedIds.has(id)) {
-                            updates.push({
-                                videoId: id,
-                                data: {
-                                    fetchStatus: 'failed',
-                                    lastFetchAttempt: now
-                                }
-                            });
-                        }
+            // --- Notification ---
+            if (!hadQuotaError) {
+                const totalSynced = cachedCount + apiSuccessCount;
+                if (cachedCount > 0 && quotaUsed === 0) {
+                    // All videos served from Trends cache — no notification needed
+                } else if (cachedCount > 0) {
+                    useNotificationStore.getState().addNotification({
+                        title: `Channel Sync: ${totalSynced} videos updated`,
+                        message: `${cachedCount} from Trends cache, ${apiSuccessCount} from YouTube API.`,
+                        type: 'success',
+                        meta: `${quotaUsed}`,
+                        quotaBreakdown: { details: quotaUsed },
+                        category: 'channel'
                     });
-
-                    if (updates.length > 0) {
-                        await VideoService.batchUpdateVideos(userId, channelId, updates);
-                    }
-                } catch (error: unknown) {
-                    console.error("Batch sync failed:", error);
-                    const errorMessage = error instanceof Error ? error.message : String(error);
-
-                    if (errorMessage.includes('403') || errorMessage.includes('quota')) {
-                        useNotificationStore.getState().addNotification({
-                            title: 'Auto-Sync Failed',
-                            message: 'YouTube API quota exceeded. Please try again later.',
-                            type: 'error'
-                        });
-                        break;
-                    }
+                } else if (totalSynced > 0) {
+                    useNotificationStore.getState().addNotification({
+                        title: `Channel Sync: ${totalSynced} videos updated`,
+                        message: `Successfully synced ${totalSynced} videos.`,
+                        type: 'success',
+                        meta: `${quotaUsed}`,
+                        quotaBreakdown: { details: quotaUsed },
+                        category: 'channel'
+                    });
                 }
             }
-
-            const totalQuota = Math.ceil(syncableVideos.length / 50) * 2;
-            useNotificationStore.getState().addNotification({
-                title: 'Sync Completed',
-                message: `Successfully synced ${syncableVideos.length} videos.`,
-                type: 'success',
-                meta: `${totalQuota}`,
-                quotaBreakdown: {
-                    details: totalQuota
-                }
-            });
-
         } catch (error) {
             console.error("Global sync failed:", error);
             useNotificationStore.getState().addNotification({
-                title: 'Sync Failed',
+                title: 'Channel Sync Failed',
                 message: 'An error occurred during synchronization.',
-                type: 'error'
+                type: 'error',
+                category: 'channel'
             });
         } finally {
+            isSyncingRef.current = false;
             setIsSyncing(false);
         }
-    };
+    }, [userId, channelId, queryClient, syncVideosWithCrossCache]);
 
-    const manualSync = async (apiKey: string, syncFrequencyHours: number) => {
-        if (isSyncing) return;
+    const manualSync = useCallback(async (apiKey: string, syncFrequencyHours: number) => {
+        if (isSyncingRef.current) return;
+        isSyncingRef.current = true;
         setIsSyncing(true);
+
         try {
+            const queryKey = ['videos', userId, channelId];
             const videos = queryClient.getQueryData<VideoDetails[]>(queryKey) || [];
             const now = Date.now();
             const videosToUpdate = videos.filter(v => {
-                if (v.isCustom || v.isCloned) return false;
+                if (v.isCloned) return false;
+                if (v.isCustom && !v.publishedVideoId) return false;
                 const lastUpdated = v.lastUpdated || 0;
                 const hoursSinceUpdate = (now - lastUpdated) / (1000 * 60 * 60);
                 return hoursSinceUpdate >= syncFrequencyHours;
@@ -169,63 +328,48 @@ export const useVideoSync = (userId: string, channelId: string) => {
 
             if (videosToUpdate.length === 0) return;
 
-            const CHUNK_SIZE = 50;
-            for (let i = 0; i < videosToUpdate.length; i += CHUNK_SIZE) {
-                const chunk = videosToUpdate.slice(i, i + CHUNK_SIZE);
-                const updates: { videoId: string; data: Partial<VideoDetails> }[] = [];
+            const { cachedCount, apiSuccessCount, quotaUsed, hadQuotaError } = await syncVideosWithCrossCache(videosToUpdate, apiKey);
 
-                const results = await Promise.all(
-                    chunk.map(async (video) => {
-                        try {
-                            const details = await fetchVideoDetails(video.id, apiKey);
-                            return details ? { videoId: video.id, details } : null;
-                        } catch (e: unknown) {
-                            console.error(`Failed to fetch details for ${video.id}`, e);
-                            const err = e as Error;
-                            const isUnavailable = err.message === 'VIDEO_NOT_FOUND' || err.message === 'VIDEO_PRIVATE';
-                            if (isUnavailable) {
-                                return { videoId: video.id, unavailable: true };
-                            }
-                            return null;
-                        }
-                    })
-                );
-
-                results.forEach(result => {
-                    if (result) {
-                        if ('unavailable' in result) {
-                            updates.push({
-                                videoId: result.videoId,
-                                data: {
-                                    fetchStatus: 'failed',
-                                    lastFetchAttempt: now
-                                }
-                            });
-                        } else {
-                            updates.push({
-                                videoId: result.videoId,
-                                data: {
-                                    ...result.details,
-                                    lastUpdated: now,
-                                    fetchStatus: 'success',
-                                    lastFetchAttempt: now
-                                }
-                            });
-                        }
+            // --- Notification ---
+            if (!hadQuotaError) {
+                const totalSynced = cachedCount + apiSuccessCount;
+                if (cachedCount > 0 && quotaUsed === 0) {
+                    // All from cache — no notification
+                } else if (totalSynced > 0) {
+                    if (cachedCount > 0) {
+                        useNotificationStore.getState().addNotification({
+                            title: `Channel Sync: ${totalSynced} videos updated`,
+                            message: `${cachedCount} from Trends cache, ${apiSuccessCount} from YouTube API.`,
+                            type: 'success',
+                            meta: `${quotaUsed}`,
+                            quotaBreakdown: { details: quotaUsed },
+                            category: 'channel'
+                        });
+                    } else {
+                        useNotificationStore.getState().addNotification({
+                            title: `Channel Sync: ${totalSynced} videos updated`,
+                            message: `Successfully synced ${totalSynced} videos.`,
+                            type: 'success',
+                            meta: `${quotaUsed}`,
+                            quotaBreakdown: { details: quotaUsed },
+                            category: 'channel'
+                        });
                     }
-                });
-
-                if (updates.length > 0) {
-                    await VideoService.batchUpdateVideos(userId, channelId, updates);
                 }
             }
-
         } catch (error) {
             console.error("Sync failed:", error);
+            useNotificationStore.getState().addNotification({
+                title: 'Channel Sync Failed',
+                message: 'An error occurred during synchronization.',
+                type: 'error',
+                category: 'channel'
+            });
         } finally {
+            isSyncingRef.current = false;
             setIsSyncing(false);
         }
-    };
+    }, [userId, channelId, queryClient, syncVideosWithCrossCache]);
 
     return {
         isSyncing,

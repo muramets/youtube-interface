@@ -72,16 +72,21 @@ export class SyncService {
                 const videoRef = this.db.doc(`users/${userId}/channels/${userChannelId}/trendChannels/${trendChannel.id}/videos/${v.id}`);
 
                 // Update Metadata + Stats
+                const thumbnails = v.snippet.thumbnails;
+                const thumbnail = thumbnails?.maxres?.url || thumbnails?.high?.url || thumbnails?.medium?.url || thumbnails?.default?.url;
+
                 batch.set(videoRef, {
                     id: v.id,
                     channelId: trendChannel.id,
+                    channelTitle: v.snippet.channelTitle || '',
                     title: v.snippet.title,
-                    thumbnail: v.snippet.thumbnails?.medium?.url || v.snippet.thumbnails?.default?.url,
+                    thumbnail: thumbnail || '',
                     publishedAt: v.snippet.publishedAt,
-                    publishedAtTimestamp: new Date(v.snippet.publishedAt).getTime(), // Added critical timestamp field
+                    publishedAtTimestamp: new Date(v.snippet.publishedAt).getTime(),
                     viewCount: viewCount,
                     likeCount: parseInt(v.statistics.likeCount || '0'),
                     commentCount: parseInt(v.statistics.commentCount || '0'),
+                    duration: v.contentDetails?.duration || '',
                     description: v.snippet.description || '',
                     tags: v.snippet.tags || [],
                     lastUpdated: timestamp
@@ -154,6 +159,31 @@ export class SyncService {
     }
 
     /**
+     * Batch-refreshes subscriberCount for trend channels.
+     * Makes a single YouTube API call for all channels (1 quota unit per 50 channels).
+     */
+    async refreshSubscriberCounts(
+        userId: string,
+        userChannelId: string,
+        trendChannelIds: string[],
+        apiKey: string
+    ): Promise<number> {
+        if (trendChannelIds.length === 0) return 0;
+
+        const yt = new YouTubeService(apiKey);
+        const { counts, quotaUsed } = await yt.getChannelSubscriberCounts(trendChannelIds);
+
+        const batch = this.db.batch();
+        for (const [channelId, subscriberCount] of counts) {
+            const ref = this.db.doc(`users/${userId}/channels/${userChannelId}/trendChannels/${channelId}`);
+            batch.update(ref, { subscriberCount });
+        }
+        await batch.commit();
+
+        return quotaUsed;
+    }
+
+    /**
      * Sends a notification to the user channel.
      */
     async sendNotification(
@@ -174,7 +204,8 @@ export class SyncService {
                 list: stats.quotaList,
                 details: stats.quotaDetails,
                 search: 0
-            }
+            },
+            category: 'trends'
         };
 
         await this.db.collection(`users/${userId}/channels/${userChannelId}/notifications`).add(notification);

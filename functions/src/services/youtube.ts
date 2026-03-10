@@ -74,10 +74,10 @@ export class YouTubeService {
             const idsString = chunk.join(',');
 
             try {
-                // request snippet AND statistics
+                // request snippet, statistics, AND contentDetails (duration)
                 const statsRes: axios.AxiosResponse<YouTubeVideoResponse> = await axios.get(`https://www.googleapis.com/youtube/v3/videos`, {
                     params: {
-                        part: 'snippet,statistics',
+                        part: 'snippet,statistics,contentDetails',
                         id: idsString,
                         key: this.apiKey
                     }
@@ -279,6 +279,42 @@ export class YouTubeService {
             ...(res.data.nextPageToken ? { nextPageToken: res.data.nextPageToken } : {}),
             quotaUsed: 1,
         };
+    }
+
+    /**
+     * Batch-fetches subscriber counts for multiple channels in a single API call.
+     * Supports up to 50 channels per request (YouTube API limit).
+     */
+    async getChannelSubscriberCounts(channelIds: string[]): Promise<{ counts: Map<string, number>, quotaUsed: number }> {
+        if (channelIds.length === 0) return { counts: new Map(), quotaUsed: 0 };
+
+        const counts = new Map<string, number>();
+        let quotaUsed = 0;
+        const chunkSize = 50;
+
+        for (let i = 0; i < channelIds.length; i += chunkSize) {
+            const chunk = channelIds.slice(i, i + chunkSize);
+            const idsString = chunk.join(",");
+
+            const res: axios.AxiosResponse<YouTubeChannelResponse> = await axios.get(
+                `https://www.googleapis.com/youtube/v3/channels`,
+                {
+                    params: {
+                        part: "statistics",
+                        id: idsString,
+                        key: this.apiKey,
+                    },
+                },
+            );
+
+            quotaUsed++;
+
+            for (const item of res.data.items ?? []) {
+                counts.set(item.id, parseInt(item.statistics.subscriberCount ?? "0", 10));
+            }
+        }
+
+        return { counts, quotaUsed };
     }
 
     /**

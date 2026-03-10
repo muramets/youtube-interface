@@ -1,9 +1,15 @@
 export interface TrendChannel {
     id: string;
+    title?: string;
+    handle?: string;
     uploadsPlaylistId: string;
     isVisible: boolean;
-    name?: string;
+    name?: string; // legacy alias for title
     avatarUrl?: string;
+    subscriberCount?: number;
+    averageViews?: number;
+    totalViewCount?: number;
+    lastUpdated?: number;
 }
 
 export interface UserSettings {
@@ -28,6 +34,7 @@ export interface Notification {
         list?: number;
         details?: number;
     };
+    category?: 'channel' | 'trends' | 'smart-search' | 'checkin' | 'video';
 }
 
 export interface YouTubePlaylistItem {
@@ -47,6 +54,7 @@ export interface YouTubeVideoSnippet {
         default?: { url: string };
         medium?: { url: string };
         high?: { url: string };
+        maxres?: { url: string };
     };
     publishedAt: string;
     channelId?: string;
@@ -61,10 +69,15 @@ export interface YouTubeVideoStatistics {
     commentCount?: string;
 }
 
+export interface YouTubeVideoContentDetails {
+    duration?: string;
+}
+
 export interface YouTubeVideoItem {
     id: string;
     snippet: YouTubeVideoSnippet;
     statistics: YouTubeVideoStatistics;
+    contentDetails?: YouTubeVideoContentDetails;
 }
 
 export interface YouTubeVideoResponse {

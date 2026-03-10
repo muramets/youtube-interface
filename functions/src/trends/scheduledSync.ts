@@ -65,7 +65,7 @@ export const scheduledTrendSnapshot = onSchedule({
             for (const tChannelDoc of allTrendChannels.docs) {
                 const trendChannel = tChannelDoc.data() as TrendChannel;
                 try {
-                    console.log(`Processing ${trendChannel.name || trendChannel.id} for user ${userId}...`);
+                    console.log(`Processing ${trendChannel.title || trendChannel.name || trendChannel.id} for user ${userId}...`);
                     const stats = await syncService.syncChannel(userId, userChannelId, trendChannel, apiKey, false, 'auto');
 
                     if (stats) {
@@ -80,11 +80,22 @@ export const scheduledTrendSnapshot = onSchedule({
                 }
             }
 
-            // 5. Send Notification (Scoped to this User Channel)
+            // 5. Refresh subscriber counts (1 API call for all channels)
+            if (processedChannelsCount > 0) {
+                try {
+                    const trendChannelIds = allTrendChannels.docs.map(d => d.id);
+                    const subCountQuota = await syncService.refreshSubscriberCounts(userId, userChannelId, trendChannelIds, apiKey);
+                    quotaDetails += subCountQuota;
+                } catch (err) {
+                    console.error(`Failed to refresh subscriber counts for ${userChannelId}`, err);
+                }
+            }
+
+            // 6. Send Notification (Scoped to this User Channel)
             if (processedChannelsCount > 0) {
                 const totalQuota = quotaList + quotaDetails;
                 const notification: Notification = {
-                    title: 'Daily Trend Sync',
+                    title: `Trends Sync (daily): ${processedVideosCount} videos across ${processedChannelsCount} channels`,
                     message: `Successfully updated ${processedVideosCount} videos across ${processedChannelsCount} trend channels.`,
                     type: 'success',
                     timestamp: admin.firestore.FieldValue.serverTimestamp(),
@@ -94,7 +105,8 @@ export const scheduledTrendSnapshot = onSchedule({
                         list: quotaList,
                         details: quotaDetails,
                         search: 0
-                    }
+                    },
+                    category: 'trends'
                 };
 
                 await db.collection(`users/${userId}/channels/${userChannelId}/notifications`).add(notification);

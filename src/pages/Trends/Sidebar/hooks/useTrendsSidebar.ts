@@ -162,12 +162,13 @@ export const useTrendsSidebar = () => {
             showToast(`${channel.title} sync complete. Processed ${totalNewVideos} videos.`, 'success');
 
             await addNotification({
-                title: `${channel.title} Visual Data Updated`,
+                title: `Trends Sync: ${channel.title}`,
                 message: `Updated ${totalNewVideos} videos.`,
                 type: 'success',
                 meta: totalQuotaUsed.toString(),
                 avatarUrl: newAvatarUrl || channel.avatarUrl,
-                quotaBreakdown
+                quotaBreakdown,
+                category: 'trends'
             });
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : String(error);

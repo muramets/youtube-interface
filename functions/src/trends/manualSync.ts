@@ -68,12 +68,23 @@ export const manualTrendSync = onCall({
         }
     }
 
-    // 4. Send Notification
+    // 4. Refresh subscriber counts (1 API call for all synced channels)
+    if (processedChannelsCount > 0) {
+        try {
+            const trendChannelIds = trendChannels.map(c => c.id);
+            const subCountQuota = await syncService.refreshSubscriberCounts(userId, channelId, trendChannelIds, apiKey);
+            quotaDetails += subCountQuota;
+        } catch (err) {
+            console.error("Failed to refresh subscriber counts", err);
+        }
+    }
+
+    // 5. Send Notification
     if (processedChannelsCount > 0) {
         await syncService.sendNotification(
             userId,
             channelId,
-            'Manual Sync Complete',
+            `Trends Sync: ${processedVideosCount} videos across ${processedChannelsCount} channels`,
             `Successfully updated ${processedVideosCount} videos across ${processedChannelsCount} channels.`,
             {
                 processedVideos: processedVideosCount,

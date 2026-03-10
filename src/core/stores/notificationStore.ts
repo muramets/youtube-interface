@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { NotificationService } from '../services/notificationService';
 
 export type NotificationType = 'info' | 'success' | 'warning' | 'error';
+export type NotificationCategory = 'channel' | 'trends' | 'smart-search' | 'checkin' | 'video';
 
 export interface Notification {
     id: string;
@@ -22,6 +23,7 @@ export interface Notification {
     isPersistent?: boolean;
     internalId?: string;
     customColor?: string;
+    category?: NotificationCategory;
 }
 
 interface NotificationState {

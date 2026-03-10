@@ -83,6 +83,9 @@ export const useVideoFetchRetry = () => {
                                         tags: details.tags,
                                         channelTitle: details.channelTitle,
                                         channelId: details.channelId,
+                                        channelAvatar: details.channelAvatar,
+                                        subscriberCount: details.subscriberCount,
+                                        likeCount: details.likeCount,
                                         fetchStatus: 'success' as const,
                                         fetchRetryCount: undefined,
                                         lastFetchAttempt: undefined
@@ -102,6 +105,9 @@ export const useVideoFetchRetry = () => {
                             tags: details.tags,
                             channelTitle: details.channelTitle,
                             channelId: details.channelId,
+                            channelAvatar: details.channelAvatar,
+                            subscriberCount: details.subscriberCount,
+                            likeCount: details.likeCount,
                             mergedVideoData: deleteField(),
                             fetchStatus: 'success',
                             fetchRetryCount: deleteField(),
@@ -166,7 +172,8 @@ export const useVideoFetchRetry = () => {
                             internalId: `fetch-failed-final-${video.id}`,
                             link: `/video/${video.channelId}/${video.id}/details?action=update_link`,
                             isPersistent: true,
-                            thumbnail: displayThumbnail
+                            thumbnail: displayThumbnail,
+                            category: 'video'
                         });
                     } else {
                         // Silent retry failure (info notification)
@@ -176,7 +183,8 @@ export const useVideoFetchRetry = () => {
                             type: 'info',
                             internalId: `fetch-retry-${video.id}-${newRetryCount}`,
                             link: `/video/${video.channelId}/${video.id}/details?action=update_link`,
-                            thumbnail: displayThumbnail
+                            thumbnail: displayThumbnail,
+                            category: 'video'
                         });
                     }
                 } finally {

@@ -16,6 +16,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import type { TrendChannel, TrendVideo, TrendNiche, HiddenVideo, TrendSnapshot } from '../types/trends';
+import { getPercentileDistribution } from '../../../shared/percentiles';
 
 // IndexedDB Schema
 interface TrendsDB extends DBSchema {
@@ -47,7 +48,10 @@ interface YouTubeVideoResource {
     snippet: {
         publishedAt: string;
         title: string;
+        channelTitle?: string;
         thumbnails: {
+            maxres?: { url: string };
+            high?: { url: string };
             medium?: { url: string };
             default?: { url: string };
         };
@@ -59,6 +63,8 @@ interface YouTubeVideoResource {
     };
     statistics: {
         viewCount: string;
+        likeCount?: string;
+        commentCount?: string;
     };
 }
 
@@ -71,6 +77,12 @@ export const TrendService = {
             const channels = snapshot.docs.map(doc => doc.data() as TrendChannel);
             callback(channels);
         });
+    },
+
+    fetchTrendChannels: async (userId: string, userChannelId: string): Promise<TrendChannel[]> => {
+        const ref = collection(db, `users/${userId}/channels/${userChannelId}/trendChannels`);
+        const snapshot = await getDocs(ref);
+        return snapshot.docs.map(d => d.data() as TrendChannel);
     },
 
     // --- Niche Management (Firestore) ---
@@ -618,11 +630,14 @@ export const TrendService = {
                     const videos: TrendVideo[] = statsData.items.map((item: YouTubeVideoResource) => ({
                         id: item.id,
                         channelId: channel.id,
+                        channelTitle: item.snippet.channelTitle || '',
                         publishedAt: item.snippet.publishedAt,
                         publishedAtTimestamp: new Date(item.snippet.publishedAt).getTime(),
                         title: item.snippet.title,
-                        thumbnail: item.snippet.thumbnails.medium?.url || item.snippet.thumbnails.default?.url || '',
+                        thumbnail: item.snippet.thumbnails.maxres?.url || item.snippet.thumbnails.high?.url || item.snippet.thumbnails.medium?.url || item.snippet.thumbnails.default?.url || '',
                         viewCount: parseInt(item.statistics.viewCount || '0'),
+                        likeCount: parseInt(item.statistics.likeCount || '0'),
+                        commentCount: parseInt(item.statistics.commentCount || '0'),
                         duration: item.contentDetails.duration || '',
                         tags: item.snippet.tags || [],
                         description: item.snippet.description || '',
@@ -633,11 +648,11 @@ export const TrendService = {
                     await Promise.all(videos.map(v => tx.store.put(v)));
                     await tx.done;
 
-                    // 2. Save to Firestore (sync layer)
+                    // 2. Save to Firestore (sync layer) — merge to preserve backend-written fields
                     const videoBatch = writeBatch(db);
                     videos.forEach(v => {
                         const vRef = doc(db, `users/${userId}/channels/${userChannelId}/trendChannels/${channel.id}/videos`, v.id);
-                        videoBatch.set(vRef, v);
+                        videoBatch.set(vRef, v, { merge: true });
                     });
                     await videoBatch.commit();
 
@@ -658,33 +673,45 @@ export const TrendService = {
         const totalViews = allVideos.reduce((sum, v) => sum + v.viewCount, 0);
         const averageViews = allVideos.length > 0 ? totalViews / allVideos.length : 0;
 
-        // Refresh avatar if requested (when current avatar is broken)
+        // Always refresh subscriberCount; optionally refresh avatar (+1 API call, shared)
         let newAvatarUrl: string | undefined;
-        if (refreshAvatar) {
-            try {
-                const avatarParams = new URLSearchParams({
-                    part: 'snippet',
-                    id: channel.id,
-                    key: apiKey,
-                });
-                const avatarRes = await fetch(`https://www.googleapis.com/youtube/v3/channels?${avatarParams.toString()}`);
-                const avatarData = await avatarRes.json();
-                totalQuotaUsed += 1;
+        let freshSubscriberCount: number | undefined;
+        try {
+            const channelParts = refreshAvatar ? 'snippet,statistics' : 'statistics';
+            const channelParams = new URLSearchParams({
+                part: channelParts,
+                id: channel.id,
+                key: apiKey,
+            });
+            const channelRes = await fetch(`https://www.googleapis.com/youtube/v3/channels?${channelParams.toString()}`);
+            const channelData = await channelRes.json();
+            totalQuotaUsed += 1;
+            quotaBreakdown.details += 1;
 
-                if (avatarData.items?.[0]?.snippet?.thumbnails) {
-                    const thumbnails = avatarData.items[0].snippet.thumbnails;
-                    newAvatarUrl = thumbnails.medium?.url || thumbnails.default?.url;
-                    console.log(`[TrendService] Refreshed avatar for ${channel.title}: ${newAvatarUrl}`);
-                }
-            } catch (err) {
-                console.error('[TrendService] Failed to refresh avatar:', err);
+            const channelItem = channelData.items?.[0];
+
+            if (channelItem?.statistics?.subscriberCount) {
+                freshSubscriberCount = parseInt(channelItem.statistics.subscriberCount);
             }
+
+            if (refreshAvatar && channelItem?.snippet?.thumbnails) {
+                const thumbnails = channelItem.snippet.thumbnails;
+                newAvatarUrl = thumbnails.medium?.url || thumbnails.default?.url;
+                console.log(`[TrendService] Refreshed avatar for ${channel.title}: ${newAvatarUrl}`);
+            }
+        } catch (err) {
+            console.error('[TrendService] Failed to refresh channel info:', err);
         }
+
+        const performanceDistribution = getPercentileDistribution(allVideos);
 
         await updateDoc(doc(db, `users/${userId}/channels/${userChannelId}/trendChannels`, channel.id), {
             lastUpdated: Date.now(),
             averageViews,
             totalViewCount: totalViews,
+            videoCount: allVideos.length,
+            performanceDistribution,
+            ...(freshSubscriberCount !== undefined ? { subscriberCount: freshSubscriberCount } : {}),
             ...(newAvatarUrl ? { avatarUrl: newAvatarUrl } : {})
         });
 

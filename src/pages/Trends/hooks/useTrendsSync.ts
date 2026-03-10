@@ -40,7 +40,7 @@ export const useTrendsSync = (): UseTrendsSyncReturn => {
         if (!isSyncing) return;
 
         const syncNotification = notifications.find(
-            n => n.title === 'Manual Sync Complete' && !preSyncNotificationIdsRef.current.has(n.id)
+            n => n.category === 'trends' && n.title.startsWith('Trends Sync:') && !preSyncNotificationIdsRef.current.has(n.id)
         );
 
         if (syncNotification) {
