@@ -179,8 +179,12 @@ Smart Search не вызывает YouTube API. Он только читает �
 - `functions/src/services/youtube.ts` — `getPlaylistVideos()`, `getVideoDetails()`, `getChannelSubscriberCounts()`
 
 ### Smart Search Sync
-- `functions/src/embedding/embeddingSync.ts` — orchestrator
-- `functions/src/embedding/scheduledEmbeddingSync.ts` — cron (00:30 UTC)
+- `functions/src/embedding/scheduledEmbeddingSync.ts` — thin launcher: discovery → write syncState → enqueue first batch (cron 00:30 UTC)
+- `functions/src/embedding/embeddingSyncBatch.ts` — self-chaining batch processor via Cloud Tasks (reads syncState → processes batch → enqueue next / finalize)
+- `functions/src/embedding/embeddingSync.ts` — `discoverChannels()` (collection group query → unique YouTube channels)
+- `functions/src/embedding/processOneVideo.ts` — shared per-video logic (download thumbnail once → generate packaging + description + visual)
+- `functions/src/embedding/taskQueue.ts` — shared Cloud Tasks helper (`enqueueBatch`, `pLimit`)
+- `functions/src/embedding/backfillEmbeddings.ts` — Cloud Task chain for backfill (uses same `processOneVideo` + `taskQueue`)
 
 ### Video Fetch Retry
 - `src/core/hooks/useVideoFetchRetry.ts` — hourly retry of failed custom videos
