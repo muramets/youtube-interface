@@ -2,7 +2,7 @@
 
 > **Статус:** Завершено
 > **Scope:** Frontend only (бэкенд не затрагивается)
-> **Task doc:** `docs/features/chat/video-tooltip-refactor-tasks.md`
+> **Task doc:** `docs/archive/tasks/chat/video-tooltip-refactor-tasks.md`
 
 ## Что это — простыми словами
 
@@ -10,7 +10,7 @@
 
 ## Текущее состояние
 
-Единый `VideoPreviewTooltip` с двумя режимами (`full` 800×700 для Trends/Traffic, `mini` 420×500 для Chat). Dedicated `VideoPreviewData` type заменил `VideoCardContext` в tooltip path — без fake values и `number→string→number` roundtrip. `ToolCallSummary` разбит из God Component (602→215 строк) на orchestrator + 11 модулей в `toolStats/`. Tool registry (13 tools) обеспечивает Open-Closed: новый tool = запись в registry + extractor в buildToolVideoMap + extractor в toolCallGrouping. 32 теста покрывают все 7 extractors и grouping.
+Единый `VideoPreviewTooltip` с двумя режимами (`full` 800×700 для Trends/Traffic, `mini` 480×auto для Chat). Dedicated `VideoPreviewData` type заменил `VideoCardContext` в tooltip path — без fake values и `number→string→number` roundtrip. `ToolCallSummary` разбит из God Component (602→215 строк) на orchestrator + 11 модулей в `toolStats/`. Tool registry (13 tools) обеспечивает Open-Closed: новый tool = запись в registry + extractor в buildToolVideoMap + extractor в toolCallGrouping. 32 теста покрывают все 7 extractors и grouping.
 
 ### Что было сделано
 
@@ -19,8 +19,9 @@
 - **ToolCallSummary decomposition:** 11 Stats-компонентов → `toolStats/`. `toolRegistry.ts` — unified config per tool.
 - **`buildToolVideoMap`:** 7 extractors (mentionVideo, browseChannelVideos, getMultipleVideoDetails, findSimilarVideos, browseTrendVideos, getNicheSnapshot, searchDatabase). Возвращает `Map<string, VideoPreviewData>`.
 - **`CopyButton` atom:** relocated из ChatMessageList в `src/components/ui/atoms/`, расширен API (size, title, className).
-- **`PortalTooltip` fixedDimensions:** parametric размеры вместо хардкода 800×700. Deprecated `fixedWidth`/`estimatedHeight` удалены.
-- **`formatDelta()` + `getDeltaColor()`:** shared utils в `formatUtils.ts`, единый стиль delta badges.
+- **`PortalTooltip` fixedDimensions:** parametric размеры вместо хардкода 800×700. `height` optional — auto-height с `max-height` для content-driven sizing. Deprecated `fixedWidth`/`estimatedHeight` удалены. Overlay scrollbar (`scrollbar-auto-hide`) вместо `scrollbarGutter: 'stable'`.
+- **`formatDelta()` + `getDeltaColor()`:** shared utils в `formatUtils.ts`. Significance-based coloring: gray default, amber >5% ratio, emerald >10% ratio (delta/viewCount).
+- **Mini-player button:** доступен в обоих режимах (full + mini).
 
 ---
 
@@ -383,10 +384,10 @@ VideoPreviewTooltip (unified)
 | Параметр | `full` | `mini` |
 |---|---|---|
 | Использование | Trends Table, Traffic Row, Trend Timeline | Chat (ToolCallSummary, VideoReferenceTooltip) |
-| Размер tooltip | 800×700px | ~420×500px |
+| Размер tooltip | 800×700px | 480×auto (content-driven height) |
 | YouTube player | Полный aspect-video | Компактный aspect-video |
 | Copy buttons | Есть | Есть |
-| Mini-player кнопка | Есть | Нет (не нужна в контексте чата) |
+| Mini-player кнопка | Есть | Есть |
 | Comparison mode | Есть (опционально) | Нет |
 | Контент | Полный | Тот же, но player меньше |
 
@@ -561,7 +562,7 @@ P2 интегрирует unified tooltip в Chat — проще делать к
 
 Добавить новый prop в PortalTooltip:
 ```typescript
-fixedDimensions?: { width: number; height: number };
+fixedDimensions?: { width: number; height?: number };
 ```
 
 При `sizeMode="fixed"`:
@@ -576,7 +577,7 @@ fixedDimensions?: { width: number; height: number };
 // VideoPreviewTooltip.tsx — content component owns its dimensions
 export const PREVIEW_DIMENSIONS = {
     full: { width: 800, height: 700 },
-    mini: { width: 420, height: 500 },
+    mini: { width: 480 },
 } as const;
 ```
 
@@ -595,7 +596,7 @@ import { PREVIEW_DIMENSIONS } from '../../Video/components/VideoPreviewTooltip';
     content={<VideoPreviewTooltip video={v} mode="mini" />}
     variant="glass"
     sizeMode="fixed"
-    fixedDimensions={PREVIEW_DIMENSIONS.mini}
+    fixedDimensions={PREVIEW_DIMENSIONS.mini}  // { width: 480 } — auto height
 />
 ```
 
