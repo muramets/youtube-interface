@@ -160,9 +160,8 @@ export async function handleSearchDatabase(
             };
         });
 
-        // dataFreshness — only for channels that appear in results
+        // dataFreshness — all searched channels (so LLM knows search scope)
         const dataFreshness = [...channelMeta.entries()]
-            .filter(([id]) => resultChannelIds.has(id))
             .map(([channelId, meta]) => ({
                 channelId,
                 channelTitle: meta.title,

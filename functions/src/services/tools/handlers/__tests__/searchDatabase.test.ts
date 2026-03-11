@@ -443,7 +443,7 @@ describe("handleSearchDatabase", () => {
 
     // --- dataFreshness ---
 
-    it("includes dataFreshness only for channels in results", async () => {
+    it("includes dataFreshness for all searched channels", async () => {
         setupMocks({
             trendChannels: [
                 makeTrendChannelDoc("ch1", "Channel 1"),
@@ -458,8 +458,10 @@ describe("handleSearchDatabase", () => {
         const result = await handleSearchDatabase({ query: "test query" }, CTX);
 
         const freshness = result.dataFreshness as Array<{ channelId: string }>;
-        expect(freshness).toHaveLength(1);
-        expect(freshness[0].channelId).toBe("ch1");
+        expect(freshness).toHaveLength(2);
+        expect(freshness.map((f) => f.channelId)).toEqual(
+            expect.arrayContaining(["ch1", "ch2"]),
+        );
     });
 
     // --- reportProgress ---

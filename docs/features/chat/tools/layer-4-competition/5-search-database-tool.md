@@ -230,6 +230,89 @@ External API (WRITE: none, READ):
   Gemini embedding API — 1 call per search ($0.00004)
 ```
 
+---
+
+## Battle Testing
+
+Статус проверки инструмента в реальных диалогах (не unit-тесты, а production traces с живыми данными).
+
+### План проверки
+
+| # | Сценарий | Что проверяет | Промпт-идея |
+|---|----------|---------------|-------------|
+| 1 | **Broad topic query** | Базовый happy path: relevanceScore range, enrichment (deltas, tiers), coverage, dataFreshness | "Какие видео у конкурентов про медитацию?" |
+| 2 | **Narrow/specific query** | Качество семантического поиска на узкой теме | "Есть ли у конкурентов видео про jazz piano в дождливый день?" |
+| 3 | **channelIds filter** | Фильтр по конкретному каналу — результаты только оттуда | "Что [конкретный канал] снимал про cooking?" |
+| 4 | **Multi-word complex query** | Длинный описательный запрос, handling long text | "Relaxing videos with nature sounds, cabin in the forest, slow living aesthetic, no talking" |
+| 5 | **searchDatabase vs findSimilarVideos** | Один topic через оба инструмента — overlap результатов? | "Найди видео конкурентов по теме [известного видео]" vs findSimilarVideos(videoId, packaging) |
+| 6 | **Low relevance / no match** | Запрос про тему, которой нет в нише — graceful handling слабых результатов | "Есть ли у конкурентов видео про cryptocurrency?" |
+| 7 | **Non-English query** | Модель передаёт query на EN или на языке пользователя? Качество embedding для non-EN | Русский промпт: "поищи видео про уютные вечера" |
+| 8 | **Hidden video filtering** | Скрытые видео не попадают в результаты | Спрятать видео → искать по его теме → убедиться, что его нет |
+| 9 | **Boundary: query = 3 chars** | MIN_QUERY_LENGTH validation на границе | Короткий запрос вроде "cat" или "AI" |
+| 10 | **Model interpretation quality** | Группировка по каналам, trend detection, actionable рекомендации | "Какие тренды в нише по теме morning routine?" |
+
+### Проверено в бою (2026-03-11)
+
+Все traces: модель `claude-haiku-4-5`. Все поля (viewDelta, performanceTier, coverage, dataFreshness) корректны во всех traces.
+
+| # | Сценарий | Query | $ | Iter | Score | Spread | Ch | Found/Ret | Баг |
+|---|----------|-------|---|------|-------|--------|----|-----------|-----|
+| 1 | Broad topic | `"focus"` | .039 | 3 | .614–.59 | .024 | 1/19 | 60/50 | dataFreshness scope |
+| 7 | Non-EN (RU) | `"музыка для спокойного вечера"` | .038 | 4 | .707–.681 | .026 | 5/19 | 30/20 | — |
+| 2 | Narrow (EN) | `"jazz piano rainy day"` | .010 | 2 | .741–.692 | .049 | 9/19 | 30/20 | — |
+| 6 | Out-of-domain | `"cryptocurrency"` | .026 | 2 | .517–.485 | .032 | 7/19 | 60/50 | — |
+| 5 | vs findSimilar | `"jazz tones for elevated concentration"` | .008 | 2 | .799–.731 | .068 | 1/19 | 20/20 | — |
+| 3 | channelIds | `"кафе cafe coffee shop"` | .037 | 3 | .606–.591 | .015 | 1/1* | 30/20 | prompt routing |
+
+\* channelIds filter — searched only MONKEY BGM (1 channel)
+
+### Паттерны
+
+- **Конкретнее query → шире spread → больше каналов → лучшая дифференциация.** "focus" (0.024 spread, 1 канал) vs "jazz piano rainy day" (0.049, 9 каналов)
+- **Порог релевантности ~0.55.** Реальные match'и > 0.59, мусор < 0.52. Threshold не введён — модель справляется с интерпретацией
+- **Multilingual embeddings работают.** Русский query нашёл корейские/английские заголовки без перевода. Gemini embedding space кросс-язычный
+- **50% overlap с findSimilarVideos.** Одна тема через оба инструмента — 10/20 общих результатов, но разное ранжирование. Score масштабы несопоставимы (searchDB: 0.73–0.80, findSimilar: 0.94–0.97). Инструменты комплементарны
+
+### Ключевые наблюдения по traces
+
+**#1 Broad topic "focus"** — все 50 результатов только SILEO (доминирует нишу по focus/concentration). Own videos попали в результаты из `globalVideoEmbeddings` → `mentionVideo` корректно пометил `ownership: "own-published"`. Мелкая неточность модели: назвала видео "Top 5%", в данных — "Top 1%"
+
+**#7 Non-EN "спокойный вечер"** — большинство результатов Bottom 20% / Middle 60%. Упаковка "спокойный вечер" не генерирует хиты — tool честно это показал. Мелкая неточность модели: "7 видео Chill Pluck из топ-20", в данных — 10
+
+**#6 Out-of-domain "cryptocurrency"** — все 50 результатов мусорные (score < 0.52). `findNearest` всегда возвращает результаты — cosine search ищет ближайших соседей, даже если далеко. Score ≈ 0.5 = baseline в 768d space. Модель корректно определила: "Нет видео о криптовалютах". Решение: threshold НЕ добавляем
+
+**#5 vs findSimilarVideos** — searchDB включил reference video на #1 (корректно — нет concept'а reference). findSimilar исключает его by design. Разное ранжирование одних и тех же видео подтверждает: для полного анализа нужны оба инструмента
+
+**#3 channelIds "MONKEY BGM кафе"** — 3 попытки. Попытка 1: модель вызвала `getChannelOverview("MONKEY BGM")` → ошибка (канал tracked, но модель пошла в YouTube API). Попытка 2: дописали caveat в конец промпт-правила → модель снова `getChannelOverview` (не дочитала). Попытка 3: перезаписали правило с decision-first структурой → модель корректно вызвала `listTrendChannels` → `searchDatabase`. Модель сформировала билингвальный query `"кафе cafe coffee shop"` — хороший приём. Spread 0.015 (самый узкий) объясним: 30 cafe-видео с похожими заголовками "CAFE&JAZZ"
+
+### Найденные и исправленные баги
+
+**dataFreshness scope** (исправлен 2026-03-11)
+- **Симптом:** `searchDatabase` с query "focus" вернул `dataFreshness` с 1 каналом (SILEO), хотя searched 19 каналов. Модель не могла сообщить пользователю масштаб поиска
+- **Причина:** `.filter(([id]) => resultChannelIds.has(id))` в обоих handlers (`searchDatabase.ts:164`, `findSimilarVideos.ts:418`) фильтровал dataFreshness до каналов, присутствующих в результатах
+- **Фикс:** убран `.filter()` — dataFreshness теперь включает все searched каналы. Тест обновлён: `"includes dataFreshness for all searched channels"`
+- **Урок:** когда все результаты из одного канала (broad query в доминируемой нише), потеря channel scope лишает модель возможности дать контекст ("искали среди 19 конкурентов")
+
+**Prompt routing: channel name → channelId** (исправлен 2026-03-11)
+- **Симптом:** при запросе "Что канал MONKEY BGM снимал про кафе?" модель вызывала `getChannelOverview("MONKEY BGM")` → ошибка "Channel not found". MONKEY BGM — tracked competitor, модель должна была использовать `listTrendChannels` для resolve'а channelId
+- **Причина:** правило `AGENTIC_BEHAVIOR_RULES` в `prompts.ts` начиналось с "**Telescope pattern.** Always: `getChannelOverview` →..." — LLM видела "Always: getChannelOverview" и действовала
+- **Fix #1 (FAILED):** дописали caveat в конец правила. Модель снова вызвала `getChannelOverview` — не дочитала до конца
+- **Fix #2 (SUCCESS):** полная перезапись правила с decision-first структурой: "call `listTrendChannels` first" как дефолтное действие, Telescope как fallback
+- **Файл:** `src/core/config/prompts.ts`, правило "Channel lookup" в `AGENTIC_BEHAVIOR_RULES`
+- **Урок:** LLM читают правила как waterfall. Ставь дефолтное действие ПЕРВЫМ. Caveats и fallback'и — после. Никогда не дописывай исключение в конец правила, начинающегося с "Always"
+
+### Ещё не проверено в бою
+
+| Сценарий | Почему важно |
+|---|---|
+| **channelIds — несуществующие ID** | Пустой результат или ошибка? Graceful degradation |
+| **Gemini API rate limit** | Каждый вызов = API call, нет кэша stored embeddings |
+| **Concurrent calls** | Два searchDatabase параллельно — race conditions в embedding API? |
+| **Query injection** | Prompt injection через query field — безопасность |
+| **Over-fetch compensation** | 10+ hidden videos в top results — получим < limit? |
+
+---
+
 ### Поток выполнения handler
 
 ```

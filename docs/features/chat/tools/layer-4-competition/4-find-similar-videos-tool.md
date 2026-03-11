@@ -184,56 +184,36 @@ LLM может использовать coverage для calibration: "резул
 
 ### Проверено в бою (2026-03-11)
 
-**Visual mode + competitor stored embedding**
-- "видео с такой упаковкой ещё живы в нише?" (competitor video, Ophelia Wilde, 6.4M views)
-- Модель: `claude-haiku-4-5`, 2 итерации
-- Путь: stored embedding в `globalVideoEmbeddings` → vector search → 39 found, 30 returned (limit: 30)
-- **Все поля корректны:** similarityScore (0.683–0.582), thumbnailDescription (30/30, 497–887 chars), viewDelta24h/7d/30d (null для <30-day видео — корректно), performanceTier (Top 1% → Bottom 20%), sharedTags, coverage (2035/2091 = 97.3%), dataFreshness (10 каналов, все <24ч)
-- Self-match exclusion: reference video `8HPGVCeURlY` не в результатах ✅
-- Cross-channel: результаты из 10 разных каналов (Ophelia Wilde, Little Joys, slow living, a quiet day., и др.)
-- **Качество интерпретации модели:** tier-based группировка (survivors / steady / dead), использовала `thumbnailDescription` для объяснения визуальных различий ("through a window frame", "specific visual markers"), actionable выводы ("seasonal variants, specific use-case positioning, consistent upload batches")
-- **Подтверждает:** VectorValue bug fix работает — stored embedding path для competitor videos полностью функционален
+Все traces: модель `claude-haiku-4-5`. Все поля (similarityScore/rrfScore, viewDelta, performanceTier, coverage, dataFreshness, sharedTags, thumbnailDescription) корректны во всех traces. Self-match exclusion работает во всех traces.
 
-**Visual mode + custom videoId (own video)**
-- "публиковали ли конкуренты видео с похожим визуалом?"
-- Модель: `claude-haiku-4-5`, стоимость: $0.027, 2 итерации
-- Путь: `custom-1771657399131` → `publishedVideoId: vOXxPmlJzBk` → thumbnail download → on-the-fly visual embedding (1408d) → vector search → 29 found, 20 returned
-- **Все поля корректны:** similarityScore (0.776–0.67), thumbnailDescription (20/20), viewDelta24h/7d/30d (null для <30-day видео — корректно), performanceTier, sharedTags, coverage (2035/2091 = 97.3%), dataFreshness (6 каналов)
-- Self-match exclusion: reference video `vOXxPmlJzBk` не в результатах ✅
-- Модель построила качественный конкурентный анализ на основе данных, использовала `thumbnailDescription` для синтеза визуальных паттернов ниши
-- **Наблюдение:** результаты включают другие видео с канала пользователя (slow life mode) — handler исключает только конкретное reference-видео, не весь канал. Модель корректно не упомянула их как "конкурентов"
+| # | Mode | Video source | $ | Iter | Score | Found/Ret | Ch | Баг |
+|---|------|-------------|---|------|-------|-----------|-----|-----|
+| 1 | visual | competitor stored | — | 2 | .683–.582 | 39/30 | 10 | — |
+| 2 | visual | own (publishedVideoId) | .027 | 2 | .776–.67 | 29/20 | 6 | — |
+| 3 | packaging | competitor stored | .025 | 2 | .960–.835 | 29/20 | 1 | prompt: videoId extraction |
+| 4 | both (RRF) | competitor stored | .046 | 3 | .032–.023* | 24/15 | — | prompt: videoId extraction |
+| 5 | visual | competitor (same session) | — | — | .755–.639 | 29/20 | — | viewThumbnails string→array |
+| 6 | — | pre-VectorValue fix | — | — | — | — | — | VectorValue bug (fallback to searchDB) |
+| 7 | visual | custom draft (Firebase Storage) | .046 | 3 | .846–.611 | 30/20 | 6 | — |
+| 8 | both (RRF) | custom (publishedVideoId) | .055 | 3 | .016–.014* | 29/20 | — | Cloud Function OOM |
 
-**Packaging mode + competitor stored embedding**
-- "найди конкурентов с похожей темой по заголовку и тегам" (competitor video, Little Thing, 221K views)
-- Модель: `claude-haiku-4-5`, стоимость: $0.025, 2 итерации
-- Путь: stored `packagingEmbedding` (768d) в `globalVideoEmbeddings` → vector search → 29 found, 20 returned
-- **Все поля корректны:** similarityScore (0.960–0.835), sharedTags (до 17 из 18 — корректное пересечение), viewDelta24h/7d/30d, performanceTier (Top 5% → Bottom 20%), coverage (2090/2091 = 99.95%)
-- Self-match exclusion: reference video `zutRuZtXa2I` не в результатах ✅
-- **Наблюдение:** все 20 результатов с одного канала (Little Thing) — потому что reference video оттуда же, а автор копирует теги между видео → embedding'и очень близкие. Это корректное поведение, не баг
-- **Качество интерпретации модели:** определила seasonal pattern, momentum analysis, вывод "niche appears to be Little Thing's territory"
-- **Предыстория:** тот же промпт ранее приводил к 0 tool calls (Haiku не связывала видео из context с tool). Потребовалось два промпт-фикса: (1) добавить `[id: videoId]` в per-message label (`formatContextLabel`), (2) добавить explicit tool routing rule в `AGENTIC_BEHAVIOR_RULES`
+\* rrfScore, не similarityScore — другая шкала (rank-based, не cosine)
 
-**Both mode (RRF merge) + competitor stored embedding**
-- "Найди похожие видео конкурентов. Сделай полное сравнение — и по теме, и по визуалу обложки" (competitor video, Little Thing, CI4f48bh-KA, 221K views, thumbnail: лебеди на озере)
-- Модель: `claude-haiku-4-5`, стоимость: $0.046, 3 итерации (1-я — failed: не нашёл videoId, 2-я — tool calls, 3-я — viewThumbnails + ответ)
-- Путь: stored embedding → dual vector search (packaging 768d + visual 1408d) → RRF merge k=60 → 24 found, 15 returned (limit: 15)
-- **Все поля корректны:** `rrfScore` (0.0315–0.0230, НЕ `similarityScore` — корректно для RRF), `thumbnailDescription` (15/15), viewDelta24h/7d/30d, performanceTier, sharedTags
-- **Dual coverage корректна:** `{ packaging: { indexed: 2090, total: 2091 }, visual: { indexed: 2035, total: 2091 } }` — два отдельных объекта ✅
-- Self-match exclusion: reference video `CI4f48bh-KA` не в результатах ✅
-- **Наблюдение:** результаты сильно overlap'ятся с visual-only из-за характера ниши (все каналы используют один визуальный стиль — impressionistic painting, pastel tones, cursive text). В RRF packaging доминирует — Little Thing копирует одинаковые теги между видео (17/17 shared), packaging similarity ~0.96 >> visual ~0.73
-- **Наблюдение (visual embeddings):** reference video — лебеди на озере. Visual search нашёл 3 видео с лебедями из ~2000 (ghLLpCNCl54: 0.734, _HZ1e_ekVvY: 0.662, 1_vDNs6QZaE: 0.639). Остальные результаты — match по СТИЛЮ (composition, palette, mood), не по конкретным объектам. Это by design: `multimodalembedding@001` захватывает высокоуровневые визуальные фичи, не object detection
-- **Prompt issue (Haiku):** первая итерация — 0 tool calls, Haiku сказал "I don't have the video ID". VideoId присутствовал и в persistent context `[id: CI4f48bh-KA]`, и в per-message label. Промпт-фикс: rule #8 в ANTI_HALLUCINATION_RULES обобщён с "Video lookup workflow" (только mentionVideo) на "Video ID extraction" (все tools). Добавлен guardrail: "Never ask the user for a videoId that is already visible in the context"
+### Ключевые наблюдения по traces
 
-**Visual mode + competitor stored embedding (same session, same video)**
-- "поищи у конкурентов похожее видео ТОЛЬКО ПО ВИЗУАЛУ" (CI4f48bh-KA)
-- Путь: stored `visualEmbedding` (1408d) → vector search → 29 found, 20 returned
-- **Все поля корректны:** `similarityScore` (0.755–0.639, НЕ `rrfScore` — корректно для single mode), thumbnailDescription (20/20), coverage single structure `{ indexed: 2035, total: 2091 }`
-- **Найден баг viewThumbnails:** Haiku передал `videoIds: "CI4f48bh-KA"` (строка) вместо `["CI4f48bh-KA"]` (массив) → `Array.isArray()` = false → ошибка. Исправлено: string-to-array coercion в handler
+**#1 Visual competitor** — результаты из 10 каналов. Модель использовала `thumbnailDescription` для объяснения визуальных различий, группировала по tier'ам (survivors / steady / dead). Подтверждает: VectorValue bug fix работает
 
-**Graceful degradation (searchDatabase fallback)**
-- Те же запросы, но до VectorValue fix: `findSimilarVideos` visual → ошибка, packaging → ошибка
-- Модель восстановилась через `searchDatabase` (text-based semantic search) + `viewThumbnails` + `mentionVideo`
-- Ответы качественные, но без `thumbnailDescription` — модель не могла объяснить визуальное сходство
+**#2 Visual own video** — own videos попадают в результаты (handler исключает только reference video, не канал). Модель корректно не упомянула их как "конкурентов"
+
+**#3 Packaging competitor** — все 20 результатов с одного канала (Little Thing копирует теги между видео → embedding'и почти идентичны, similarity 0.96). Корректное поведение, не баг. До промпт-фикса: Haiku не связывала videoId из context с tool → 0 tool calls
+
+**#4 Both mode (RRF)** — visual search нашёл 3 видео с лебедями из ~2000 (reference = лебеди на озере). Остальные — match по стилю (composition, palette), не по объектам. Это by design: `multimodalembedding@001` — высокоуровневые фичи, не object detection. Packaging доминирует в RRF: shared tags 17/17, packaging ~0.96 >> visual ~0.73
+
+**#7 Firebase Storage thumbnail** — полный путь для custom draft без publishedVideoId: Firebase Storage URL → download → on-the-fly embedding. Топ-1 = видео с собственного канала (similarity 0.846) — модель корректно отметила
+
+**#8 Both mode + custom** — SILEO `AuMzK2nQsZQ` вышел #1 благодаря packaging boost (в visual-only его не было, cosine 0.46). RRF merge компенсировал слабость visual через packaging — ради этого и делали `both` mode
+
+**#6 Graceful degradation** — до VectorValue fix оба mode'а падали. Модель восстановилась через `searchDatabase` + `viewThumbnails`. Ответы качественные, но без `thumbnailDescription`
 
 ### Найденные и исправленные баги
 
@@ -253,27 +233,6 @@ LLM может использовать coverage для calibration: "резул
 - **Симптом:** Haiku не извлекал videoId из `[id: ...]` аннотации в context, спрашивал у пользователя. 0 tool calls на первой итерации
 - **Причина:** rule #8 в ANTI_HALLUCINATION_RULES был привязан к конкретным инструментам (mentionVideo/getMultipleVideoDetails). `findSimilarVideos` не покрывался
 - **Фикс:** rule #8 обобщён: "Video lookup workflow" → "Video ID extraction". Теперь покрывает ВСЕ tools, которым нужен videoId. Добавлен guardrail: "Never ask the user for a videoId that is already visible in the context". Из Tool Strategy убрано дублирующее "with the videoId from attached context"
-
-**Visual mode + custom video без publishedVideoId (Firebase Storage thumbnail)**
-- "есть ли у конкурентов видео с похожим визуалом?" (custom draft, jazz mode, "Your Next Viral Music Playlist")
-- Модель: `claude-haiku-4-5`, стоимость: $0.046, 3 итерации
-- Путь: `custom-1773228155367` → no publishedVideoId → Firebase Storage thumbnail URL → download → on-the-fly visual embedding (1408d) → vector search → 30 found, 20 returned
-- **Все поля корректны:** similarityScore (0.846–0.611), thumbnailDescription (20/20), viewDelta24h/7d/30d, performanceTier, coverage (2164/2192 = 98.7%), dataFreshness (6 каналов)
-- Self-match exclusion: reference video `custom-1773228155367` не в результатах ✅
-- **Наблюдение:** топ-1 результат — `WalzXg2qG9M` с собственного канала (similarity 0.846). Handler исключает только reference video, не весь канал. Модель корректно отметила его как "ваш же канал", не как конкурента
-- **Качество интерпретации:** определила визуальный мейнстрим ниши ("modern architecture + nature + mystical atmosphere"), доминанта JazzVintage92, actionable совет ("improve typography or find unique angle")
-- **Подтверждает:** Firebase Storage thumbnail path полностью функционален для custom draft видео
-
-**Both mode + custom video с publishedVideoId (RRF merge)**
-- "есть ли у конкурентов похожие по упаковке и визуалу видео?" (custom published, jazz mode, "meditative jazz for overthinkers")
-- Модель: `claude-haiku-4-5`, стоимость: $0.055, 3 итерации (listTrendChannels → findSimilarVideos both → viewThumbnails)
-- Путь: `custom-1772111723778` → publishedVideoId `WalzXg2qG9M` → parallel: packaging embedding (Gemini) + YouTube thumbnail → visual embedding (Vertex AI) → dual vector search → RRF merge k=60 → 29 found, 20 returned
-- **Все поля корректны:** `rrfScore` (0.01613–0.01408, НЕ similarityScore — корректно для RRF), thumbnailDescription (20/20), viewDelta24h/7d/30d, performanceTier, dual coverage (packaging 2191/2192, visual 2164/2192)
-- Self-match exclusion: `custom-1772111723778` и `WalzXg2qG9M` не в результатах ✅
-- **Ключевой результат:** SILEO `AuMzK2nQsZQ` ("meditative jazz for overthinkers", 505K views) — **#1 в both mode** благодаря packaging boost. В visual-only search этого видео не было (cosine similarity 0.46). RRF merge компенсировал слабость visual embedding через packaging similarity
-- **Качество интерпретации:** Haiku определила SILEO как "доминирующего конкурента" с 5+ видео идентичной упаковки, дала actionable рекомендации по дифференциации
-
-### Найденные и исправленные баги (both mode)
 
 **Cloud Function OOM** (исправлен 2026-03-11)
 - **Симптом:** `findSimilarVideos` с `mode: "both"` на custom video → пустой ответ модели. В логах: `Memory limit of 512 MiB exceeded with 535 MiB used`

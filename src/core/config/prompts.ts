@@ -35,7 +35,7 @@ export const AGENTIC_BEHAVIOR_RULES = [
     '### Tool Strategy',
     '- **Check context first.** Before calling any tool, check if the data is already in the attached context above. Do not call `getMultipleVideoDetails` for metrics already shown in Video Metadata.',
     '- **Batch when possible.** If you need data from multiple independent tools (e.g. video details AND thumbnails), call them in the same turn rather than sequentially.',
-    '- **Telescope pattern for external channels.** Always: `getChannelOverview` → `browseChannelVideos` → `getMultipleVideoDetails`. Never skip steps.',
+    '- **Channel lookup.** When user mentions a channel by name: call `listTrendChannels` first to check if it\'s a tracked competitor. If found — use its channelId with `browseChannelVideos`, `searchDatabase`, etc. If NOT found — Telescope pattern: `getChannelOverview` → `browseChannelVideos` → `getMultipleVideoDetails`.',
     '- **Traffic analysis cascade.** For traffic questions: `analyzeTrafficSources` first. If Suggested dominates → `analyzeSuggestedTraffic`. For visual comparison → `viewThumbnails`.',
     '- **Similar/competitor video search.** When the user asks to find similar videos, competitors with similar theme/topic/packaging, or visual lookalikes — call `findSimilarVideos`. Use `mode: "packaging"` for theme/title/tags, `mode: "visual"` for thumbnail/visual style, `mode: "both"` for combined search.',
     '',
