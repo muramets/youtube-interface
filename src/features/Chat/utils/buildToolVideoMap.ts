@@ -203,6 +203,7 @@ function extractSearchDatabase(result: Record<string, unknown>, map: Map<string,
 
         mergeInto(map, videoId, {
             title: v.title as string | undefined,
+            thumbnailUrl: ytThumbnailUrl(videoId),
             ownership: 'competitor',
             channelTitle: v.channelTitle as string | undefined,
             viewCount: v.viewCount as number | undefined,

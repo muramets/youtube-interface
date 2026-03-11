@@ -132,6 +132,9 @@ export async function processOneVideo(
         };
 
         if (needsPackaging && packagingEmbedding) {
+            // FieldValue.vector() is a Firestore write sentinel, not a real number[].
+            // Cast satisfies EmbeddingDoc type. On READ, lookupVideo() normalizes
+            // the resulting VectorValue back to number[] via vectorToArray().
             docData.packagingEmbedding = FieldValue.vector(packagingEmbedding) as unknown as number[];
             docData.packagingEmbeddingVersion = CURRENT_PACKAGING_MODEL_VERSION;
         }
@@ -141,6 +144,7 @@ export async function processOneVideo(
         }
 
         if (needsVisual && thumbnail && visualEmb) {
+            // Same write sentinel pattern — see packagingEmbedding comment above.
             docData.visualEmbedding = FieldValue.vector(visualEmb) as unknown as number[];
             docData.visualEmbeddingVersion = CURRENT_VISUAL_MODEL_VERSION;
         }

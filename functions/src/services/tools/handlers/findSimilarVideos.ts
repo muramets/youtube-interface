@@ -37,6 +37,24 @@ type Mode = "packaging" | "visual" | "both";
 const VALID_MODES: Mode[] = ["packaging", "visual", "both"];
 
 // ---------------------------------------------------------------------------
+// Firestore VectorValue normalization
+// ---------------------------------------------------------------------------
+
+/**
+ * Firestore stores vectors written via FieldValue.vector() and returns them
+ * as VectorValue objects on read — NOT plain number[]. VectorValue has
+ * .toArray() but no .length, which breaks Array.isArray and .length checks.
+ * Normalize at the read boundary so all downstream code gets plain number[].
+ */
+function vectorToArray(v: unknown): number[] | null {
+    if (Array.isArray(v)) return v;
+    if (v && typeof (v as Record<string, unknown>).toArray === "function") {
+        return (v as { toArray(): number[] }).toArray();
+    }
+    return null;
+}
+
+// ---------------------------------------------------------------------------
 // Video lookup (shared across modes)
 // ---------------------------------------------------------------------------
 
@@ -61,6 +79,9 @@ async function lookupVideo(
     const embDoc = await db.doc(`globalVideoEmbeddings/${videoId}`).get();
     if (embDoc.exists) {
         const data = embDoc.data() as EmbeddingDoc;
+        // Normalize VectorValue → number[] at the Firestore read boundary
+        data.packagingEmbedding = vectorToArray(data.packagingEmbedding);
+        data.visualEmbedding = vectorToArray(data.visualEmbedding);
         return {
             referenceVideo: { videoId, title: data.title, tags: data.tags ?? [] },
             embeddingDoc: data,

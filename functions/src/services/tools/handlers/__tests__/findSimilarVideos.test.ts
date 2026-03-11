@@ -76,13 +76,22 @@ const BASE_PATH = "users/user1/channels/channel1";
 const dummyPackagingVector = Array(768).fill(0.1);
 const dummyVisualVector = Array(1408).fill(0.2);
 
+/**
+ * Mimics Firestore VectorValue — has .toArray() but NO .length property.
+ * Use instead of plain number[] to match real Firestore read behavior.
+ * Without this, tests pass on plain arrays but production fails on VectorValue.
+ */
+function mockVector(values: number[]): { toArray: () => number[] } {
+    return { toArray: () => values };
+}
+
 function makeEmbeddingData(videoId: string, channelId: string, opts: {
     title?: string;
     tags?: string[];
     viewCount?: number;
     publishedAt?: string;
-    packagingEmbedding?: number[] | null;
-    visualEmbedding?: number[] | null;
+    packagingEmbedding?: number[] | ReturnType<typeof mockVector> | null;
+    visualEmbedding?: number[] | ReturnType<typeof mockVector> | null;
     thumbnailDescription?: string | null;
 } = {}) {
     return {
@@ -94,9 +103,10 @@ function makeEmbeddingData(videoId: string, channelId: string, opts: {
         viewCount: opts.viewCount ?? 10000,
         publishedAt: opts.publishedAt ?? "2026-01-15",
         thumbnailUrl: `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
-        // Use "in" check so explicit null is preserved (??  treats null as nullish → returns default)
-        packagingEmbedding: "packagingEmbedding" in opts ? opts.packagingEmbedding : dummyPackagingVector,
-        visualEmbedding: "visualEmbedding" in opts ? opts.visualEmbedding : dummyVisualVector,
+        // Use "in" check so explicit null is preserved (?? treats null as nullish → returns default).
+        // Defaults use mockVector() to simulate Firestore VectorValue (no .length, has .toArray()).
+        packagingEmbedding: "packagingEmbedding" in opts ? opts.packagingEmbedding : mockVector(dummyPackagingVector),
+        visualEmbedding: "visualEmbedding" in opts ? opts.visualEmbedding : mockVector(dummyVisualVector),
         thumbnailDescription: "thumbnailDescription" in opts ? opts.thumbnailDescription : null,
         failCount: 0,
         updatedAt: Date.now(),
@@ -451,7 +461,7 @@ describe("handleFindSimilarVideos — mode: visual", () => {
 
     it("uses stored visual embedding for competitor video", async () => {
         const embData = makeEmbeddingData("comp-v1", "ch1", {
-            visualEmbedding: dummyVisualVector,
+            visualEmbedding: mockVector(dummyVisualVector),
             thumbnailDescription: "Red text on dark background",
         });
 
@@ -537,7 +547,7 @@ describe("handleFindSimilarVideos — mode: visual", () => {
 
     it("includes thumbnailDescription as null when not available", async () => {
         const embData = makeEmbeddingData("comp-v1", "ch1", {
-            visualEmbedding: dummyVisualVector,
+            visualEmbedding: mockVector(dummyVisualVector),
         });
 
         setupMocks({
@@ -580,8 +590,8 @@ describe("handleFindSimilarVideos — mode: both", () => {
 
     it("merges packaging + visual results with RRF when both vectors available", async () => {
         const embData = makeEmbeddingData("comp-v1", "ch1", {
-            packagingEmbedding: dummyPackagingVector,
-            visualEmbedding: dummyVisualVector,
+            packagingEmbedding: mockVector(dummyPackagingVector),
+            visualEmbedding: mockVector(dummyVisualVector),
         });
 
         setupMocks({
@@ -654,7 +664,7 @@ describe("handleFindSimilarVideos — mode: both", () => {
 
     it("falls back to packaging when visual vector unavailable", async () => {
         const embData = makeEmbeddingData("comp-v1", "ch1", {
-            packagingEmbedding: dummyPackagingVector,
+            packagingEmbedding: mockVector(dummyPackagingVector),
             visualEmbedding: null, // no visual embedding
         });
 
@@ -691,7 +701,7 @@ describe("handleFindSimilarVideos — mode: both", () => {
     it("falls back to visual when packaging vector unavailable", async () => {
         const embData = makeEmbeddingData("comp-v1", "ch1", {
             packagingEmbedding: null, // no packaging embedding
-            visualEmbedding: dummyVisualVector,
+            visualEmbedding: mockVector(dummyVisualVector),
         });
 
         setupMocks({
@@ -739,8 +749,8 @@ describe("handleFindSimilarVideos — mode: both", () => {
 
     it("uses parallel vector searches with limit 100 each", async () => {
         const embData = makeEmbeddingData("comp-v1", "ch1", {
-            packagingEmbedding: dummyPackagingVector,
-            visualEmbedding: dummyVisualVector,
+            packagingEmbedding: mockVector(dummyPackagingVector),
+            visualEmbedding: mockVector(dummyVisualVector),
         });
 
         setupMocks({
