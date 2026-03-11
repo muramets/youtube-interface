@@ -33,6 +33,8 @@ export interface ToolConfig {
     StatsComponent?: React.FC<{ result: Record<string, unknown> }>;
     /** Whether this tool has expandable content (stats or video list). */
     hasExpandableContent: boolean;
+    /** Sort videos in expanded view by this field (default: preserve backend order). */
+    sortVideosBy?: 'views';
 }
 
 // --- Registry ---
@@ -94,6 +96,7 @@ const TOOL_REGISTRY: Record<string, ToolConfig> = {
         color: 'emerald',
         StatsComponent: NicheSnapshotStats,
         hasExpandableContent: true,
+        sortVideosBy: 'views',
     },
     findSimilarVideos: {
         icon: Search,

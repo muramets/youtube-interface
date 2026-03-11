@@ -289,16 +289,28 @@ export async function handleGetNicheSnapshot(
         // --- Compute aggregates ---
         const totalVideosInWindow = allWindowVideos.length;
 
-        const tagCounts = new Map<string, number>();
+        // Tag relevance: log-scaled view weighting.
+        //
+        // Each video contributes log(1 + viewCount) to every tag it uses.
+        // Log scale balances two failure modes:
+        //   - Raw frequency (count): spammy channels dominate (7 videos × same tags, 50 views each)
+        //   - Raw views (sum): one 80K hit dominates all tags, making the list single-source
+        //
+        // With log scale: 80K views ≈ weight 11, 80 views ≈ weight 4.
+        // A tag in 7 low-view videos (7 × 4 = 28) outranks a tag in 1 mega-hit (11).
+        // A tag in 1 mega-hit (11) outranks a tag in 2 tiny videos (2 × 3 = 6).
+        // Result: tags that are BOTH popular across videos AND in higher-performing content rank highest.
+        const tagWeights = new Map<string, number>();
         for (const v of allWindowVideos) {
+            const weight = Math.log1p(v.viewCount);
             for (const tag of v.tags) {
-                tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
+                tagWeights.set(tag, (tagWeights.get(tag) ?? 0) + weight);
             }
         }
-        const commonTags = [...tagCounts.entries()]
+        const commonTags = [...tagWeights.entries()]
             .sort((a, b) => b[1] - a[1])
             .slice(0, 20)
-            .map(([tag, count]) => ({ tag, count }));
+            .map(([tag, w]) => ({ tag, weight: Math.round(w * 10) / 10 }));
 
         const totalViewsAll = allWindowVideos.reduce((sum, v) => sum + v.viewCount, 0);
         const avgViewsInWindow = totalVideosInWindow > 0

@@ -17,6 +17,22 @@ import { VideoPreviewTooltip, PREVIEW_DIMENSIONS } from '../../Video/components/
 import { formatViewCount } from '../../../core/utils/formatUtils';
 import { ThumbnailGrid, QuotaBadge } from './toolStats';
 
+// --- Helpers ---
+
+/** Sort video IDs based on tool config (e.g. by views for getNicheSnapshot). Preserves backend order by default. */
+function getSortedVideoIds(group: ToolCallGroup, videoMap?: Map<string, VideoPreviewData>): string[] {
+    const config = getToolConfig(group.toolName);
+    if (!config?.sortVideosBy || !videoMap) return group.videoIds;
+
+    if (config.sortVideosBy === 'views') {
+        return [...group.videoIds].sort((a, b) =>
+            (videoMap.get(b)?.viewCount ?? 0) - (videoMap.get(a)?.viewCount ?? 0),
+        );
+    }
+
+    return group.videoIds;
+}
+
 // --- Types ---
 
 /** ToolCallRecord extended with optional real-time progress (mirrors ActiveToolCall in chatStore). */
@@ -118,7 +134,7 @@ const GroupPill: React.FC<{
                     {/* Thumbnail tool: image grid */}
                     {isThumbnailTool(group) && <ThumbnailGrid group={group} />}
                     {/* Video-based tools: video preview list (skip for thumbnails — ThumbnailGrid above already shows them) */}
-                    {!isThumbnailTool(group) && group.videoIds.map(videoId => {
+                    {!isThumbnailTool(group) && getSortedVideoIds(group, videoMap).map(videoId => {
                         const video = videoMap?.get(videoId);
 
                         const row = (

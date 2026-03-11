@@ -358,7 +358,7 @@ const getNicheSnapshot: ToolDefinition = {
     description:
         "Get a snapshot of competitor activity around a specific date. " +
         "Shows what all tracked channels published in a time window (default ±7 days), " +
-        "grouped by channel with per-channel stats, tag frequency analysis, and top performers. " +
+        "grouped by channel with per-channel stats, view-weighted top tags, and top performers. " +
         "Returns structured data + pre-computed aggregates for your interpretation. " +
         "Zero API cost (all data from Firestore). " +
         "Prefer the 'date' parameter when publishedAt is known from context (zero extra reads). " +

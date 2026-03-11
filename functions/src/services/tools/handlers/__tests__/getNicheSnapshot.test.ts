@@ -465,11 +465,12 @@ describe("handleGetNicheSnapshot", () => {
         ) as Record<string, unknown>;
 
         const aggregates = result.aggregates as Record<string, unknown>;
-        const commonTags = aggregates.commonTags as Array<{ tag: string; count: number }>;
+        const commonTags = aggregates.commonTags as Array<{ tag: string; weight: number }>;
 
-        // react appears 3x, javascript 2x, tutorial 1x, typescript 1x
-        expect(commonTags[0]).toEqual({ tag: "react", count: 3 });
-        expect(commonTags[1]).toEqual({ tag: "javascript", count: 2 });
+        // Log-scaled: react = log1p(100)+log1p(200)+log1p(300) ≈ 15.6
+        //             javascript = log1p(100)+log1p(300) ≈ 10.3
+        expect(commonTags[0]).toEqual({ tag: "react", weight: 15.6 });
+        expect(commonTags[1]).toEqual({ tag: "javascript", weight: 10.3 });
         expect(commonTags).toHaveLength(4);
     });
 
@@ -522,12 +523,12 @@ describe("handleGetNicheSnapshot", () => {
         ) as Record<string, unknown>;
 
         const aggregates = result.aggregates as Record<string, unknown>;
-        const commonTags = aggregates.commonTags as Array<{ tag: string; count: number }>;
+        const commonTags = aggregates.commonTags as Array<{ tag: string; weight: number }>;
 
         // Should be truncated to 20
         expect(commonTags).toHaveLength(20);
-        // tag-00 appears 2x → should be first
-        expect(commonTags[0]).toEqual({ tag: "tag-00", count: 2 });
+        // tag-00 in v1(100) + v3(300) → log1p(100)+log1p(300) ≈ 10.3 → highest weight → first
+        expect(commonTags[0]).toEqual({ tag: "tag-00", weight: 10.3 });
     });
 
     // -----------------------------------------------------------------------
@@ -576,8 +577,8 @@ describe("handleGetNicheSnapshot", () => {
         // Should not throw — null/missing tags treated as empty array
         expect(result).not.toHaveProperty("error");
         const aggregates = result.aggregates as Record<string, unknown>;
-        const commonTags = aggregates.commonTags as Array<{ tag: string; count: number }>;
-        expect(commonTags).toEqual([{ tag: "valid-tag", count: 1 }]);
+        const commonTags = aggregates.commonTags as Array<{ tag: string; weight: number }>;
+        expect(commonTags).toEqual([{ tag: "valid-tag", weight: 5.7 }]);
     });
 
     // -----------------------------------------------------------------------

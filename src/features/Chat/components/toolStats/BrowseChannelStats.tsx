@@ -19,7 +19,7 @@ export const BrowseChannelStats: React.FC<{ result: Record<string, unknown> }> =
             </span>
             {sync && (
                 <span className="text-[10px] text-text-tertiary">
-                    {sync.inApp} in app \u00b7 {sync.onYouTube} on YouTube \u00b7 {sync.notInApp} not imported
+                    {sync.inApp} in app · {sync.onYouTube} on YouTube · {sync.notInApp} not imported
                 </span>
             )}
         </div>

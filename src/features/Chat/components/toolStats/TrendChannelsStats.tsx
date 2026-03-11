@@ -12,7 +12,7 @@ export const TrendChannelsStats: React.FC<{ result: Record<string, unknown> }> =
         <div className="flex flex-col gap-1 px-2 py-1.5 rounded-md bg-white/[0.03] text-[11px] text-text-secondary">
             <span className="inline-flex items-center gap-1.5">
                 <Users size={11} className="shrink-0 opacity-60" />
-                {totalChannels ?? 0} channels \u00b7 {(totalVideos ?? 0).toLocaleString()} videos
+                {totalChannels ?? 0} channels · {(totalVideos ?? 0).toLocaleString()} videos
             </span>
             {channels && channels.length > 0 && (
                 <div className="flex flex-col gap-0.5 text-[10px] text-text-tertiary">
