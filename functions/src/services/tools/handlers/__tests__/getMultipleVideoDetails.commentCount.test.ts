@@ -31,8 +31,8 @@ vi.mock('../../../youtube.js', () => ({
     },
 }));
 
-const CTX: ToolContext = { userId: 'user1', channelId: 'ch1' };
-const CTX_WITH_YT: ToolContext = { userId: 'user1', channelId: 'ch1', youtubeApiKey: 'yt-key' };
+const CTX: ToolContext = { userId: 'user1', channelId: 'ch1', channelName: 'My Channel' };
+const CTX_WITH_YT: ToolContext = { userId: 'user1', channelId: 'ch1', channelName: 'My Channel', youtubeApiKey: 'yt-key' };
 
 function makeSnap(exists: boolean, data?: Record<string, unknown>) {
     return { exists, data: () => data };

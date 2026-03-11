@@ -36,8 +36,8 @@ vi.mock('../../../youtube.js', () => ({
     },
 }));
 
-const CTX: ToolContext = { userId: 'user1', channelId: 'ch1' };
-const CTX_WITH_YT: ToolContext = { userId: 'user1', channelId: 'ch1', youtubeApiKey: 'yt-key' };
+const CTX: ToolContext = { userId: 'user1', channelId: 'ch1', channelName: 'My Channel' };
+const CTX_WITH_YT: ToolContext = { userId: 'user1', channelId: 'ch1', channelName: 'My Channel', youtubeApiKey: 'yt-key' };
 
 function makeSnap(exists: boolean, data?: Record<string, unknown>) {
     return { exists, data: () => data };
@@ -341,5 +341,72 @@ describe('getMultipleVideoDetails — competitor video from trendChannels', () =
         // YouTube API should NOT be called — video was resolved from trendChannels
         expect(mockGetVideoDetails).not.toHaveBeenCalled();
         expect(result.quotaUsed).toBeUndefined();
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────
+// Ownership detection (isCustom + channelName match)
+// ─────────────────────────────────────────────────────────────────
+
+describe('getMultipleVideoDetails — ownership detection', () => {
+    it('returns own-published for custom video with publishedVideoId', async () => {
+        mockGetAll
+            .mockResolvedValueOnce([makeSnap(true, { title: 'My Custom', isCustom: true, publishedVideoId: 'yt1' })])
+            .mockResolvedValueOnce([MISS]);
+
+        const result = await handleGetMultipleVideoDetails({ videoIds: ['v1'] }, CTX) as {
+            videos: Array<{ ownership: string }>;
+        };
+
+        expect(result.videos[0].ownership).toBe('own-published');
+    });
+
+    it('returns own-draft for custom video without publishedVideoId', async () => {
+        mockGetAll
+            .mockResolvedValueOnce([makeSnap(true, { title: 'Draft', isCustom: true })])
+            .mockResolvedValueOnce([MISS]);
+
+        const result = await handleGetMultipleVideoDetails({ videoIds: ['v1'] }, CTX) as {
+            videos: Array<{ ownership: string }>;
+        };
+
+        expect(result.videos[0].ownership).toBe('own-draft');
+    });
+
+    it('returns own-published for non-custom video matching channel name', async () => {
+        mockGetAll
+            .mockResolvedValueOnce([makeSnap(true, { title: 'My YT Video', channelTitle: 'My Channel' })])
+            .mockResolvedValueOnce([MISS]);
+
+        const result = await handleGetMultipleVideoDetails({ videoIds: ['v1'] }, CTX) as {
+            videos: Array<{ ownership: string }>;
+        };
+
+        expect(result.videos[0].ownership).toBe('own-published');
+    });
+
+    it('returns external for non-custom video in videos/ not matching channel name', async () => {
+        mockGetAll
+            .mockResolvedValueOnce([makeSnap(true, { title: 'Competitor', channelTitle: 'Other Channel' })])
+            .mockResolvedValueOnce([MISS]);
+
+        const result = await handleGetMultipleVideoDetails({ videoIds: ['v1'] }, CTX) as {
+            videos: Array<{ ownership: string }>;
+        };
+
+        expect(result.videos[0].ownership).toBe('external');
+    });
+
+    it('returns external when channelName is not set in context', async () => {
+        const ctxNoName: ToolContext = { userId: 'user1', channelId: 'ch1' };
+        mockGetAll
+            .mockResolvedValueOnce([makeSnap(true, { title: 'Video', channelTitle: 'Some Channel' })])
+            .mockResolvedValueOnce([MISS]);
+
+        const result = await handleGetMultipleVideoDetails({ videoIds: ['v1'] }, ctxNoName) as {
+            videos: Array<{ ownership: string }>;
+        };
+
+        expect(result.videos[0].ownership).toBe('external');
     });
 });

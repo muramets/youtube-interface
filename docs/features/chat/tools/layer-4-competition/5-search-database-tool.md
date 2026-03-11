@@ -253,7 +253,7 @@ External API (WRITE: none, READ):
 
 ### Проверено в бою (2026-03-11)
 
-Все traces: модель `claude-haiku-4-5`. Все поля (viewDelta, performanceTier, coverage, dataFreshness) корректны во всех traces.
+Модели: `claude-haiku-4-5` (сценарии 1–7), `claude-sonnet-4-6` (сценарий 10). Все поля (viewDelta, performanceTier, coverage, dataFreshness) корректны во всех traces.
 
 | # | Сценарий | Query | $ | Iter | Score | Spread | Ch | Found/Ret | Баг |
 |---|----------|-------|---|------|-------|--------|----|-----------|-----|
@@ -263,6 +263,8 @@ External API (WRITE: none, READ):
 | 6 | Out-of-domain | `"cryptocurrency"` | .026 | 2 | .517–.485 | .032 | 7/19 | 60/50 | — |
 | 5 | vs findSimilar | `"jazz tones for elevated concentration"` | .008 | 2 | .799–.731 | .068 | 1/19 | 20/20 | — |
 | 3 | channelIds | `"кафе cafe coffee shop"` | .037 | 3 | .606–.591 | .015 | 1/1* | 30/20 | prompt routing |
+| 4 | Multi-word complex | `"relaxing nature sounds cabin forest slow living aesthetic"` | .042 | 3 | .716–.684 | .032 | 12/15 | 57/50 | ownership bug† |
+| 10 | Model interpretation (Sonnet) | `"morning routine"` | .041 | 5 | .585–.548 | .037 | 8/15 | 60/50 | mention URL space‡ |
 
 \* channelIds filter — searched only MONKEY BGM (1 channel)
 
@@ -272,6 +274,8 @@ External API (WRITE: none, READ):
 - **Порог релевантности ~0.55.** Реальные match'и > 0.59, мусор < 0.52. Threshold не введён — модель справляется с интерпретацией
 - **Multilingual embeddings работают.** Русский query нашёл корейские/английские заголовки без перевода. Gemini embedding space кросс-язычный
 - **50% overlap с findSimilarVideos.** Одна тема через оба инструмента — 10/20 общих результатов, но разное ранжирование. Score масштабы несопоставимы (searchDB: 0.73–0.80, findSimilar: 0.94–0.97). Инструменты комплементарны
+- **Query dilution.** Многословный запрос = размытый embedding. "relaxing nature sounds cabin forest slow living" дал spread 0.032 (узкий) и доминирование "slow living" концепта (общего для ниши). Редкий концепт "cabin in the forest" — лишь 5 из 50 результатов. Это фундаментальное свойство vector search, не баг
+- **Sonnet vs Haiku: качественный скачок.** Sonnet (сценарий 10) — 5 tool calls, 3× `mentionVideo`, структурированный анализ с группировкой по каналам. Haiku (сценарии 1–7) — 0 `mentionVideo` calls, hallucinated videoIds, смешение языков. Это не tool bug, а разница уровня модели. Для production: Sonnet+ обязателен для quality interpretation
 
 ### Ключевые наблюдения по traces
 
@@ -284,6 +288,10 @@ External API (WRITE: none, READ):
 **#5 vs findSimilarVideos** — searchDB включил reference video на #1 (корректно — нет concept'а reference). findSimilar исключает его by design. Разное ранжирование одних и тех же видео подтверждает: для полного анализа нужны оба инструмента
 
 **#3 channelIds "MONKEY BGM кафе"** — 3 попытки. Попытка 1: модель вызвала `getChannelOverview("MONKEY BGM")` → ошибка (канал tracked, но модель пошла в YouTube API). Попытка 2: дописали caveat в конец промпт-правила → модель снова `getChannelOverview` (не дочитала). Попытка 3: перезаписали правило с decision-first структурой → модель корректно вызвала `listTrendChannels` → `searchDatabase`. Модель сформировала билингвальный query `"кафе cafe coffee shop"` — хороший приём. Spread 0.015 (самый узкий) объясним: 30 cafe-видео с похожими заголовками "CAFE&JAZZ"
+
+**#4 Multi-word complex "relaxing nature sounds cabin forest"** — модель извлекла ключевые слова из natural language ("Is there any relaxing videos with..."), limit=50. Query dilution: "slow living" доминирует нишу → 45/50 результатов про slow living playlists. Лишь 5 видео содержат cabin/forest/cottage. Spread 0.032 подтверждает: все 50 результатов примерно одинаково далеки от размытого вектора. Модель корректно заключила: "The niche is dominated by playlist/ambient music rather than cinematic cabin videos". Обнаружен баг ownership (†)
+
+**#10 Model interpretation "morning routine" (Sonnet)** — 3 traces: 2× Haiku (грязные), 1× Sonnet (чистый). Haiku: не вызывает `mentionVideo`, вставляет videoIds прямо в текст (hallucinated формат), мешает русский/английский. Sonnet: `listTrendChannels` → `searchDatabase` → 3× `mentionVideo` (все корректно вернули `competitor` после ownership fix). Интерпретация: группировка каналов по типу контента (playlists vs vlogs), trend detection ("ASMR Morning Routines", "Korean-style"), actionable рекомендации. Ownership fix подтверждён: все 4 `mentionVideo` calls → `"competitor"`. Обнаружен баг mention URL (‡)
 
 ### Найденные и исправленные баги
 
@@ -300,6 +308,8 @@ External API (WRITE: none, READ):
 - **Fix #2 (SUCCESS):** полная перезапись правила с decision-first структурой: "call `listTrendChannels` first" как дефолтное действие, Telescope как fallback
 - **Файл:** `src/core/config/prompts.ts`, правило "Channel lookup" в `AGENTIC_BEHAVIOR_RULES`
 - **Урок:** LLM читают правила как waterfall. Ставь дефолтное действие ПЕРВЫМ. Caveats и fallback'и — после. Никогда не дописывай исключение в конец правила, начинающегося с "Always"
+
+**† Ownership bug** и **‡ Mention URL sanitization** — оба бага связаны с `mentionVideo`. Полное описание: [mention-video-tool.md](../utility/mention-video-tool.md#battle-testing)
 
 ### Ещё не проверено в бою
 

@@ -19,7 +19,7 @@ vi.mock('../../../../shared/db.js', () => ({
     },
 }));
 
-const CTX: ToolContext = { userId: 'user1', channelId: 'ch1' };
+const CTX: ToolContext = { userId: 'user1', channelId: 'ch1', channelName: 'My Channel' };
 
 function makeSnap(exists: boolean, data?: Record<string, unknown>) {
     return { exists, data: () => data };
@@ -32,9 +32,9 @@ beforeEach(() => {
 });
 
 describe('handleMentionVideo', () => {
-    it('returns own-published ownership for video_grid source', async () => {
+    it('returns own-published ownership for custom video with publishedVideoId', async () => {
         mockGetAll
-            .mockResolvedValueOnce([makeSnap(true, { title: 'My Video', thumbnail: 'thumb.jpg' })])
+            .mockResolvedValueOnce([makeSnap(true, { title: 'My Video', thumbnail: 'thumb.jpg', isCustom: true, publishedVideoId: 'yt123' })])
             .mockResolvedValueOnce([makeSnap(false)]);
 
         const result = await handleMentionVideo({ videoId: 'own123' }, CTX);
@@ -45,6 +45,57 @@ describe('handleMentionVideo', () => {
             title: 'My Video',
             ownership: 'own-published',
             channelTitle: undefined,
+            thumbnailUrl: 'thumb.jpg',
+        });
+    });
+
+    it('returns own-draft ownership for custom video without publishedVideoId', async () => {
+        mockGetAll
+            .mockResolvedValueOnce([makeSnap(true, { title: 'Draft Video', thumbnail: 'thumb.jpg', isCustom: true })])
+            .mockResolvedValueOnce([makeSnap(false)]);
+
+        const result = await handleMentionVideo({ videoId: 'custom-123' }, CTX);
+
+        expect(result).toEqual({
+            found: true,
+            videoId: 'custom-123',
+            title: 'Draft Video',
+            ownership: 'own-draft',
+            channelTitle: undefined,
+            thumbnailUrl: 'thumb.jpg',
+        });
+    });
+
+    it('returns own-published for non-custom video matching channel name', async () => {
+        mockGetAll
+            .mockResolvedValueOnce([makeSnap(true, { title: 'My YT Video', thumbnail: 'thumb.jpg', channelTitle: 'My Channel' })])
+            .mockResolvedValueOnce([makeSnap(false)]);
+
+        const result = await handleMentionVideo({ videoId: 'yt456' }, CTX);
+
+        expect(result).toEqual({
+            found: true,
+            videoId: 'yt456',
+            title: 'My YT Video',
+            ownership: 'own-published',
+            channelTitle: 'My Channel',
+            thumbnailUrl: 'thumb.jpg',
+        });
+    });
+
+    it('returns competitor for non-custom video not matching channel name', async () => {
+        mockGetAll
+            .mockResolvedValueOnce([makeSnap(true, { title: 'Other Video', thumbnail: 'thumb.jpg', channelTitle: 'Other Channel' })])
+            .mockResolvedValueOnce([makeSnap(false)]);
+
+        const result = await handleMentionVideo({ videoId: 'ext789' }, CTX);
+
+        expect(result).toEqual({
+            found: true,
+            videoId: 'ext789',
+            title: 'Other Video',
+            ownership: 'competitor',
+            channelTitle: 'Other Channel',
             thumbnailUrl: 'thumb.jpg',
         });
     });

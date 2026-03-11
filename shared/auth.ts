@@ -24,10 +24,13 @@ export async function verifyAuthToken(authHeader?: string): Promise<string> {
  * Verify the authenticated user has access to the given channel.
  * Currently checks ownership (channel nested under user).
  * Extensible for shared channels via members subcollection / ACL.
+ *
+ * Returns the channel name (used for video ownership detection).
  */
-export async function verifyChannelAccess(userId: string, channelId: string): Promise<void> {
+export async function verifyChannelAccess(userId: string, channelId: string): Promise<string | undefined> {
     const channelDoc = await db.doc(`users/${userId}/channels/${channelId}`).get();
     if (!channelDoc.exists) {
         throw new HttpsError("permission-denied", "Access denied to the specified channel.");
     }
+    return (channelDoc.data()?.name as string) || undefined;
 }

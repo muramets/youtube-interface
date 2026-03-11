@@ -74,9 +74,10 @@ export const aiChat = onRequest(
         }
         const thinkingOptionId = validateThinkingOptionId(model, body.thinkingOptionId);
 
-        // Verify channel ownership
+        // Verify channel ownership and retrieve channel name for ownership detection
+        let channelName: string | undefined;
         try {
-            await verifyChannelAccess(userId, body.channelId);
+            channelName = await verifyChannelAccess(userId, body.channelId);
         } catch {
             res.status(403).json({ error: "Access denied to the specified channel." });
             return;
@@ -311,7 +312,7 @@ export const aiChat = onRequest(
                 attachments: currentAttachments,
                 imageUrls: body.thumbnailUrls,
                 tools: TOOL_DECLARATIONS,
-                toolContext: { userId, channelId: body.channelId, youtubeApiKey: userYoutubeApiKey },
+                toolContext: { userId, channelId: body.channelId, channelName, youtubeApiKey: userYoutubeApiKey },
                 thinkingOptionId,
                 callbacks,
                 providerContext,

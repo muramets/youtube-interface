@@ -74,8 +74,13 @@ import { ConfirmLargePayloadBanner } from './components/ConfirmLargePayloadBanne
 import { StreamingStatusMessage } from './components/StreamingStatusMessage';
 import { getSessionThinking } from '../../core/stores/chat/chatStore';
 
-/** Regex to detect mention:// URIs in markdown links */
-const MENTION_RE = /^mention:\/\/(.+)$/;
+/** Regex to detect mention:// URIs in markdown links (tolerates extra slashes/spaces from LLM) */
+const MENTION_RE = /^mention:\/{2,}\s*(.+)$/;
+
+/** Pre-process: fix malformed mention URLs that CommonMark won't parse (spaces, extra slashes) */
+const MENTION_URL_FIX_RE = /\]\(mention:\/{2,}\s+/g;
+/** Ensure a space before mention links when LLM omits it (e.g. "растёт[title]" → "растёт [title]") */
+const MENTION_SPACE_RE = /(\S)\[([^\]]+)\]\(mention:\/\//g;
 
 // --- Code Block with Copy + Language Label ---
 
@@ -125,6 +130,10 @@ interface ChatMessageListProps {
 }
 
 const MarkdownMessage: React.FC<{ text: string; videoMap?: Map<string, VideoPreviewData> }> = React.memo(({ text, videoMap }) => {
+    // Fix malformed mention:// URLs before markdown parsing (LLMs add spaces/extra slashes)
+    const sanitized = text
+        .replace(MENTION_URL_FIX_RE, '](mention://')
+        .replace(MENTION_SPACE_RE, '$1 [$2](mention://');
 
     return (
         <ReactMarkdown
@@ -163,7 +172,7 @@ const MarkdownMessage: React.FC<{ text: string; videoMap?: Map<string, VideoPrev
                 },
             }}
         >
-            {normalizeMarkdown(text)}
+            {normalizeMarkdown(sanitized)}
         </ReactMarkdown>
     );
 });

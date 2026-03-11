@@ -28,10 +28,12 @@ export async function handleMentionVideo(
     // Custom videos (docId starts with "custom-") don't have YouTube CDN thumbnails.
     const thumbnailUrl = data.thumbnail
         || (entry.docId.startsWith('custom-') ? '' : `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`);
-    // Determine ownership based on resolver source
-    const ownership = entry.source === "trend_channel"
-        ? "competitor"
-        : ((data.ownership as string) || "own-published");
+    // Determine ownership: isCustom = own video, channelTitle match = own published YouTube video
+    const ownership = data.isCustom
+        ? (data.publishedVideoId ? "own-published" : "own-draft")
+        : (ctx.channelName && data.channelTitle === ctx.channelName)
+            ? "own-published"
+            : "competitor";
     return {
         found: true,
         videoId,

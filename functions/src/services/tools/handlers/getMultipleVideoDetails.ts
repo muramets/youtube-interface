@@ -40,7 +40,7 @@ export async function handleGetMultipleVideoDetails(
             entry.source === "video_grid" ? "own"
                 : entry.source === "trend_channel" ? "competitor"
                     : "external_cache";
-        videos.push(formatVideoData(id, entry.data, collectionSource));
+        videos.push(formatVideoData(id, entry.data, collectionSource, ctx.channelName));
     }
 
     // --- Step 2: YouTube API fallback for remaining IDs ---
@@ -76,7 +76,7 @@ export async function handleGetMultipleVideoDetails(
                             db.doc(`${basePath}/cached_external_videos/${item.id}`),
                             cacheData,
                         );
-                        videos.push(formatVideoData(item.id, cacheData, "youtube_api"));
+                        videos.push(formatVideoData(item.id, cacheData, "youtube_api", ctx.channelName));
                     }
                     await writeBatch.commit();
                 }
@@ -131,11 +131,12 @@ function formatVideoData(
     videoId: string,
     data: Record<string, unknown>,
     source: CollectionSource,
+    channelName?: string,
 ): Record<string, unknown> {
-    // Ownership: trust explicit field from videos/ collection,
-    // everything else is external (competitor / cached)
-    const ownership = source === "own"
-        ? (data.ownership as string) || "own-published"
+    // Ownership: isCustom = own video, channelTitle match = own published YouTube video
+    const isOwn = !!data.isCustom || !!(channelName && data.channelTitle === channelName);
+    const ownership = isOwn
+        ? (data.isCustom && !data.publishedVideoId ? "own-draft" : "own-published")
         : "external";
 
     return {
@@ -154,9 +155,9 @@ function formatVideoData(
         thumbnailUrl: data.thumbnail || undefined,
         // Traffic snapshot counts (denormalized from traffic/main and trafficSource/main)
         // Only present for own videos after user visits the Traffic tab (lazy sync)
-        ...(source === "own" && typeof data.suggestedTrafficSnapshotCount === "number"
+        ...(isOwn && typeof data.suggestedTrafficSnapshotCount === "number"
             ? { suggestedTrafficSnapshotCount: data.suggestedTrafficSnapshotCount } : {}),
-        ...(source === "own" && typeof data.trafficSourceSnapshotCount === "number"
+        ...(isOwn && typeof data.trafficSourceSnapshotCount === "number"
             ? { trafficSourceSnapshotCount: data.trafficSourceSnapshotCount } : {}),
     };
 }

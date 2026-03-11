@@ -5,6 +5,8 @@
 export interface ToolContext {
     userId: string;
     channelId: string;
+    /** User's channel name — used for video ownership detection (own vs competitor). */
+    channelName?: string;
     /** User's YouTube Data API key (from Firestore settings). */
     youtubeApiKey?: string;
     /** Optional: emit a mid-execution progress message to the client via SSE. */
