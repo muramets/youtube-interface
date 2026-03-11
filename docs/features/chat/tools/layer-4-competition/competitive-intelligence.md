@@ -500,42 +500,7 @@ Edge cases: 404 (удалённое видео), redirect, невалидный 
 
 ### Battle Testing — `findSimilarVideos`
 
-Статус проверки инструмента в реальных диалогах (не unit-тесты, а production traces с живыми данными).
-
-#### Проверено в бою (2026-03-11)
-
-**Visual mode + custom videoId (own video)** — trace `aae828d3`
-- "публиковали ли конкуренты видео с похожим визуалом?"
-- Модель: `claude-haiku-4-5`, стоимость: $0.027, 2 итерации
-- Путь: `custom-1771657399131` → `publishedVideoId: vOXxPmlJzBk` → thumbnail download → on-the-fly visual embedding (1408d) → vector search → 29 found, 20 returned
-- **Все поля корректны:** similarityScore (0.776–0.67), thumbnailDescription (20/20), viewDelta24h/7d/30d (null для <30-day видео — корректно), performanceTier, sharedTags, coverage (2035/2091 = 97.3%), dataFreshness (6 каналов)
-- Self-match exclusion: reference video `vOXxPmlJzBk` не в результатах ✅
-- Модель построила качественный конкурентный анализ на основе данных, использовала `thumbnailDescription` для синтеза визуальных паттернов ниши
-- **Наблюдение:** результаты включают другие видео с канала пользователя (slow life mode) — handler исключает только конкретное reference-видео, не весь канал. Модель корректно не упомянула их как "конкурентов"
-
-**Semantic search fallback (searchDatabase)** — trace `2e3ac50a`
-- "видео с такой упаковкой ещё живы в нише?" (competitor video `8HPGVCeURlY`, Ophelia Wilde, 6.4M views)
-- `findSimilarVideos` visual mode → **ошибка** (VectorValue bug, см. ниже) → модель восстановилась через `searchDatabase` (text-based semantic search, 59 результатов) + `viewThumbnails` + 3× `mentionVideo`
-- Ответ модели качественный: tier-разбивка, performance-анализ, actionable выводы
-
-#### Найденные и исправленные баги
-
-**VectorValue bug** (найден через trace `2e3ac50a`, исправлен 2026-03-11)
-- **Симптом:** `findSimilarVideos` с competitor videoId (stored embedding path) всегда возвращал "Visual embedding not available" — даже когда embedding существует в Firestore
-- **Причина:** после миграции на `FieldValue.vector()` (2026-03-10) Firestore возвращает vector-поля как `VectorValue` объекты, а не `number[]`. `VectorValue` не имеет `.length` → проверка `embeddingDoc?.visualEmbedding?.length` возвращала `undefined` → handler падал в error path. Затронуты оба режима: visual и packaging для competitor videos
-- **Фикс:** `vectorToArray()` helper нормализует `VectorValue → number[]` на границе чтения из Firestore (`lookupVideo()`). Тесты обновлены: `mockVector()` helper возвращает объекты без `.length` (как настоящий VectorValue), вместо plain `number[]`
-- **Урок:** unit-тесты мокали Firestore с `number[]`, production возвращал `VectorValue` — mock fidelity gap. `as unknown as number[]` каст в `processOneVideo.ts` скрыл несоответствие типов
-
-#### Ещё не проверено в бою
-
-| Сценарий | Почему важно |
-|---|---|
-| **Packaging mode** | Другой embedding space (768d vs 1408d), другой путь генерации (текст vs картинка) |
-| **Both mode (RRF merge)** | Два параллельных vector search + merge с k=60, `rrfScore` вместо `similarityScore` |
-| **Competitor videoId как reference (post-fix)** | VectorValue bug исправлен — нужен trace, подтверждающий работу stored embedding path |
-| **Видео без `publishedVideoId`** | Custom видео, которое не опубликовано — visual mode должен вернуть ошибку gracefully |
-| **0 похожих результатов** | Пустой `similar[]` — как модель обработает? |
-| **Error paths** | Недоступный thumbnail, нет embeddings в collection, budget exceeded |
+→ Перенесено в [tool doc](./4-find-similar-videos-tool.md#battle-testing). Visual mode (own + competitor) и Packaging mode battle-tested. Both mode (RRF merge) ещё не проверен.
 
 ---
 

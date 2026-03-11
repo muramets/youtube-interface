@@ -175,6 +175,92 @@ LLM может использовать coverage для calibration: "резул
 
 ---
 
+## Battle Testing
+
+Статус проверки инструмента в реальных диалогах (не unit-тесты, а production traces с живыми данными).
+
+### Проверено в бою (2026-03-11)
+
+**Visual mode + competitor stored embedding**
+- "видео с такой упаковкой ещё живы в нише?" (competitor video, Ophelia Wilde, 6.4M views)
+- Модель: `claude-haiku-4-5`, 2 итерации
+- Путь: stored embedding в `globalVideoEmbeddings` → vector search → 39 found, 30 returned (limit: 30)
+- **Все поля корректны:** similarityScore (0.683–0.582), thumbnailDescription (30/30, 497–887 chars), viewDelta24h/7d/30d (null для <30-day видео — корректно), performanceTier (Top 1% → Bottom 20%), sharedTags, coverage (2035/2091 = 97.3%), dataFreshness (10 каналов, все <24ч)
+- Self-match exclusion: reference video `8HPGVCeURlY` не в результатах ✅
+- Cross-channel: результаты из 10 разных каналов (Ophelia Wilde, Little Joys, slow living, a quiet day., и др.)
+- **Качество интерпретации модели:** tier-based группировка (survivors / steady / dead), использовала `thumbnailDescription` для объяснения визуальных различий ("through a window frame", "specific visual markers"), actionable выводы ("seasonal variants, specific use-case positioning, consistent upload batches")
+- **Подтверждает:** VectorValue bug fix работает — stored embedding path для competitor videos полностью функционален
+
+**Visual mode + custom videoId (own video)**
+- "публиковали ли конкуренты видео с похожим визуалом?"
+- Модель: `claude-haiku-4-5`, стоимость: $0.027, 2 итерации
+- Путь: `custom-1771657399131` → `publishedVideoId: vOXxPmlJzBk` → thumbnail download → on-the-fly visual embedding (1408d) → vector search → 29 found, 20 returned
+- **Все поля корректны:** similarityScore (0.776–0.67), thumbnailDescription (20/20), viewDelta24h/7d/30d (null для <30-day видео — корректно), performanceTier, sharedTags, coverage (2035/2091 = 97.3%), dataFreshness (6 каналов)
+- Self-match exclusion: reference video `vOXxPmlJzBk` не в результатах ✅
+- Модель построила качественный конкурентный анализ на основе данных, использовала `thumbnailDescription` для синтеза визуальных паттернов ниши
+- **Наблюдение:** результаты включают другие видео с канала пользователя (slow life mode) — handler исключает только конкретное reference-видео, не весь канал. Модель корректно не упомянула их как "конкурентов"
+
+**Packaging mode + competitor stored embedding**
+- "найди конкурентов с похожей темой по заголовку и тегам" (competitor video, Little Thing, 221K views)
+- Модель: `claude-haiku-4-5`, стоимость: $0.025, 2 итерации
+- Путь: stored `packagingEmbedding` (768d) в `globalVideoEmbeddings` → vector search → 29 found, 20 returned
+- **Все поля корректны:** similarityScore (0.960–0.835), sharedTags (до 17 из 18 — корректное пересечение), viewDelta24h/7d/30d, performanceTier (Top 5% → Bottom 20%), coverage (2090/2091 = 99.95%)
+- Self-match exclusion: reference video `zutRuZtXa2I` не в результатах ✅
+- **Наблюдение:** все 20 результатов с одного канала (Little Thing) — потому что reference video оттуда же, а автор копирует теги между видео → embedding'и очень близкие. Это корректное поведение, не баг
+- **Качество интерпретации модели:** определила seasonal pattern, momentum analysis, вывод "niche appears to be Little Thing's territory"
+- **Предыстория:** тот же промпт ранее приводил к 0 tool calls (Haiku не связывала видео из context с tool). Потребовалось два промпт-фикса: (1) добавить `[id: videoId]` в per-message label (`formatContextLabel`), (2) добавить explicit tool routing rule в `AGENTIC_BEHAVIOR_RULES`
+
+**Both mode (RRF merge) + competitor stored embedding**
+- "Найди похожие видео конкурентов. Сделай полное сравнение — и по теме, и по визуалу обложки" (competitor video, Little Thing, CI4f48bh-KA, 221K views, thumbnail: лебеди на озере)
+- Модель: `claude-haiku-4-5`, стоимость: $0.046, 3 итерации (1-я — failed: не нашёл videoId, 2-я — tool calls, 3-я — viewThumbnails + ответ)
+- Путь: stored embedding → dual vector search (packaging 768d + visual 1408d) → RRF merge k=60 → 24 found, 15 returned (limit: 15)
+- **Все поля корректны:** `rrfScore` (0.0315–0.0230, НЕ `similarityScore` — корректно для RRF), `thumbnailDescription` (15/15), viewDelta24h/7d/30d, performanceTier, sharedTags
+- **Dual coverage корректна:** `{ packaging: { indexed: 2090, total: 2091 }, visual: { indexed: 2035, total: 2091 } }` — два отдельных объекта ✅
+- Self-match exclusion: reference video `CI4f48bh-KA` не в результатах ✅
+- **Наблюдение:** результаты сильно overlap'ятся с visual-only из-за характера ниши (все каналы используют один визуальный стиль — impressionistic painting, pastel tones, cursive text). В RRF packaging доминирует — Little Thing копирует одинаковые теги между видео (17/17 shared), packaging similarity ~0.96 >> visual ~0.73
+- **Наблюдение (visual embeddings):** reference video — лебеди на озере. Visual search нашёл 3 видео с лебедями из ~2000 (ghLLpCNCl54: 0.734, _HZ1e_ekVvY: 0.662, 1_vDNs6QZaE: 0.639). Остальные результаты — match по СТИЛЮ (composition, palette, mood), не по конкретным объектам. Это by design: `multimodalembedding@001` захватывает высокоуровневые визуальные фичи, не object detection
+- **Prompt issue (Haiku):** первая итерация — 0 tool calls, Haiku сказал "I don't have the video ID". VideoId присутствовал и в persistent context `[id: CI4f48bh-KA]`, и в per-message label. Промпт-фикс: rule #8 в ANTI_HALLUCINATION_RULES обобщён с "Video lookup workflow" (только mentionVideo) на "Video ID extraction" (все tools). Добавлен guardrail: "Never ask the user for a videoId that is already visible in the context"
+
+**Visual mode + competitor stored embedding (same session, same video)**
+- "поищи у конкурентов похожее видео ТОЛЬКО ПО ВИЗУАЛУ" (CI4f48bh-KA)
+- Путь: stored `visualEmbedding` (1408d) → vector search → 29 found, 20 returned
+- **Все поля корректны:** `similarityScore` (0.755–0.639, НЕ `rrfScore` — корректно для single mode), thumbnailDescription (20/20), coverage single structure `{ indexed: 2035, total: 2091 }`
+- **Найден баг viewThumbnails:** Haiku передал `videoIds: "CI4f48bh-KA"` (строка) вместо `["CI4f48bh-KA"]` (массив) → `Array.isArray()` = false → ошибка. Исправлено: string-to-array coercion в handler
+
+**Graceful degradation (searchDatabase fallback)**
+- Те же запросы, но до VectorValue fix: `findSimilarVideos` visual → ошибка, packaging → ошибка
+- Модель восстановилась через `searchDatabase` (text-based semantic search) + `viewThumbnails` + `mentionVideo`
+- Ответы качественные, но без `thumbnailDescription` — модель не могла объяснить визуальное сходство
+
+### Найденные и исправленные баги
+
+**VectorValue bug** (исправлен 2026-03-11)
+- **Симптом:** `findSimilarVideos` с competitor videoId (stored embedding path) всегда возвращал "Visual embedding not available" — даже когда embedding существует в Firestore
+- **Причина:** после миграции на `FieldValue.vector()` (2026-03-10) Firestore возвращает vector-поля как `VectorValue` объекты, а не `number[]`. `VectorValue` не имеет `.length` → проверка `embeddingDoc?.visualEmbedding?.length` возвращала `undefined` → handler падал в error path. Затронуты оба режима: visual и packaging для competitor videos
+- **Фикс:** `vectorToArray()` helper нормализует `VectorValue → number[]` на границе чтения из Firestore (`lookupVideo()`). Тесты обновлены: `mockVector()` helper возвращает объекты без `.length` (как настоящий VectorValue), вместо plain `number[]`
+- **Урок:** unit-тесты мокали Firestore с `number[]`, production возвращал `VectorValue` — mock fidelity gap. `as unknown as number[]` каст в `processOneVideo.ts` скрыл несоответствие типов
+
+**viewThumbnails string-to-array bug** (исправлен 2026-03-11)
+- **Симптом:** Haiku передал `videoIds: "CI4f48bh-KA"` (строка) вместо `["CI4f48bh-KA"]` (массив) → handler вернул `"At least one of videoIds or titles is required"`
+- **Причина:** `Array.isArray("string")` = `false` → валидация на строке 83 отклоняла запрос
+- **Фикс:** defensive string-to-array coercion для `videoIds` и `titles` на входе handler'а
+- **Урок:** маленькие модели (Haiku) inconsistently передают параметры — тот же Haiku в том же разговоре для другого вызова `viewThumbnails` передал массив корректно
+
+**Prompt gap: Video ID extraction** (исправлен 2026-03-11)
+- **Симптом:** Haiku не извлекал videoId из `[id: ...]` аннотации в context, спрашивал у пользователя. 0 tool calls на первой итерации
+- **Причина:** rule #8 в ANTI_HALLUCINATION_RULES был привязан к конкретным инструментам (mentionVideo/getMultipleVideoDetails). `findSimilarVideos` не покрывался
+- **Фикс:** rule #8 обобщён: "Video lookup workflow" → "Video ID extraction". Теперь покрывает ВСЕ tools, которым нужен videoId. Добавлен guardrail: "Never ask the user for a videoId that is already visible in the context". Из Tool Strategy убрано дублирующее "with the videoId from attached context"
+
+### Ещё не проверено в бою
+
+| Сценарий | Почему важно |
+|---|---|
+| **Видео без `publishedVideoId`** | Custom видео, которое не опубликовано — visual mode должен вернуть ошибку gracefully |
+| **0 похожих результатов** | Пустой `similar[]` — как модель обработает? |
+| **Error paths** | Недоступный thumbnail, нет embeddings в collection, budget exceeded |
+
+---
+
 ## Technical Implementation
 
 | Файл | Назначение |

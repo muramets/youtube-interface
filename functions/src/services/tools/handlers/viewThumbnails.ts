@@ -77,8 +77,13 @@ export async function handleViewThumbnails(
     args: Record<string, unknown>,
     ctx: ToolContext,
 ): Promise<Record<string, unknown>> {
-    const rawVideoIds = args.videoIds as string[] | undefined;
-    const rawTitles = args.titles as string[] | undefined;
+    // Defensive: small models (Haiku) sometimes pass a string instead of an array
+    const rawVideoIds = Array.isArray(args.videoIds) ? args.videoIds as string[]
+        : typeof args.videoIds === 'string' ? [args.videoIds]
+        : undefined;
+    const rawTitles = Array.isArray(args.titles) ? args.titles as string[]
+        : typeof args.titles === 'string' ? [args.titles]
+        : undefined;
 
     const hasIds = Array.isArray(rawVideoIds) && rawVideoIds.length > 0;
     const hasTitles = Array.isArray(rawTitles) && rawTitles.length > 0;

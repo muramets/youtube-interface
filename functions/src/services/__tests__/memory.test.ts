@@ -96,10 +96,18 @@ beforeEach(() => {
 describe('formatContextLabel', () => {
     it('formats a single video-card with own-published ownership', () => {
         const result = formatContextLabel([
-            { type: 'video-card', title: 'My Video', ownership: 'own-published' },
+            { type: 'video-card', title: 'My Video', ownership: 'own-published', videoId: 'abc123' },
         ]);
-        expect(result).toContain('Video "My Video" (your published)');
+        expect(result).toContain('Video "My Video" [id: abc123] (your published)');
         expect(result).toMatch(/^\[.+Attached to this message:/);
+    });
+
+    it('omits [id:] tag when videoId is missing', () => {
+        const result = formatContextLabel([
+            { type: 'video-card', title: 'No ID Video', ownership: 'competitor' },
+        ]);
+        expect(result).toContain('Video "No ID Video" (competitor)');
+        expect(result).not.toContain('[id:');
     });
 
     it('formats a single video-card with own-draft ownership', () => {

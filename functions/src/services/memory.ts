@@ -53,7 +53,8 @@ export function formatContextLabel(appContext: any[]): string {
         if (item.type === 'video-card') {
             const ownership = item.ownership === 'own-draft' ? 'your draft'
                 : item.ownership === 'own-published' ? 'your published' : 'competitor';
-            labels.push(`Video "${item.title}" (${ownership})`);
+            const idTag = item.videoId ? ` [id: ${item.videoId}]` : '';
+            labels.push(`Video "${item.title}"${idTag} (${ownership})`);
         } else if (item.type === 'suggested-traffic') {
             labels.push(`Traffic: "${item.sourceVideo?.title}" → ${item.suggestedVideos?.length ?? 0} suggested`);
         } else if (item.type === 'canvas-selection') {
@@ -64,10 +65,11 @@ export function formatContextLabel(appContext: any[]): string {
             const images = nodes.filter((n: { nodeType: string }) => n.nodeType === 'image');
             const parts: string[] = [];
             if (videos.length > 0) {
-                parts.push(videos.map((v: { title: string; ownership: string }) => {
+                parts.push(videos.map((v: { title: string; ownership: string; videoId?: string }) => {
                     const own = v.ownership === 'own-draft' ? 'your draft'
                         : v.ownership === 'own-published' ? 'your published' : 'competitor';
-                    return `Video "${v.title}" (${own})`;
+                    const idTag = v.videoId ? ` [id: ${v.videoId}]` : '';
+                    return `Video "${v.title}"${idTag} (${own})`;
                 }).join(', '));
             }
             if (traffic.length > 0) parts.push(`${traffic.length} traffic source(s)`);
