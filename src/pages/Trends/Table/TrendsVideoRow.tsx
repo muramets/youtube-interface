@@ -2,7 +2,7 @@ import React, { memo } from 'react';
 import { format } from 'date-fns';
 import type { TrendVideo } from '../../../core/types/trends';
 import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
-import { VideoPreviewTooltip } from '../../../features/Video/components/VideoPreviewTooltip';
+import { VideoPreviewTooltip, PREVIEW_DIMENSIONS } from '../../../features/Video/components/VideoPreviewTooltip';
 import { Info } from 'lucide-react';
 import { Checkbox } from '../../../components/ui/atoms/Checkbox/Checkbox';
 
@@ -86,19 +86,25 @@ export const TrendsVideoRow = memo<TrendsVideoRowProps>(({
                                     content={
                                         <div className="pointer-events-auto">
                                             <VideoPreviewTooltip
-                                                videoId={video.id}
-                                                title={video.title}
-                                                channelTitle={video.channelTitle}
-                                                viewCount={video.viewCount}
-                                                publishedAt={video.publishedAt}
-                                                description={video.description}
-                                                tags={video.tags}
+                                                video={{
+                                                    videoId: video.id,
+                                                    title: video.title,
+                                                    channelTitle: video.channelTitle,
+                                                    viewCount: video.viewCount,
+                                                    publishedAt: video.publishedAt,
+                                                    description: video.description,
+                                                    tags: video.tags,
+                                                    delta24h,
+                                                    delta7d,
+                                                    delta30d,
+                                                }}
                                                 className="w-full"
                                             />
                                         </div>
                                     }
                                     variant="glass"
                                     sizeMode="fixed"
+                                    fixedDimensions={PREVIEW_DIMENSIONS.full}
                                     side="bottom"
                                     align="left"
                                     enterDelay={500}

@@ -81,9 +81,9 @@ import { processBackfill } from "../backfillEmbeddings.js";
 const SELF_URL = "https://backfill-abc-uc.a.run.app";
 
 function makeChannelMap(channels: Array<{ id: string; userId: string; channelId: string }>) {
-    const map = new Map<string, { userId: string; channelId: string; trendChannelId: string }>();
+    const map = new Map<string, { userId: string; channelId: string; trendChannelId: string; channelTitle: string }>();
     for (const ch of channels) {
-        map.set(ch.id, { userId: ch.userId, channelId: ch.channelId, trendChannelId: ch.id });
+        map.set(ch.id, { userId: ch.userId, channelId: ch.channelId, trendChannelId: ch.id, channelTitle: `Channel ${ch.id}` });
     }
     return map;
 }
@@ -121,9 +121,9 @@ function backfillStateAtOffset(
     testVideos: Array<{ videoId: string; youtubeChannelId: string }>,
     channels: Array<{ id: string; userId: string; channelId: string }>,
 ) {
-    const channelPaths: Record<string, { userId: string; channelId: string; trendChannelId: string }> = {};
+    const channelPaths: Record<string, { userId: string; channelId: string; trendChannelId: string; channelTitle: string }> = {};
     for (const ch of channels) {
-        channelPaths[ch.id] = { userId: ch.userId, channelId: ch.channelId, trendChannelId: ch.id };
+        channelPaths[ch.id] = { userId: ch.userId, channelId: ch.channelId, trendChannelId: ch.id, channelTitle: `Channel ${ch.id}` };
     }
     const padding = Array.from({ length: offset }, (_, i) => ({
         videoId: `_pad_${String(i).padStart(4, "0")}`,
@@ -342,7 +342,7 @@ describe("processBackfill", () => {
                     viewCount: 5000,
                     publishedAt: "2026-02-01",
                     thumbnailUrl: "https://i.ytimg.com/vi/vid1/mqdefault.jpg",
-                    channelTitle: "Test Channel",
+                    channelTitle: "Channel UCabc",
                 },
                 "test-key",
             );

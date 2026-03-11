@@ -22,6 +22,31 @@ export const formatViewCount = (viewCount: string | number | undefined): string 
     return num.toString();
 };
 
+/**
+ * Format a view delta value for display in badges.
+ * Positive values get "+", negative get "−" (minus sign, not hyphen).
+ * Values ≥1000 are abbreviated with K suffix.
+ */
+export const formatDelta = (value: number): string => {
+    const abs = Math.abs(value);
+    const formatted = abs >= 1000 ? `${(abs / 1000).toFixed(1)}K` : String(abs);
+    return value >= 0 ? formatted : `−${formatted}`;
+};
+
+/**
+ * Get Tailwind color classes for a delta value badge.
+ * Color reflects significance: |delta| / viewCount ratio.
+ * >10% = emerald (strong growth), >5% = amber (notable), else = neutral gray.
+ */
+export const getDeltaColor = (delta: number, viewCount?: number): string => {
+    if (viewCount && viewCount > 0) {
+        const ratio = Math.abs(delta) / viewCount;
+        if (ratio > 0.10) return 'text-emerald-400 bg-emerald-500/10';
+        if (ratio > 0.05) return 'text-amber-400 bg-amber-500/10';
+    }
+    return 'text-text-primary bg-black/10 dark:bg-white/10';
+};
+
 export const formatDuration = (duration: string | undefined): string => {
     if (!duration) return '';
 

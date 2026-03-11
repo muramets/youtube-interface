@@ -6,6 +6,7 @@
 // =============================================================================
 
 import type { ToolCallRecord } from '../../../core/types/chat/chat';
+import { getToolConfig } from './toolRegistry';
 
 // --- Types ---
 
@@ -59,6 +60,7 @@ function extractVideoIdsForTool(toolName: string, records: ToolCallRecord[]): st
         case 'getNicheSnapshot': return extractNicheSnapshotVideoIds(records);
         case 'findSimilarVideos': return extractSimilarVideoIds(records);
         case 'getVideoComments': return extractCommentVideoIds(records);
+        case 'searchDatabase': return extractSearchDatabaseVideoIds(records);
         default: return [];
     }
 }
@@ -151,6 +153,20 @@ function extractNicheSnapshotVideoIds(records: ToolCallRecord[]): string[] {
                 for (const v of channel.videos) {
                     if (v.videoId && !ids.includes(v.videoId)) ids.push(v.videoId);
                 }
+            }
+        }
+    }
+    return ids;
+}
+
+/** Extract unique video IDs from searchDatabase results (result.results[].videoId). */
+function extractSearchDatabaseVideoIds(records: ToolCallRecord[]): string[] {
+    const ids: string[] = [];
+    for (const r of records) {
+        const results = r.result?.results as Array<{ videoId: string }> | undefined;
+        if (results) {
+            for (const v of results) {
+                if (v.videoId && !ids.includes(v.videoId)) ids.push(v.videoId);
             }
         }
     }
@@ -266,6 +282,20 @@ export function getGroupLabel(group: ToolCallGroup): string {
             : 'Similar videos found';
     }
 
+    if (group.toolName === 'searchDatabase') {
+        if (group.hasErrors) return "Couldn't search database";
+        if (!group.allResolved) return 'Searching database...';
+        const result = group.records[0]?.result;
+        const resultCount = (result?.results as unknown[] | undefined)?.length;
+        const query = result?.query as string | undefined;
+        if (resultCount != null && query) {
+            return `${resultCount} results for "${query}"`;
+        }
+        return resultCount != null
+            ? `${resultCount} search ${resultCount === 1 ? 'result' : 'results'}`
+            : 'Database search complete';
+    }
+
     if (group.toolName === 'getVideoComments') {
         if (group.hasErrors) return "Couldn't load comments";
         if (!group.allResolved) return 'Reading comments...';
@@ -282,19 +312,9 @@ export function getGroupLabel(group: ToolCallGroup): string {
 
 /** Whether a group should be expandable (has video previews to show, or has result details). */
 export function isExpandable(group: ToolCallGroup): boolean {
-    // Comments: not expandable in Stage 1 (no preview UI yet)
-    if (group.toolName === 'getVideoComments') return false;
-    if (group.videoIds.length > 0) return true;
-    // Analysis tools are expandable when resolved (show summary stats)
-    if (group.toolName === 'analyzeSuggestedTraffic' && group.allResolved) return true;
-    if (group.toolName === 'analyzeTrafficSources' && group.allResolved) return true;
-    if (group.toolName === 'getChannelOverview' && group.allResolved) return true;
-    if (group.toolName === 'browseChannelVideos' && group.allResolved) return true;
-    if (group.toolName === 'listTrendChannels' && group.allResolved) return true;
-    if (group.toolName === 'browseTrendVideos' && group.allResolved) return true;
-    if (group.toolName === 'getNicheSnapshot' && group.allResolved) return true;
-    if (group.toolName === 'findSimilarVideos' && group.allResolved) return true;
-    return false;
+    const config = getToolConfig(group.toolName);
+    if (!config?.hasExpandableContent) return false;
+    return group.allResolved && (group.videoIds.length > 0 || !!config.StatsComponent);
 }
 
 /** Whether a group is thumbnail-related (drives amber color scheme). */

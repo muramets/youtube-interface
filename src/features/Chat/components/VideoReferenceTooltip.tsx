@@ -3,15 +3,15 @@
 // Inline component that renders a video title as a highlighted mention with a
 // hover tooltip showing enriched video metadata.
 //
-// Tooltip content is rendered via shared VideoTooltipContent component.
+// Tooltip content is rendered via unified VideoPreviewTooltip (mini mode).
 // =============================================================================
 
 import React from 'react';
 import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
-import type { VideoCardContext } from '../../../core/types/appContext';
+import type { VideoPreviewData } from '../../Video/types';
+import { VideoPreviewTooltip, PREVIEW_DIMENSIONS } from '../../Video/components/VideoPreviewTooltip';
 import { OWNERSHIP_CONFIG, REF_TYPE_LABELS } from '../../../core/config/referencePatterns';
 import type { ReferenceType } from '../utils/videoReferenceUtils';
-import { VideoTooltipContent } from './VideoTooltipContent';
 
 // --- Props ---
 
@@ -19,7 +19,7 @@ interface VideoReferenceTooltipProps {
     /** The display text, e.g. "Video #3" */
     label: string;
     /** The resolved video data (null = reference not found) */
-    video: VideoCardContext | null;
+    video: VideoPreviewData | null;
     /** Reference type from parsed href (e.g. 'video', 'competitor', 'suggested') */
     refType?: ReferenceType;
     /** The parsed reference index (e.g. 3 for "Video #3") */
@@ -38,7 +38,9 @@ export const VideoReferenceTooltip: React.FC<VideoReferenceTooltipProps> = React
     // Defense layer: derive canonical label from REF_TYPE_LABELS (keyed by
     // reference type, not ownership) so "suggested" always shows "Suggested #N"
     // even though its ownership is 'competitor'.
-    const typeLabel = refType ? REF_TYPE_LABELS[refType] : OWNERSHIP_CONFIG[video.ownership]?.label;
+    const typeLabel = refType
+        ? REF_TYPE_LABELS[refType]
+        : (video.ownership ? OWNERSHIP_CONFIG[video.ownership]?.label : undefined);
 
     // Adaptive Badge Labels:
     // If an override changed the type (e.g. from "Video" to "Competitor"), the original `label`
@@ -54,21 +56,19 @@ export const VideoReferenceTooltip: React.FC<VideoReferenceTooltipProps> = React
         }
     }
 
-    const durationLabel = refType === 'suggested' ? 'Avg View Duration: ' : 'Duration: ';
-    const ownershipLabel = typeLabel && typeLabel !== 'Video' ? typeLabel : null;
-
     return (
         <PortalTooltip
             content={
-                <VideoTooltipContent
+                <VideoPreviewTooltip
                     video={video}
-                    typeLabel={ownershipLabel}
-                    durationLabel={durationLabel}
+                    mode="mini"
                 />
             }
+            variant="glass"
             side="top"
             align="center"
-            maxWidth={320}
+            sizeMode="fixed"
+            fixedDimensions={PREVIEW_DIMENSIONS.mini}
             enterDelay={200}
             triggerClassName="!inline !flex-none"
             inline

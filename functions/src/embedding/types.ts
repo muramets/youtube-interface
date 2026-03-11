@@ -113,13 +113,14 @@ export interface EmbeddingStats {
 // --- Firestore document: system/backfillState ---
 
 export interface BackfillState {
-    /** YouTube channel ID → Firestore path for reading video docs */
+    /** YouTube channel ID → Firestore path + channel title for reading video docs */
     channelPaths: Record<
         string,
         {
             userId: string;
             channelId: string;
             trendChannelId: string;
+            channelTitle: string;
         }
     >;
     /** Sorted list of videos to process */
@@ -136,13 +137,14 @@ export interface BackfillState {
 // --- Firestore document: system/syncState ---
 
 export interface SyncState {
-    /** YouTube channel ID → Firestore path for reading video docs */
+    /** YouTube channel ID → Firestore path + channel title for reading video docs */
     channelPaths: Record<
         string,
         {
             userId: string;
             channelId: string;
             trendChannelId: string;
+            channelTitle: string;
         }
     >;
     /** Sorted list of videos to process */

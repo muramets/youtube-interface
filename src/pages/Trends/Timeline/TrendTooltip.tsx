@@ -1,10 +1,12 @@
 import React from 'react';
 import type { TrendVideo } from '../../../core/types/trends';
+import type { VideoDeltaStats } from '../../../../shared/viewDeltas';
 import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
-import { VideoPreviewTooltip } from '../../../features/Video/components/VideoPreviewTooltip';
+import { VideoPreviewTooltip, PREVIEW_DIMENSIONS } from '../../../features/Video/components/VideoPreviewTooltip';
 
 interface TrendTooltipProps {
     video: TrendVideo;
+    deltaStats?: VideoDeltaStats;
     anchorPos: { x: number; y: number; width: number; height: number };
     onMouseEnter?: () => void;
     onMouseLeave?: () => void;
@@ -19,6 +21,7 @@ interface TrendTooltipProps {
  */
 export const TrendTooltip: React.FC<TrendTooltipProps> = ({
     video,
+    deltaStats,
     anchorPos,
     className,
     onMouseEnter,
@@ -42,20 +45,24 @@ export const TrendTooltip: React.FC<TrendTooltipProps> = ({
             side="bottom"
             align="center"
             sizeMode="fixed"
+            fixedDimensions={PREVIEW_DIMENSIONS.full}
             content={
                 <div
                     onMouseEnter={onMouseEnter}
                     onMouseLeave={onMouseLeave}
                 >
                     <VideoPreviewTooltip
-                        videoId={video.id}
-                        title={video.title}
-                        channelTitle={video.channelTitle}
-                        viewCount={video.viewCount}
-                        publishedAt={video.publishedAt}
+                        video={{
+                            videoId: video.id,
+                            title: video.title,
+                            channelTitle: video.channelTitle,
+                            viewCount: video.viewCount,
+                            publishedAt: video.publishedAt,
+                            description: video.description,
+                            tags: video.tags,
+                        }}
                         percentileGroup={percentileGroup}
-                        description={video.description}
-                        tags={video.tags}
+                        deltaStats={deltaStats}
                     />
                 </div>
             }

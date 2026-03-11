@@ -100,7 +100,7 @@ function makeSyncState(overrides: Partial<SyncState> = {}): SyncState {
 
     return {
         channelPaths: {
-            UCabc: { userId: "user1", channelId: "ch1", trendChannelId: "UCabc" },
+            UCabc: { userId: "user1", channelId: "ch1", trendChannelId: "UCabc", channelTitle: "Channel UCabc" },
         },
         videos,
         totalVideos: overrides.totalVideos ?? videos.length,
@@ -560,8 +560,8 @@ describe("processSyncBatch", () => {
         it("deduplicates notifications to unique user/channel pairs", async () => {
             const state = makeSyncState({
                 channelPaths: {
-                    UCabc: { userId: "user1", channelId: "ch1", trendChannelId: "UCabc" },
-                    UCxyz: { userId: "user1", channelId: "ch1", trendChannelId: "UCxyz" },
+                    UCabc: { userId: "user1", channelId: "ch1", trendChannelId: "UCabc", channelTitle: "Channel UCabc" },
+                    UCxyz: { userId: "user1", channelId: "ch1", trendChannelId: "UCxyz", channelTitle: "Channel UCxyz" },
                 },
                 videos: [
                     { videoId: "vid1", youtubeChannelId: "UCabc" },

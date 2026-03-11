@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { assignPercentileGroups } from '../../../shared/percentiles';
+import { calculateViewDeltas, type VideoDeltaStats } from '../../../shared/viewDeltas';
 import { useTrendStore } from '../../core/stores/trends/trendStore';
 import { TimelineCanvas } from './Timeline/TimelineCanvas';
 import { TrendsTable } from './Table/TrendsTable';
@@ -7,6 +8,7 @@ import { TrendsHeader } from './Header/TrendsHeader';
 import { useFilteredVideos } from './hooks/useFilteredVideos';
 import { useFrozenStats } from './Timeline/hooks/useFrozenStats';
 import { useTrendVideos } from './hooks/useTrendVideos';
+import { useTrendSnapshots } from '../../core/hooks/useTrendSnapshots';
 import { TrendsFloatingBar } from './Timeline/TrendsFloatingBar';
 import { useSelectionState } from './Timeline/hooks/useSelectionState';
 import type { TrendVideo } from '../../core/types/trends';
@@ -52,6 +54,30 @@ export const TrendsPage: React.FC = () => {
 
     // Calculate Global Percentile Map (shared algorithm — SSOT for frontend + backend)
     const globalPercentileMap = useMemo(() => assignPercentileGroups(videos), [videos]);
+
+    // View deltas for tooltip (TanStack Query cache — shared with Table view, no duplicate fetches)
+    const channelsForSnapshots = useMemo(() => {
+        if (selectedChannelId) {
+            const tc = channels.find(c => c.id === selectedChannelId);
+            return tc ? [tc] : [];
+        }
+        return channels.filter(c => c.isVisible);
+    }, [channels, selectedChannelId]);
+
+    const { snapshotMap } = useTrendSnapshots(user?.uid, currentChannel?.id, channelsForSnapshots);
+
+    const deltaMap = useMemo(() => {
+        const map = new Map<string, VideoDeltaStats>();
+        for (const [chId, snapshots] of snapshotMap) {
+            const chVideoIds = videos.filter(v => v.channelId === chId).map(v => v.id);
+            if (chVideoIds.length === 0) continue;
+            const chDeltas = calculateViewDeltas(snapshots, chVideoIds);
+            for (const [videoId, delta] of chDeltas) {
+                map.set(videoId, delta);
+            }
+        }
+        return map;
+    }, [snapshotMap, videos]);
 
     // Apply Filters using extracted hook
     const filteredVideos = useFilteredVideos({
@@ -224,6 +250,7 @@ export const TrendsPage: React.FC = () => {
                     allVideos={allVideos}
                     isLoading={isLoading || isLoadingChannels}
                     percentileMap={globalPercentileMap}
+                    deltaMap={deltaMap}
                     frozenStats={frozenStats}
                     currentStats={currentStats}
                     shouldAutoFit={shouldAutoFit}

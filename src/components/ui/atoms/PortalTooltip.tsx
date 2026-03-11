@@ -7,13 +7,6 @@ import { debug } from '../../../core/utils/debug';
 // =============================================================================
 
 /**
- * Fixed dimensions for 'fixed' sizeMode (used for large video preview tooltips).
- * Only applies when sizeMode='fixed' is explicitly set.
- */
-const FIXED_TOOLTIP_WIDTH = 800;
-const FIXED_TOOLTIP_HEIGHT = 700;
-
-/**
  * Maximum width for 'auto' sizeMode (default behavior).
  * Tooltip will grow to fit content up to this limit.
  */
@@ -89,10 +82,12 @@ interface PortalTooltipProps {
     title?: string;
     /** Render trigger as inline <span> instead of block <div> (for use inside <p>) */
     inline?: boolean;
-    /** @deprecated Use sizeMode instead */
-    estimatedHeight?: number;
-    /** @deprecated Use sizeMode='fixed' instead */
-    fixedWidth?: number;
+    /**
+     * Explicit dimensions for sizeMode='fixed'.
+     * When provided, overrides the default 800×700 fallback.
+     * Dimensions are co-located with content component (e.g. PREVIEW_DIMENSIONS in VideoPreviewTooltip).
+     */
+    fixedDimensions?: { width: number; height?: number };
     /** Completely disable the tooltip */
     disabled?: boolean;
     /** Override the default max-width for auto sizeMode (default: 360px) */
@@ -103,6 +98,8 @@ interface TooltipPosition {
     top: number;
     left: number;
     maxHeight?: number;
+    /** When true, height is content-driven (maxHeight used as viewport cap, not explicit height) */
+    autoHeight?: boolean;
 }
 
 // =============================================================================
@@ -142,8 +139,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
     forceOpen,
     noAnimation = false,
     title,
-    estimatedHeight = 80,
-    fixedWidth,
+    fixedDimensions,
     disabled,
     maxWidth,
     inline,
@@ -179,10 +175,10 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
     const isHoveredRef = useRef(false);
 
     // Props ref for stable callbacks (avoids recreating updatePosition)
-    const propsRef = useRef({ anchorRect, align, side, estimatedHeight });
+    const propsRef = useRef({ anchorRect, align, side });
     useEffect(() => {
-        propsRef.current = { anchorRect, align, side, estimatedHeight };
-    }, [anchorRect, align, side, estimatedHeight]);
+        propsRef.current = { anchorRect, align, side };
+    }, [anchorRect, align, side]);
 
     // =========================================================================
     // POSITIONING LOGIC
@@ -217,16 +213,20 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
 
             let actualWidth: number | undefined;
             let actualHeight: number | undefined;
+            let isAutoHeight = false;
             let left: number;
             let top: number;
             let finalTransform: string;
 
             if (sizeMode === 'fixed') {
                 // --- FIXED MODE: Large tooltip for video previews ---
-                // Use fixed dimensions, center on anchor, clamp to viewport
+                const targetWidth = fixedDimensions?.width ?? 800;
+                const hasFixedHeight = fixedDimensions?.height != null;
+                // For flip detection: use provided height or 600px estimate
+                const heightEstimate = fixedDimensions?.height ?? 600;
 
                 actualWidth = Math.min(
-                    FIXED_TOOLTIP_WIDTH,
+                    targetWidth,
                     viewportWidth - VIEWPORT_EDGE_PADDING * 2
                 );
 
@@ -242,14 +242,20 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                 const spaceAbove = anchorTop - VIEWPORT_EDGE_PADDING;
 
                 let effectiveSide = preferredSide;
-                if (preferredSide === 'bottom' && spaceBelow < FIXED_TOOLTIP_HEIGHT && spaceAbove > spaceBelow) {
+                if (preferredSide === 'bottom' && spaceBelow < heightEstimate && spaceAbove > spaceBelow) {
                     effectiveSide = 'top';
-                } else if (preferredSide === 'top' && spaceAbove < FIXED_TOOLTIP_HEIGHT && spaceBelow > spaceAbove) {
+                } else if (preferredSide === 'top' && spaceAbove < heightEstimate && spaceBelow > spaceAbove) {
                     effectiveSide = 'bottom';
                 }
 
                 const maxAvailableHeight = effectiveSide === 'bottom' ? spaceBelow : spaceAbove;
-                actualHeight = Math.min(FIXED_TOOLTIP_HEIGHT, maxAvailableHeight);
+                if (hasFixedHeight) {
+                    actualHeight = Math.min(heightEstimate, maxAvailableHeight);
+                } else {
+                    // Auto height: content-driven, capped to available viewport space
+                    actualHeight = maxAvailableHeight;
+                    isAutoHeight = true;
+                }
 
                 if (effectiveSide === 'bottom') {
                     top = anchorBottom + ANCHOR_GAP;
@@ -387,13 +393,13 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
             debug.tooltipGroup.end();
 
             // --- Apply State ---
-            setPosition({ top, left, maxHeight: actualHeight });
+            setPosition({ top, left, maxHeight: actualHeight, autoHeight: isAutoHeight });
             setCalculatedWidth(actualWidth);
             setTransform(finalTransform);
 
             positionRafRef.current = null;
         });
-    }, [sizeMode, maxWidth]);
+    }, [sizeMode, maxWidth, fixedDimensions]);
 
 
     // =========================================================================
@@ -597,8 +603,8 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                         left: Math.round(position.left),
                         transform,
                         // Fixed mode: explicit dimensions, Auto mode: let content determine size
-                        width: sizeMode === 'fixed' ? (fixedWidth ?? calculatedWidth) : undefined,
-                        height: sizeMode === 'fixed' ? position.maxHeight : undefined,
+                        width: sizeMode === 'fixed' ? calculatedWidth : undefined,
+                        height: sizeMode === 'fixed' && !position.autoHeight ? position.maxHeight : undefined,
                         maxWidth: sizeMode === 'auto' ? (maxWidth ?? AUTO_MAX_WIDTH) : undefined,
                         // Prevent tooltip from intercepting events during initial positioning
                         pointerEvents: isVisible ? 'auto' : 'none',
@@ -614,7 +620,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                         className={`
                             text-text-primary text-[11px] leading-relaxed
                             transition-all ease-out
-                            ${sizeMode === 'fixed' ? 'w-full h-full' : ''}
+                            ${sizeMode === 'fixed' ? (position.autoHeight ? 'w-full' : 'w-full h-full') : ''}
                             ${variant === 'glass'
                                 ? 'bg-bg-primary/90 backdrop-blur-xl rounded-xl shadow-2xl border border-border'
                                 : 'bg-bg-secondary rounded-lg shadow-xl'
@@ -628,8 +634,10 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                         {sizeMode === 'fixed' ? (
                             /* Fixed mode: Scroll Container for overflow handling */
                             <div
-                                className="w-full h-full overflow-y-auto overflow-x-hidden p-4"
-                                style={{ scrollbarGutter: 'stable' }}
+                                className={`w-full overflow-y-auto overflow-x-hidden p-4 scrollbar-auto-hide ${position.autoHeight ? '' : 'h-full'}`}
+                                style={{
+                                    ...(position.autoHeight && position.maxHeight ? { maxHeight: position.maxHeight } : {}),
+                                }}
                                 onWheel={(e) => e.stopPropagation()}
                             >
                                 {content}

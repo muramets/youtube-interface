@@ -2,7 +2,7 @@
 // AI CHAT: Message List Component
 // =============================================================================
 
-import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { useChatScroll } from './hooks/useChatScroll';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -47,14 +47,16 @@ SyntaxHighlighter.registerLanguage('svg', markup);
 import type { ChatMessage } from '../../core/types/chat/chat';
 import { shouldShowMessage } from '../../core/types/chat/chat';
 import { getVideoCards, getTrafficContexts, getCanvasContexts } from '../../core/types/appContext';
-import type { VideoCardContext } from '../../core/types/appContext';
 import { buildVideoIdMap } from '../../core/utils/buildReferenceMap';
+import type { VideoPreviewData } from '../Video/types';
+import { toPreviewData } from './utils/toPreviewData';
 import { estimateCostUsd, estimateCacheSavingsUsd, type ModelPricing } from '../../core/types/chat/chat';
 import { getEffectiveDisplayLevel } from './utils/tokenDisplay';
 import { EXPENSIVE_MESSAGE_THRESHOLD } from './hooks/useCostAlerts';
 import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
 import { MemoryCheckpoint } from './components/MemoryCheckpoint';
 import { FileAudio, FileVideo, File, Copy, Check, ArrowDown, RotateCcw, MessageCircle, Pencil, Square } from 'lucide-react';
+import { CopyButton } from '../../components/ui/atoms/CopyButton';
 import { Timestamp } from 'firebase/firestore';
 import { useChatStore } from '../../core/stores/chat/chatStore';
 import { VideoReferenceTooltip } from './components/VideoReferenceTooltip';
@@ -122,7 +124,7 @@ interface ChatMessageListProps {
     modelPricing?: ModelPricing;
 }
 
-const MarkdownMessage: React.FC<{ text: string; videoMap?: Map<string, VideoCardContext> }> = React.memo(({ text, videoMap }) => {
+const MarkdownMessage: React.FC<{ text: string; videoMap?: Map<string, VideoPreviewData> }> = React.memo(({ text, videoMap }) => {
 
     return (
         <ReactMarkdown
@@ -167,41 +169,6 @@ const MarkdownMessage: React.FC<{ text: string; videoMap?: Map<string, VideoCard
 });
 MarkdownMessage.displayName = 'MarkdownMessage';
 
-// --- Copy Button ---
-
-const CopyButton: React.FC<{ text: string }> = React.memo(({ text }) => {
-    const [copied, setCopied] = useState(false);
-
-    const handleCopy = useCallback(async () => {
-        try {
-            await navigator.clipboard.writeText(text);
-        } catch {
-            // Fallback for non-secure contexts
-            const textarea = document.createElement('textarea');
-            textarea.value = text;
-            textarea.style.position = 'fixed';
-            textarea.style.opacity = '0';
-            document.body.appendChild(textarea);
-            textarea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textarea);
-        }
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
-    }, [text]);
-
-    return (
-        <button
-            className={`group bg-transparent border-none text-text-tertiary cursor-pointer p-0.5 flex opacity-0 transition-opacity duration-150 hover:text-text-primary ${copied ? '!text-[#22c55e] !opacity-100' : ''}`}
-            onClick={handleCopy}
-            title={copied ? 'Copied!' : 'Copy message'}
-        >
-            {copied ? <Check size={11} /> : <Copy size={11} />}
-        </button>
-    );
-});
-CopyButton.displayName = 'CopyButton';
-
 // --- Adaptive timer intervals ---
 const TICK_RECENT = 60_000;       // < 1 hour: update every minute
 const TICK_HOURS = 600_000;       // 1h – 2 days: update every 10 min
@@ -238,7 +205,7 @@ interface MessageItemProps {
     isStreaming?: boolean;
     onRetry?: () => void;
     onEdit?: (msg: ChatMessage) => void;
-    videoMap?: Map<string, VideoCardContext>;
+    videoMap?: Map<string, VideoPreviewData>;
     /** Session-only thinking data (not persisted, shown only for last model msg) */
     sessionThinking?: { text: string; elapsedMs: number } | null;
 }
@@ -414,7 +381,7 @@ const MessageItem: React.FC<MessageItemProps> = React.memo(({ msg, modelPricing,
                     </PortalTooltip>
                 )}
                 {msg.role === 'model' && (
-                    <CopyButton text={msg.text} />
+                    <CopyButton text={msg.text} title="Copy message" />
                 )}
                 {msg.role === 'user' && !isFailed && !isStreaming && (
                     <button
@@ -450,12 +417,19 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     // Used by inline mention:// links and ToolCallSummary expanded previews.
     const activeConversationId = useChatStore(s => s.activeConversationId);
     const conversations = useChatStore(s => s.conversations);
-    const referenceVideoMap = useMemo<Map<string, VideoCardContext>>(() => {
+    const referenceVideoMap = useMemo<Map<string, VideoPreviewData>>(() => {
         const conv = conversations.find(c => c.id === activeConversationId);
         const ctx = conv?.persistedContext;
-        const baseMap = ctx && ctx.length > 0 ? buildVideoIdMap(ctx) : new Map<string, VideoCardContext>();
 
-        // Merge video data from tool results (browseChannelVideos, getMultipleVideoDetails, mentionVideo).
+        // Convert persisted VideoCardContext entries to VideoPreviewData
+        const baseMap = new Map<string, VideoPreviewData>();
+        if (ctx && ctx.length > 0) {
+            for (const [videoId, card] of buildVideoIdMap(ctx)) {
+                baseMap.set(videoId, toPreviewData(card));
+            }
+        }
+
+        // Merge video data from tool results.
         // persistedContext entries are authoritative — tool data only fills gaps.
         const toolMap = buildToolVideoMap(messages);
         for (const [videoId, toolEntry] of toolMap) {

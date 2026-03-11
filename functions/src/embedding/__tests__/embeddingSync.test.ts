@@ -18,12 +18,13 @@ import { discoverChannels } from "../embeddingSync.js";
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeTrendChannelDoc(youtubeChannelId: string, userId: string, channelId: string) {
+function makeTrendChannelDoc(youtubeChannelId: string, userId: string, channelId: string, title?: string) {
     return {
         id: youtubeChannelId,
         ref: {
             path: `users/${userId}/channels/${channelId}/trendChannels/${youtubeChannelId}`,
         },
+        data: () => ({ title: title ?? `Channel ${youtubeChannelId}` }),
     };
 }
 

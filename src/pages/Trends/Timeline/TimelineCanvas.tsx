@@ -11,6 +11,7 @@ import { TimelineSkeleton } from './TimelineSkeleton';
 import { TimelineEmptyState } from './TimelineEmptyState';
 import { TimelineSelectionOverlay } from './TimelineSelectionOverlay';
 import type { TrendVideo, TimelineStats } from '../../../core/types/trends';
+import type { VideoDeltaStats } from '../../../../shared/viewDeltas';
 import type { SelectionState } from './hooks/useSelectionState';
 import { TimelineAverageLine } from './layers/TimelineAverageLine';
 
@@ -40,6 +41,8 @@ interface TimelineCanvasProps {
     allVideos?: TrendVideo[];
     isLoading?: boolean;
     percentileMap?: Map<string, string>;
+    /** Pre-computed view deltas per video (from TrendsPage via useTrendSnapshots) */
+    deltaMap?: Map<string, VideoDeltaStats>;
     /** Frozen stats from parent (used when shouldAutoFit is false) */
     frozenStats?: TimelineStats;
     /** Real-time stats from parent (used for initial fit) */
@@ -64,6 +67,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
     allVideos = [],
     isLoading = false,
     percentileMap,
+    deltaMap,
     frozenStats,
     currentStats,
     shouldAutoFit = false,
@@ -458,6 +462,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
                 <TrendTooltip
                     key={hoveredVideo.video.id}
                     video={hoveredVideo.video}
+                    deltaStats={deltaMap?.get(hoveredVideo.video.id)}
                     anchorPos={{
                         x: hoveredVideo.x,
                         y: hoveredVideo.y,

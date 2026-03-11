@@ -171,7 +171,7 @@ export async function processBackfill(params: {
                 publishedAt: (videoData.publishedAt as string) ?? "",
                 thumbnailUrl: (videoData.thumbnail as string) ??
                     `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
-                channelTitle: (videoData.channelTitle as string) ?? youtubeChannelId,
+                channelTitle: cp.channelTitle,
             };
 
             const result = await processOneVideo(videoInput, apiKey);
@@ -243,7 +243,8 @@ export const backfillEmbeddings = onRequest(
         }
 
         const offset = typeof req.body?.offset === "number" ? req.body.offset : 0;
-        const selfUrl = `${req.protocol}://${req.get("host")}${req.originalUrl.split("?")[0]}`;
+        const projectId = process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT;
+        const selfUrl = `https://us-central1-${projectId}.cloudfunctions.net/backfillEmbeddings`;
 
         const result = await processBackfill({ apiKey, offset, selfUrl });
 

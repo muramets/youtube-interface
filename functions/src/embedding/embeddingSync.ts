@@ -15,6 +15,7 @@ export interface ChannelPath {
     userId: string;
     channelId: string;
     trendChannelId: string;
+    channelTitle: string;
 }
 
 /**
@@ -33,10 +34,12 @@ export async function discoverChannels(): Promise<Map<string, ChannelPath>> {
 
         // Path: users/{userId}/channels/{channelId}/trendChannels/{trendChannelId}
         const pathParts = doc.ref.path.split("/");
+        const data = doc.data();
         channels.set(youtubeChannelId, {
             userId: pathParts[1],
             channelId: pathParts[3],
             trendChannelId: pathParts[5],
+            channelTitle: (data?.title as string) || youtubeChannelId,
         });
     }
 

@@ -1,91 +1,79 @@
 import React, { useState, useEffect } from 'react';
-import { Copy, Check, Calendar, Tag, AlignLeft, GitCompare } from 'lucide-react';
+import { Calendar, Tag, AlignLeft, GitCompare, TrendingUp } from 'lucide-react';
 import { useVideoPlayer } from '../../../core/hooks/useVideoPlayer';
 import { DiffHighlight } from './DiffHighlight';
+import { CopyButton } from '../../../components/ui/atoms/CopyButton';
+import { formatViewCount, formatDelta, getDeltaColor } from '../../../core/utils/formatUtils';
 import type { VideoDetails } from '../../../core/utils/youtubeApi';
 import type { VideoDeltaStats } from '../../../../shared/viewDeltas';
+import type { VideoPreviewData } from '../types';
+
+export { PREVIEW_DIMENSIONS } from '../types';
 
 interface VideoPreviewTooltipProps {
-    videoId: string;
-    title: string;
-    channelTitle?: string;
-    viewCount?: number;
-    publishedAt?: string;
+    /** Core video data — dedicated tooltip type, source-agnostic */
+    video: VideoPreviewData;
+    /** Display mode: 'full' (800x700) for Trends/Traffic, 'mini' (~420x500) for Chat */
+    mode?: 'full' | 'mini';
+    /** Additional enrichments (Trends/Traffic only) */
     percentileGroup?: string;
-    description?: string;
-    tags?: string[];
-    className?: string;
-    // Comparison Data
     comparisonVideo?: VideoDetails;
-    // Delta stats from Trend Snapshots (optional)
+    /** Override delta source (when VideoPreviewData deltas are null but external deltas exist) */
     deltaStats?: VideoDeltaStats;
+    className?: string;
 }
 
+const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+    });
+};
+
 export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
-    videoId,
-    title,
-    channelTitle,
-    viewCount,
-    publishedAt,
+    video,
+    mode = 'full',
     percentileGroup,
-    description,
-    tags,
-    className = '',
     comparisonVideo,
-    deltaStats
+    deltaStats,
+    className = '',
 }) => {
-    const [isTitleCopied, setIsTitleCopied] = useState(false);
-    const [isDescriptionCopied, setIsDescriptionCopied] = useState(false);
-    const [isTagsCopied, setIsTagsCopied] = useState(false);
+    const { videoId, title, channelTitle, viewCount, publishedAt, description, tags } = video;
+
     const [isExpanded, setIsExpanded] = useState(false);
     const [areTagsExpanded, setAreTagsExpanded] = useState(false);
     const [isComparing, setIsComparing] = useState(false);
 
     const { minimize, activeVideoId, isMinimized } = useVideoPlayer();
 
-    // Delayed loading state to prevent iframe from killing the tooltip on mount
+    // 300ms delay before loading iframe — prevents layout shift from killing
+    // the tooltip on first render (tooltip flicker prevention).
     const [canLoad, setCanLoad] = useState(false);
-
     useEffect(() => {
         const timer = setTimeout(() => setCanLoad(true), 300);
         return () => clearTimeout(timer);
     }, []);
 
-    const containerRef = React.useRef<HTMLDivElement>(null);
-
-    React.useLayoutEffect(() => {
-        if (!containerRef.current) return;
-
-        const observer = new ResizeObserver(() => {
-            // Resize handling if needed
-        });
-
-        observer.observe(containerRef.current);
-        return () => observer.disconnect();
-    }, [canLoad]);
-
+    const isFull = mode === 'full';
     const isPlayingInMiniPlayer = isMinimized && activeVideoId === videoId;
 
-    const formatDate = (dateString: string) => {
-        const date = new Date(dateString);
-        return date.toLocaleString('en-GB', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-    };
+    // Resolve deltas: prefer external deltaStats, fallback to video inline deltas
+    const d24h = deltaStats?.delta24h ?? video.delta24h ?? null;
+    const d7d = deltaStats?.delta7d ?? video.delta7d ?? null;
+    const d30d = deltaStats?.delta30d ?? video.delta30d ?? null;
+    const hasDeltas = d24h !== null || d7d !== null || d30d !== null;
 
     return (
-        <div ref={containerRef} className={`flex flex-col gap-3 w-full ${className} ${isComparing ? 'group/diff' : ''}`}>
+        <div className={`flex flex-col gap-3 w-full ${className} ${isComparing ? 'group/diff' : ''}`}>
             {/* Header with Actions */}
             <div className="flex items-center justify-between px-0.5">
                 <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider flex items-center gap-1.5">
                     {isComparing ? 'Comparison Mode' : 'Video Preview'}
                 </span>
                 <div className="flex items-center gap-2">
-                    {comparisonVideo && (
+                    {isFull && comparisonVideo && (
                         <button
                             onClick={(e) => {
                                 e.stopPropagation();
@@ -126,10 +114,9 @@ export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
                 </div>
             </div>
 
-            {/* Thumbnail / Mini Player */}
+            {/* YouTube Player / Thumbnail */}
             <div className={`aspect-video w-full rounded-lg bg-black/40 overflow-hidden border border-border shrink-0 relative z-10 group/player transition-all duration-300 ${isComparing ? 'grayscale opacity-40' : ''}`}>
                 {isPlayingInMiniPlayer ? (
-                    /* Static thumbnail when video is already playing in mini player */
                     <img
                         src={`https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`}
                         alt={title}
@@ -145,7 +132,7 @@ export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                         allowFullScreen
                         className="w-full h-full"
-                    ></iframe>
+                    />
                 ) : (
                     <div className="w-full h-full flex items-center justify-center bg-black/20">
                         <div className="w-8 h-8 rounded-full border-2 border-white/10 border-t-white/50 animate-spin" />
@@ -170,18 +157,9 @@ export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
                             title
                         )}
                     </div>
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            navigator.clipboard.writeText(title);
-                            setIsTitleCopied(true);
-                            setTimeout(() => setIsTitleCopied(false), 2000);
-                        }}
-                        className="absolute top-0 right-0 text-text-tertiary hover:text-text-primary transition-colors p-1 hover:bg-text-primary/5 rounded"
-                        title="Copy title"
-                    >
-                        {isTitleCopied ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
-                    </button>
+                    <div className="absolute top-0 right-0 p-1 hover:bg-text-primary/5 rounded">
+                        <CopyButton text={title} size={12} title="Copy title" className="!opacity-100 !text-text-tertiary hover:!text-text-primary" />
+                    </div>
                 </div>
                 {channelTitle && (
                     <div className="text-xs text-text-secondary">
@@ -190,47 +168,14 @@ export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
                 )}
             </div>
 
-            {/* Metadata Badges (Only if provided) */}
-            {(viewCount !== undefined || publishedAt || percentileGroup || deltaStats) && (
+            {/* Metadata Badges — "show what you have" */}
+            {(viewCount !== undefined || publishedAt || percentileGroup) && (
                 <div className="flex items-center flex-wrap gap-1.5 text-xs mt-1">
                     {viewCount !== undefined && (
                         <span className="text-text-primary font-bold px-2 py-1 bg-black/10 dark:bg-white/10 rounded-full whitespace-nowrap">
-                            {viewCount.toLocaleString()} views
+                            {formatViewCount(viewCount)} views
                         </span>
                     )}
-
-                    {/* Delta Stats Badges — inline between views and publish date */}
-                    {deltaStats && (deltaStats.delta24h !== null || deltaStats.delta7d !== null || deltaStats.delta30d !== null) && (() => {
-                        const formatDelta = (value: number) => {
-                            const abs = Math.abs(value);
-                            const formatted = abs >= 1000 ? `${(abs / 1000).toFixed(1)}K` : String(abs);
-                            return value >= 0 ? `+${formatted}` : `−${formatted}`;
-                        };
-                        const colorFor = (value: number, opacity: string = '') =>
-                            value >= 0
-                                ? `text-emerald-400${opacity} bg-emerald-500/10`
-                                : `text-orange-400${opacity} bg-orange-500/10`;
-
-                        return (
-                            <>
-                                {deltaStats.delta24h !== null && (
-                                    <span className={`${colorFor(deltaStats.delta24h)} font-mono font-medium text-[10px] px-1.5 py-0.5 rounded-md whitespace-nowrap`}>
-                                        24h: {formatDelta(deltaStats.delta24h)}
-                                    </span>
-                                )}
-                                {deltaStats.delta7d !== null && (
-                                    <span className={`${colorFor(deltaStats.delta7d, '/80')} font-mono font-medium text-[10px] px-1.5 py-0.5 rounded-md whitespace-nowrap`}>
-                                        7d: {formatDelta(deltaStats.delta7d)}
-                                    </span>
-                                )}
-                                {deltaStats.delta30d !== null && (
-                                    <span className={`${colorFor(deltaStats.delta30d, '/60')} font-mono font-medium text-[10px] px-1.5 py-0.5 rounded-md whitespace-nowrap`}>
-                                        30d: {formatDelta(deltaStats.delta30d)}
-                                    </span>
-                                )}
-                            </>
-                        );
-                    })()}
 
                     {percentileGroup && (
                         <span className={`font-bold px-2 py-1 rounded-full whitespace-nowrap ${percentileGroup.includes('Top 1%') ? 'text-emerald-700 dark:text-white bg-emerald-500/30 border border-emerald-500/50' :
@@ -252,6 +197,30 @@ export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
                 </div>
             )}
 
+            {/* View Growth — own section with icon, like description/tags */}
+            {hasDeltas && (
+                <div className="flex items-center gap-2 border-t border-border pt-3 text-xs">
+                    <TrendingUp size={14} className="text-text-tertiary shrink-0" />
+                    <div className="flex items-center gap-1.5">
+                        {d24h !== null && (
+                            <span className={`${getDeltaColor(d24h, viewCount)} font-medium px-2 py-1 rounded-full whitespace-nowrap`}>
+                                <span className="font-bold">24h</span> — {formatDelta(d24h)} views
+                            </span>
+                        )}
+                        {d7d !== null && (
+                            <span className={`${getDeltaColor(d7d, viewCount)} font-medium px-2 py-1 rounded-full whitespace-nowrap`}>
+                                <span className="font-bold">7d</span> — {formatDelta(d7d)} views
+                            </span>
+                        )}
+                        {d30d !== null && (
+                            <span className={`${getDeltaColor(d30d, viewCount)} font-medium px-2 py-1 rounded-full whitespace-nowrap`}>
+                                <span className="font-bold">30d</span> — {formatDelta(d30d)} views
+                            </span>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {/* Description */}
             {description && (
                 <div className="flex gap-2 border-t border-border pt-3 relative">
@@ -259,7 +228,7 @@ export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
                     <div
                         className={`text-[10px] text-text-secondary cursor-pointer hover:text-text-primary transition-colors whitespace-pre-wrap pr-6 ${isExpanded ? '' : 'line-clamp-2'}`}
                         onClick={() => setIsExpanded(!isExpanded)}
-                        title={isExpanded ? "Collapse" : "Expand"}
+                        title={isExpanded ? 'Collapse' : 'Expand'}
                     >
                         {isComparing && comparisonVideo ? (
                             <DiffHighlight text={description} comparisonText={comparisonVideo.description || ''} />
@@ -267,18 +236,9 @@ export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
                             description
                         )}
                     </div>
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            navigator.clipboard.writeText(description);
-                            setIsDescriptionCopied(true);
-                            setTimeout(() => setIsDescriptionCopied(false), 2000);
-                        }}
-                        className="absolute top-3 right-0 text-text-tertiary hover:text-text-primary transition-colors p-1 hover:bg-text-primary/5 rounded"
-                        title="Copy description"
-                    >
-                        {isDescriptionCopied ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
-                    </button>
+                    <div className="absolute top-3 right-0 p-1 hover:bg-text-primary/5 rounded">
+                        <CopyButton text={description} size={12} title="Copy description" className="!opacity-100 !text-text-tertiary hover:!text-text-primary" />
+                    </div>
                 </div>
             )}
 
@@ -326,21 +286,11 @@ export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
                             </>
                         )}
                     </div>
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            navigator.clipboard.writeText(tags.join(', '));
-                            setIsTagsCopied(true);
-                            setTimeout(() => setIsTagsCopied(false), 2000);
-                        }}
-                        className="absolute top-3 right-0 text-text-tertiary hover:text-text-primary transition-colors p-1 hover:bg-text-primary/5 rounded"
-                        title="Copy all tags"
-                    >
-                        {isTagsCopied ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
-                    </button>
+                    <div className="absolute top-3 right-0 p-1 hover:bg-text-primary/5 rounded">
+                        <CopyButton text={tags.join(', ')} size={12} title="Copy all tags" className="!opacity-100 !text-text-tertiary hover:!text-text-primary" />
+                    </div>
                 </div>
             )}
         </div>
     );
 };
-

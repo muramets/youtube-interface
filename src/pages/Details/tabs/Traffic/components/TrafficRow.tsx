@@ -10,7 +10,7 @@ import type { ViewerType } from '../../../../../core/types/suggestedTraffic/view
 import type { VideoReaction } from '../../../../../core/types/suggestedTraffic/videoReaction';
 import { Checkbox } from '../../../../../components/ui/atoms/Checkbox/Checkbox';
 import { PortalTooltip } from '../../../../../components/ui/atoms/PortalTooltip';
-import { VideoPreviewTooltip } from '../../../../../features/Video/components/VideoPreviewTooltip';
+import { VideoPreviewTooltip, PREVIEW_DIMENSIONS } from '../../../../../features/Video/components/VideoPreviewTooltip';
 import { formatDuration } from '../utils/formatters';
 import { formatPublishDate, formatDateDelta } from '../utils/publishDateFormatter';
 import type { CTRRule } from '../../../../../core/services/settingsService';
@@ -434,13 +434,15 @@ export const TrafficRow = ({
                                                     }}
                                                 >
                                                     <VideoPreviewTooltip
-                                                        videoId={item.videoId}
-                                                        title={videoDetails?.title || item.sourceTitle}
-                                                        channelTitle={videoDetails?.channelTitle || item.channelTitle}
-                                                        viewCount={videoDetails?.viewCount ? parseInt(videoDetails.viewCount) : undefined}
-                                                        publishedAt={videoDetails?.publishedAt}
-                                                        description={videoDetails?.description}
-                                                        tags={videoDetails?.tags}
+                                                        video={{
+                                                            videoId: item.videoId,
+                                                            title: videoDetails?.title || item.sourceTitle,
+                                                            channelTitle: videoDetails?.channelTitle || item.channelTitle,
+                                                            viewCount: videoDetails?.viewCount ? parseInt(videoDetails.viewCount) : undefined,
+                                                            publishedAt: videoDetails?.publishedAt,
+                                                            description: videoDetails?.description,
+                                                            tags: videoDetails?.tags,
+                                                        }}
                                                         className="w-full"
                                                         comparisonVideo={currentVideo}
                                                         deltaStats={deltaStats}
@@ -453,6 +455,7 @@ export const TrafficRow = ({
                                             side="top"
                                             align="center"
                                             sizeMode="fixed"
+                                            fixedDimensions={PREVIEW_DIMENSIONS.full}
                                             className="!p-0"
                                             forceOpen={activeTooltipId === `preview-${item.videoId}`}
                                         >
