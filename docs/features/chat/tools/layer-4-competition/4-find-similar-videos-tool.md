@@ -96,6 +96,8 @@ Telescope Pattern Layer 4 — инструмент семантического 
 | Competitor без visual embedding | `{ error: "Visual embedding not available..." }` |
 | `mode: both`, один вектор недоступен | Fallback на доступный mode + `_note` с объяснением |
 | `mode: both`, оба вектора недоступны | Error |
+| Custom video без `publishedVideoId` (с обложкой) | Visual embedding генерируется из Firebase Storage thumbnail |
+| Custom video без `publishedVideoId` и без обложки | `{ error: "No thumbnail available..." }` |
 
 ---
 
@@ -123,7 +125,8 @@ score(d) = Σ 1/(k + rank_i(d))
 | Источник видео | packaging | visual |
 |---------------|-----------|--------|
 | **Competitor** (в `globalVideoEmbeddings`) | Read stored `packagingEmbedding` | Read stored `visualEmbedding` |
-| **Own video** (в `videos/`) | Generate on-the-fly (`generatePackagingEmbedding`) | Generate on-the-fly (`generateVisualEmbedding`) |
+| **Own video** (в `videos/`, с `publishedVideoId`) | Generate on-the-fly (`generatePackagingEmbedding`) | Generate on-the-fly via YouTube thumbnail |
+| **Own video** (custom-*, без `publishedVideoId`) | Generate on-the-fly (`generatePackagingEmbedding`) | Generate on-the-fly via Firebase Storage thumbnail |
 | **Trend video** (не в embeddings, но в `trendChannels/`) | Generate on-the-fly | Generate on-the-fly |
 
 Для own/trend видео embedding генерируется при каждом вызове (~200ms). Для competitor видео — мгновенный read из Firestore.
@@ -251,11 +254,37 @@ LLM может использовать coverage для calibration: "резул
 - **Причина:** rule #8 в ANTI_HALLUCINATION_RULES был привязан к конкретным инструментам (mentionVideo/getMultipleVideoDetails). `findSimilarVideos` не покрывался
 - **Фикс:** rule #8 обобщён: "Video lookup workflow" → "Video ID extraction". Теперь покрывает ВСЕ tools, которым нужен videoId. Добавлен guardrail: "Never ask the user for a videoId that is already visible in the context". Из Tool Strategy убрано дублирующее "with the videoId from attached context"
 
+**Visual mode + custom video без publishedVideoId (Firebase Storage thumbnail)**
+- "есть ли у конкурентов видео с похожим визуалом?" (custom draft, jazz mode, "Your Next Viral Music Playlist")
+- Модель: `claude-haiku-4-5`, стоимость: $0.046, 3 итерации
+- Путь: `custom-1773228155367` → no publishedVideoId → Firebase Storage thumbnail URL → download → on-the-fly visual embedding (1408d) → vector search → 30 found, 20 returned
+- **Все поля корректны:** similarityScore (0.846–0.611), thumbnailDescription (20/20), viewDelta24h/7d/30d, performanceTier, coverage (2164/2192 = 98.7%), dataFreshness (6 каналов)
+- Self-match exclusion: reference video `custom-1773228155367` не в результатах ✅
+- **Наблюдение:** топ-1 результат — `WalzXg2qG9M` с собственного канала (similarity 0.846). Handler исключает только reference video, не весь канал. Модель корректно отметила его как "ваш же канал", не как конкурента
+- **Качество интерпретации:** определила визуальный мейнстрим ниши ("modern architecture + nature + mystical atmosphere"), доминанта JazzVintage92, actionable совет ("improve typography or find unique angle")
+- **Подтверждает:** Firebase Storage thumbnail path полностью функционален для custom draft видео
+
+**Both mode + custom video с publishedVideoId (RRF merge)**
+- "есть ли у конкурентов похожие по упаковке и визуалу видео?" (custom published, jazz mode, "meditative jazz for overthinkers")
+- Модель: `claude-haiku-4-5`, стоимость: $0.055, 3 итерации (listTrendChannels → findSimilarVideos both → viewThumbnails)
+- Путь: `custom-1772111723778` → publishedVideoId `WalzXg2qG9M` → parallel: packaging embedding (Gemini) + YouTube thumbnail → visual embedding (Vertex AI) → dual vector search → RRF merge k=60 → 29 found, 20 returned
+- **Все поля корректны:** `rrfScore` (0.01613–0.01408, НЕ similarityScore — корректно для RRF), thumbnailDescription (20/20), viewDelta24h/7d/30d, performanceTier, dual coverage (packaging 2191/2192, visual 2164/2192)
+- Self-match exclusion: `custom-1772111723778` и `WalzXg2qG9M` не в результатах ✅
+- **Ключевой результат:** SILEO `AuMzK2nQsZQ` ("meditative jazz for overthinkers", 505K views) — **#1 в both mode** благодаря packaging boost. В visual-only search этого видео не было (cosine similarity 0.46). RRF merge компенсировал слабость visual embedding через packaging similarity
+- **Качество интерпретации:** Haiku определила SILEO как "доминирующего конкурента" с 5+ видео идентичной упаковки, дала actionable рекомендации по дифференциации
+
+### Найденные и исправленные баги (both mode)
+
+**Cloud Function OOM** (исправлен 2026-03-11)
+- **Симптом:** `findSimilarVideos` с `mode: "both"` на custom video → пустой ответ модели. В логах: `Memory limit of 512 MiB exceeded with 535 MiB used`
+- **Причина:** `both` mode генерирует packaging (Gemini SDK) и visual (Vertex AI SDK, ~50MB lazy import) embedding **параллельно** (`Promise.all`). Одновременная загрузка двух AI SDK + буферы → превышение 512 MiB лимита. `visual` mode работал (один SDK), `both` — OOM
+- **Фикс:** `aiChat` Cloud Function memory: `512MiB` → `1GiB`
+
 ### Ещё не проверено в бою
 
 | Сценарий | Почему важно |
 |---|---|
-| **Видео без `publishedVideoId`** | Custom видео, которое не опубликовано — visual mode должен вернуть ошибку gracefully |
+| **Custom видео без `publishedVideoId` и без thumbnail** | Edge case: нет ни YouTube ID, ни обложки — graceful error |
 | **0 похожих результатов** | Пустой `similar[]` — как модель обработает? |
 | **Error paths** | Недоступный thumbnail, нет embeddings в collection, budget exceeded |
 

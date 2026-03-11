@@ -19,7 +19,7 @@ import { findNearestVideos } from "../../../embedding/vectorSearch.js";
 import type { VectorSearchResult } from "../../../embedding/vectorSearch.js";
 import { generatePackagingEmbedding } from "../../../embedding/packagingEmbedding.js";
 import { generateVisualEmbedding } from "../../../embedding/visualEmbedding.js";
-import { downloadThumbnail } from "../../../embedding/thumbnailDownload.js";
+import { downloadThumbnail, downloadThumbnailFromUrl } from "../../../embedding/thumbnailDownload.js";
 import { rrfMerge } from "../../../embedding/rrfMerge.js";
 import type { EmbeddingDoc, EmbeddingStats } from "../../../embedding/types.js";
 import type { ToolContext } from "../types.js";
@@ -62,7 +62,7 @@ interface VideoLookupResult {
     referenceVideo: { videoId: string; title: string; tags: string[] };
     embeddingDoc?: EmbeddingDoc;
     source: "embedding" | "own" | "trend";
-    ownVideoMeta?: { title: string; tags: string[]; description: string };
+    ownVideoMeta?: { title: string; tags: string[]; description: string; thumbnailUrl?: string };
     /** YouTube video ID for thumbnail download (differs from videoId for custom-* videos) */
     youtubeVideoId?: string;
 }
@@ -99,10 +99,11 @@ async function lookupVideo(
         const publishedVideoId = typeof data.publishedVideoId === "string"
             ? data.publishedVideoId
             : undefined;
+        const thumbnailUrl = typeof data.thumbnail === "string" ? data.thumbnail : undefined;
         return {
             referenceVideo: { videoId, title, tags },
             source: "own",
-            ownVideoMeta: { title, tags, description },
+            ownVideoMeta: { title, tags, description, thumbnailUrl },
             youtubeVideoId: publishedVideoId ?? (videoId.startsWith("custom-") ? undefined : videoId),
         };
     }
@@ -181,13 +182,24 @@ async function getVisualVector(
     // Own/trend — generate on-the-fly via thumbnail download → Vertex AI
     ctx.reportProgress?.("Generating visual embedding...");
     const videoId = lookup.referenceVideo.videoId;
-    const ytVideoId = lookup.youtubeVideoId ?? videoId;
+
+    let thumbnail: { buffer: Buffer; mimeType: string } | null = null;
+
     if (!lookup.youtubeVideoId && videoId.startsWith("custom-")) {
-        return { error: "No published YouTube ID for this video. Visual search requires a YouTube thumbnail." };
+        // Custom video without publishedVideoId — use uploaded cover from Firebase Storage
+        if (!lookup.ownVideoMeta?.thumbnailUrl) {
+            return { error: "No thumbnail available for this video. Upload a cover image or publish the video first." };
+        }
+        thumbnail = await downloadThumbnailFromUrl(lookup.ownVideoMeta.thumbnailUrl);
+        if (!thumbnail) return { error: "Failed to download thumbnail from storage." };
+    } else {
+        const ytVideoId = lookup.youtubeVideoId ?? videoId;
+        thumbnail = await downloadThumbnail(ytVideoId);
+        if (!thumbnail) return { error: "Failed to download thumbnail. The video may be unavailable." };
     }
-    const thumbnail = await downloadThumbnail(ytVideoId);
-    if (!thumbnail) return { error: "Failed to download thumbnail. The video may be unavailable." };
-    const vec = await generateVisualEmbedding(ytVideoId, thumbnail);
+
+    const embeddingId = lookup.youtubeVideoId ?? videoId;
+    const vec = await generateVisualEmbedding(embeddingId, thumbnail);
     if (!vec) return { error: "Failed to generate visual embedding." };
     return vec;
 }

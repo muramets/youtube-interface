@@ -41,8 +41,10 @@ vi.mock("../../../../embedding/visualEmbedding.js", () => ({
 }));
 
 const mockDownloadThumbnail = vi.fn();
+const mockDownloadThumbnailFromUrl = vi.fn();
 vi.mock("../../../../embedding/thumbnailDownload.js", () => ({
     downloadThumbnail: (...args: unknown[]) => mockDownloadThumbnail(...args),
+    downloadThumbnailFromUrl: (...args: unknown[]) => mockDownloadThumbnailFromUrl(...args),
 }));
 
 const mockGetViewDeltas = vi.fn();
@@ -570,6 +572,61 @@ describe("handleFindSimilarVideos — mode: visual", () => {
 
         const similar = result.similar as Array<{ thumbnailDescription: string | null }>;
         expect(similar[0]).toHaveProperty("thumbnailDescription", null);
+    });
+
+    it("uses Firebase Storage thumbnail for custom video without publishedVideoId", async () => {
+        const storageThumbnailUrl = "https://firebasestorage.googleapis.com/v0/b/bucket/o/thumb.jpg?alt=media&token=abc";
+
+        setupMocks({
+            ownVideoData: {
+                title: "My Draft",
+                tags: ["draft"],
+                description: "Unpublished video",
+                thumbnail: storageThumbnailUrl,
+                // no publishedVideoId
+            },
+            hasOwnVideo: true,
+            trendChannels: [makeTrendChannelDoc("ch1", "Channel 1")],
+        });
+
+        mockDownloadThumbnailFromUrl.mockResolvedValue({ buffer: Buffer.from("storage-img"), mimeType: "image/png" });
+        mockGenerateVisualEmbedding.mockResolvedValue(dummyVisualVector);
+
+        const result = await handleFindSimilarVideos(
+            { videoId: "custom-123", mode: "visual" },
+            CTX,
+        );
+
+        // Should download from Firebase Storage URL, NOT from YouTube
+        expect(mockDownloadThumbnailFromUrl).toHaveBeenCalledWith(storageThumbnailUrl);
+        expect(mockDownloadThumbnail).not.toHaveBeenCalled();
+        expect(mockGenerateVisualEmbedding).toHaveBeenCalledWith(
+            "custom-123",
+            expect.objectContaining({ buffer: expect.any(Buffer), mimeType: "image/png" }),
+        );
+        expect(result).not.toHaveProperty("error");
+    });
+
+    it("returns error for custom video without publishedVideoId and no thumbnail", async () => {
+        setupMocks({
+            ownVideoData: {
+                title: "My Draft",
+                tags: ["draft"],
+                description: "Unpublished video",
+                // no thumbnail, no publishedVideoId
+            },
+            hasOwnVideo: true,
+            trendChannels: [makeTrendChannelDoc("ch1", "Channel 1")],
+        });
+
+        const result = await handleFindSimilarVideos(
+            { videoId: "custom-456", mode: "visual" },
+            CTX,
+        );
+
+        expect(result.error).toContain("No thumbnail available");
+        expect(mockDownloadThumbnail).not.toHaveBeenCalled();
+        expect(mockDownloadThumbnailFromUrl).not.toHaveBeenCalled();
     });
 });
 

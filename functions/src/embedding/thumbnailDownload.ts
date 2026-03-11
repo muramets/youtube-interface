@@ -59,3 +59,35 @@ export async function downloadThumbnail(
     }
     return null;
 }
+
+// ---------------------------------------------------------------------------
+// Download from arbitrary URL (Firebase Storage, etc.)
+// ---------------------------------------------------------------------------
+
+/**
+ * Download thumbnail from a direct URL (e.g. Firebase Storage download URL).
+ * Used for custom videos that have a user-uploaded cover image but no YouTube ID.
+ * @returns Buffer with image data and MIME type, or null on failure
+ */
+export async function downloadThumbnailFromUrl(
+    url: string,
+): Promise<{ buffer: Buffer; mimeType: string } | null> {
+    try {
+        const response = await axios.get(url, {
+            responseType: "arraybuffer",
+            timeout: DOWNLOAD_TIMEOUT_MS,
+        });
+
+        const contentType = response.headers["content-type"] as string | undefined;
+        if (!contentType || !contentType.startsWith("image/")) {
+            return null;
+        }
+
+        return {
+            buffer: Buffer.from(response.data),
+            mimeType: contentType.split(";")[0],
+        };
+    } catch {
+        return null;
+    }
+}
