@@ -1,7 +1,7 @@
 // =============================================================================
 // Thumbnail Download — shared helper for downloading YouTube video thumbnails
 //
-// Resolution fallback chain: maxresdefault → sddefault → mqdefault.
+// Resolution fallback chain: maxresdefault → mqdefault.
 // Validates content-type to reject HTML redirects.
 // Used by both thumbnailDescription and visualEmbedding generators.
 // =============================================================================
