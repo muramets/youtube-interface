@@ -77,6 +77,8 @@ functions/src/embedding/
   packagingEmbedding.ts       # 768d text embedding (gemini-embedding-001)
   visualEmbedding.ts          # 1408d image embedding (Vertex AI multimodalembedding@001)
   thumbnailDescription.ts     # Gemini Flash Vision description
+  queryEmbedding.ts           # Query embedding для searchDatabase (RETRIEVAL_QUERY)
+  rrfMerge.ts                 # Reciprocal Rank Fusion (packaging + visual merge, k=60)
   vectorSearch.ts             # Batched findNearest() queries
   embeddingSync.ts            # Channel discovery logic
   scheduledEmbeddingSync.ts   # Cloud Scheduler entry point (thin launcher)
@@ -98,4 +100,4 @@ functions/src/embedding/
 - **`sddefault` исключён из thumbnail fallback** — формат 4:3, YouTube добавляет чёрные letterbox полосы для 16:9 видео, что "отравляет" visual embedding (cosine similarity падает с ~0.78 до ~0.54)
 - **Fallback chain: `maxresdefault` → `mqdefault`** — оба 16:9, консистентное кадрирование важнее разрешения
 - **`FieldValue.vector()`** для хранения embeddings — нативный Firestore vector тип для `findNearest()`
-- **Budget per-video cost = $0.00024** (packaging $0.00001 + description $0.00013 + visual $0.0001)
+- **Budget per-video cost = $0.00024** (packaging ~$0.00004 + description ~$0.0001 + visual ~$0.0001)
