@@ -14,6 +14,7 @@ import type { PercentileGroup } from "../../../shared/percentiles.js";
 import { getViewDeltas } from "../../trendSnapshotService.js";
 import { getHiddenVideoIds } from "../utils/getHiddenVideoIds.js";
 import { normalizeLastUpdated } from "../utils/normalizeLastUpdated.js";
+import { resolveThumbnailUrl } from "../utils/resolveThumbnailUrl.js";
 import { findNearestVideos } from "../../../embedding/vectorSearch.js";
 import { generateQueryEmbedding } from "../../../embedding/queryEmbedding.js";
 import type { EmbeddingStats } from "../../../embedding/types.js";
@@ -148,6 +149,7 @@ export async function handleSearchDatabase(
             return {
                 videoId: r.videoId,
                 title: r.data.title,
+                thumbnailUrl: resolveThumbnailUrl(r.videoId, r.data.thumbnailUrl),
                 channelId,
                 channelTitle: r.data.channelTitle ?? channelMeta.get(channelId)?.title ?? channelId,
                 relevanceScore,

@@ -25,17 +25,16 @@
 - **`youtubeVideoId` support:** `VideoPreviewData` содержит `youtubeVideoId` — YouTube-embeddable ID, отличающийся от `videoId` для custom-видео (`custom-*` doc IDs). Backend handlers (`mentionVideo`, `getMultipleVideoDetails`) пробрасывают `publishedVideoId` для custom published видео. `buildToolVideoMap` передаёт поле в `extractMention` и `extractDetails`. `VideoPreviewTooltip` использует `embedId` resolution: regular → `videoId`, custom published → `youtubeVideoId`, draft → `undefined` (static thumbnail).
 - **Custom video embed fix:** iframe player теперь корректно обрабатывает три случая: (1) regular video — embed по `videoId`, (2) custom published — embed по `youtubeVideoId` (`publishedVideoId`), (3) draft — static thumbnail из Firebase Storage, minimize button скрыт.
 
-### Known Issue: Thumbnail Resolution Architecture
+### Resolved: Thumbnail Resolution Architecture
 
-Разрешение thumbnail для custom-видео (особенно драфтов) — NOT clean architecture. Fallback-логика разбросана по трём местам:
+Thumbnail resolution консолидирована в одну shared утилиту `resolveThumbnailUrl` (backend). Три правила:
+1. Firestore `thumbnail` существует → passthrough
+2. `custom-*` без thumbnail → `undefined`
+3. YouTube video → CDN fallback `mqdefault.jpg` (320×180)
 
-1. **Backend** (`mentionVideo.ts`, `getMultipleVideoDetails.ts`): читает `data.thumbnail` из Firestore. Для custom-видео это Firebase Storage URL. Для non-custom — YouTube CDN fallback (`https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`).
-2. **`buildToolVideoMap.ts`**: для tools, не возвращающих `thumbnailUrl` (findSimilar, trendVideos, nicheSnapshot, searchDatabase), подставляет YouTube CDN URL через `ytThumbnailUrl()`. Для `custom-*` ID возвращает `undefined` (нет YouTube thumbnail).
-3. **`VideoPreviewTooltip.tsx`**: использует `video.thumbnailUrl` напрямую для static thumbnail (draft). YouTube CDN fallback используется для hqdefault в mini-player state.
+Все 7 tool handler'ов используют `resolveThumbnailUrl`. Frontend (`buildToolVideoMap`) — чистый passthrough, не генерирует URL. `VideoPreviewTooltip` использует `video.thumbnailUrl` из video map.
 
-**Контракт неявный:** если backend не вернул `thumbnailUrl` для custom draft, а `buildToolVideoMap` не имеет fallback для `custom-*` — tooltip покажет пустое место. Работает только потому, что `mentionVideo` и `getMultipleVideoDetails` всегда возвращают `data.thumbnail` для custom-видео.
-
-**Решение (отложено):** Consolidation в один fallback chain с explicit contract. Не фиксим сейчас — работает корректно для всех текущих paths.
+→ Task doc: `docs/features/chat/thumbnail-resolution-refactor-tasks.md`
 
 ---
 
@@ -627,7 +626,7 @@ import { PREVIEW_DIMENSIONS } from '../../Video/components/VideoPreviewTooltip';
 |---|---|---|
 | `src/features/Video/types.ts` | 39 | `VideoPreviewData` type (incl. `youtubeVideoId`) + `PREVIEW_DIMENSIONS` constants |
 | `src/features/Video/components/VideoPreviewTooltip.tsx` | 291 | Unified tooltip: `full`/`mini` modes, `video: VideoPreviewData` |
-| `src/features/Chat/utils/buildToolVideoMap.ts` | 288 | 7 extractors → `Map<string, VideoPreviewData>`, first-write-wins merge |
+| `src/features/Chat/utils/buildToolVideoMap.ts` | 287 | 7 extractors → `Map<string, VideoPreviewData>`, passthrough thumbnailUrl from backend |
 | `src/features/Chat/utils/toolCallGrouping.ts` | 341 | Группировка, videoIds, labels, `isExpandable()` via registry |
 | `src/features/Chat/utils/toolRegistry.ts` | 122 | 13 tools: icon, color, StatsComponent, hasExpandableContent |
 | `src/features/Chat/components/ToolCallSummary.tsx` | 215 | Orchestrator (was 602) |
@@ -637,6 +636,7 @@ import { PREVIEW_DIMENSIONS } from '../../Video/components/VideoPreviewTooltip';
 | `src/components/ui/atoms/CopyButton.tsx` | 44 | Relocated from ChatMessageList, extended API |
 | `src/components/ui/atoms/PortalTooltip.tsx` | 653 | `fixedDimensions` prop (deprecated `fixedWidth`/`estimatedHeight` removed) |
 | `src/core/utils/formatUtils.ts` | 72 | `formatDelta()`, `getDeltaColor()` shared utilities |
+| `functions/src/services/tools/utils/resolveThumbnailUrl.ts` | 15 | SSOT: thumbnail URL resolution (3-rule cascade) |
 
 ### Удалённые файлы
 
@@ -648,3 +648,4 @@ import { PREVIEW_DIMENSIONS } from '../../Video/components/VideoPreviewTooltip';
 |---|---|---|
 | `buildToolVideoMap.test.ts` | 21 | Все 7 extractors, delta merge, channelName fallback, edge cases |
 | `toolCallGrouping.test.ts` | 11 | searchDatabase videoIds, labels, isExpandable |
+| `resolveThumbnailUrl.test.ts` | 9 | 3-rule cascade: Firestore passthrough, custom-* undefined, CDN fallback |

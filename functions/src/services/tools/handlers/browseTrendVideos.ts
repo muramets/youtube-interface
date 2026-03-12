@@ -12,6 +12,7 @@ import type { PercentileGroup } from "../../../shared/percentiles.js";
 import { getViewDeltas } from "../../trendSnapshotService.js";
 import { getHiddenVideoIds } from "../utils/getHiddenVideoIds.js";
 import { normalizeLastUpdated } from "../utils/normalizeLastUpdated.js";
+import { resolveThumbnailUrl } from "../utils/resolveThumbnailUrl.js";
 import type { ToolContext } from "../types.js";
 
 // ---------------------------------------------------------------------------
@@ -156,8 +157,7 @@ export async function handleBrowseTrendVideos(
                         publishedAt: (data.publishedAt as string) ?? "",
                         viewCount: typeof data.viewCount === "number" ? data.viewCount : 0,
                         tags: Array.isArray(data.tags) ? (data.tags as string[]) : [],
-                        thumbnailUrl: (data.thumbnail as string) ??
-                            `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
+                        thumbnailUrl: resolveThumbnailUrl(videoId, data.thumbnail as string | undefined) ?? "",
                         performanceTier: tier,
                     });
                 }

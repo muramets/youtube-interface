@@ -73,7 +73,7 @@ describe('getMultipleVideoDetails — thumbnail field bugfix', () => {
         expect(result.videos[0].thumbnailUrl).toBe('https://cdn/real-thumbnail.jpg');
     });
 
-    it('returns undefined thumbnailUrl when thumbnail field is absent', async () => {
+    it('returns CDN fallback thumbnailUrl when thumbnail field is absent', async () => {
         const snap = makeSnap(true, { title: 'No Thumb' });
 
         mockGetAll
@@ -81,10 +81,10 @@ describe('getMultipleVideoDetails — thumbnail field bugfix', () => {
             .mockResolvedValueOnce([MISS]);
 
         const result = await handleGetMultipleVideoDetails({ videoIds: ['vid1'] }, CTX) as {
-            videos: Array<{ thumbnailUrl: unknown }>;
+            videos: Array<{ thumbnailUrl: string }>;
         };
 
-        expect(result.videos[0].thumbnailUrl).toBeUndefined();
+        expect(result.videos[0].thumbnailUrl).toBe('https://i.ytimg.com/vi/vid1/mqdefault.jpg');
     });
 });
 

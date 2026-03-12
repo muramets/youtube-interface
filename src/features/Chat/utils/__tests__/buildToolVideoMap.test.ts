@@ -159,8 +159,8 @@ describe('buildToolVideoMap', () => {
             args: { videoId: 'ref1' },
             result: {
                 similar: [
-                    { videoId: 'sim1', title: 'Similar 1', channelId: 'UCabc', viewCount: 50000, publishedAt: '2024-06-01' },
-                    { videoId: 'sim2', title: 'Similar 2', channelId: 'UCxyz', viewCount: 30000, publishedAt: '2024-07-01' },
+                    { videoId: 'sim1', title: 'Similar 1', thumbnailUrl: 'https://i.ytimg.com/vi/sim1/mqdefault.jpg', channelId: 'UCabc', viewCount: 50000, publishedAt: '2024-06-01' },
+                    { videoId: 'sim2', title: 'Similar 2', thumbnailUrl: 'https://i.ytimg.com/vi/sim2/mqdefault.jpg', channelId: 'UCxyz', viewCount: 30000, publishedAt: '2024-07-01' },
                 ],
                 dataFreshness: [
                     { channelId: 'UCabc', channelTitle: 'Alpha Channel', lastSynced: '2024-08-01' },
@@ -241,6 +241,7 @@ describe('buildToolVideoMap', () => {
                     },
                     {
                         videoId: 'tv2', title: 'Trend Video 2', channelTitle: 'Competitor B',
+                        thumbnailUrl: 'https://i.ytimg.com/vi/tv2/mqdefault.jpg',
                         viewCount: 80000, publishedAt: '2024-06-01',
                         viewDelta24h: null, viewDelta7d: null, viewDelta30d: null,
                     },
@@ -282,15 +283,15 @@ describe('buildToolVideoMap', () => {
                         channelTitle: 'Channel Alpha',
                         videosPublished: 2,
                         videos: [
-                            { videoId: 'ns1', title: 'Niche Video 1', viewCount: 15000, publishedAt: '2024-07-01', viewDelta24h: 800, viewDelta7d: null, viewDelta30d: null },
-                            { videoId: 'ns2', title: 'Niche Video 2', viewCount: 22000, publishedAt: '2024-07-02', viewDelta24h: null, viewDelta7d: 5000, viewDelta30d: null },
+                            { videoId: 'ns1', title: 'Niche Video 1', thumbnailUrl: 'https://i.ytimg.com/vi/ns1/mqdefault.jpg', viewCount: 15000, publishedAt: '2024-07-01', viewDelta24h: 800, viewDelta7d: null, viewDelta30d: null },
+                            { videoId: 'ns2', title: 'Niche Video 2', thumbnailUrl: 'https://i.ytimg.com/vi/ns2/mqdefault.jpg', viewCount: 22000, publishedAt: '2024-07-02', viewDelta24h: null, viewDelta7d: 5000, viewDelta30d: null },
                         ],
                     },
                     {
                         channelTitle: 'Channel Beta',
                         videosPublished: 1,
                         videos: [
-                            { videoId: 'ns3', title: 'Niche Video 3', viewCount: 90000, publishedAt: '2024-06-30', viewDelta24h: 3000, viewDelta7d: 20000, viewDelta30d: 60000 },
+                            { videoId: 'ns3', title: 'Niche Video 3', thumbnailUrl: 'https://i.ytimg.com/vi/ns3/mqdefault.jpg', viewCount: 90000, publishedAt: '2024-06-30', viewDelta24h: 3000, viewDelta7d: 20000, viewDelta30d: 60000 },
                         ],
                     },
                 ],
@@ -458,7 +459,7 @@ describe('buildToolVideoMap', () => {
         expect(buildToolVideoMap(messages).size).toBe(0);
     });
 
-    it('ytThumbnailUrl returns undefined for custom-* IDs', () => {
+    it('passes through undefined thumbnailUrl for custom-* IDs (backend resolves to undefined)', () => {
         const messages = [msg([{
             name: 'findSimilarVideos',
             args: { videoId: 'ref' },
@@ -471,7 +472,7 @@ describe('buildToolVideoMap', () => {
         }])];
 
         const map = buildToolVideoMap(messages);
-        // custom-* IDs get undefined thumbnailUrl (ytThumbnailUrl returns undefined)
+        // Backend returns undefined thumbnailUrl for custom-* via resolveThumbnailUrl
         expect(map.get('custom-abc123')!.thumbnailUrl).toBeUndefined();
     });
 

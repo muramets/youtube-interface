@@ -133,7 +133,7 @@ function extractSimilar(result: Record<string, unknown>, map: Map<string, VideoP
 
         mergeInto(map, videoId, {
             title: v.title as string | undefined,
-            thumbnailUrl: ytThumbnailUrl(videoId),
+            thumbnailUrl: v.thumbnailUrl as string | undefined,
             ownership: 'competitor',
             channelTitle,
             viewCount: v.viewCount as number | undefined,
@@ -155,7 +155,7 @@ function extractTrendVideos(result: Record<string, unknown>, map: Map<string, Vi
 
         mergeInto(map, videoId, {
             title: v.title as string | undefined,
-            thumbnailUrl: (v.thumbnailUrl as string | undefined) ?? ytThumbnailUrl(videoId),
+            thumbnailUrl: v.thumbnailUrl as string | undefined,
             ownership: 'competitor',
             channelTitle: v.channelTitle as string | undefined,
             viewCount: v.viewCount as number | undefined,
@@ -182,7 +182,7 @@ function extractNicheSnapshot(result: Record<string, unknown>, map: Map<string, 
 
             mergeInto(map, videoId, {
                 title: v.title as string | undefined,
-                thumbnailUrl: ytThumbnailUrl(videoId),
+                thumbnailUrl: v.thumbnailUrl as string | undefined,
                 ownership: 'competitor',
                 channelTitle,
                 viewCount: v.viewCount as number | undefined,
@@ -205,7 +205,7 @@ function extractSearchDatabase(result: Record<string, unknown>, map: Map<string,
 
         mergeInto(map, videoId, {
             title: v.title as string | undefined,
-            thumbnailUrl: ytThumbnailUrl(videoId),
+            thumbnailUrl: v.thumbnailUrl as string | undefined,
             ownership: 'competitor',
             channelTitle: v.channelTitle as string | undefined,
             viewCount: v.viewCount as number | undefined,
@@ -270,12 +270,6 @@ function mergeInto(
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/** YouTube thumbnail URL for a video ID. Returns undefined for custom-* IDs (no YouTube thumbnail). */
-export function ytThumbnailUrl(videoId: string): string | undefined {
-    if (videoId.startsWith('custom-')) return undefined;
-    return `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`;
-}
 
 /** Build a channelId → channelTitle map from the dataFreshness array in tool results. */
 function buildChannelNameMap(dataFreshness: unknown): Map<string, string> {

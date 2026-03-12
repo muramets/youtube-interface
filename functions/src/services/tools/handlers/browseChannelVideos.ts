@@ -13,6 +13,7 @@
 import { db } from "../../../shared/db.js";
 import { YouTubeService } from "../../youtube.js";
 import { resolveVideosByIds } from "../utils/resolveVideos.js";
+import { resolveThumbnailUrl } from "../utils/resolveThumbnailUrl.js";
 import type { ToolContext } from "../types.js";
 import type { YouTubeVideoItem } from "../../../types.js";
 
@@ -131,8 +132,7 @@ export async function handleBrowseChannelVideos(
             title: data.title || "(untitled)",
             publishedAt,
             viewCount: data.viewCount ?? data.views ?? undefined,
-            thumbnailUrl: data.thumbnail ?? data.thumbnailUrl ??
-                `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
+            thumbnailUrl: resolveThumbnailUrl(videoId, data.thumbnail as string | undefined),
         });
     }
 

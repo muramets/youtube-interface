@@ -13,6 +13,7 @@ import { db } from "../../../shared/db.js";
 import { YouTubeService } from "../../youtube.js";
 import { resolveVideosByIds } from "../utils/resolveVideos.js";
 import { resolveVideoIdsByTitle } from "../utils/resolveVideosByTitle.js";
+import { resolveThumbnailUrl } from "../utils/resolveThumbnailUrl.js";
 import { getViewDeltas } from "../../trendSnapshotService.js";
 import type { ToolContext } from "../types.js";
 
@@ -195,7 +196,7 @@ function formatVideoData(
         commentCount: data.commentCount || undefined,
         publishedAt: data.publishedAt || undefined,
         duration: data.duration || undefined,
-        thumbnailUrl: data.thumbnail || undefined,
+        thumbnailUrl: resolveThumbnailUrl(videoId, data.thumbnail as string | undefined),
         // Traffic snapshot counts (denormalized from traffic/main and trafficSource/main)
         // Only present for own videos after user visits the Traffic tab (lazy sync)
         ...(isOwn && typeof data.suggestedTrafficSnapshotCount === "number"

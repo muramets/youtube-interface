@@ -15,6 +15,7 @@ import type { PercentileGroup } from "../../../shared/percentiles.js";
 import { getViewDeltas } from "../../trendSnapshotService.js";
 import { getHiddenVideoIds } from "../utils/getHiddenVideoIds.js";
 import { normalizeLastUpdated } from "../utils/normalizeLastUpdated.js";
+import { resolveThumbnailUrl } from "../utils/resolveThumbnailUrl.js";
 import { findNearestVideos } from "../../../embedding/vectorSearch.js";
 import type { VectorSearchResult } from "../../../embedding/vectorSearch.js";
 import { generatePackagingEmbedding } from "../../../embedding/packagingEmbedding.js";
@@ -398,6 +399,7 @@ export async function handleFindSimilarVideos(
             return {
                 videoId: r.videoId,
                 title: r.data.title,
+                thumbnailUrl: resolveThumbnailUrl(r.videoId, r.data.thumbnailUrl),
                 channelId,
                 channelTitle: channelMeta.get(channelId)?.title ?? r.data.channelTitle ?? channelId,
                 ...(hasRRF ? { rrfScore: r.rrfScore } : { similarityScore }),

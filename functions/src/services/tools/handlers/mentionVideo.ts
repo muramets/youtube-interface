@@ -3,6 +3,7 @@
 // =============================================================================
 
 import { resolveVideosByIds } from "../utils/resolveVideos.js";
+import { resolveThumbnailUrl } from "../utils/resolveThumbnailUrl.js";
 import type { ToolContext } from "../types.js";
 
 export async function handleMentionVideo(
@@ -24,10 +25,7 @@ export async function handleMentionVideo(
     }
 
     const data = entry.data;
-    // Build standard YouTube thumbnail URL from videoId as fallback.
-    // Custom videos (docId starts with "custom-") don't have YouTube CDN thumbnails.
-    const thumbnailUrl = data.thumbnail
-        || (entry.docId.startsWith('custom-') ? '' : `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`);
+    const thumbnailUrl = resolveThumbnailUrl(videoId, data.thumbnail as string | undefined);
     // Determine ownership: isCustom = own video, channelTitle match = own published YouTube video
     const ownership = data.isCustom
         ? (data.publishedVideoId ? "own-published" : "own-draft")

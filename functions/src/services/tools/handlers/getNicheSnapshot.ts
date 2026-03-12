@@ -13,6 +13,7 @@ import { assignPercentileGroups } from "../../../shared/percentiles.js";
 import { getViewDeltas } from "../../trendSnapshotService.js";
 import { getHiddenVideoIds } from "../utils/getHiddenVideoIds.js";
 import { normalizeLastUpdated } from "../utils/normalizeLastUpdated.js";
+import { resolveThumbnailUrl } from "../utils/resolveThumbnailUrl.js";
 import { resolveVideosByIds } from "../utils/resolveVideos.js";
 import type { ToolContext } from "../types.js";
 
@@ -159,6 +160,7 @@ export async function handleGetNicheSnapshot(
             viewCount: number;
             publishedAt: string;
             tags: string[];
+            thumbnail?: string;
             channelId: string;
             channelTitle: string;
         }
@@ -205,6 +207,7 @@ export async function handleGetNicheSnapshot(
                             viewCount,
                             publishedAt: pubAt,
                             tags: Array.isArray(vData.tags) ? (vData.tags as string[]) : [],
+                            thumbnail: (vData.thumbnail as string) || undefined,
                             channelId: tcId,
                             channelTitle,
                         });
@@ -260,6 +263,7 @@ export async function handleGetNicheSnapshot(
                         viewDelta30d: delta?.delta30d ?? null,
                         publishedAt: v.publishedAt,
                         tags: v.tags,
+                        thumbnailUrl: resolveThumbnailUrl(v.videoId, v.thumbnail),
                         performanceTier: pMap.get(v.videoId) ?? "Unknown",
                     };
                 });

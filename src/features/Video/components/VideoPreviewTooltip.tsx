@@ -124,7 +124,7 @@ export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
             <div className={`aspect-video w-full rounded-lg bg-black/40 overflow-hidden border border-border shrink-0 relative z-10 group/player transition-all duration-300 ${isComparing ? 'grayscale opacity-40' : ''}`}>
                 {isPlayingInMiniPlayer ? (
                     <img
-                        src={embedId ? `https://i.ytimg.com/vi/${embedId}/hqdefault.jpg` : video.thumbnailUrl}
+                        src={video.thumbnailUrl}
                         alt={title}
                         className="w-full h-full object-cover"
                     />
