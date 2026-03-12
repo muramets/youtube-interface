@@ -51,6 +51,8 @@
 
 Этот цикл (шаги 2–4) может повторяться до **10 раз** за один ответ — AI может вызвать несколько tools подряд. Работает одинаково для Gemini и Claude.
 
+**Cross-turn tool history:** tool results из предыдущих turns реконструируются в provider-native формате (Claude: `tool_use`/`tool_result` blocks; Gemini: `functionCall`/`functionResponse` parts) при чтении истории. Это позволяет chained tool workflows через turns — например, `browseTrendVideos` в turn 1 → `viewThumbnails(videoIds)` в turn 2. См. [tool-history](../context/tool-history.md).
+
 ---
 
 ## Доступные инструменты (Tools)

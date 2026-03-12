@@ -164,6 +164,155 @@ function makeRes() {
 // Tests
 // ---------------------------------------------------------------------------
 
+describe("aiChat — toolCalls in history mapper", () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        streamChatResult = {};
+    });
+
+    it("mapper includes toolCalls in HistoryMessage when present in Firestore doc", async () => {
+        const toolCallsData = [
+            { name: "browseTrendVideos", args: { channelId: "ch1" }, result: { videos: [{ id: "v1" }] } },
+        ];
+
+        streamChatResult = { text: "Reply", partial: false };
+
+        setupFirestoreMocks([
+            mockDoc("msg-1", { role: "user", text: "show trends", status: "complete" }),
+            mockDoc("msg-2", { role: "model", text: "here are trends", status: "complete", toolCalls: toolCallsData }),
+            mockDoc("msg-3", { role: "user", text: "follow up", status: undefined }),
+        ]);
+
+        const { buildMemory } = await import("../../services/memory.js");
+        const mockBuildMemory = buildMemory as ReturnType<typeof vi.fn>;
+        mockBuildMemory.mockResolvedValueOnce({ history: [], usedSummary: false });
+
+        const { createProviderRouter } = await import("../../services/ai/providerRouter.js");
+        (createProviderRouter as ReturnType<typeof vi.fn>).mockReturnValueOnce({
+            streamChat: vi.fn(async () => streamChatResult),
+        });
+
+        const req = makeReq();
+        const res = makeRes();
+
+        const { aiChat } = await import("../aiChat.js");
+        await (aiChat as unknown as (req: unknown, res: unknown) => Promise<void>)(req, res);
+
+        // buildMemory receives priorMessages (allMessages.slice(0, -1))
+        const buildMemoryCall = mockBuildMemory.mock.calls[0][0];
+        const priorMessages = buildMemoryCall.allMessages as Array<Record<string, unknown>>;
+
+        // msg-2 (model with toolCalls) should be in priorMessages
+        const modelMsg = priorMessages.find(m => m.id === "msg-2");
+        expect(modelMsg).toBeDefined();
+        expect(modelMsg!.toolCalls).toEqual(toolCallsData);
+    });
+
+    it("mapper omits toolCalls when absent in Firestore doc (undefined)", async () => {
+        streamChatResult = { text: "Reply", partial: false };
+
+        setupFirestoreMocks([
+            mockDoc("msg-1", { role: "user", text: "hello", status: "complete" }),
+            mockDoc("msg-2", { role: "model", text: "hi there", status: "complete" }), // no toolCalls
+            mockDoc("msg-3", { role: "user", text: "follow up", status: undefined }),
+        ]);
+
+        const { buildMemory } = await import("../../services/memory.js");
+        const mockBuildMemory = buildMemory as ReturnType<typeof vi.fn>;
+        mockBuildMemory.mockResolvedValueOnce({ history: [], usedSummary: false });
+
+        const { createProviderRouter } = await import("../../services/ai/providerRouter.js");
+        (createProviderRouter as ReturnType<typeof vi.fn>).mockReturnValueOnce({
+            streamChat: vi.fn(async () => streamChatResult),
+        });
+
+        const req = makeReq();
+        const res = makeRes();
+
+        const { aiChat } = await import("../aiChat.js");
+        await (aiChat as unknown as (req: unknown, res: unknown) => Promise<void>)(req, res);
+
+        const buildMemoryCall = mockBuildMemory.mock.calls[0][0];
+        const priorMessages = buildMemoryCall.allMessages as Array<Record<string, unknown>>;
+
+        const modelMsg = priorMessages.find(m => m.id === "msg-2");
+        expect(modelMsg).toBeDefined();
+        expect(modelMsg!.toolCalls).toBeUndefined();
+    });
+});
+
+describe("aiChat — contextBreakdown.toolResults", () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        streamChatResult = {};
+    });
+
+    it("toolResults > 0 after streamChat with tool calls", async () => {
+        const toolCallsResult = [
+            { name: "browseTrendVideos", args: { channelId: "ch1" }, result: { videos: [{ id: "v1", title: "Trending" }] } },
+        ];
+        streamChatResult = {
+            text: "Here are the videos",
+            partial: false,
+            toolCalls: toolCallsResult,
+        };
+
+        setupFirestoreMocks([
+            mockDoc("msg-1", { role: "user", text: "hello", status: undefined }),
+        ]);
+
+        const { createProviderRouter } = await import("../../services/ai/providerRouter.js");
+        (createProviderRouter as ReturnType<typeof vi.fn>).mockReturnValueOnce({
+            streamChat: vi.fn(async () => streamChatResult),
+        });
+
+        const req = makeReq();
+        const res = makeRes();
+
+        const { aiChat } = await import("../aiChat.js");
+        await (aiChat as unknown as (req: unknown, res: unknown) => Promise<void>)(req, res);
+
+        // Find the "done" SSE event and check contextBreakdown
+        const doneCalls = (writeSSE as ReturnType<typeof vi.fn>).mock.calls
+            .filter((call: unknown[]) => (call[1] as Record<string, unknown>)?.type === "done");
+        expect(doneCalls).toHaveLength(1);
+
+        const donePayload = doneCalls[0][1] as Record<string, unknown>;
+        const breakdown = donePayload.contextBreakdown as Record<string, unknown>;
+        expect(breakdown.toolResults).toBeGreaterThan(0);
+    });
+
+    it("toolResults === 0 after streamChat without tool calls", async () => {
+        streamChatResult = {
+            text: "Simple answer",
+            partial: false,
+        };
+
+        setupFirestoreMocks([
+            mockDoc("msg-1", { role: "user", text: "hello", status: undefined }),
+        ]);
+
+        const { createProviderRouter } = await import("../../services/ai/providerRouter.js");
+        (createProviderRouter as ReturnType<typeof vi.fn>).mockReturnValueOnce({
+            streamChat: vi.fn(async () => streamChatResult),
+        });
+
+        const req = makeReq();
+        const res = makeRes();
+
+        const { aiChat } = await import("../aiChat.js");
+        await (aiChat as unknown as (req: unknown, res: unknown) => Promise<void>)(req, res);
+
+        const doneCalls = (writeSSE as ReturnType<typeof vi.fn>).mock.calls
+            .filter((call: unknown[]) => (call[1] as Record<string, unknown>)?.type === "done");
+        expect(doneCalls).toHaveLength(1);
+
+        const donePayload = doneCalls[0][1] as Record<string, unknown>;
+        const breakdown = donePayload.contextBreakdown as Record<string, unknown>;
+        expect(breakdown.toolResults).toBe(0);
+    });
+});
+
 describe("aiChat — thinking persistence", () => {
     beforeEach(() => {
         vi.clearAllMocks();

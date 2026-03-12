@@ -93,8 +93,43 @@ async function buildHistory(
     apiKey: string,
     onAttachmentUpdate?: StreamChatOpts["onAttachmentUpdate"]
 ): Promise<Content[]> {
-    return Promise.all(
-        messages.map(async (msg) => {
+    // Load SDK factories once per call (not per message) for efficiency
+    const { createFC, createFR } = await getPartFactories();
+
+    const nested = await Promise.all(
+        messages.map(async (msg): Promise<Content[]> => {
+            // --- Tool call reconstruction for model messages ---
+            // Reconstruct native functionCall/functionResponse parts from Firestore toolCalls.
+            // Only when ALL results are defined (undefined result = stopped message → fallback to text).
+            const hasToolCalls = msg.role === "model"
+                && msg.toolCalls
+                && msg.toolCalls.length > 0
+                && msg.toolCalls.every(tc => tc.result !== undefined);
+
+            if (hasToolCalls) {
+                const result: Content[] = [];
+
+                // 1. model Content: functionCall parts
+                const fcParts: Part[] = msg.toolCalls!.map(tc =>
+                    createFC(tc.name, tc.args),
+                );
+                result.push({ role: "model", parts: fcParts });
+
+                // 2. user Content: functionResponse parts
+                const frParts: Part[] = msg.toolCalls!.map(tc =>
+                    createFR("", tc.name, tc.result!),
+                );
+                result.push({ role: "user", parts: frParts });
+
+                // 3. model Content: text part (only if non-empty)
+                if (msg.text) {
+                    result.push({ role: "model", parts: [{ text: msg.text }] });
+                }
+
+                return result;
+            }
+
+            // --- Standard message (no tool reconstruction) ---
             const parts: Part[] = [];
 
             if (msg.attachments && msg.attachments.length > 0) {
@@ -105,14 +140,14 @@ async function buildHistory(
                     try {
                         let fileUri = att.geminiFileUri;
                         if (!fileUri || !isGeminiUriValid(att.geminiFileExpiry)) {
-                            const result = await reuploadFromStorage(
+                            const uploadResult = await reuploadFromStorage(
                                 apiKey,
                                 att.url,
                                 att.mimeType,
                                 att.name
                             );
-                            fileUri = result.uri;
-                            onAttachmentUpdate?.(msg.id, i, result.uri, result.expiryMs);
+                            fileUri = uploadResult.uri;
+                            onAttachmentUpdate?.(msg.id, i, uploadResult.uri, uploadResult.expiryMs);
                         }
                         parts.push({
                             fileData: { fileUri, mimeType: att.mimeType },
@@ -131,9 +166,11 @@ async function buildHistory(
             }
 
             parts.push({ text });
-            return { role: msg.role, parts };
+            return [{ role: msg.role, parts }];
         })
     );
+
+    return nested.flat();
 }
 
 // --- Custom error for timeout ---

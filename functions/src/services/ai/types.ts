@@ -75,6 +75,8 @@ export interface HistoryMessage {
      */
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     appContext?: any[];
+    /** Tool calls executed during this message's agentic loop (model messages only). */
+    toolCalls?: ToolCallRecord[];
 }
 
 // --- Attachments ---

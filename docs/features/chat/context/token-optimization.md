@@ -54,6 +54,8 @@
 └─────────────────────────────────────────────────────────────┘
 ```
 
+**Historical tool results** из прошлых turns также включаются в историю (в provider-native формате) и учитываются `estimateTokens()` при расчёте бюджета. Tool-heavy conversations (~25K chars per `browseTrendVideos`) триггерят L3 summarization раньше. См. [tool-history](./tool-history.md).
+
 ---
 
 ## Проблема: L1 — главный пожиратель токенов

@@ -990,3 +990,196 @@ describe('Gemini streamChat — abort handling (stopped messages)', () => {
         await expect(streamChat(makeOpts())).rejects.toThrow('Network failure');
     });
 });
+
+// ===========================================================================
+// Suite E: buildHistory — tool call reconstruction from history
+// ===========================================================================
+
+describe('streamChat — buildHistory tool reconstruction', () => {
+    it('history message with toolCalls → API receives functionCall + functionResponse + text', async () => {
+        const mockGenerateContentStream = mockStreamResponse(
+            () => makeChunks(textChunk('Follow-up', {
+                promptTokenCount: 500, candidatesTokenCount: 20, totalTokenCount: 520,
+            })),
+        );
+
+        await streamChat(makeOpts({
+            history: [
+                { id: 'u1', role: 'user', text: 'Show trending' },
+                {
+                    id: 'm1',
+                    role: 'model',
+                    text: 'Here are the results',
+                    toolCalls: [
+                        {
+                            name: 'browseTrendVideos',
+                            args: { channelId: 'ch1', limit: 5 },
+                            result: { videos: [{ id: 'v1', title: 'Top Video' }] },
+                        },
+                    ],
+                },
+            ],
+            text: 'Show thumbnails',
+        }));
+
+        // Extract contents sent to Gemini API
+        const apiCall = mockGenerateContentStream.mock.calls[0][0];
+        const contents = apiCall.contents as Array<{ role: string; parts: Array<Record<string, unknown>> }>;
+
+        // contents[0]: user 'Show trending'
+        expect(contents[0].role).toBe('user');
+
+        // contents[1]: model with functionCall part (reconstructed)
+        expect(contents[1].role).toBe('model');
+        expect(contents[1].parts[0]).toHaveProperty('functionCall');
+        const fc = contents[1].parts[0].functionCall as Record<string, unknown>;
+        expect(fc.name).toBe('browseTrendVideos');
+        expect(fc.args).toEqual({ channelId: 'ch1', limit: 5 });
+
+        // contents[2]: user with functionResponse part
+        expect(contents[2].role).toBe('user');
+        expect(contents[2].parts[0]).toHaveProperty('functionResponse');
+        const fr = contents[2].parts[0].functionResponse as Record<string, unknown>;
+        expect(fr.name).toBe('browseTrendVideos');
+        expect(fr.response).toEqual({ videos: [{ id: 'v1', title: 'Top Video' }] });
+
+        // contents[3]: model with text part
+        expect(contents[3].role).toBe('model');
+        expect(contents[3].parts[0]).toEqual({ text: 'Here are the results' });
+
+        // contents[4]: current user message
+        expect(contents[4].role).toBe('user');
+    });
+
+    it('functionCall.name matches functionResponse.name', async () => {
+        const mockApi = mockStreamResponse(
+            () => makeChunks(textChunk('Done', {
+                promptTokenCount: 100, candidatesTokenCount: 10, totalTokenCount: 110,
+            })),
+        );
+
+        await streamChat(makeOpts({
+            history: [
+                { id: 'u1', role: 'user', text: 'query' },
+                {
+                    id: 'm1',
+                    role: 'model',
+                    text: 'result',
+                    toolCalls: [
+                        { name: 'toolA', args: { x: 1 }, result: { a: 'yes' } },
+                        { name: 'toolB', args: { y: 2 }, result: { b: 'no' } },
+                    ],
+                },
+            ],
+            text: 'next',
+        }));
+
+        const apiCall = mockApi.mock.calls[0][0];
+        const contents = apiCall.contents as Array<{ role: string; parts: Array<Record<string, unknown>> }>;
+
+        const modelParts = contents[1].parts;
+        expect(modelParts).toHaveLength(2);
+        const names = modelParts.map((p: Record<string, unknown>) =>
+            (p.functionCall as Record<string, unknown>)?.name,
+        );
+        expect(names).toEqual(['toolA', 'toolB']);
+
+        const userParts = contents[2].parts;
+        expect(userParts).toHaveLength(2);
+        const responseNames = userParts.map((p: Record<string, unknown>) =>
+            (p.functionResponse as Record<string, unknown>)?.name,
+        );
+        expect(responseNames).toEqual(['toolA', 'toolB']);
+    });
+
+    it('model/user/model role alternation correct after reconstruction', async () => {
+        const mockApi = mockStreamResponse(
+            () => makeChunks(textChunk('Reply', {
+                promptTokenCount: 100, candidatesTokenCount: 10, totalTokenCount: 110,
+            })),
+        );
+
+        await streamChat(makeOpts({
+            history: [
+                { id: 'u1', role: 'user', text: 'first' },
+                {
+                    id: 'm1',
+                    role: 'model',
+                    text: 'tool answer',
+                    toolCalls: [{ name: 't1', args: {}, result: { ok: true } }],
+                },
+                { id: 'u2', role: 'user', text: 'second' },
+                { id: 'm2', role: 'model', text: 'plain answer' },
+            ],
+            text: 'third',
+        }));
+
+        const apiCall = mockApi.mock.calls[0][0];
+        const contents = apiCall.contents as Array<{ role: string }>;
+        const roles = contents.map(c => c.role);
+
+        // user, model(fc), user(fr), model(text), user, model, user(current)
+        expect(roles).toEqual([
+            'user',   // u1
+            'model',  // m1 → functionCall
+            'user',   // m1 → functionResponse
+            'model',  // m1 → text
+            'user',   // u2
+            'model',  // m2
+            'user',   // current
+        ]);
+    });
+
+    it('history message without toolCalls → standard single Content (regression)', async () => {
+        const mockApi = mockStreamResponse(
+            () => makeChunks(textChunk('Reply', {
+                promptTokenCount: 100, candidatesTokenCount: 10, totalTokenCount: 110,
+            })),
+        );
+
+        await streamChat(makeOpts({
+            history: [
+                { id: 'u1', role: 'user', text: 'hello' },
+                { id: 'm1', role: 'model', text: 'hi there' },
+            ],
+            text: 'follow up',
+        }));
+
+        const apiCall = mockApi.mock.calls[0][0];
+        const contents = apiCall.contents as Array<{ role: string }>;
+
+        // 3 content entries: user, model, user(current) — no expansion
+        expect(contents).toHaveLength(3);
+    });
+
+    it('toolCalls with undefined result → fallback to text only', async () => {
+        const mockApi = mockStreamResponse(
+            () => makeChunks(textChunk('Reply', {
+                promptTokenCount: 100, candidatesTokenCount: 10, totalTokenCount: 110,
+            })),
+        );
+
+        await streamChat(makeOpts({
+            history: [
+                { id: 'u1', role: 'user', text: 'query' },
+                {
+                    id: 'm1',
+                    role: 'model',
+                    text: 'Partial before stop',
+                    toolCalls: [{ name: 'stoppedTool', args: { x: 1 } }], // no result
+                },
+            ],
+            text: 'continue',
+        }));
+
+        const apiCall = mockApi.mock.calls[0][0];
+        const contents = apiCall.contents as Array<{ role: string; parts: Array<Record<string, unknown>> }>;
+
+        // Fallback: 3 entries (user, model-text-only, user-current)
+        expect(contents).toHaveLength(3);
+        // Model message should have text part only, no functionCall
+        const modelParts = contents[1].parts;
+        expect(modelParts.every(p => !p.functionCall)).toBe(true);
+        expect(modelParts.some(p => p.text)).toBe(true);
+    });
+});

@@ -17,7 +17,7 @@ import { geminiFactory } from "../services/gemini/factory.js";
 import { geminiContext } from "../services/gemini/context.js";
 import { claudeFactory } from "../services/claude/factory.js";
 import { TOOL_DECLARATIONS } from "../services/tools/definitions.js";
-import type { StreamCallbacks, AttachmentRef } from "../services/ai/types.js";
+import type { StreamCallbacks, AttachmentRef, ToolCallRecord } from "../services/ai/types.js";
 import { writeSSE } from "./sseWriter.js";
 import type { ContextBreakdown, AuxiliaryCost } from "../shared/models.js";
 import { estimateImageTokens } from "../shared/imageTokens.js";
@@ -148,6 +148,7 @@ export const aiChat = onRequest(
                         text: data.text as string,
                         attachments: data.attachments,
                         appContext: data.appContext,
+                        toolCalls: data.toolCalls as ToolCallRecord[] | undefined,
                     };
                 });
             const convData = convDoc.data();
@@ -322,6 +323,15 @@ export const aiChat = onRequest(
             // Unpack provider-agnostic result
             const { text: responseText, tokenUsage, normalizedUsage, toolCalls, providerMeta, partial } = result;
             const updatedThumbnailCache = providerMeta?.updatedThumbnailCache as ThumbnailCache | undefined;
+
+            // Update contextBreakdown with actual tool results size (post agentic loop).
+            // NOTE: counts only result size, not args. Args are typically small (<500 chars).
+            // If a tool with large args appears, consider including args in this calculation.
+            if (toolCalls?.length) {
+                contextBreakdown.toolResults = toolCalls.reduce(
+                    (sum, tc) => sum + JSON.stringify(tc.result ?? {}).length, 0
+                );
+            }
 
             // --- Production logging: response metrics ---
             const durationMs = Date.now() - requestStart;

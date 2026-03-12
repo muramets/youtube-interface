@@ -211,12 +211,62 @@ async function fetchTextAttachmentBlock(att: AttachmentRef): Promise<TextBlockPa
  *   - Image/PDF attachments as native content blocks
  *   - Non-supported attachments as text descriptions
  *   - Summary synthetic messages (id starting with '__summary__')
+ *   - Tool call reconstruction: model messages with toolCalls → 3 MessageParams
+ *     (assistant[tool_use] → user[tool_result] → assistant[text])
  */
 function buildHistory(messages: HistoryMessage[]): MessageParam[] {
-    return messages.map((msg) => {
+    return messages.flatMap((msg) => {
         const role: "user" | "assistant" = msg.role === "model" ? "assistant" : "user";
 
-        // Build content blocks
+        // --- Tool call reconstruction for model messages ---
+        // Reconstruct native tool_use/tool_result blocks from Firestore toolCalls.
+        // Only when ALL results are defined (undefined result = stopped message → fallback to text).
+        const hasToolCalls = role === "assistant"
+            && msg.toolCalls
+            && msg.toolCalls.length > 0
+            && msg.toolCalls.every(tc => tc.result !== undefined);
+
+        if (hasToolCalls) {
+            const result: MessageParam[] = [];
+
+            // 1. assistant message: attachment blocks (if any) + tool_use blocks
+            const assistantBlocks: ContentBlockParam[] = [];
+            if (msg.attachments && msg.attachments.length > 0) {
+                for (const att of msg.attachments) {
+                    assistantBlocks.push(toClaudeAttachmentBlock(att));
+                }
+            }
+            for (let i = 0; i < msg.toolCalls!.length; i++) {
+                const tc = msg.toolCalls![i];
+                assistantBlocks.push({
+                    type: "tool_use",
+                    id: `hist-${msg.id}-${i}`,
+                    name: tc.name,
+                    input: tc.args,
+                } as ToolUseBlockParam);
+            }
+            result.push({ role: "assistant", content: assistantBlocks });
+
+            // 2. user message: tool_result blocks (matching tool_use_id)
+            const resultBlocks: ContentBlockParam[] = msg.toolCalls!.map((tc, i) => ({
+                type: "tool_result",
+                tool_use_id: `hist-${msg.id}-${i}`,
+                content: JSON.stringify(tc.result),
+            } as ToolResultBlockParam));
+            result.push({ role: "user", content: resultBlocks });
+
+            // 3. assistant message: text block (only if non-empty)
+            if (msg.text) {
+                result.push({
+                    role: "assistant",
+                    content: [{ type: "text", text: msg.text } as TextBlockParam],
+                });
+            }
+
+            return result;
+        }
+
+        // --- Standard message (no tool reconstruction) ---
         const blocks: ContentBlockParam[] = [];
 
         // Attachments → native content blocks via shared helper
@@ -235,7 +285,7 @@ function buildHistory(messages: HistoryMessage[]): MessageParam[] {
 
         blocks.push({ type: "text", text } as TextBlockParam);
 
-        return { role, content: blocks };
+        return [{ role, content: blocks }];
     });
 }
 

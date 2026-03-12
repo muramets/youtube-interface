@@ -35,6 +35,10 @@ function estimateTokens(messages: HistoryMessage[]): number {
         if (msg.appContext && msg.appContext.length > 0) {
             total += Math.ceil((msg.appContext.length * CONTEXT_LABEL_CHARS_PER_ITEM) / CHARS_PER_TOKEN);
         }
+        // Tool call data (args + results) — significant for tool-heavy conversations
+        if (msg.toolCalls) {
+            total += Math.ceil(JSON.stringify(msg.toolCalls).length / CHARS_PER_TOKEN);
+        }
     }
     return total;
 }
@@ -114,6 +118,17 @@ function formatMessageForSummary(msg: HistoryMessage): string {
     if (msg.role === 'user' && msg.appContext && msg.appContext.length > 0) {
         const label = formatContextLabel(msg.appContext);
         text = `${label}\n${msg.text}`;
+    }
+    // Include tool call info so summarizer knows which tools were used and key results
+    if (msg.toolCalls?.length) {
+        const toolLines = msg.toolCalls.map(tc => {
+            const resultStr = tc.result ? JSON.stringify(tc.result) : 'no result';
+            const truncated = resultStr.length > 2000
+                ? resultStr.slice(0, 2000) + '...'
+                : resultStr;
+            return `  ${tc.name}(${JSON.stringify(tc.args)}) → ${truncated}`;
+        });
+        text += '\n[Tools used]\n' + toolLines.join('\n');
     }
     return `[${msg.role}]: ${text}`;
 }

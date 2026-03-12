@@ -1630,3 +1630,256 @@ describe("Claude streamChat — abort handling (stopped messages)", () => {
         expect(result.partial).toBe(true);
     });
 });
+
+// ===========================================================================
+// Suite F: buildHistory — tool call reconstruction from history
+// ===========================================================================
+
+describe("Claude streamChat — buildHistory tool reconstruction", () => {
+    it("history message with toolCalls → API receives tool_use + tool_result + text blocks", async () => {
+        const mockStream = mockClientStreams({
+            events: [
+                ...textEvents("Follow-up response"),
+                finalMessageEvent({ input_tokens: 500, output_tokens: 20 }),
+            ],
+        });
+
+        await streamChat(makeOpts({
+            history: [
+                {
+                    id: "msg-1",
+                    role: "user",
+                    text: "Show me trending videos",
+                },
+                {
+                    id: "msg-2",
+                    role: "model",
+                    text: "Here are the top videos",
+                    toolCalls: [
+                        {
+                            name: "browseTrendVideos",
+                            args: { channelId: "ch1", limit: 5 },
+                            result: { videos: [{ id: "v1", title: "Top Video" }] },
+                        },
+                    ],
+                },
+            ],
+            text: "Show thumbnails for the first one",
+        }));
+
+        // Extract messages sent to Claude API
+        const apiCall = mockStream.mock.calls[0][0];
+        const messages = apiCall.messages as Array<{ role: string; content: unknown }>;
+
+        // msg-1: user message (standard)
+        expect(messages[0].role).toBe("user");
+
+        // msg-2 expands to 3 messages: assistant[tool_use], user[tool_result], assistant[text]
+        // Index 1: assistant with tool_use
+        expect(messages[1].role).toBe("assistant");
+        const assistantBlocks = messages[1].content as Array<Record<string, unknown>>;
+        expect(assistantBlocks).toHaveLength(1);
+        expect(assistantBlocks[0].type).toBe("tool_use");
+        expect(assistantBlocks[0].name).toBe("browseTrendVideos");
+        expect(assistantBlocks[0].input).toEqual({ channelId: "ch1", limit: 5 });
+        expect(assistantBlocks[0].id).toBe("hist-msg-2-0");
+
+        // Index 2: user with tool_result
+        expect(messages[2].role).toBe("user");
+        const resultBlocks = messages[2].content as Array<Record<string, unknown>>;
+        expect(resultBlocks).toHaveLength(1);
+        expect(resultBlocks[0].type).toBe("tool_result");
+        expect(resultBlocks[0].tool_use_id).toBe("hist-msg-2-0");
+        const resultContent = resultBlocks[0].content as string;
+        expect(resultContent).toContain("v1");
+        expect(resultContent).toContain("Top Video");
+
+        // Index 3: assistant with text
+        expect(messages[3].role).toBe("assistant");
+        const textBlocks = messages[3].content as Array<Record<string, unknown>>;
+        expect(textBlocks[0].type).toBe("text");
+        expect(textBlocks[0].text).toBe("Here are the top videos");
+
+        // Index 4: current user message
+        expect(messages[4].role).toBe("user");
+    });
+
+    it("tool_use_id matches between tool_use and tool_result for each tool call", async () => {
+        const mockStream = mockClientStreams({
+            events: [
+                ...textEvents("Done"),
+                finalMessageEvent({ input_tokens: 100, output_tokens: 10 }),
+            ],
+        });
+
+        await streamChat(makeOpts({
+            history: [
+                { id: "u1", role: "user", text: "query" },
+                {
+                    id: "m1",
+                    role: "model",
+                    text: "result",
+                    toolCalls: [
+                        { name: "toolA", args: { x: 1 }, result: { a: "yes" } },
+                        { name: "toolB", args: { y: 2 }, result: { b: "no" } },
+                    ],
+                },
+            ],
+            text: "next",
+        }));
+
+        const messages = mockStream.mock.calls[0][0].messages as Array<{ role: string; content: unknown }>;
+
+        // assistant message: 2 tool_use blocks
+        const assistantContent = messages[1].content as Array<Record<string, unknown>>;
+        expect(assistantContent).toHaveLength(2);
+        const ids = assistantContent.map(b => b.id);
+        expect(ids).toEqual(["hist-m1-0", "hist-m1-1"]);
+
+        // user message: 2 tool_result blocks with matching ids
+        const resultContent = messages[2].content as Array<Record<string, unknown>>;
+        expect(resultContent).toHaveLength(2);
+        expect(resultContent[0].tool_use_id).toBe("hist-m1-0");
+        expect(resultContent[1].tool_use_id).toBe("hist-m1-1");
+    });
+
+    it("strict user/assistant alternation maintained after reconstruction", async () => {
+        const mockStream = mockClientStreams({
+            events: [
+                ...textEvents("Reply"),
+                finalMessageEvent({ input_tokens: 100, output_tokens: 10 }),
+            ],
+        });
+
+        await streamChat(makeOpts({
+            history: [
+                { id: "u1", role: "user", text: "first" },
+                {
+                    id: "m1",
+                    role: "model",
+                    text: "tool answer",
+                    toolCalls: [{ name: "t1", args: {}, result: { ok: true } }],
+                },
+                { id: "u2", role: "user", text: "second" },
+                { id: "m2", role: "model", text: "plain answer" },
+            ],
+            text: "third",
+        }));
+
+        const messages = mockStream.mock.calls[0][0].messages as Array<{ role: string }>;
+        const roles = messages.map(m => m.role);
+
+        // Expected: user, assistant(tool_use), user(tool_result), assistant(text), user, assistant, user(current)
+        expect(roles).toEqual([
+            "user",       // u1
+            "assistant",  // m1 → tool_use
+            "user",       // m1 → tool_result
+            "assistant",  // m1 → text
+            "user",       // u2
+            "assistant",  // m2
+            "user",       // current message
+        ]);
+    });
+
+    it("history message without toolCalls → standard single message (regression)", async () => {
+        const mockStream = mockClientStreams({
+            events: [
+                ...textEvents("Reply"),
+                finalMessageEvent({ input_tokens: 100, output_tokens: 10 }),
+            ],
+        });
+
+        await streamChat(makeOpts({
+            history: [
+                { id: "u1", role: "user", text: "hello" },
+                { id: "m1", role: "model", text: "hi there" },
+            ],
+            text: "follow up",
+        }));
+
+        const messages = mockStream.mock.calls[0][0].messages as Array<{ role: string; content: unknown }>;
+
+        // 3 messages: user, assistant, user(current) — no expansion
+        expect(messages).toHaveLength(3);
+        expect(messages[0].role).toBe("user");
+        expect(messages[1].role).toBe("assistant");
+        expect(messages[2].role).toBe("user");
+    });
+
+    it("toolCalls with undefined result → fallback to text-only (stopped message)", async () => {
+        const mockStream = mockClientStreams({
+            events: [
+                ...textEvents("Reply"),
+                finalMessageEvent({ input_tokens: 100, output_tokens: 10 }),
+            ],
+        });
+
+        await streamChat(makeOpts({
+            history: [
+                { id: "u1", role: "user", text: "query" },
+                {
+                    id: "m1",
+                    role: "model",
+                    text: "Partial response before stop",
+                    toolCalls: [{ name: "stoppedTool", args: { x: 1 } }], // no result
+                },
+            ],
+            text: "continue",
+        }));
+
+        const messages = mockStream.mock.calls[0][0].messages as Array<{ role: string; content: unknown }>;
+
+        // Fallback: 3 messages (user, assistant-text-only, user-current) — no tool reconstruction
+        expect(messages).toHaveLength(3);
+        expect(messages[1].role).toBe("assistant");
+        const blocks = messages[1].content as Array<Record<string, unknown>>;
+        // Should be text block only, no tool_use
+        expect(blocks.every(b => b.type === "text")).toBe(true);
+    });
+
+    it("empty text in model message with toolCalls → no empty text block added", async () => {
+        const mockStream = mockClientStreams({
+            events: [
+                ...textEvents("Reply"),
+                finalMessageEvent({ input_tokens: 100, output_tokens: 10 }),
+            ],
+        });
+
+        await streamChat(makeOpts({
+            history: [
+                { id: "u1", role: "user", text: "query" },
+                {
+                    id: "m1",
+                    role: "model",
+                    text: "", // empty text
+                    toolCalls: [{ name: "tool1", args: {}, result: { ok: true } }],
+                },
+            ],
+            text: "next",
+        }));
+
+        const messages = mockStream.mock.calls[0][0].messages as Array<{ role: string; content: unknown }>;
+
+        // Only 2 messages from reconstruction (no 3rd text block) + user(u1) + user(current)
+        // u1(user) → m1-tool_use(assistant) → m1-tool_result(user) → current(user)
+        // But wait — two consecutive user messages! The current message is user.
+        // Actually: u1(user), m1-tool_use(assistant), m1-tool_result(user), current(user)
+        // Two consecutive user messages (tool_result + current) — Claude will handle this
+        // because cache breakpoints merge adjacent same-role messages.
+        // The key point: NO empty assistant text block.
+        const roles = messages.map(m => m.role);
+        expect(roles).not.toContain(undefined);
+
+        // Verify no assistant message has empty text block
+        for (const msg of messages) {
+            if (msg.role === "assistant") {
+                const content = msg.content as Array<Record<string, unknown>>;
+                for (const block of content) {
+                    if (block.type === "text") {
+                        expect(block.text).not.toBe("");
+                    }
+                }
+            }
+        }
+    });
+});

@@ -546,6 +546,71 @@ describe('buildMemory', () => {
         expect(result.usedSummary).toBe(true);
     });
 
+    it('accounts for toolCalls in token estimation (forces summarization)', async () => {
+        setupMockGenerateContent('Summarized with tools');
+
+        // test-model: 1000 tokens → 600 budget
+        // toolCalls JSON needs to be > 2400 chars (600 tokens × 4 chars/token)
+        const bigResult = { videos: Array.from({ length: 100 }, (_, i) => ({ id: `video-${i}`, title: `Trending Video Number ${i} With A Long Title`, views: 1000000 + i })) };
+        const messages: HistoryMessage[] = [
+            makeMsg('m1', 'user', 'short'),
+            makeMsg('m2', 'model', 'short', {
+                toolCalls: [{ name: 'browseTrendVideos', args: { channelId: 'ch1' }, result: bigResult }],
+            }),
+        ];
+
+        const result = await buildMemory({
+            apiKey: 'test-key',
+            chatModel: 'test-model',
+            summaryModel: 'test-summary-model',
+            allMessages: messages,
+        });
+
+        expect(result.usedSummary).toBe(true);
+    });
+
+    it('messages without toolCalls — token estimation unchanged (regression)', async () => {
+        // test-model-large: 100K limit → 60K budget
+        // 4 messages × 50 chars → ~50 tokens << 60K budget → no summarization
+        const messages = makeConversation(4, 50);
+
+        const result = await buildMemory({
+            apiKey: 'test-key',
+            chatModel: 'test-model-large',
+            summaryModel: 'test-summary-model',
+            allMessages: messages,
+        });
+
+        expect(result.usedSummary).toBe(false);
+        expect(result.history).toEqual(messages);
+    });
+
+    it('toolCalls with empty result — still counted in token budget', async () => {
+        setupMockGenerateContent('Summarized empty results');
+
+        // toolCalls with result: undefined still have name + args JSON
+        // Make enough to potentially affect the budget
+        const manyEmptyToolCalls = Array.from({ length: 200 }, (_, i) => ({
+            name: `tool_${i}_with_a_long_name_for_testing`,
+            args: { param1: 'value1', param2: 'value2', param3: `long-value-${i}` },
+        }));
+
+        const messages: HistoryMessage[] = [
+            makeMsg('m1', 'user', 'short'),
+            makeMsg('m2', 'model', 'short', { toolCalls: manyEmptyToolCalls }),
+        ];
+
+        const result = await buildMemory({
+            apiKey: 'test-key',
+            chatModel: 'test-model',
+            summaryModel: 'test-summary-model',
+            allMessages: messages,
+        });
+
+        // Large toolCalls array should push over test-model's 600 token budget
+        expect(result.usedSummary).toBe(true);
+    });
+
     it('accounts for appContext in token estimation', async () => {
         setupMockGenerateContent('Summarized with context');
 
@@ -926,6 +991,116 @@ describe('extractCandidateVideos', () => {
 // =============================================================================
 // generateConcludeSummary — CONCLUDE_SYSTEM_PROMPT section headers
 // =============================================================================
+
+// =============================================================================
+// formatMessageForSummary — tool info integration (tested via generateConcludeSummary)
+// =============================================================================
+
+describe('formatMessageForSummary — tool info', () => {
+    it('model message with toolCalls → prompt contains [Tools used] + tool name + args', async () => {
+        const mockGenerateContent = vi.fn().mockResolvedValue({
+            text: JSON.stringify({ content: 'summary', referencedVideoIds: [] }),
+            usageMetadata: { promptTokenCount: 50, candidatesTokenCount: 30, totalTokenCount: 80 },
+        });
+        mockGetClient.mockResolvedValue({
+            models: { generateContent: mockGenerateContent },
+        } as never);
+
+        const messages: HistoryMessage[] = [
+            makeMsg('m1', 'user', 'Show me trending videos'),
+            makeMsg('m2', 'model', 'Here are the results', {
+                toolCalls: [
+                    { name: 'browseTrendVideos', args: { channelId: 'ch1', limit: 10 }, result: { videos: [{ id: 'v1' }] } },
+                ],
+            }),
+        ];
+
+        await generateConcludeSummary('test-key', messages, undefined, 'test-model');
+
+        const callArgs = mockGenerateContent.mock.calls[0][0];
+        const promptText: string = callArgs.contents[0].parts[0].text;
+
+        expect(promptText).toContain('[Tools used]');
+        expect(promptText).toContain('browseTrendVideos');
+        expect(promptText).toContain('"channelId":"ch1"');
+    });
+
+    it('tool result truncated at 2000 chars', async () => {
+        const mockGenerateContent = vi.fn().mockResolvedValue({
+            text: JSON.stringify({ content: 'summary', referencedVideoIds: [] }),
+            usageMetadata: { promptTokenCount: 50, candidatesTokenCount: 30, totalTokenCount: 80 },
+        });
+        mockGetClient.mockResolvedValue({
+            models: { generateContent: mockGenerateContent },
+        } as never);
+
+        const hugeResult = { data: 'x'.repeat(3000) };
+        const messages: HistoryMessage[] = [
+            makeMsg('m1', 'user', 'query'),
+            makeMsg('m2', 'model', 'answer', {
+                toolCalls: [{ name: 'bigTool', args: {}, result: hugeResult }],
+            }),
+        ];
+
+        await generateConcludeSummary('test-key', messages, undefined, 'test-model');
+
+        const callArgs = mockGenerateContent.mock.calls[0][0];
+        const promptText: string = callArgs.contents[0].parts[0].text;
+
+        // Should be truncated — contain "..." at the end of the tool result
+        expect(promptText).toContain('...');
+        // The full 3000-char string should NOT appear
+        expect(promptText).not.toContain('x'.repeat(3000));
+    });
+
+    it('message without toolCalls — output unchanged (regression)', async () => {
+        const mockGenerateContent = vi.fn().mockResolvedValue({
+            text: JSON.stringify({ content: 'summary', referencedVideoIds: [] }),
+            usageMetadata: { promptTokenCount: 50, candidatesTokenCount: 30, totalTokenCount: 80 },
+        });
+        mockGetClient.mockResolvedValue({
+            models: { generateContent: mockGenerateContent },
+        } as never);
+
+        const messages: HistoryMessage[] = [
+            makeMsg('m1', 'user', 'hello'),
+            makeMsg('m2', 'model', 'world'),
+        ];
+
+        await generateConcludeSummary('test-key', messages, undefined, 'test-model');
+
+        const callArgs = mockGenerateContent.mock.calls[0][0];
+        const promptText: string = callArgs.contents[0].parts[0].text;
+
+        expect(promptText).not.toContain('[Tools used]');
+        expect(promptText).toContain('[model]: world');
+    });
+
+    it('toolCall with result: undefined → output contains "no result"', async () => {
+        const mockGenerateContent = vi.fn().mockResolvedValue({
+            text: JSON.stringify({ content: 'summary', referencedVideoIds: [] }),
+            usageMetadata: { promptTokenCount: 50, candidatesTokenCount: 30, totalTokenCount: 80 },
+        });
+        mockGetClient.mockResolvedValue({
+            models: { generateContent: mockGenerateContent },
+        } as never);
+
+        const messages: HistoryMessage[] = [
+            makeMsg('m1', 'user', 'test'),
+            makeMsg('m2', 'model', 'stopped', {
+                toolCalls: [{ name: 'stoppedTool', args: { x: 1 } }],
+            }),
+        ];
+
+        await generateConcludeSummary('test-key', messages, undefined, 'test-model');
+
+        const callArgs = mockGenerateContent.mock.calls[0][0];
+        const promptText: string = callArgs.contents[0].parts[0].text;
+
+        expect(promptText).toContain('[Tools used]');
+        expect(promptText).toContain('no result');
+    });
+});
 
 describe('generateConcludeSummary', () => {
     it('passes consistent section headers in systemInstruction', async () => {
