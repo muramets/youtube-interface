@@ -35,6 +35,8 @@ export interface ToolConfig {
     hasExpandableContent: boolean;
     /** Sort videos in expanded view by this field (default: preserve backend order). */
     sortVideosBy?: 'views';
+    /** Sort channels in stats component by this field (default: preserve backend order). */
+    sortChannelsBy?: 'averageViews';
 }
 
 // --- Registry ---
@@ -84,6 +86,7 @@ const TOOL_REGISTRY: Record<string, ToolConfig> = {
         color: 'emerald',
         StatsComponent: TrendChannelsStats,
         hasExpandableContent: true,
+        sortChannelsBy: 'averageViews',
     },
     browseTrendVideos: {
         icon: TrendingUp,

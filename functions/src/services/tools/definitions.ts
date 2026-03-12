@@ -240,6 +240,7 @@ const browseChannelVideos: ToolDefinition = {
     name: TOOL_NAMES.BROWSE_CHANNEL_VIDEOS,
     description:
         "Fetch the video list from a YouTube channel's uploads playlist. " +
+        "If the channel is already tracked in Trends (from listTrendChannels), use browseTrendVideos instead — same data, zero API cost. " +
         "Requires uploadsPlaylistId from a prior getChannelOverview call — " +
         "do NOT call this tool without calling getChannelOverview first and getting user approval for the quota cost. " +
         "Returns a compact chronological list (videoId, title, publishedAt, viewCount, thumbnailUrl). " +

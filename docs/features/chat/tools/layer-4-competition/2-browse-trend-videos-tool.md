@@ -128,6 +128,47 @@ Percentile тиры вычисляются per-channel, не cross-channel:
 
 ---
 
+## Battle Testing
+
+Статус проверки инструмента в реальных диалогах (не unit-тесты, а production traces с живыми данными).
+
+### План проверки
+
+| # | Сценарий | Что проверяет | Промпт-идея | Проверено |
+|---|----------|---------------|-------------|-----------|
+| 1 | **channelIds + sort by views** | Фильтр по каналу, сортировка по views, top видео | "Покажи самые популярные видео Little Thing" | ✅ |
+| 2 | **dateRange filter** | Видео за конкретный период | "Что публиковали конкуренты на прошлой неделе?" | — |
+| 3 | **performanceTier filter** | Top 1% per-channel — хиты каждого конкурента | "Покажи хиты каждого конкурента" | ✅ |
+| 4 | **delta sort (delta7d)** | Самые быстрорастущие видео, fallback при null deltas | "Какие видео конкурентов растут быстрее всего?" | — |
+| 5 | **totalMatched > limit** | Модель понимает truncation и сужает фильтры | (покрыто при широком запросе без фильтров) | — |
+| 6 | **Cross-channel comparison** | Модель сравнивает каналы через channels[].matchedCount | "Кто активнее всех в последний месяц?" | — |
+| 7 | **Chained: browseTrendVideos → viewThumbnails** | Модель передаёт videoIds для визуального анализа обложек | "Покажи обложки топ-видео конкурентов" | — |
+
+### Проверено в бою
+
+Модель: `claude-haiku-4-5`.
+
+| # | Сценарий | Query | $ | Iter | Tools | Videos | Баги |
+|---|----------|-------|---|------|-------|--------|------|
+| 1 | channelIds + sort views | "Покажи топ-5 самых популярных видео Little Thing из моих трендов" | — | 1 | listTrendChannels → browseTrendVideos | 5/69 | mentionVideo: 0 calls (Haiku shortcut) |
+| 3 | performanceTier Top 1% | "Покажи Top 1% видео каждого конкурента из трендов" | — | 1 | listTrendChannels → browseTrendVideos(Top 1%, limit:200) | 29/2098 | mentionVideo: 0 calls, Haiku сам увеличил limit до 200 |
+
+### Паттерны
+
+- **Хинт в browseChannelVideos сработал.** После добавления "If channel is tracked in Trends, use browseTrendVideos instead" (2026-03-12) модель корректно выбрала Layer 4 tool. Ранее (trace getNicheSnapshot #3b) модель шла через browseChannelVideos с 2 YT units
+- **Идеальные параметры.** `{ channelIds: ["UCmGML6S4cvUf3QcPSYhGJKg"], sort: "views", limit: 5 }` — точно соответствует запросу. totalMatched: 69 корректно показывает полный набор
+- **mentionVideo shortcut.** Haiku пишет `[title](mention://videoId)` inline, 0 tool calls. [Known issue](../utility/mention-video-tool.md)
+
+### Ещё не проверено в бою
+
+| Сценарий | Почему важно |
+|----------|-------------|
+| **Delta sort fallback** | _note возвращается при null deltas — модель должна объяснить пользователю |
+| **Hidden videos** | Скрытые видео не попадают в результат — проверить на реальных данных |
+| **Large limit (200)** | ~25K tokens — модель справится с таким объёмом? |
+
+---
+
 ## Technical Implementation
 
 | Файл | Назначение |

@@ -84,6 +84,14 @@
 - **Scope:** `mentionVideo.ts`, `getMultipleVideoDetails.ts` (formatVideoData), `ToolContext` (+`channelName`), `verifyChannelAccess` (возвращает channel name из уже читаемого doc)
 - **Урок:** whitelist > blacklist для ownership. Спрашивай "это точно моё?" (один конкретный признак), а не "это чужое?" (пытаясь перечислить все чужие источники)
 
+**Haiku shortcut: inline mention syntax вместо tool call** (known issue, не исправлен)
+- **Симптом:** claude-haiku-4-5 пишет `[title](mention://videoId)` напрямую в тексте, не вызывая `mentionVideo` tool. В итоге videoId в ссылке — placeholder или копия из предыдущего tool result, без прохождения через handler (нет валидации, нет ownership, нет thumbnailUrl)
+- **Воспроизведение:** стабильно в battle tests getNicheSnapshot #1b (0 mentionVideo calls), searchDatabase traces. В тесте #3 (2026-03-12) — 3 tool calls total, 0 mentionVideo, при этом в тексте 3+ inline mention links
+- **Масштаб:** Haiku-specific. Sonnet и Opus вызывают mentionVideo корректно
+- **Workaround:** frontend sanitization (`MENTION_URL_FIX_RE`, `MENTION_SPACE_RE`) обрабатывает malformed URLs, но без tool call нет badge metadata (thumbnail, ownership). Mention рендерится как plain text link или с fallback данными
+- **Возможные фиксы:** (1) усилить tool description: "ALWAYS call mentionVideo, never write mention:// URLs directly"; (2) frontend: при обнаружении `mention://videoId` без matching tool call — lazy-fetch metadata; (3) принять как model limitation
+- **Урок:** маленькие модели оптимизируют latency — если видят паттерн `[title](mention://id)` в примерах, копируют формат без вызова тула. Tool description должен явно запрещать shortcutting
+
 **Mention URL sanitization: LLM malformed URLs** (исправлен 2026-03-11)
 - **Симптом:** Sonnet сгенерировал `[a playlist for early mornings](mention:// -1qX9PdD4io)` — пробел после `//`. В чате mention-pill не рендерился, отображался как plain text
 - **Причина:** CommonMark парсер не создаёт `<a>` тег из URL с пробелом — `href` невалиден. `a` component override в ReactMarkdown никогда не вызывается → mention regex не срабатывает

@@ -89,6 +89,43 @@ Handler читает ТОЛЬКО channel-level документы из `trendCh
 
 ---
 
+## Battle Testing
+
+Статус проверки инструмента в реальных диалогах (не unit-тесты, а production traces с живыми данными).
+
+### План проверки
+
+| # | Сценарий | Что проверяет | Промпт-идея | Проверено |
+|---|----------|---------------|-------------|-----------|
+| 1 | **Happy path** | Все каналы возвращаются, поля корректны | "Каких конкурентов я отслеживаю?" | ✅ |
+| 2 | **performanceDistribution interpretation** | Модель правильно использует p25/median/p75 для контекста | "Как перформят мои конкуренты? Кто сильнее/слабее?" | — |
+| 3 | **Routing to browseTrendVideos** | Модель передаёт channelIds в browseTrendVideos, не в browseChannelVideos | "Покажи последние видео [канала из трендов]" | ✅ |
+| 4 | **dataFreshness awareness** | Модель предупреждает о устаревших данных | (покрыто если есть stale channel) | — |
+| 5 | **Zero channels** | Пустой ответ — модель объясняет, как добавить каналы | (нужен новый пользователь без trend data) | — |
+
+### Проверено в бою
+
+Модель: `claude-haiku-4-5`. Вызывался как первый шаг в цепочках getNicheSnapshot.
+
+| # | Trace source | $ | Channels | Videos | Routing | Баги |
+|---|-------------|---|----------|--------|---------|------|
+| 1 | getNicheSnapshot #1a/1b | .039/.040 | 15 | 2098 | → getNicheSnapshot | ✅ |
+| 3a | getNicheSnapshot #3b | .062 | 15 | 2098 | → browseChannelVideos (не browseTrendVideos) | Routing bug† |
+| 3b | browseTrendVideos #1 (post-fix) | .022 | 15 | 2098 | → browseTrendVideos ✅ | Routing исправлен хинтом |
+
+### Паттерны
+
+- **Всегда первый в цепочке.** Во всех traces модель вызывает listTrendChannels как entry point — паттерн стабилен
+- **Routing исправлен.** До хинта (trace 3a): Haiku игнорировал "Use channelId to filter browseTrendVideos" и шёл через browseChannelVideos (2 YT units). После встречного хинта в browseChannelVideos description (trace 3b): модель корректно выбрала browseTrendVideos (0 units)
+
+### Найденные баги
+
+**† Haiku routing: browseChannelVideos вместо browseTrendVideos** (хинт добавлен 2026-03-12)
+- Подробности в [getNicheSnapshot battle test #3](./3-get-niche-snapshot-tool.md) (секция ¶)
+- Фикс: добавлен хинт в `browseChannelVideos` description — "If channel is tracked in Trends, use browseTrendVideos instead"
+
+---
+
 ## Technical Implementation
 
 | Файл | Назначение |
