@@ -176,6 +176,147 @@ describe("getViewDeltas", () => {
         expect(result.size).toBe(0);
     });
 
+    it("estimates delta30d from currentViews for videos published < 30 days ago", async () => {
+        const now = Date.now();
+        const dayMs = 24 * 60 * 60 * 1000;
+
+        mockCollectionGet.mockResolvedValue({
+            empty: false,
+            docs: [{ id: "tc1" }],
+        });
+
+        // Snapshot: only 2 days of history — delta24h exists, delta7d/30d = null
+        mockGet.mockResolvedValue({
+            docs: [
+                { data: () => ({ timestamp: now, videoViews: { v1: 50000 } }) },
+                { data: () => ({ timestamp: now - 2 * dayMs, videoViews: { v1: 30000 } }) },
+            ],
+        });
+
+        // Video published 10 days ago — within 30d window but outside 7d window
+        const publishedDates = new Map([
+            ["v1", new Date(now - 10 * dayMs).toISOString()],
+        ]);
+
+        const result = await getViewDeltas("u1", "ch1", ["v1"], undefined, publishedDates);
+        const stats = result.get("v1")!;
+
+        expect(stats.delta24h).toBe(20000);   // real: 50000 - 30000
+        expect(stats.delta7d).toBeNull();      // outside 7d window, no snapshot → stays null
+        expect(stats.delta30d).toBe(50000);    // estimated: currentViews (within 30d window)
+        expect(stats.currentViews).toBe(50000);
+    });
+
+    it("estimates delta7d and delta30d for videos published < 7 days ago", async () => {
+        const now = Date.now();
+        const dayMs = 24 * 60 * 60 * 1000;
+
+        mockCollectionGet.mockResolvedValue({
+            empty: false,
+            docs: [{ id: "tc1" }],
+        });
+
+        // Only 1 snapshot — no deltas computable from snapshots
+        mockGet.mockResolvedValue({
+            docs: [
+                { data: () => ({ timestamp: now, videoViews: { v1: 80000 } }) },
+            ],
+        });
+
+        // Video published 3 days ago — within both 7d and 30d windows
+        const publishedDates = new Map([
+            ["v1", new Date(now - 3 * dayMs).toISOString()],
+        ]);
+
+        const result = await getViewDeltas("u1", "ch1", ["v1"], undefined, publishedDates);
+        const stats = result.get("v1")!;
+
+        expect(stats.delta24h).toBeNull();     // outside 24h window → stays null
+        expect(stats.delta7d).toBe(80000);     // estimated: currentViews (within 7d window)
+        expect(stats.delta30d).toBe(80000);    // estimated: currentViews (within 30d window)
+    });
+
+    it("does not estimate deltas for videos published > 30 days ago", async () => {
+        const now = Date.now();
+        const dayMs = 24 * 60 * 60 * 1000;
+
+        mockCollectionGet.mockResolvedValue({
+            empty: false,
+            docs: [{ id: "tc1" }],
+        });
+
+        // Only 1 snapshot — delta30d = null from algorithm
+        mockGet.mockResolvedValue({
+            docs: [
+                { data: () => ({ timestamp: now, videoViews: { v1: 500000 } }) },
+            ],
+        });
+
+        // Video published 60 days ago — outside all windows for estimation
+        const publishedDates = new Map([
+            ["v1", new Date(now - 60 * dayMs).toISOString()],
+        ]);
+
+        const result = await getViewDeltas("u1", "ch1", ["v1"], undefined, publishedDates);
+        const stats = result.get("v1")!;
+
+        expect(stats.delta24h).toBeNull();
+        expect(stats.delta7d).toBeNull();
+        expect(stats.delta30d).toBeNull(); // NOT estimated — video is too old
+    });
+
+    it("does not overwrite real deltas with estimated values", async () => {
+        const now = Date.now();
+        const dayMs = 24 * 60 * 60 * 1000;
+
+        mockCollectionGet.mockResolvedValue({
+            empty: false,
+            docs: [{ id: "tc1" }],
+        });
+
+        // Full 8-day history — real delta7d exists
+        mockGet.mockResolvedValue({
+            docs: [
+                { data: () => ({ timestamp: now, videoViews: { v1: 100000 } }) },
+                { data: () => ({ timestamp: now - 8 * dayMs, videoViews: { v1: 60000 } }) },
+            ],
+        });
+
+        // Video published 15 days ago
+        const publishedDates = new Map([
+            ["v1", new Date(now - 15 * dayMs).toISOString()],
+        ]);
+
+        const result = await getViewDeltas("u1", "ch1", ["v1"], undefined, publishedDates);
+        const stats = result.get("v1")!;
+
+        expect(stats.delta7d).toBe(40000);     // real: 100000 - 60000, NOT overwritten
+        expect(stats.delta30d).toBe(100000);   // estimated: currentViews (within 30d window)
+    });
+
+    it("works without publishedDates (backward compatible)", async () => {
+        const now = Date.now();
+
+        mockCollectionGet.mockResolvedValue({
+            empty: false,
+            docs: [{ id: "tc1" }],
+        });
+
+        mockGet.mockResolvedValue({
+            docs: [
+                { data: () => ({ timestamp: now, videoViews: { v1: 50000 } }) },
+            ],
+        });
+
+        // No publishedDates passed — no estimation, all deltas stay null
+        const result = await getViewDeltas("u1", "ch1", ["v1"]);
+        const stats = result.get("v1")!;
+
+        expect(stats.delta24h).toBeNull();
+        expect(stats.delta7d).toBeNull();
+        expect(stats.delta30d).toBeNull();
+    });
+
     it("merges results from multiple trendChannels (first wins)", async () => {
         const now = Date.now();
         const dayMs = 24 * 60 * 60 * 1000;

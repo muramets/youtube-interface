@@ -407,6 +407,7 @@ describe("handleSearchDatabase", () => {
             "channel1",
             ["r1"],
             new Set(["ch1", "ch2"]),
+            expect.any(Map),
         );
     });
 

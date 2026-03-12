@@ -55,12 +55,18 @@ export async function getTrendSnapshots(
  * @param channelId       User's active channel ID
  * @param videoIds        YouTube video IDs to compute deltas for
  * @param channelIdHints  Optional: YouTube channel IDs to narrow trendChannel lookups
+ * @param publishedDates  Optional: videoId → ISO date string. When provided, videos
+ *                        published within a delta window (e.g. < 30 days) get their
+ *                        `currentViews` as estimated delta instead of null.
+ *                        This prevents recently published videos from dropping out
+ *                        of delta-sorted rankings.
  */
 export async function getViewDeltas(
     userId: string,
     channelId: string,
     videoIds: string[],
     channelIdHints?: Set<string>,
+    publishedDates?: Map<string, string>,
 ): Promise<Map<string, VideoDeltaStats>> {
     if (videoIds.length === 0) return new Map();
 
@@ -106,6 +112,34 @@ export async function getViewDeltas(
         for (const [videoId, stats] of channelMap) {
             if (!merged.has(videoId)) {
                 merged.set(videoId, stats);
+            }
+        }
+    }
+
+    // 6. Estimated deltas for recently published videos.
+    // A video published 10 days ago has delta30d = null (no snapshot from 30 days ago),
+    // but its currentViews ≈ total growth since birth — all within the 30-day window.
+    if (publishedDates && publishedDates.size > 0) {
+        const now = Date.now();
+        const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+        for (const [videoId, stats] of merged) {
+            if (stats.currentViews === null) continue;
+
+            const publishedAt = publishedDates.get(videoId);
+            if (!publishedAt) continue;
+
+            const ageMs = now - new Date(publishedAt).getTime();
+            if (ageMs < 0) continue; // future date — skip
+
+            if (stats.delta30d === null && ageMs < 30 * ONE_DAY_MS) {
+                stats.delta30d = stats.currentViews;
+            }
+            if (stats.delta7d === null && ageMs < 7 * ONE_DAY_MS) {
+                stats.delta7d = stats.currentViews;
+            }
+            if (stats.delta24h === null && ageMs < ONE_DAY_MS) {
+                stats.delta24h = stats.currentViews;
             }
         }
     }

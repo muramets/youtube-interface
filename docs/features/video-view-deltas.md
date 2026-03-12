@@ -83,6 +83,18 @@ snapshot = первый snapshot, где snapshot.timestamp <= target
 
 Это важное бизнес-различие: `null` = "мы не знаем", `0` = "рост отсутствует".
 
+### Estimated Deltas для свежих видео
+
+**Проблема:** Видео, опубликованное 10 дней назад, имеет `delta30d = null` (нет snapshot'а 30-дневной давности). Но все его 250K просмотров набраны за эти 10 дней — фактически это и есть рост за 30 дней. При `sort: "delta30d"` такое видео уходит в конец списка, проигрывая старым видео с меньшим реальным ростом.
+
+**Решение:** `getViewDeltas()` (server-side) принимает optional `publishedDates: Map<videoId, ISO date>`. Если дельта = null и видео опубликовано внутри окна дельты — `currentViews` из snapshot используется как estimated delta. Работает для всех трёх окон (24h/7d/30d).
+
+**Свойства:**
+- Без флага `estimated` — тип `VideoDeltaStats` не изменился, consumer'ы не обрабатывают результат иначе
+- Нижняя граница (safe side): 250K за 10 дней ≈ 250K за 30 дней — занижаем скорость, не завышаем
+- LLM видит `publishedAt` и может сам контекстуализировать
+- Только server-side (`trendSnapshotService.ts`). Frontend (`calculateViewDeltas`) не затронут — он не используется для сортировки по дельтам
+
 ### currentViews: согласованность данных
 
 `VideoDeltaStats` содержит поле `currentViews` — текущие просмотры **из того же snapshot-источника**, что и дельты. Это решает проблему рассинхрона:
@@ -166,9 +178,11 @@ snapshot = первый snapshot, где snapshot.timestamp <= target
 
 **Где:** `functions/src/services/tools/handlers/`
 
-**`getMultipleVideoDetails`:** После получения данных видео, вызывает `getViewDeltas()` из `trendSnapshotService.ts`. Добавляет `viewDelta24h/7d/30d` в ответ каждого видео. Использует `channelId` из данных видео как hint. Graceful degradation: если `getViewDeltas` падает — видео возвращаются без дельт.
+**`getMultipleVideoDetails`:** После получения данных видео, вызывает `getViewDeltas()` из `trendSnapshotService.ts` с `publishedDates`. Добавляет `viewDelta24h/7d/30d` в ответ каждого видео. Использует `channelId` из данных видео как hint. Graceful degradation: если `getViewDeltas` падает — видео возвращаются без дельт.
 
-**`analyzeSuggestedTraffic`:** После построения `topSources`, вызывает `getViewDeltas()` для всех suggested video IDs. Добавляет `viewDelta24h/7d/30d` к каждому suggested video. `channelId` берётся из `cached_external_videos` — если видео не кэшировано, дельта = null (принятый trade-off). `analysisGuidance` объясняет LLM семантику: "видео, дающее impressions вашему, и одновременно растущее — сигнал сильной алгоритмической ассоциации".
+**`analyzeSuggestedTraffic`:** После построения `topSources`, вызывает `getViewDeltas()` для всех suggested video IDs. Добавляет `viewDelta24h/7d/30d` к каждому suggested video. `channelId` берётся из `cached_external_videos` — если видео не кэшировано, дельта = null (принятый trade-off). `analysisGuidance` объясняет LLM семантику: "видео, дающее impressions вашему, и одновременно растущее — сигнал сильной алгоритмической ассоциации". **Не передаёт `publishedDates`** — в данных traffic sources нет `publishedAt`.
+
+**Layer 4 tools** (`browseTrendVideos`, `getNicheSnapshot`, `findSimilarVideos`, `searchDatabase`): все передают `publishedDates` в `getViewDeltas()` для estimated deltas на свежих видео.
 
 ### Enrichment Pipeline (общий поток)
 
@@ -244,6 +258,7 @@ Trends Table         |      +-> VideoPreviewTooltip  prepareContext()
 | 5 | `analyzeSuggestedTraffic` обогащается view deltas | +~750-1150 токенов, но LLM видит: видео даёт impressions моему видео И одновременно растёт на YouTube |
 | 6 | Tests first → refactor second | 865 тестов (35 файлов) обеспечивают regression safety |
 | 7 | Shared algorithm in `shared/viewDeltas.ts` | Один алгоритм, 0 I/O, 0 зависимостей — используется frontend + backend |
+| 8 | Estimated deltas без флага `estimated` | Тип не меняется, consumer'ы не добавляют if/else. LLM имеет `publishedAt` для контекстуализации. Input coupling (передать publishedDates) вместо output coupling (обработать флаг) |
 
 ## Рефакторинг: выполненные фазы
 

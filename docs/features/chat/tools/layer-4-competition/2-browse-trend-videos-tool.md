@@ -139,7 +139,7 @@ Percentile тиры вычисляются per-channel, не cross-channel:
 | 1 | **channelIds + sort by views** | Фильтр по каналу, сортировка по views, top видео | "Покажи самые популярные видео Little Thing" | ✅ |
 | 2 | **dateRange filter** | Видео за конкретный период | "Что публиковали конкуренты на прошлой неделе?" | — |
 | 3 | **performanceTier filter** | Top 1% per-channel — хиты каждого конкурента | "Покажи хиты каждого конкурента" | ✅ |
-| 4 | **delta sort (delta7d)** | Самые быстрорастущие видео, fallback при null deltas | "Какие видео конкурентов растут быстрее всего?" | — |
+| 4 | **delta sort (delta7d/30d)** | Самые быстрорастущие видео, fallback при null deltas | "Какие видео конкурентов растут быстрее всего?" | ✅ |
 | 5 | **totalMatched > limit** | Модель понимает truncation и сужает фильтры | (покрыто при широком запросе без фильтров) | — |
 | 6 | **Cross-channel comparison** | Модель сравнивает каналы через channels[].matchedCount | "Кто активнее всех в последний месяц?" | — |
 | 7 | **Chained: browseTrendVideos → viewThumbnails** | Модель передаёт videoIds для визуального анализа обложек | "Покажи обложки топ-видео конкурентов" | — |
@@ -152,18 +152,29 @@ Percentile тиры вычисляются per-channel, не cross-channel:
 |---|----------|-------|---|------|-------|--------|------|
 | 1 | channelIds + sort views | "Покажи топ-5 самых популярных видео Little Thing из моих трендов" | — | 1 | listTrendChannels → browseTrendVideos | 5/69 | mentionVideo: 0 calls (Haiku shortcut) |
 | 3 | performanceTier Top 1% | "Покажи Top 1% видео каждого конкурента из трендов" | — | 1 | listTrendChannels → browseTrendVideos(Top 1%, limit:200) | 29/2098 | mentionVideo: 0 calls, Haiku сам увеличил limit до 200 |
+| 4a | delta7d sort | "Какие видео конкурентов растут быстрее всего за последнюю неделю?" (Haiku) | — | 1 | listTrendChannels → browseTrendVideos(delta7d, limit:20) | 20/2135 | mentionVideo: 0 calls. Сортировка корректна (96K→87K→68K→...) |
+| 4b | delta30d + dateRange (Haiku) | "...за последний месяц?" (Haiku) | — | 1 | listTrendChannels → browseTrendVideos(delta30d, dateRange 30d, limit:20) | 20/245 | **Haiku ловушка:** dateRange отсёк старые видео → все delta30d=null → fallback на views. Модель проигнорировала `_note`, написала "sorted by 30-day growth" и показала delta7d |
+| 4c | delta30d без dateRange (Sonnet) | "...за последний месяц?" (Sonnet, thinking low) | — | 1 | listTrendChannels → browseTrendVideos(delta30d, limit:20) + 7× mentionVideo | 20/2135 | **Sonnet корректно:** без dateRange, реальные delta30d (411K→336K→335K→...), 7 mentionVideo calls, аналитический вывод |
 
 ### Паттерны
 
 - **Хинт в browseChannelVideos сработал.** После добавления "If channel is tracked in Trends, use browseTrendVideos instead" (2026-03-12) модель корректно выбрала Layer 4 tool. Ранее (trace getNicheSnapshot #3b) модель шла через browseChannelVideos с 2 YT units
 - **Идеальные параметры.** `{ channelIds: ["UCmGML6S4cvUf3QcPSYhGJKg"], sort: "views", limit: 5 }` — точно соответствует запросу. totalMatched: 69 корректно показывает полный набор
 - **mentionVideo shortcut.** Haiku пишет `[title](mention://videoId)` inline, 0 tool calls. [Known issue](../utility/mention-video-tool.md)
+- **Haiku + dateRange + delta sort = ловушка.** Haiku добавляет dateRange к delta30d запросу → свежие видео не имеют delta30d → fallback → игнорирует `_note`. Sonnet не ставит dateRange и получает корректный результат
+- **Sonnet вызывает mentionVideo.** 7 calls в trace 4c vs 0 у Haiku. Sonnet следует tool contract, Haiku шорткатит
+
+### Known Issues
+
+| Issue | Описание | Severity |
+|-------|----------|----------|
+| **Haiku игнорирует `_note`** | При delta fallback (sorted by views instead) Haiku не предупреждает пользователя, пишет "sorted by 30-day growth" и показывает delta7d вместо delta30d | Medium — Sonnet не воспроизводит |
+| ~~**Свежие видео выпадают из delta sort**~~ | **FIXED (2026-03-12).** `getViewDeltas` теперь принимает `publishedDates` и подставляет `currentViews` как estimated delta для видео, опубликованных внутри окна дельты. Подробнее: [video-view-deltas.md](../../../video-view-deltas.md#estimated-deltas-для-свежих-видео) | — |
 
 ### Ещё не проверено в бою
 
 | Сценарий | Почему важно |
 |----------|-------------|
-| **Delta sort fallback** | _note возвращается при null deltas — модель должна объяснить пользователю |
 | **Hidden videos** | Скрытые видео не попадают в результат — проверить на реальных данных |
 | **Large limit (200)** | ~25K tokens — модель справится с таким объёмом? |
 

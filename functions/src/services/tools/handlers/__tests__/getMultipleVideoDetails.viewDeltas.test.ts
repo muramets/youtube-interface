@@ -159,12 +159,13 @@ describe("getMultipleVideoDetails — view deltas", () => {
             CTX,
         );
 
-        // Verify channelIdHints passed to getViewDeltas
+        // Verify channelIdHints + publishedDates passed to getViewDeltas
         expect(mockGetViewDeltas).toHaveBeenCalledWith(
             "user1",
             "ch1",
             ["v1", "v2"],
             new Set(["UCabc", "UCdef"]),
+            expect.any(Map),
         );
     });
 

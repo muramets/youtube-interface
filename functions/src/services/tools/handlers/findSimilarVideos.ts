@@ -347,11 +347,16 @@ export async function handleFindSimilarVideos(
 
         const channelIdHints = new Set(trendChannelIds);
         const resultVideoIds = truncated.map((r) => r.videoId);
+        const publishedDates = new Map<string, string>();
+        for (const r of truncated) {
+            if (r.data.publishedAt) publishedDates.set(r.videoId, r.data.publishedAt);
+        }
         const deltasMap = await getViewDeltas(
             ctx.userId,
             ctx.channelId,
             resultVideoIds,
             channelIdHints,
+            publishedDates,
         );
 
         // --- Step 6: Compute coverage ---
