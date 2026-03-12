@@ -13,7 +13,7 @@
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
     "check:docs": "node scripts/check-docs.mjs",
-    "check": "eslint . && tsc --noEmit -p tsconfig.app.json && node scripts/check-docs.mjs"
+    "check": "eslint . && tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p functions/tsconfig.json && node scripts/check-docs.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
