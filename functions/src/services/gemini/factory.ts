@@ -87,6 +87,7 @@ export const geminiFactory: ProviderFactory = (config: Record<string, unknown>):
                 providerMeta: result.updatedThumbnailCache
                     ? { updatedThumbnailCache: result.updatedThumbnailCache }
                     : undefined,
+                agenticImages: result.agenticImages,
                 partial: result.partial,
             };
         },

@@ -13,6 +13,7 @@ function makeBreakdown(overrides: Partial<ContextBreakdown> = {}): ContextBreakd
         systemPrompt: 1000,
         toolDefinitions: 2000,
         history: 3000,
+        historyToolResults: 0,
         memory: 500,
         currentMessage: 400,
         toolResults: 1100,
@@ -282,11 +283,11 @@ describe('TokenBreakdown', () => {
 
             // Verify scaled values sum to contextUsed
             const sum = scaled.systemPrompt + scaled.toolDefinitions + scaled.history
-                + scaled.memory + scaled.currentMessage + scaled.toolResults + scaled.images;
+                + scaled.historyToolResults + scaled.memory + scaled.currentMessage + scaled.toolResults + scaled.images;
             expect(sum).toBe(contextUsed);
 
             // Each visible item should have a bar
-            const nonZeroKeys = (['systemPrompt', 'toolDefinitions', 'history', 'memory', 'currentMessage', 'toolResults', 'images'] as const)
+            const nonZeroKeys = (['systemPrompt', 'toolDefinitions', 'history', 'historyToolResults', 'memory', 'currentMessage', 'toolResults', 'images'] as const)
                 .filter(k => scaled[k] > 0);
             expect(items).toHaveLength(nonZeroKeys.length);
         });

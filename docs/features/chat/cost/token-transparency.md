@@ -100,14 +100,15 @@ Text components in **chars** (scaled by frontend). Images in **tokens** (not sca
 
 ```typescript
 export interface ContextBreakdown {
-  systemPrompt: number;      // chars (total system prompt)
-  toolDefinitions: number;   // chars
-  history: number;           // chars (includes Layer 2 appContext labels)
-  memory: number;            // chars
-  currentMessage: number;    // chars
-  toolResults: number;       // chars
-  imageTokens: number;       // estimated TOKENS (not chars!)
-  imageCount: number;
+  systemPrompt: number;         // chars (total system prompt)
+  toolDefinitions: number;      // chars
+  history: number;              // chars (text + Layer 2 appContext labels)
+  historyToolResults: number;   // chars (reconstructed tool_use/tool_result blocks from previous turns)
+  memory: number;               // chars
+  currentMessage: number;       // chars
+  toolResults: number;          // chars (current turn only, updated post agentic loop)
+  imageTokens: number;          // estimated TOKENS (not chars!) — includes agentic loop images
+  imageCount: number;           // includes agentic loop images
   historyMessageCount: number;
   usedSummary: boolean;
   triggeredAuxiliary?: string[];
@@ -122,7 +123,9 @@ export interface ContextBreakdown {
 
 **System prompt layers:** Frontend measures each layer in `buildSystemPrompt()` and sends `systemLayers` alongside the prompt string. Backend passes through to `ContextBreakdown`. UI shows "Settings", "Attached context", "Memories" as separate bars when `systemLayers` is present; falls back to single "System prompt" bar for old messages.
 
-**History accuracy:** `historyChars` includes Layer 2 per-message appContext labels (`formatContextLabel()` output + `\n\n` separator). Current user message excluded from history (it arrives separately as `body.text`).
+**History accuracy:** `historyChars` includes Layer 2 per-message appContext labels (`formatContextLabel()` output + `\n\n` separator). `historyToolResults` separately counts `JSON.stringify(m.toolCalls)` for each history message — these are reconstructed by `buildHistory()` into native provider format. Current user message excluded from history.
+
+**Agentic loop images:** `imageCount`/`imageTokens` are computed pre-loop for user attachments, then updated post-loop with `StreamResult.agenticImages` (from `viewThumbnails` → `visualContextUrls` → `ImageBlockParam`). Token estimation uses `parseYouTubeThumbnailSize()` for URL-based dimension detection (mqdefault=170 tokens, maxresdefault=1360 tokens on Claude).
 
 #### AuxiliaryCost
 

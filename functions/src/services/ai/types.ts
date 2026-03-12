@@ -150,6 +150,8 @@ export interface StreamResult {
      * Typed at consumption site via per-provider helpers.
      */
     providerMeta?: Record<string, unknown>;
+    /** Images injected during the agentic loop (from tool responses like viewThumbnails). */
+    agenticImages?: { count: number; tokens: number };
     /** True when the stream was aborted by the caller — usage is partial. */
     partial?: boolean;
 }

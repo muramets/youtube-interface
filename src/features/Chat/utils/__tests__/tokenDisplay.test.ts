@@ -77,6 +77,7 @@ describe('tokenDisplay', () => {
             systemPrompt: 1000,
             toolDefinitions: 2000,
             history: 3000,
+            historyToolResults: 0,
             memory: 500,
             currentMessage: 400,
             toolResults: 1100,
@@ -89,7 +90,7 @@ describe('tokenDisplay', () => {
         it('scales text components proportionally and sums to actualTotal', () => {
             const result = scaleBreakdown(base, 8000);
             const sum = result.systemPrompt + result.toolDefinitions + result.history
-                + result.memory + result.currentMessage + result.toolResults + result.images;
+                + result.historyToolResults + result.memory + result.currentMessage + result.toolResults + result.images;
             expect(sum).toBe(8000);
         });
 
@@ -98,7 +99,7 @@ describe('tokenDisplay', () => {
             const result = scaleBreakdown(withImages, 10000);
             expect(result.images).toBe(2000);
             const textSum = result.systemPrompt + result.toolDefinitions + result.history
-                + result.memory + result.currentMessage + result.toolResults;
+                + result.historyToolResults + result.memory + result.currentMessage + result.toolResults;
             expect(textSum).toBe(8000);
         });
 
@@ -113,8 +114,8 @@ describe('tokenDisplay', () => {
 
         it('handles zero text chars gracefully', () => {
             const noText: ContextBreakdown = {
-                systemPrompt: 0, toolDefinitions: 0, history: 0, memory: 0,
-                currentMessage: 0, toolResults: 0, imageTokens: 1000,
+                systemPrompt: 0, toolDefinitions: 0, history: 0, historyToolResults: 0,
+                memory: 0, currentMessage: 0, toolResults: 0, imageTokens: 1000,
                 imageCount: 1, historyMessageCount: 0, usedSummary: false,
             };
             const result = scaleBreakdown(noText, 1000);

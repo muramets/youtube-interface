@@ -51,6 +51,7 @@ export const claudeFactory: ProviderFactory = (config: Record<string, unknown>):
                 tokenUsage: result.tokenUsage,
                 normalizedUsage: result.normalizedUsage,
                 toolCalls: result.toolCalls,
+                agenticImages: result.agenticImages,
                 partial: result.partial,
             };
         },

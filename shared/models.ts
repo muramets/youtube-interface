@@ -327,6 +327,8 @@ export interface ContextBreakdown {
     systemPrompt: number;
     toolDefinitions: number;
     history: number;
+    /** Chars from reconstructed tool_use/tool_result blocks in history (previous turns). */
+    historyToolResults: number;
     memory: number;
     currentMessage: number;
     toolResults: number;

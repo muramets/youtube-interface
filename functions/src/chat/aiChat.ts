@@ -271,13 +271,19 @@ export const aiChat = onRequest(
 
             // --- Context breakdown: measure char sizes before API call ---
             // Include Layer 2 context labels (prepended to user messages by buildHistory)
-            const historyChars = memory.history.reduce((sum, m) => {
+            let historyChars = 0;
+            let historyToolResultChars = 0;
+            for (const m of memory.history) {
                 let chars = m.text.length;
                 if (m.role === 'user' && m.appContext?.length) {
                     chars += formatContextLabel(m.appContext).length + 2; // +2 for "\n\n"
                 }
-                return sum + chars;
-            }, 0);
+                historyChars += chars;
+                // Reconstructed tool_use/tool_result blocks from previous turns
+                if (m.toolCalls?.length) {
+                    historyToolResultChars += JSON.stringify(m.toolCalls).length;
+                }
+            }
             const imageAttachments = (body.attachments ?? [])
                 .filter(att => att.mimeType?.startsWith('image/'));
             const thumbnailCount = body.thumbnailUrls?.length ?? 0;
@@ -291,11 +297,12 @@ export const aiChat = onRequest(
                 systemPrompt: body.systemPrompt?.length ?? 0,
                 toolDefinitions: JSON.stringify(TOOL_DECLARATIONS).length,
                 history: historyChars,
+                historyToolResults: historyToolResultChars,
                 memory: memory.usedSummary
                     ? (memory.newSummary?.length ?? (convData?.summary as string)?.length ?? 0)
                     : 0,
                 currentMessage: body.text.length,
-                toolResults: 0, // First iteration has no tool results
+                toolResults: 0, // Updated post agentic loop
                 imageTokens: estimateImageTokens(model, allImages),
                 imageCount: allImages.length,
                 historyMessageCount: priorMessages.length,
@@ -321,7 +328,7 @@ export const aiChat = onRequest(
             });
 
             // Unpack provider-agnostic result
-            const { text: responseText, tokenUsage, normalizedUsage, toolCalls, providerMeta, partial } = result;
+            const { text: responseText, tokenUsage, normalizedUsage, toolCalls, providerMeta, agenticImages, partial } = result;
             const updatedThumbnailCache = providerMeta?.updatedThumbnailCache as ThumbnailCache | undefined;
 
             // Update contextBreakdown with actual tool results size (post agentic loop).
@@ -331,6 +338,13 @@ export const aiChat = onRequest(
                 contextBreakdown.toolResults = toolCalls.reduce(
                     (sum, tc) => sum + JSON.stringify(tc.result ?? {}).length, 0
                 );
+            }
+
+            // Update image accounting with images injected during the agentic loop
+            // (e.g. viewThumbnails → visualContextUrls → ImageBlockParam)
+            if (agenticImages) {
+                contextBreakdown.imageCount += agenticImages.count;
+                contextBreakdown.imageTokens += agenticImages.tokens;
             }
 
             // --- Production logging: response metrics ---

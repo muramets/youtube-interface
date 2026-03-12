@@ -54,6 +54,8 @@ export interface ScaledBreakdown {
     crossMemory: number;
     toolDefinitions: number;
     history: number;
+    /** Reconstructed tool_use/tool_result blocks from previous turns. */
+    historyToolResults: number;
     memory: number;
     currentMessage: number;
     toolResults: number;
@@ -63,7 +65,7 @@ export interface ScaledBreakdown {
 }
 
 /** Text keys used for proportional scaling — all keys that represent char-based measurements. */
-const TEXT_KEYS = ['systemPrompt', 'toolDefinitions', 'history', 'memory', 'currentMessage', 'toolResults'] as const;
+const TEXT_KEYS = ['systemPrompt', 'toolDefinitions', 'history', 'historyToolResults', 'memory', 'currentMessage', 'toolResults'] as const;
 
 /**
  * Scale raw char sizes proportionally to fit `actualTotal` tokens.
@@ -73,7 +75,7 @@ const TEXT_KEYS = ['systemPrompt', 'toolDefinitions', 'history', 'memory', 'curr
  */
 export function scaleBreakdown(raw: ContextBreakdown, actualTotal: number): ScaledBreakdown {
     const textCharsSum = raw.systemPrompt + raw.toolDefinitions + raw.history
-        + raw.memory + raw.currentMessage + raw.toolResults;
+        + (raw.historyToolResults ?? 0) + raw.memory + raw.currentMessage + raw.toolResults;
     const imageShare = Math.min(raw.imageTokens, actualTotal);
     const textBudget = actualTotal - imageShare;
     const textScale = textCharsSum > 0 ? textBudget / textCharsSum : 0;
@@ -114,6 +116,7 @@ export function scaleBreakdown(raw: ContextBreakdown, actualTotal: number): Scal
         crossMemory,
         toolDefinitions: Math.round(raw.toolDefinitions * textScale),
         history: Math.round(raw.history * textScale),
+        historyToolResults: Math.round((raw.historyToolResults ?? 0) * textScale),
         memory: Math.round(raw.memory * textScale),
         currentMessage: Math.round(raw.currentMessage * textScale),
         toolResults: Math.round(raw.toolResults * textScale),

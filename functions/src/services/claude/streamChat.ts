@@ -52,6 +52,7 @@ import {
     type IterationSnapshot,
     type NormalizedTokenUsage,
 } from "../../shared/models.js";
+import { estimateClaudeImageTokens, parseYouTubeThumbnailSize } from "../../shared/imageTokens.js";
 import type { ToolContext } from "../tools/types.js";
 
 // =============================================================================
@@ -80,6 +81,8 @@ export interface ClaudeStreamChatResult {
     tokenUsage?: TokenUsage;
     normalizedUsage?: NormalizedTokenUsage;
     toolCalls?: ToolCallRecord[];
+    /** Images injected during the agentic loop (from tool responses). */
+    agenticImages?: { count: number; tokens: number };
     /** True when the stream was aborted — usage is partial. */
     partial?: boolean;
 }
@@ -556,6 +559,8 @@ export async function streamChat(
     let tokenUsage: TokenUsage | undefined;
     const allToolCalls: ToolCallRecord[] = [];
     const iterationSnapshots: IterationSnapshot[] = [];
+    let agenticImageCount = 0;
+    let agenticImageTokens = 0;
     let iteration = 0;
 
     // Mutable messages list — we append tool results within the loop
@@ -736,6 +741,10 @@ export async function streamChat(
                         type: "image",
                         source: { type: "url", url },
                     } as ImageBlockParam);
+                    // Track for contextBreakdown accounting
+                    const dims = parseYouTubeThumbnailSize(url);
+                    agenticImageCount++;
+                    agenticImageTokens += estimateClaudeImageTokens(dims.width, dims.height);
                 }
             }
 
@@ -793,6 +802,9 @@ export async function streamChat(
         tokenUsage,
         normalizedUsage,
         toolCalls: allToolCalls.length > 0 ? allToolCalls : undefined,
+        agenticImages: agenticImageCount > 0
+            ? { count: agenticImageCount, tokens: agenticImageTokens }
+            : undefined,
         partial: wasAborted,
     };
 }

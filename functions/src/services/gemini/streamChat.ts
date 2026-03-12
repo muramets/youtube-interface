@@ -45,6 +45,7 @@ import {
     type IterationSnapshot,
     type NormalizedTokenUsage,
 } from "../../shared/models.js";
+import { estimateImageTokens } from "../../shared/imageTokens.js";
 
 // --- StreamChat options ---
 
@@ -429,7 +430,7 @@ async function geminiStreamIteration(
 
 export async function streamChat(
     opts: StreamChatOpts
-): Promise<{ text: string; tokenUsage?: TokenUsage; normalizedUsage?: NormalizedTokenUsage; toolCalls?: ToolCallRecord[]; updatedThumbnailCache?: ThumbnailCache; partial?: boolean }> {
+): Promise<{ text: string; tokenUsage?: TokenUsage; normalizedUsage?: NormalizedTokenUsage; toolCalls?: ToolCallRecord[]; updatedThumbnailCache?: ThumbnailCache; agenticImages?: { count: number; tokens: number }; partial?: boolean }> {
     const {
         apiKey,
         model,
@@ -524,6 +525,7 @@ export async function streamChat(
     let tokenUsage: TokenUsage | undefined;
     const allToolCalls: ToolCallRecord[] = [];
     const iterationSnapshots: IterationSnapshot[] = [];
+    let agenticImageCount = 0;
     let iteration = 0;
 
     // Mutable contents — we append function responses within the loop
@@ -696,6 +698,7 @@ export async function streamChat(
                 currentThumbnailCache = uploadResult.updatedCache;
                 if (uploadResult.parts.length > 0) {
                     functionResponseParts.push(...uploadResult.parts);
+                    agenticImageCount += uploadResult.parts.length;
                 }
 
                 // Report partial upload failures to the model
@@ -735,6 +738,11 @@ export async function streamChat(
         }
     }
 
+    // Estimate image tokens for agentic loop images
+    const agenticImages = agenticImageCount > 0
+        ? { count: agenticImageCount, tokens: estimateImageTokens(model, Array.from({ length: agenticImageCount }, () => ({}))) }
+        : undefined;
+
     return {
         text: fullText,
         tokenUsage,
@@ -742,6 +750,7 @@ export async function streamChat(
         toolCalls: allToolCalls.length > 0 ? allToolCalls : undefined,
         // Return the fully accumulated cache (initial upload + any mid-conversation fetches)
         updatedThumbnailCache: currentThumbnailCache,
+        agenticImages,
         partial: wasAborted,
     };
 }

@@ -142,7 +142,7 @@ Percentile тиры вычисляются per-channel, не cross-channel:
 | 4 | **delta sort (delta7d/30d)** | Самые быстрорастущие видео, fallback при null deltas | "Какие видео конкурентов растут быстрее всего?" | ✅ |
 | 5 | **totalMatched > limit** | Модель понимает truncation и сужает фильтры | (покрыто follow-up в trace 6b) | ✅ |
 | 6 | **Cross-channel comparison** | Модель сравнивает каналы через channels[].matchedCount | "Кто активнее всех в последний месяц?" | ✅ |
-| 7 | **Chained: browseTrendVideos → viewThumbnails** | Модель передаёт videoIds для визуального анализа обложек | "Покажи обложки топ-видео конкурентов" | — |
+| 7 | **Chained: browseTrendVideos → viewThumbnails** | Модель передаёт videoIds для визуального анализа обложек | "Покажи обложки топ-видео конкурентов" | ✅ |
 
 ### Проверено в бою
 
@@ -159,6 +159,7 @@ Percentile тиры вычисляются per-channel, не cross-channel:
 | 6a | cross-channel matchedCount (Haiku) | "Кто активнее всех в последний месяц в моей нише?" | $0.066 | 3 | listTrendChannels → browseTrendVideos(dateRange 02-10…03-12, sort:date, limit:200) | 200/245 | **Haiku FAIL:** проигнорировал `matchedCount`, ранжировал по views. Little Thing #1 (7 видео!) вместо 4 каналов с 30 видео. Truncation (245→200) не упомянут |
 | 6b | cross-channel matchedCount (Sonnet) | "Кто активнее всех в последний месяц в моей нише?" | $0.213 | 3 | listTrendChannels → browseTrendVideos(dateRange 02-12…03-12, sort:date, limit:200) | 200/227 | **Sonnet PASS:** две секции — "по частоте публикаций" (matchedCount таблица) + "по результату" (views). Thinking 41с, осознанно разделил интерпретации. Truncation не упомянут |
 | 5+6b | truncation follow-up (Sonnet) | "Сколько всего видео было за этот период?" | +$0.19 | 3 | browseTrendVideos(dateRange 02-12…03-12, limit:200) | 200/227 | **Sonnet PASS:** ответил "227" (totalMatched), не "200" (limit). В thinking явно: "The results show 200 videos (the max limit), but totalMatched is 227". Полная таблица 14 каналов |
+| 7 | chained: browse → thumbnails (Haiku) | Turn 1: "Покажи топ-5 видео конкурентов по просмотрам" → Turn 2: "Покажи обложки трёх самых свежих из этих видео" | $0.031 | 3+2 | T1: listTrendChannels → browseTrendVideos(views, limit:5); T2: viewThumbnails(3 IDs) | 5/74 → 3 thumbnails | **PASS.** Tool memory persistence работает: модель извлекла videoIds из history терна 1 без повторного browse. Корректная сортировка по publishedAt (Apr 28 > Jan 28 > Jan 6). `visualContextUrls` → ImageBlockParam — модель видела реальные картинки и точно их описала. mentionVideo: 0 calls (Haiku shortcut) |
 
 ### Паттерны
 
@@ -171,6 +172,8 @@ Percentile тиры вычисляются per-channel, не cross-channel:
 - **Haiku путает "активнее" с "популярнее".** При вопросе "кто активнее" Haiku проигнорировал `channels[].matchedCount` и ранжировал по views. Little Thing с 7 видео стал #1. Sonnet с thinking 41с осознанно разделил "активность" (частота) и "результат" (views) — идеальный ответ
 - **Sonnet + thinking = качество интерпретации.** Для неоднозначных аналитических вопросов thinking необходим. Haiku без thinking берёт первую интерпретацию, Sonnet рассматривает обе. Цена x3.2, но Haiku дал неправильный ответ
 - **Truncation: Sonnet понимает, но не волонтирит.** При прямом вопросе "сколько всего видео" Sonnet ответил 227 (totalMatched), не 200 (limit). В thinking явно написал: "results show 200 (max limit), but totalMatched is 227". Проактивно не упоминает — Low severity, данные корректны при запросе
+- **Tool memory persistence работает.** Cross-turn chaining (browseTrendVideos → viewThumbnails) успешно: модель извлекает videoIds и publishedAt из реконструированной history (buildHistory tool_use/tool_result blocks). Не вызывает browseTrendVideos повторно. Фильтрация "3 самых свежих" корректна
+- **visualContextUrls → реальный визуальный анализ.** viewThumbnails возвращает `visualContextUrls`, которые `extractVisualContextUrls()` в `streamChat.ts` инжектирует как `ImageBlockParam` в tool_result. Модель видит реальные картинки, описания точные — не галлюцинация
 
 ### Known Issues
 
