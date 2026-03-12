@@ -65,11 +65,13 @@ const mentionVideo: ToolDefinition = {
 const getMultipleVideoDetails: ToolDefinition = {
     name: TOOL_NAMES.GET_MULTIPLE_VIDEO_DETAILS,
     description:
-        "Fetch full metadata (description, tags, etc.) for one or more videos by their IDs. " +
+        "Fetch full metadata (description, tags, publishedAt, etc.) for one or more videos by their IDs or titles. " +
         "The context only contains compact info (title + key metrics). Use this tool when " +
         "you need description, tags, or other detailed fields to answer the user's question. " +
         "Response includes view growth data (viewDelta24h/7d/30d) when the video's channel " +
         "is tracked in Trends — use these to assess whether a video is actively growing or stagnating. " +
+        "If you only know a video title but not its ID, pass the title in the 'titles' parameter — " +
+        "the system will search Firestore (0 API cost). Never invent video IDs from titles. " +
         "You can request up to 20 videos in a single call.",
     parametersJsonSchema: {
         type: "object",
@@ -80,8 +82,15 @@ const getMultipleVideoDetails: ToolDefinition = {
                 description:
                     "Array of video IDs to look up (from the [id: ...] annotation in context).",
             },
+            titles: {
+                type: "array",
+                items: { type: "string" },
+                description:
+                    "Fallback: exact video titles to look up when videoIds are unknown. " +
+                    "Searches the user's own videos, external cache, and competitor trend data (0 API cost). " +
+                    "Use exact titles as they appeared in context or user's message.",
+            },
         },
-        required: ["videoIds"],
     },
 };
 
@@ -364,6 +373,8 @@ const getNicheSnapshot: ToolDefinition = {
         "Prefer the 'date' parameter when publishedAt is known from context (zero extra reads). " +
         "Use 'videoId' only when date is unavailable. " +
         "Pass 'channelId' alongside 'videoId' when known (from browseTrendVideos result) to minimize lookups. " +
+        "If you only know a video title (not its ID or publishedAt), first call getMultipleVideoDetails " +
+        "with the 'titles' parameter to get the video's publishedAt, then call this tool with that date. " +
         "At least one of 'date' or 'videoId' is required.",
     parametersJsonSchema: {
         type: "object",

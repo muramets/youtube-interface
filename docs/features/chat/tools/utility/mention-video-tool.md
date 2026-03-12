@@ -37,8 +37,11 @@
 {
     found: boolean,
     videoId: string,
+    // YouTube-embeddable ID. Present only for custom videos where it differs from videoId.
+    // Custom published: youtubeVideoId = publishedVideoId. Regular/draft: omitted.
+    youtubeVideoId?: string,
     title: string,
-    ownership: string,
+    ownership: "own-published" | "own-draft" | "competitor",
     channelTitle?: string,
     thumbnailUrl: string,
 }

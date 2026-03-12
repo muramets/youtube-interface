@@ -34,9 +34,15 @@ export async function handleMentionVideo(
         : (ctx.channelName && data.channelTitle === ctx.channelName)
             ? "own-published"
             : "competitor";
+    // YouTube-embeddable ID: for custom videos use publishedVideoId, for drafts — undefined.
+    const youtubeVideoId = data.isCustom
+        ? (data.publishedVideoId as string | undefined)
+        : videoId;
+
     return {
         found: true,
         videoId,
+        ...(youtubeVideoId && youtubeVideoId !== videoId ? { youtubeVideoId } : {}),
         title: data.title || "(untitled)",
         ownership,
         channelTitle: data.channelTitle || undefined,

@@ -9,6 +9,9 @@
  */
 export interface VideoPreviewData {
     videoId: string;
+    /** YouTube-embeddable ID. Differs from videoId for custom videos (custom-* doc IDs).
+     *  Undefined for drafts (not published to YouTube). */
+    youtubeVideoId?: string;
     title: string;
     thumbnailUrl?: string;
     channelTitle?: string;

@@ -91,16 +91,27 @@ export function extractViewThumbnailVideoIds(records: ToolCallRecord[]): string[
     return ids;
 }
 
-/** Extract unique video IDs from getMultipleVideoDetails tool call records. */
+/** Extract unique video IDs from getMultipleVideoDetails tool call records.
+ *  Prefers result.videos (excludes notFound) — falls back to args.videoIds during loading. */
 export function extractDetailVideoIds(records: ToolCallRecord[]): string[] {
     const ids: string[] = [];
     for (const r of records) {
-        const videoIds = r.args.videoIds as string[] | undefined;
-        if (videoIds) {
-            for (const id of videoIds) {
-                if (!ids.includes(id)) ids.push(id);
+        // After resolution: use result.videos (only found videos — no raw hallucinated IDs)
+        const resultVideos = r.result?.videos as Array<{ videoId: string }> | undefined;
+        if (resultVideos && resultVideos.length > 0) {
+            for (const v of resultVideos) {
+                if (v.videoId && !ids.includes(v.videoId)) ids.push(v.videoId);
+            }
+        } else if (!r.result) {
+            // During loading: fall back to args.videoIds for immediate feedback
+            const videoIds = r.args.videoIds as string[] | undefined;
+            if (videoIds) {
+                for (const id of videoIds) {
+                    if (!ids.includes(id)) ids.push(id);
+                }
             }
         }
+        // If result exists but videos is empty — no IDs to show (all notFound)
     }
     return ids;
 }

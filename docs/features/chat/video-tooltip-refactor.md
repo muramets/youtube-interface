@@ -22,6 +22,20 @@
 - **`PortalTooltip` fixedDimensions:** parametric размеры вместо хардкода 800×700. `height` optional — auto-height с `max-height` для content-driven sizing. Deprecated `fixedWidth`/`estimatedHeight` удалены. Overlay scrollbar (`scrollbar-auto-hide`) вместо `scrollbarGutter: 'stable'`.
 - **`formatDelta()` + `getDeltaColor()`:** shared utils в `formatUtils.ts`. Significance-based coloring: gray default, amber >5% ratio, emerald >10% ratio (delta/viewCount).
 - **Mini-player button:** доступен в обоих режимах (full + mini).
+- **`youtubeVideoId` support:** `VideoPreviewData` содержит `youtubeVideoId` — YouTube-embeddable ID, отличающийся от `videoId` для custom-видео (`custom-*` doc IDs). Backend handlers (`mentionVideo`, `getMultipleVideoDetails`) пробрасывают `publishedVideoId` для custom published видео. `buildToolVideoMap` передаёт поле в `extractMention` и `extractDetails`. `VideoPreviewTooltip` использует `embedId` resolution: regular → `videoId`, custom published → `youtubeVideoId`, draft → `undefined` (static thumbnail).
+- **Custom video embed fix:** iframe player теперь корректно обрабатывает три случая: (1) regular video — embed по `videoId`, (2) custom published — embed по `youtubeVideoId` (`publishedVideoId`), (3) draft — static thumbnail из Firebase Storage, minimize button скрыт.
+
+### Known Issue: Thumbnail Resolution Architecture
+
+Разрешение thumbnail для custom-видео (особенно драфтов) — NOT clean architecture. Fallback-логика разбросана по трём местам:
+
+1. **Backend** (`mentionVideo.ts`, `getMultipleVideoDetails.ts`): читает `data.thumbnail` из Firestore. Для custom-видео это Firebase Storage URL. Для non-custom — YouTube CDN fallback (`https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`).
+2. **`buildToolVideoMap.ts`**: для tools, не возвращающих `thumbnailUrl` (findSimilar, trendVideos, nicheSnapshot, searchDatabase), подставляет YouTube CDN URL через `ytThumbnailUrl()`. Для `custom-*` ID возвращает `undefined` (нет YouTube thumbnail).
+3. **`VideoPreviewTooltip.tsx`**: использует `video.thumbnailUrl` напрямую для static thumbnail (draft). YouTube CDN fallback используется для hqdefault в mini-player state.
+
+**Контракт неявный:** если backend не вернул `thumbnailUrl` для custom draft, а `buildToolVideoMap` не имеет fallback для `custom-*` — tooltip покажет пустое место. Работает только потому, что `mentionVideo` и `getMultipleVideoDetails` всегда возвращают `data.thumbnail` для custom-видео.
+
+**Решение (отложено):** Consolidation в один fallback chain с explicit contract. Не фиксим сейчас — работает корректно для всех текущих paths.
 
 ---
 
@@ -305,6 +319,9 @@ map.set(videoId, {
 // src/features/Video/types.ts
 interface VideoPreviewData {
     videoId: string;
+    /** YouTube-embeddable ID. Differs from videoId for custom videos (custom-* doc IDs).
+     *  Undefined for drafts (not published to YouTube). */
+    youtubeVideoId?: string;
     title: string;
     thumbnailUrl?: string;
     channelTitle?: string;
@@ -608,7 +625,7 @@ import { PREVIEW_DIMENSIONS } from '../../Video/components/VideoPreviewTooltip';
 
 | Файл | Строк | Роль |
 |---|---|---|
-| `src/features/Video/types.ts` | 35 | `VideoPreviewData` type + `PREVIEW_DIMENSIONS` constants |
+| `src/features/Video/types.ts` | 39 | `VideoPreviewData` type (incl. `youtubeVideoId`) + `PREVIEW_DIMENSIONS` constants |
 | `src/features/Video/components/VideoPreviewTooltip.tsx` | 291 | Unified tooltip: `full`/`mini` modes, `video: VideoPreviewData` |
 | `src/features/Chat/utils/buildToolVideoMap.ts` | 288 | 7 extractors → `Map<string, VideoPreviewData>`, first-write-wins merge |
 | `src/features/Chat/utils/toolCallGrouping.ts` | 341 | Группировка, videoIds, labels, `isExpandable()` via registry |

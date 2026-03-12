@@ -42,6 +42,12 @@ export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
 }) => {
     const { videoId, title, channelTitle, viewCount, publishedAt, description, tags } = video;
 
+    // Resolve the YouTube-embeddable ID:
+    // - Regular videos: videoId IS the YouTube ID
+    // - Custom published: youtubeVideoId = publishedVideoId (from backend)
+    // - Custom drafts: no YouTube ID → no embed, show static thumbnail
+    const embedId = video.youtubeVideoId ?? (videoId.startsWith('custom-') ? undefined : videoId);
+
     const [isExpanded, setIsExpanded] = useState(false);
     const [areTagsExpanded, setAreTagsExpanded] = useState(false);
     const [isComparing, setIsComparing] = useState(false);
@@ -57,7 +63,7 @@ export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
     }, []);
 
     const isFull = mode === 'full';
-    const isPlayingInMiniPlayer = isMinimized && activeVideoId === videoId;
+    const isPlayingInMiniPlayer = isMinimized && activeVideoId === (embedId ?? videoId);
 
     // Resolve deltas: prefer external deltaStats, fallback to video inline deltas
     const d24h = deltaStats?.delta24h ?? video.delta24h ?? null;
@@ -92,12 +98,12 @@ export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
                             <span>Compare</span>
                         </button>
                     )}
-                    {!isPlayingInMiniPlayer && (
+                    {!isPlayingInMiniPlayer && embedId && (
                         <button
                             onClick={(e) => {
                                 e.stopPropagation();
                                 e.preventDefault();
-                                minimize(videoId, title);
+                                minimize(embedId, title);
                             }}
                             className="flex items-center gap-1.5 text-[10px] bg-white/5 hover:bg-white/10 text-text-secondary hover:text-text-primary px-2 py-1 rounded-md transition-colors border border-white/5"
                             title="Minimize player"
@@ -118,7 +124,14 @@ export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
             <div className={`aspect-video w-full rounded-lg bg-black/40 overflow-hidden border border-border shrink-0 relative z-10 group/player transition-all duration-300 ${isComparing ? 'grayscale opacity-40' : ''}`}>
                 {isPlayingInMiniPlayer ? (
                     <img
-                        src={`https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`}
+                        src={embedId ? `https://i.ytimg.com/vi/${embedId}/hqdefault.jpg` : video.thumbnailUrl}
+                        alt={title}
+                        className="w-full h-full object-cover"
+                    />
+                ) : !embedId ? (
+                    /* Draft / custom video without YouTube ID — static thumbnail */
+                    <img
+                        src={video.thumbnailUrl}
                         alt={title}
                         className="w-full h-full object-cover"
                     />
@@ -126,7 +139,7 @@ export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
                     <iframe
                         width="100%"
                         height="100%"
-                        src={`https://www.youtube.com/embed/${videoId}?autoplay=0&mute=0&rel=0&modestbranding=1&controls=1`}
+                        src={`https://www.youtube.com/embed/${embedId}?autoplay=0&mute=0&rel=0&modestbranding=1&controls=1`}
                         title={title}
                         frameBorder="0"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"

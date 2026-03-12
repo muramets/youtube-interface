@@ -42,6 +42,7 @@ describe('handleMentionVideo', () => {
         expect(result).toEqual({
             found: true,
             videoId: 'own123',
+            youtubeVideoId: 'yt123',
             title: 'My Video',
             ownership: 'own-published',
             channelTitle: undefined,

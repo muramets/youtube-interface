@@ -71,6 +71,7 @@ function extractMention(result: Record<string, unknown>, map: Map<string, VideoP
     mergeInto(map, videoId, {
         title: result.title as string | undefined,
         thumbnailUrl: result.thumbnailUrl as string | undefined,
+        youtubeVideoId: result.youtubeVideoId as string | undefined,
         ownership: result.ownership as VideoPreviewData['ownership'],
         channelTitle: result.channelTitle as string | undefined,
     });
@@ -104,6 +105,7 @@ function extractDetails(result: Record<string, unknown>, map: Map<string, VideoP
         mergeInto(map, videoId, {
             title: v.title as string | undefined,
             thumbnailUrl: v.thumbnailUrl as string | undefined,
+            youtubeVideoId: v.youtubeVideoId as string | undefined,
             ownership: v.ownership as VideoPreviewData['ownership'],
             channelTitle: v.channelTitle as string | undefined,
             viewCount: v.viewCount as number | undefined,
@@ -232,6 +234,7 @@ function mergeInto(
     if (!existing) {
         map.set(videoId, {
             videoId,
+            youtubeVideoId: incoming.youtubeVideoId,
             title: incoming.title || '(untitled)',
             thumbnailUrl: incoming.thumbnailUrl,
             ownership: incoming.ownership,
@@ -250,6 +253,7 @@ function mergeInto(
 
     // Fill gaps — non-empty incoming values fill empty existing fields
     if (incoming.title && !existing.title) existing.title = incoming.title;
+    if (incoming.youtubeVideoId && !existing.youtubeVideoId) existing.youtubeVideoId = incoming.youtubeVideoId;
     if (incoming.thumbnailUrl && !existing.thumbnailUrl) existing.thumbnailUrl = incoming.thumbnailUrl;
     if (incoming.ownership && !existing.ownership) existing.ownership = incoming.ownership;
     if (incoming.channelTitle && !existing.channelTitle) existing.channelTitle = incoming.channelTitle;

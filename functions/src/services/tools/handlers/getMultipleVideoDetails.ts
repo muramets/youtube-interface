@@ -12,6 +12,7 @@
 import { db } from "../../../shared/db.js";
 import { YouTubeService } from "../../youtube.js";
 import { resolveVideosByIds } from "../utils/resolveVideos.js";
+import { resolveVideoIdsByTitle } from "../utils/resolveVideosByTitle.js";
 import { getViewDeltas } from "../../trendSnapshotService.js";
 import type { ToolContext } from "../types.js";
 
@@ -19,14 +20,48 @@ export async function handleGetMultipleVideoDetails(
     args: Record<string, unknown>,
     ctx: ToolContext,
 ): Promise<Record<string, unknown>> {
-    const videoIds = args.videoIds as string[];
-    if (!videoIds || !Array.isArray(videoIds) || videoIds.length === 0) {
-        return { error: "videoIds (non-empty array) is required" };
+    // Defensive: small models (Haiku) sometimes pass a string instead of an array
+    const rawVideoIds = Array.isArray(args.videoIds) ? args.videoIds as string[]
+        : typeof args.videoIds === 'string' ? [args.videoIds]
+        : undefined;
+    const rawTitles = Array.isArray(args.titles) ? args.titles as string[]
+        : typeof args.titles === 'string' ? [args.titles]
+        : undefined;
+
+    const hasIds = Array.isArray(rawVideoIds) && rawVideoIds.length > 0;
+    const hasTitles = Array.isArray(rawTitles) && rawTitles.length > 0;
+
+    if (!hasIds && !hasTitles) {
+        return { error: "At least one of videoIds or titles is required" };
     }
 
-    // Cap at 20 to prevent abuse
-    const ids = videoIds.slice(0, 20);
     const basePath = `users/${ctx.userId}/channels/${ctx.channelId}`;
+
+    // --- Phase 0: Resolve titles to videoIds (if provided) ---
+    let titleResolvedIds: string[] = [];
+    const notFoundTitles: string[] = [];
+
+    if (hasTitles) {
+        const cappedTitles = rawTitles.slice(0, 20);
+        ctx.reportProgress?.(`Looking up ${cappedTitles.length} video(s) by title…`);
+        const { resolved, unresolved } = await resolveVideoIdsByTitle(basePath, cappedTitles);
+        titleResolvedIds = [...resolved.values()];
+        notFoundTitles.push(...unresolved);
+    }
+
+    // Merge: explicit videoIds + title-resolved IDs, deduplicate, cap at 20
+    const ids = [...new Set([...(rawVideoIds ?? []), ...titleResolvedIds])].slice(0, 20);
+
+    if (ids.length === 0) {
+        return {
+            videos: [],
+            notFound: [],
+            ...(notFoundTitles.length > 0 ? { notFoundTitles } : {}),
+            error: notFoundTitles.length > 0
+                ? `No videos found for titles: ${notFoundTitles.join(", ")}`
+                : "No valid video IDs to look up",
+        };
+    }
 
     // --- Step 1: Resolve videos from Firestore (direct + publishedVideoId) ---
     const { resolved, missingIds: notFoundIds } = await resolveVideosByIds(basePath, ids);
@@ -118,6 +153,7 @@ export async function handleGetMultipleVideoDetails(
     return {
         videos,
         notFound: notFoundIds,
+        ...(notFoundTitles.length > 0 ? { notFoundTitles } : {}),
         ...(quotaUsed > 0 ? { quotaUsed } : {}),
     };
 }
@@ -139,8 +175,15 @@ function formatVideoData(
         ? (data.isCustom && !data.publishedVideoId ? "own-draft" : "own-published")
         : "external";
 
+    // YouTube-embeddable video ID: for custom videos use publishedVideoId,
+    // for regular videos videoId IS the YouTube ID, for drafts — undefined.
+    const youtubeVideoId = data.isCustom
+        ? (data.publishedVideoId as string | undefined)
+        : videoId;
+
     return {
         videoId,
+        ...(youtubeVideoId && youtubeVideoId !== videoId ? { youtubeVideoId } : {}),
         title: data.title || "(untitled)",
         description: data.description || "",
         tags: data.tags || [],
