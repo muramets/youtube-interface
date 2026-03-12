@@ -305,6 +305,12 @@ const listTrendChannels: ToolDefinition = {
     description:
         "List all competitor channels the user is tracking in Trends. " +
         "Returns channel metadata, video counts, average views, and performance distribution (p25/median/p75/max). " +
+        "When comparing channels, use performanceDistribution, NOT averageViews. " +
+        "median = typical video; p25 = weak content floor; p75 = strong result without going viral; " +
+        "max = viral ceiling. If averageViews >> median, the channel depends on rare hits. " +
+        "Report these metrics to give the user a complete picture. " +
+        "Never use p25/p75/max labels in responses — use descriptive language " +
+        "(e.g. 'typical video gets 60K', 'strong videos reach 194K', 'viral ceiling at 6.4M'). " +
         "Call this FIRST when the user asks about competitors — it gives you the landscape. " +
         "Zero API cost (all data from Firestore). " +
         "Use the channelId values from the response to filter subsequent browseTrendVideos calls.",
