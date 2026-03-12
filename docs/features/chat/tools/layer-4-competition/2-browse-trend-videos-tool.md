@@ -137,11 +137,11 @@ Percentile тиры вычисляются per-channel, не cross-channel:
 | # | Сценарий | Что проверяет | Промпт-идея | Проверено |
 |---|----------|---------------|-------------|-----------|
 | 1 | **channelIds + sort by views** | Фильтр по каналу, сортировка по views, top видео | "Покажи самые популярные видео Little Thing" | ✅ |
-| 2 | **dateRange filter** | Видео за конкретный период | "Что публиковали конкуренты на прошлой неделе?" | — |
+| 2 | **dateRange filter** | Видео за конкретный период | "Что публиковали конкуренты на прошлой неделе?" | ✅ |
 | 3 | **performanceTier filter** | Top 1% per-channel — хиты каждого конкурента | "Покажи хиты каждого конкурента" | ✅ |
 | 4 | **delta sort (delta7d/30d)** | Самые быстрорастущие видео, fallback при null deltas | "Какие видео конкурентов растут быстрее всего?" | ✅ |
-| 5 | **totalMatched > limit** | Модель понимает truncation и сужает фильтры | (покрыто при широком запросе без фильтров) | — |
-| 6 | **Cross-channel comparison** | Модель сравнивает каналы через channels[].matchedCount | "Кто активнее всех в последний месяц?" | — |
+| 5 | **totalMatched > limit** | Модель понимает truncation и сужает фильтры | (покрыто follow-up в trace 6b) | ✅ |
+| 6 | **Cross-channel comparison** | Модель сравнивает каналы через channels[].matchedCount | "Кто активнее всех в последний месяц?" | ✅ |
 | 7 | **Chained: browseTrendVideos → viewThumbnails** | Модель передаёт videoIds для визуального анализа обложек | "Покажи обложки топ-видео конкурентов" | — |
 
 ### Проверено в бою
@@ -155,6 +155,10 @@ Percentile тиры вычисляются per-channel, не cross-channel:
 | 4a | delta7d sort | "Какие видео конкурентов растут быстрее всего за последнюю неделю?" (Haiku) | — | 1 | listTrendChannels → browseTrendVideos(delta7d, limit:20) | 20/2135 | mentionVideo: 0 calls. Сортировка корректна (96K→87K→68K→...) |
 | 4b | delta30d + dateRange (Haiku) | "...за последний месяц?" (Haiku) | — | 1 | listTrendChannels → browseTrendVideos(delta30d, dateRange 30d, limit:20) | 20/245 | **Haiku ловушка:** dateRange отсёк старые видео → все delta30d=null → fallback на views. Модель проигнорировала `_note`, написала "sorted by 30-day growth" и показала delta7d |
 | 4c | delta30d без dateRange (Sonnet) | "...за последний месяц?" (Sonnet, thinking low) | — | 1 | listTrendChannels → browseTrendVideos(delta30d, limit:20) + 7× mentionVideo | 20/2135 | **Sonnet корректно:** без dateRange, реальные delta30d (411K→336K→335K→...), 7 mentionVideo calls, аналитический вывод |
+| 2 | dateRange filter (Haiku) | "Что публиковали конкуренты на прошлой неделе?" | $0.032 | 3 | listTrendChannels → browseTrendVideos(dateRange 03-05…03-11, limit:50) | 48/48 | mentionVideo: 0 calls. **Неполный пересказ:** Haiku перечислил 6/11 каналов, пропустил "a quiet day." (6 видео). Топ-3 по views найден вручную (sort=date) |
+| 6a | cross-channel matchedCount (Haiku) | "Кто активнее всех в последний месяц в моей нише?" | $0.066 | 3 | listTrendChannels → browseTrendVideos(dateRange 02-10…03-12, sort:date, limit:200) | 200/245 | **Haiku FAIL:** проигнорировал `matchedCount`, ранжировал по views. Little Thing #1 (7 видео!) вместо 4 каналов с 30 видео. Truncation (245→200) не упомянут |
+| 6b | cross-channel matchedCount (Sonnet) | "Кто активнее всех в последний месяц в моей нише?" | $0.213 | 3 | listTrendChannels → browseTrendVideos(dateRange 02-12…03-12, sort:date, limit:200) | 200/227 | **Sonnet PASS:** две секции — "по частоте публикаций" (matchedCount таблица) + "по результату" (views). Thinking 41с, осознанно разделил интерпретации. Truncation не упомянут |
+| 5+6b | truncation follow-up (Sonnet) | "Сколько всего видео было за этот период?" | +$0.19 | 3 | browseTrendVideos(dateRange 02-12…03-12, limit:200) | 200/227 | **Sonnet PASS:** ответил "227" (totalMatched), не "200" (limit). В thinking явно: "The results show 200 videos (the max limit), but totalMatched is 227". Полная таблица 14 каналов |
 
 ### Паттерны
 
@@ -163,6 +167,10 @@ Percentile тиры вычисляются per-channel, не cross-channel:
 - **mentionVideo shortcut.** Haiku пишет `[title](mention://videoId)` inline, 0 tool calls. [Known issue](../utility/mention-video-tool.md)
 - **Haiku + dateRange + delta sort = ловушка.** Haiku добавляет dateRange к delta30d запросу → свежие видео не имеют delta30d → fallback → игнорирует `_note`. Sonnet не ставит dateRange и получает корректный результат
 - **Sonnet вызывает mentionVideo.** 7 calls в trace 4c vs 0 у Haiku. Sonnet следует tool contract, Haiku шорткатит
+- **Haiku dateRange: точные параметры, неполный пересказ.** `{ from: "2026-03-05", to: "2026-03-11" }` — идеально вычислена "прошлая неделя". Но в ответе перечислил только 6 из 11 каналов, пропустив "a quiet day." с 6 видео. Handler вернул полные данные — модель обрезала при презентации
+- **Haiku путает "активнее" с "популярнее".** При вопросе "кто активнее" Haiku проигнорировал `channels[].matchedCount` и ранжировал по views. Little Thing с 7 видео стал #1. Sonnet с thinking 41с осознанно разделил "активность" (частота) и "результат" (views) — идеальный ответ
+- **Sonnet + thinking = качество интерпретации.** Для неоднозначных аналитических вопросов thinking необходим. Haiku без thinking берёт первую интерпретацию, Sonnet рассматривает обе. Цена x3.2, но Haiku дал неправильный ответ
+- **Truncation: Sonnet понимает, но не волонтирит.** При прямом вопросе "сколько всего видео" Sonnet ответил 227 (totalMatched), не 200 (limit). В thinking явно написал: "results show 200 (max limit), but totalMatched is 227". Проактивно не упоминает — Low severity, данные корректны при запросе
 
 ### Known Issues
 
@@ -170,6 +178,9 @@ Percentile тиры вычисляются per-channel, не cross-channel:
 |-------|----------|----------|
 | **Haiku игнорирует `_note`** | При delta fallback (sorted by views instead) Haiku не предупреждает пользователя, пишет "sorted by 30-day growth" и показывает delta7d вместо delta30d | Medium — Sonnet не воспроизводит |
 | **Свежие видео выпадают из delta sort** | Видео < 30 дней имеют delta30d=null, хотя их viewCount ≈ реальный прирост с момента публикации. При `sort: "delta30d"` они уходят в конец списка. На практике impact минимален: без dateRange старые видео доминируют, с dateRange estimated delta ≈ viewCount (порядок тот же). Решение отложено — estimated delta показывается в UI как реальная, что сбивает с толку | Low |
+| **Haiku обрезает channels summary** | При 11 каналах с видео Haiku перечислил только 6 (все по 6 видео), пропустив 5 каналов включая "a quiet day." с 6 видео. Handler возвращает полный `channels[]` — модель теряет данные при презентации | Low — косметика, данные корректны |
+| **Haiku игнорирует `matchedCount`** | При вопросе "кто активнее" Haiku ранжировал по views вместо `channels[].matchedCount`. Little Thing #1 (7 видео) вместо 4 каналов с 30 видео. Sonnet с thinking корректно разделил частоту и views | Medium-High — неправильный ответ |
+| **Truncation не упоминается проактивно** | totalMatched > limit (245/227 > 200) — обе модели не предупреждают об обрезке. Sonnet при прямом вопросе корректно отвечает totalMatched (227), не limit (200) | Low — модель понимает, просто не волонтирит. channels[].matchedCount считается по полному набору |
 
 ### Ещё не проверено в бою
 
