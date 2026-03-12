@@ -135,14 +135,9 @@ export async function handleGetMultipleVideoDetails(
         const hints = new Set(
             videos.map(v => v.channelId as string).filter(Boolean),
         );
-        const publishedDates = new Map<string, string>();
-        for (const v of videos) {
-            if (v.publishedAt) publishedDates.set(v.videoId as string, v.publishedAt as string);
-        }
         const deltaMap = await getViewDeltas(
             ctx.userId, ctx.channelId, allVideoIds,
             hints.size > 0 ? hints : undefined,
-            publishedDates,
         );
         for (const video of videos) {
             const stats = deltaMap.get(video.videoId as string);

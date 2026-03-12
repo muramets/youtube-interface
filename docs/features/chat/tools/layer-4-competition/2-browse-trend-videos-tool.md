@@ -169,7 +169,7 @@ Percentile тиры вычисляются per-channel, не cross-channel:
 | Issue | Описание | Severity |
 |-------|----------|----------|
 | **Haiku игнорирует `_note`** | При delta fallback (sorted by views instead) Haiku не предупреждает пользователя, пишет "sorted by 30-day growth" и показывает delta7d вместо delta30d | Medium — Sonnet не воспроизводит |
-| ~~**Свежие видео выпадают из delta sort**~~ | **FIXED (2026-03-12).** `getViewDeltas` теперь принимает `publishedDates` и подставляет `currentViews` как estimated delta для видео, опубликованных внутри окна дельты. Подробнее: [video-view-deltas.md](../../../video-view-deltas.md#estimated-deltas-для-свежих-видео) | — |
+| **Свежие видео выпадают из delta sort** | Видео < 30 дней имеют delta30d=null, хотя их viewCount ≈ реальный прирост с момента публикации. При `sort: "delta30d"` они уходят в конец списка. На практике impact минимален: без dateRange старые видео доминируют, с dateRange estimated delta ≈ viewCount (порядок тот же). Решение отложено — estimated delta показывается в UI как реальная, что сбивает с толку | Low |
 
 ### Ещё не проверено в бою
 

@@ -108,16 +108,11 @@ export async function handleSearchDatabase(
         ctx.reportProgress?.("Computing view deltas...");
         const channelIdHints = new Set(youtubeChannelIds);
         const resultVideoIds = truncated.map((r) => r.videoId);
-        const publishedDates = new Map<string, string>();
-        for (const r of truncated) {
-            if (r.data.publishedAt) publishedDates.set(r.videoId, r.data.publishedAt);
-        }
         const deltasMap = await getViewDeltas(
             ctx.userId,
             ctx.channelId,
             resultVideoIds,
             channelIdHints,
-            publishedDates,
         );
 
         // --- Compute per-channel performance tiers ---

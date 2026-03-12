@@ -243,12 +243,8 @@ export async function handleGetNicheSnapshot(
         const allWindowVideoIds = allWindowVideos.map(v => v.videoId);
 
         // --- Enrich with view deltas ---
-        const publishedDates = new Map<string, string>();
-        for (const v of allWindowVideos) {
-            if (v.publishedAt) publishedDates.set(v.videoId, v.publishedAt);
-        }
         const deltaMap = allWindowVideoIds.length > 0
-            ? await getViewDeltas(ctx.userId, ctx.channelId, allWindowVideoIds, trendChannelIdHints, publishedDates)
+            ? await getViewDeltas(ctx.userId, ctx.channelId, allWindowVideoIds, trendChannelIdHints)
             : new Map();
 
         // --- Build competitorActivity ---

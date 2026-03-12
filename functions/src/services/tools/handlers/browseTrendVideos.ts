@@ -238,18 +238,11 @@ export async function handleBrowseTrendVideos(
         const videosToEnrich = isDeltaSort ? filtered : truncated;
         const videoIdsForDeltas = videosToEnrich.map((v) => v.videoId);
 
-        // Build publishedDates map for estimated deltas on recent videos
-        const publishedDates = new Map<string, string>();
-        for (const v of videosToEnrich) {
-            if (v.publishedAt) publishedDates.set(v.videoId, v.publishedAt);
-        }
-
         const deltasMap = await getViewDeltas(
             ctx.userId,
             ctx.channelId,
             videoIdsForDeltas,
             channelIdHints,
-            publishedDates,
         );
 
         // --- Build enriched video list ---
