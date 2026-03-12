@@ -8,6 +8,7 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { admin, db } from "../shared/db.js";
+import type { ToolCallRecord } from "../services/ai/types.js";
 import { verifyChannelAccess } from "../shared/auth.js";
 import { logAiUsage } from "./helpers.js";
 import { resolveUtilityModel } from "../config/models.js";
@@ -89,7 +90,7 @@ export const concludeConversation = onCall(
                 text: data.text as string,
                 attachments: data.attachments,
                 appContext: data.appContext,
-                toolCalls: data.toolCalls as Array<{ name: string; result?: Record<string, unknown> }> | undefined,
+                toolCalls: data.toolCalls as ToolCallRecord[] | undefined,
             };
         });
 
