@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, List, Settings, TrendingUp, Music } from 'lucide-react';
+import { Home, List, Settings, TrendingUp, Music, FlaskConical } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { SettingsModal } from '../../features/Settings/SettingsModal';
 import { useUIStore } from '../../core/stores/uiStore';
@@ -293,6 +293,7 @@ export const Sidebar: React.FC = () => {
   const isPlaylists = location.pathname.startsWith('/playlists');
   const isTrends = location.pathname.startsWith('/trends');
   const isMusic = location.pathname.startsWith('/music');
+  const isLab = location.pathname.startsWith('/lab');
 
   // Icons - normal (outline) and active (filled/bold)
   const homeIcon = <Home size={24} strokeWidth={1.5} />;
@@ -305,6 +306,8 @@ export const Sidebar: React.FC = () => {
   const trendsActiveIcon = <TrendingUp size={24} strokeWidth={2.5} />;
   const musicIcon = <Music size={24} strokeWidth={1.5} />;
   const musicActiveIcon = <Music size={24} strokeWidth={2.5} fill="currentColor" />;
+  const labIcon = <FlaskConical size={24} strokeWidth={1.5} />;
+  const labActiveIcon = <FlaskConical size={24} strokeWidth={2.5} />;
 
   return (
     <>
@@ -334,6 +337,13 @@ export const Sidebar: React.FC = () => {
                   label="Playlists"
                   active={isPlaylists}
                   onClick={() => navigate('/playlists')}
+                />
+                <ExpandedSidebarItem
+                  icon={labIcon}
+                  activeIcon={labActiveIcon}
+                  label="Lab"
+                  active={isLab}
+                  onClick={() => navigate('/lab')}
                 />
                 <MusicSidebarSection expanded={true} />
 
@@ -370,6 +380,14 @@ export const Sidebar: React.FC = () => {
                 active={isPlaylists}
                 noBackground={true}
                 onClick={() => navigate('/playlists')}
+              />
+              <CollapsedSidebarItem
+                icon={labIcon}
+                activeIcon={labActiveIcon}
+                label="Lab"
+                active={isLab}
+                noBackground={true}
+                onClick={() => navigate('/lab')}
               />
               <CollapsedSidebarItem
                 icon={musicIcon}

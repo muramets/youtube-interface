@@ -61,6 +61,7 @@ const PlaylistDetailPage = lazyWithRetry(() => import('./pages/Playlists/Playlis
 const TrendsPage = lazyWithRetry(() => import('./pages/Trends/TrendsPage').then(m => ({ default: m.TrendsPage as React.ComponentType<unknown> })));
 const MusicPage = lazyWithRetry(() => import('./pages/Music/MusicPage').then(m => ({ default: m.MusicPage as React.ComponentType<unknown> })));
 const DetailsPage = lazyWithRetry(() => import('./pages/Details').then(m => ({ default: m.DetailsPage as React.ComponentType<unknown> })));
+const LabPage = lazyWithRetry(() => import('./pages/Lab/LabPage').then(m => ({ default: m.LabPage as React.ComponentType<unknown> })));
 
 function AppContent() {
   useCheckinScheduler();
@@ -113,6 +114,7 @@ function AppContent() {
                         <Route path="/music" element={<MusicPage />} />
                         <Route path="/music/liked" element={<MusicPage />} />
                         <Route path="/music/playlist/:playlistId" element={<MusicPage />} />
+                        <Route path="/lab" element={<LabPage />} />
                       </Routes>
                     </main>
                   </div>
