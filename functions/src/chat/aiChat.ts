@@ -400,7 +400,7 @@ export const aiChat = onRequest(
                 };
                 if (tokenUsage) stoppedMsg.tokenUsage = tokenUsage;
                 if (normalizedUsage) stoppedMsg.normalizedUsage = normalizedUsage;
-                if (toolCalls) stoppedMsg.toolCalls = toolCalls;
+                if (persistToolCalls) stoppedMsg.toolCalls = persistToolCalls;
                 stoppedMsg.contextBreakdown = contextBreakdown;
                 if (thinkingAccumulator) {
                     stoppedMsg.thinking = thinkingAccumulator;

@@ -111,6 +111,7 @@ export async function handleSaveKnowledge(
         videoId: videoId || undefined,
         videoRefs: videoRefs || undefined,
         createdAt: FieldValue.serverTimestamp(),
+        supersededBy: null,  // Explicit null so where("supersededBy", "==", null) matches
         source: ctx.isConclude ? "conclude" : "chat-tool",
     });
 
