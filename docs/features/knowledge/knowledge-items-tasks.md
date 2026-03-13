@@ -97,20 +97,21 @@ FINAL:
 
 | Phase | Goal | Status |
 |-------|------|--------|
-| 1 | Data Layer: types, services, hooks, seed categories | TODO |
-| 2 | Backend Handlers: saveKnowledge, listKnowledge, getKnowledge + tool defs | TODO |
-| 3 | Conclude Migration: saveMemory, isConclude, strip content | TODO |
-| 4 | Context Integration: discovery flags, system prompt, channel context | TODO |
-| 5 | UI Foundation: MonkeyLearn port (RichTextEditor, Zen Mode, Edit Modal) | TODO |
+| 1 | Data Layer: types, services, hooks, seed categories | DONE (cherry-picked from cloud agent) |
+| 2 | Backend Handlers: saveKnowledge, listKnowledge, getKnowledge + tool defs | DONE (cherry-picked from cloud agent) |
+| 3 | Conclude Migration: saveMemory, isConclude, strip content | DONE (cherry-picked from cloud agent) |
+| 4 | Context Integration: discovery flags, system prompt, channel context | DONE (cherry-picked from cloud agent) |
+| 5 | UI Foundation: MonkeyLearn port (RichTextEditor, Zen Mode, Edit Modal) | TODO — cloud agent wrote from scratch, needs redo with ML port |
 | 6 | Video UI: Watch Page tab AI Research | TODO |
 | 7 | Channel UI: Lab Page + sidebar + filters | TODO |
 | FINAL | Double review-fix cycle (R1: Architecture, R2: Production Readiness) | TODO |
 
 ## Current Test Count
 
-- **Frontend: 384 tests (26 files)** — verified via `npx vitest run --project frontend` (2026-03-13)
-- **Backend: 750 tests (50 files)** — verified via `npx vitest run --project functions` (2026-03-13)
-- **Total: 1134 tests (76 files)** — all passing
+- **Frontend: 415 tests (30 files)** — verified via `npx vitest run --project frontend` (2026-03-13)
+- **Backend: 777 tests (54 files)** — verified via `npx vitest run --project functions` (2026-03-13)
+- **Total: 1192 tests (84 files)** — all passing
+- **Delta from pre-KI baseline (384+750=1134):** +58 tests (+8 files) from Phases 1-4
 
 ---
 
@@ -130,7 +131,7 @@ FINAL:
 
 ### Tasks
 
-- [ ] **T1.1** — Types
+- [x] **T1.1** — Types
   - Create: `src/core/types/knowledge.ts`
   - Interfaces (точные поля — см. feature doc "Technical Implementation > Типы"):
     - `KnowledgeItem` — id, category, title, content, summary, conversationId, model, toolsUsed, scope, videoId?, videoRefs?, createdAt, updatedAt?, supersededBy?, source
@@ -143,7 +144,7 @@ FINAL:
   - 0 I/O, 0 dependencies
   - ⚠️ Типы должны быть exportable для backend. Проверить, что `shared/` symlink или прямой import работает. Если нет — дублировать типы в `functions/src/` (как `ToolCallRecord`)
 
-- [ ] **T1.2** — Frontend Services
+- [x] **T1.2** — Frontend Services
   - Create: `src/core/services/knowledge/knowledgeService.ts`
     - `getKnowledgeItems(channelId, videoId?): Promise<KnowledgeItem[]>` — query `knowledgeItems` collection, optional videoId filter
     - `getChannelKnowledgeItems(channelId): Promise<KnowledgeItem[]>` — `where('scope', '==', 'channel')`
@@ -156,7 +157,7 @@ FINAL:
   - ⚠️ Pattern: follow `src/core/services/suggestedTraffic/` folder structure
   - ⚠️ Firestore paths: `users/${userId}/channels/${channelId}/knowledgeItems`, `users/${userId}/channels/${channelId}/knowledgeCategories`
 
-- [ ] **T1.3** — TanStack Query Hooks
+- [x] **T1.3** — TanStack Query Hooks
   - Create: `src/core/hooks/useKnowledgeItems.ts`
     - `useKnowledgeItems(channelId, videoId?)` — query KI for video or all
     - `useChannelKnowledgeItems(channelId)` — query channel-level KI
@@ -167,7 +168,7 @@ FINAL:
   - ⚠️ Pattern: follow `src/core/hooks/useConversationMemories.ts` for TanStack Query conventions
   - ⚠️ Query keys: `['knowledgeItems', channelId, videoId]`, `['knowledgeCategories', channelId]`
 
-- [ ] **T1.4** — Tests
+- [x] **T1.4** — Tests
   - Create: `src/core/services/knowledge/__tests__/knowledgeService.test.ts`
   - Create: `src/core/services/knowledge/__tests__/knowledgeCategoryService.test.ts`
   - Mock: Firestore (`vi.mock('firebase/firestore')`)
@@ -186,9 +187,9 @@ npm run check                          # lint + typecheck + doc links
 ```
 
 **MANDATORY: Update this file before proceeding:**
-- [ ] Mark completed tasks above
-- [ ] Update Phase Status table: Phase 1 → DONE
-- [ ] Record test count in "Current Test Count" section
+- [x] Mark completed tasks above
+- [x] Update Phase Status table: Phase 1 → DONE
+- [x] Record test count in "Current Test Count" section
 
 ### Review Gate 1
 
@@ -224,7 +225,7 @@ Fix all findings before moving to Phase 2.
 
 ### Tasks
 
-- [ ] **T2.1** — `saveKnowledge` handler
+- [x] **T2.1** — `saveKnowledge` handler
   - Create: `functions/src/services/tools/handlers/knowledge/saveKnowledge.ts`
   - Signature: `handleSaveKnowledge(args: SaveKnowledgeArgs, ctx: ToolContext): Promise<FunctionCallResult>`
   - Args from LLM: `{ category, title, content, summary, scope, videoId?, videoRefs?, toolsUsed }`
@@ -241,7 +242,7 @@ Fix all findings before moving to Phase 2.
   - ⚠️ `source` field: determine from context — `'chat-tool'` for explicit saves, `'conclude'` for conclude flow (pass via ctx or flag)
   - ⚠️ Strip undefined fields before `batch.set()` — Firestore throws on undefined
 
-- [ ] **T2.2** — `listKnowledge` handler
+- [x] **T2.2** — `listKnowledge` handler
   - Create: `functions/src/services/tools/handlers/knowledge/listKnowledge.ts`
   - Args: `{ videoId?, scope?, category? }` — all optional filters
   - Logic:
@@ -252,7 +253,7 @@ Fix all findings before moving to Phase 2.
   - Return: `{ content: JSON.stringify(items.map(i => ({ id, title, summary, category, model, createdAt, toolsUsed, source }))) }`
   - ⚠️ Lightweight: ~500 tokens per response. DO NOT include `content` field
 
-- [ ] **T2.3** — `getKnowledge` handler
+- [x] **T2.3** — `getKnowledge` handler
   - Create: `functions/src/services/tools/handlers/knowledge/getKnowledge.ts`
   - Args: `{ ids?: string[], videoId?, categories?: string[] }` — fetch by IDs or by filters
   - Logic:
@@ -262,7 +263,7 @@ Fix all findings before moving to Phase 2.
   - Return: `{ content: JSON.stringify(items) }` — includes full `content` field
   - ⚠️ This is the heavy operation: ~3-5K tokens per KI. LLM should use `listKnowledge` first to decide which to fetch
 
-- [ ] **T2.4** — Tool definitions + executor registration
+- [x] **T2.4** — Tool definitions + executor registration
   - Modify: `functions/src/services/tools/definitions.ts`
     - Add to `TOOL_NAMES`: `SAVE_KNOWLEDGE`, `LIST_KNOWLEDGE`, `GET_KNOWLEDGE`
     - Create `ToolDefinition` objects with detailed descriptions (guide LLM on when/how to use)
@@ -276,7 +277,7 @@ Fix all findings before moving to Phase 2.
     - `listKnowledge`: "List existing Knowledge Items for a video or channel. Returns summaries, not full content. Use to check what analysis already exists..."
     - `getKnowledge`: "Retrieve full content of specific Knowledge Items. Use after listKnowledge to fetch items you need..."
 
-- [ ] **T2.5** — Tests
+- [x] **T2.5** — Tests
   - Create: `functions/src/services/tools/handlers/knowledge/__tests__/saveKnowledge.test.ts`
     - Mock: `db` (Firestore admin), batch operations
     - Cases:
@@ -299,9 +300,9 @@ npm run check                          # lint + typecheck + doc links
 ```
 
 **MANDATORY: Update this file before proceeding:**
-- [ ] Mark completed tasks above
-- [ ] Update Phase Status table: Phase 2 → DONE
-- [ ] Record test count in "Current Test Count" section
+- [x] Mark completed tasks above
+- [x] Update Phase Status table: Phase 2 → DONE
+- [x] Record test count in "Current Test Count" section
 
 ### Review Gate 2
 
@@ -333,14 +334,14 @@ Fix all findings before moving to Phase 3.
 - Current Memorize: `concludeConversation.ts` (отдельный Cloud Function, Gemini Flash) — оставить как legacy fallback
 - New Memorize: synthetic message через `aiChat` endpoint с `isConclude: true`
 - `saveMemory` tool: conclude-only, инжектится в tool list при `isConclude`
-- Strip content: в `persistAiResponse` (или эквивалент), перед записью message в Firestore
+- Strip content: provider-agnostic, in `aiChat.ts` after result extraction (~line 331), before SSE done event / Firestore write (~line 367)
 - ⚠️ `CONCLUDE_INSTRUCTION` — synthetic user message с инструкциями для LLM. Не system prompt — обычный user turn
-- ⚠️ `stripInternalHints` pattern уже существует — найти и расширить для `saveKnowledge` content stripping
+- ⚠️ `stripInternalHints` (Gemini-only, strips `result` fields) is UNRELATED — do NOT extend it for KI content stripping
 - ⚠️ SSE events: conclude turn использует тот же streaming pipeline — tool calls отображаются как badges в чате
 
 ### Tasks
 
-- [ ] **T3.1** — `saveMemory` handler
+- [x] **T3.1** — `saveMemory` handler
   - Create: `functions/src/services/tools/handlers/knowledge/saveMemory.ts`
   - Args: `{ content, kiRefs?: string[] }` — content = Memory text, kiRefs = IDs of KI created in this conclude
   - Logic:
@@ -351,7 +352,7 @@ Fix all findings before moving to Phase 3.
   - Return: `{ content: "Memory saved with ${kiRefs?.length || 0} Knowledge Item references" }`
   - ⚠️ Reuse logic from `concludeConversation.ts` — extract idempotency and orphan guards into shared helper if needed
 
-- [ ] **T3.2** — `isConclude` flag: frontend + backend
+- [x] **T3.2** — `isConclude` flag: frontend + backend
   - Modify: `functions/src/services/tools/definitions.ts`
     - Add `SAVE_MEMORY` to `TOOL_NAMES`
     - Create `saveMemory` ToolDefinition (separate from `TOOL_DECLARATIONS`)
@@ -368,7 +369,7 @@ Fix all findings before moving to Phase 3.
     - Pass through to `aiChat` callable
   - ⚠️ Verify SSE parser (`sseEvents.ts`) passes through all fields — `isConclude` may need explicit handling if it affects message display
 
-- [ ] **T3.3** — CONCLUDE_INSTRUCTION + strip content
+- [x] **T3.3** — CONCLUDE_INSTRUCTION + strip content
   - Create: `src/core/config/concludePrompt.ts`
     - Export `CONCLUDE_INSTRUCTION: string` — synthetic user message text (see feature doc "Conclude instructions")
   - Modify: frontend Memorize button handler
@@ -391,7 +392,7 @@ Fix all findings before moving to Phase 3.
     - ⚠️ `stripInternalHints` (Gemini-only, strips `result` fields) is unrelated — do NOT extend it
     - ⚠️ Keep `summary` in args (lightweight, useful for history reconstruction)
 
-- [ ] **T3.4** — Tests
+- [x] **T3.4** — Tests
   - Create: `functions/src/services/tools/handlers/knowledge/__tests__/saveMemory.test.ts`
     - Cases:
       - Happy path: creates Memory doc with kiRefs
@@ -414,9 +415,9 @@ npm run check                          # lint + typecheck + doc links
 ```
 
 **MANDATORY: Update this file before proceeding:**
-- [ ] Mark completed tasks above
-- [ ] Update Phase Status table: Phase 3 → DONE
-- [ ] Record test count in "Current Test Count" section
+- [x] Mark completed tasks above
+- [x] Update Phase Status table: Phase 3 → DONE
+- [x] Record test count in "Current Test Count" section
 
 ### Review Gate 3
 
@@ -451,7 +452,7 @@ Fix all findings before moving to Phase 4.
 
 ### Tasks
 
-- [ ] **T4.1** — `formatChannelContext()` + channel metadata
+- [x] **T4.1** — `formatChannelContext()` + channel metadata
   - Modify: `src/core/types/appContext.ts`
     - Add `ChannelMetadata` type: `{ name, handle, subscriberCount, videoCount, knowledgeItemCount?, knowledgeCategories?, lastAnalyzedAt? }`
   - Modify: `src/core/ai/layers/persistentContextLayer.ts`
@@ -459,7 +460,7 @@ Fix all findings before moving to Phase 4.
     - Output: `### Channel\n- "slow life mode" (@slowlifemode) — 1720 subscribers, 58 videos\n- AI Research: 2 items (channel-journey, strategy-period), last analyzed Mar 6, 2026`
     - Call from `buildPersistentContextLayer()` — before video context
 
-- [ ] **T4.2** — `formatSingleVideo()` KI extension
+- [x] **T4.2** — `formatSingleVideo()` KI extension
   - Modify: `src/core/types/appContext.ts`
     - Extend `VideoCardContext`: + `knowledgeItemCount?: number`, `knowledgeCategories?: string[]`, `lastAnalyzedAt?: string`
   - Modify: `src/core/ai/layers/persistentContextLayer.ts`
@@ -468,7 +469,7 @@ Fix all findings before moving to Phase 4.
   - Modify: middleware that enriches video cards (find where `VideoCardContext` is constructed — likely in `sendSlice.ts` or a middleware)
     - Read KI flags from video document, pass to `VideoCardContext`
 
-- [ ] **T4.3** — `buildSystemPrompt()` extension
+- [x] **T4.3** — `buildSystemPrompt()` extension
   - Modify: `src/core/ai/systemPrompt.ts`
     - Add `channelMetadata?: ChannelMetadata` parameter
     - Pass to `buildPersistentContextLayer()`
@@ -477,25 +478,25 @@ Fix all findings before moving to Phase 4.
     - Read KI flags from channel document (if available)
     - Pass as `channelMetadata` to `buildSystemPrompt()`
 
-- [ ] **T4.4** — `getMultipleVideoDetails` handler KI extension
+- [x] **T4.4** — `getMultipleVideoDetails` handler KI extension
   - Modify: `functions/src/services/tools/handlers/getMultipleVideoDetails.ts`
     - After resolving video docs, query KI discovery flags for each video
     - Extend response per video: + `knowledgeItemCount?: number`, `knowledgeCategories?: string[]`, `lastAnalyzedAt?: string`
     - ⚠️ Batch read KI flags — don't N+1 query. Use `db.getAll()` or read from video doc if flags are denormalized there
     - ⚠️ Only add fields when KI exists (don't pollute response with `0` / `[]` for videos without KI)
 
-- [ ] **T4.5** — Category registry injection
+- [x] **T4.5** — Category registry injection
   - Modify: `src/core/ai/systemPrompt.ts` or `persistentContextLayer.ts`
     - Add category registry as system prompt section (~500 tokens)
     - Format: list of available categories with descriptions (for LLM to choose from when creating KI)
   - ⚠️ Registry is loaded via `useKnowledgeCategories` hook — pass to buildSystemPrompt or format in sendSlice
 
-- [ ] **T4.6** — `debugSendLog.ts` extension
+- [x] **T4.6** — `debugSendLog.ts` extension
   - Modify: `src/core/ai/pipeline/debugSendLog.ts`
     - Add explicit log line for channel metadata presence + KI flags count
     - Add log line for category registry token count
 
-- [ ] **T4.7** — Tests
+- [x] **T4.7** — Tests
   - Create/extend: `src/core/ai/layers/__tests__/persistentContextLayer.test.ts`
     - Cases:
       - `formatChannelContext`: with KI flags, without KI flags, empty channel
@@ -512,9 +513,9 @@ npm run check                          # lint + typecheck + doc links
 ```
 
 **MANDATORY: Update this file before proceeding:**
-- [ ] Mark completed tasks above
-- [ ] Update Phase Status table: Phase 4 → DONE
-- [ ] Record test count in "Current Test Count" section
+- [x] Mark completed tasks above
+- [x] Update Phase Status table: Phase 4 → DONE
+- [x] Record test count in "Current Test Count" section
 
 ### Review Gate 4
 
