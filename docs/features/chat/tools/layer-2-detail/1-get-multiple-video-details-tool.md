@@ -132,16 +132,16 @@ YouTube API результаты кэшируются в `cached_external_videos
 
 | # | Сценарий | Что проверяет | Промпт-идея | Проверено |
 |---|----------|---------------|-------------|-----------|
-| 1 | **Happy path (own video)** | Cascade level 1: прямой lookup в videos/ | "Расскажи подробнее про моё видео [X]" | — |
+| 1 | **Happy path (own video)** | Cascade level 1: прямой lookup в videos/ | "Расскажи подробнее про моё видео [X]" | ✅ |
 | 2 | **External video (cached)** | Cascade level 3: cached_external_videos/ без API call | "Что за видео [videoId из suggested traffic]?" | ✅ |
-| 3 | **External video (API fallback)** | Cascade level 5: YouTube API + caching | "Расскажи про видео [неизвестный ID]" | — |
-| 4 | **Title lookup** | titles param: Firestore search → videoId resolution (0 API cost) | "Расскажи про видео 'exact title here'" | — |
-| 5 | **Title not found** | notFoundTitles в ответе — не галлюцинирует ли модель? | "Расскажи про видео 'несуществующее название'" | — |
+| 3 | **External video (API fallback)** | Cascade level 5: YouTube API + caching | "Расскажи про видео [неизвестный ID]" | ✅ |
+| 4 | **Title lookup** | titles param: Firestore search → videoId resolution (0 API cost) | "Расскажи про видео 'exact title here'" | ✅ |
+| 5 | **Title not found** | notFoundTitles в ответе — не галлюцинирует ли модель? | "Расскажи про видео 'несуществующее название'" | ✅ |
 | 6 | **Batch (multiple IDs)** | Несколько видео за один call, mix own + external | "Сравни эти 5 видео: [IDs]" | — |
 | 7 | **View deltas usage** | Использует ли модель viewDelta24h/7d/30d для оценки динамики | "Какие из моих видео сейчас растут?" | — |
-| 8 | **Snapshot counts → tool chain** | Видит ли модель suggestedTrafficSnapshotCount и вызывает drill-down | "Проанализируй трафик [видео с CSV]" | ✅ (via analyzeSuggestedTraffic trace #1) |
-| 9 | **Custom video (publishedVideoId)** | Cascade level 2: reverse lookup для custom videos | Вызов с custom-* videoId | — |
-| 10 | **Ownership labeling** | Правильно ли модель различает own-published / external | "Это моё видео или конкурента?" | — |
+| 8 | **Snapshot counts → tool chain** | Видит ли модель suggestedTrafficSnapshotCount и вызывает drill-down | "Проанализируй трафик [видео с CSV]" | ✅ |
+| 9 | **Custom video (publishedVideoId)** | Cascade level 2: reverse lookup для custom videos | Вызов с custom-* videoId | ✅ |
+| 10 | **Ownership labeling** | Правильно ли модель различает own-published / external | "Это моё видео или конкурента?" | ✅ |
 
 ### Ключевые вопросы
 
@@ -178,16 +178,106 @@ YouTube API результаты кэшируются в `cached_external_videos
 
 </details>
 
-_Тест #8 покрыт через [analyzeSuggestedTraffic trace #1](../layer-3-analysis/2-analyze-suggested-traffic-tool.md) — модель увидела snapshotCount и вызвала drill-down._
+_Тест #8 первоначально покрыт через [analyzeSuggestedTraffic trace #1](../layer-3-analysis/2-analyze-suggested-traffic-tool.md), подтверждён trace #3._
+
+<details>
+<summary>Trace #2 — Title lookup (тест #4) ✅</summary>
+
+- **Промпт**: "расскажи про видео a playlist for a quiet morning 🌿 (spring version)"
+- **Контекст**: пустой (projectId: null, никакие видео не подключены)
+- **Модель**: claude-haiku-4-5
+- **Результат**: ✅ title search → videoId resolution → полный анализ
+
+**Что сработало:**
+- Tool call: `getMultipleVideoDetails({ titles: ["a playlist for a quiet morning 🌿 (spring version)"] })` — модель правильно использовала `titles` param вместо запроса ID у юзера
+- Cascade: 0 API cost (`quotaUsed` отсутствует) — видео найдено в Firestore
+- videoId резолвлен: `zutRuZtXa2I`
+- View deltas подгружены: `viewDelta24h: 7634`, `viewDelta7d: 78032`
+- Tool chain: модель сама вызвала `viewThumbnails` вторым шагом для визуального анализа
+- `mentionVideo` в ответе: `[...](mention://zutRuZtXa2I)`
+- `ownership: "external"` — правильно
+
+**Предыстория:**
+- Первый прогон FAIL ❌ — модель ответила "I don't have this video" и попросила ID. Причина: Anti-Hallucination Rule #4 перехватывал раньше Tool Strategy.
+- **Фикс**: добавлено правило "Video by title" в Tool Strategy + исключение в Rule #4 ("first check if a tool can retrieve it").
+- Второй прогон после фикса — PASS ✅.
+
+**Ответ на ключевой вопрос #2 (Title lookup accuracy):** точный match по title работает. Emoji в title (🌿) не мешают. Осталось проверить приблизительный match (тест #5).
+
+</details>
+
+<details>
+<summary>Trace #3 — Own custom video full drill-down (тесты #1, #8, #9, #10) ✅</summary>
+
+- **Промпт**: "Расскажи подробне про мое видео a quite playlist for romanticising autumn afternoons 🍂"
+- **Контекст**: пустой (projectId: null)
+- **Модель**: claude-haiku-4-5
+- **Результат**: ✅ title lookup → own custom video → full traffic drill-down (4 tool calls, 3 итерации)
+
+**Tool chain:**
+1. `getMultipleVideoDetails({ titles: [...] })` → `custom-1773075493070` (own-published), `youtubeVideoId: 4IusGwSbBVg`
+2. `analyzeTrafficSources({ videoId: "custom-1773075493070" })` → triggered by `trafficSourceSnapshotCount: 11`
+3. `analyzeSuggestedTraffic({ videoId: "custom-1773075493070", depth: "standard" })` → 50 topSources, 11 snapshots
+4. `viewThumbnails({ videoIds: ["custom-1773075493070"] })` → proactive thumbnail analysis
+
+**Что сработало:**
+- **#1 Happy path (own video)**: own-published найдено через title, все метаданные на месте
+- **#8 Snapshot counts → tool chain**: `suggestedTrafficSnapshotCount: 11` → модель вызвала оба traffic-тула
+- **#9 Custom video**: `videoId: custom-*` + `youtubeVideoId: 4IusGwSbBVg` — оба поля корректны
+- **#10 Ownership**: `ownership: "own-published"` — модель написала "твоё видео", дала owner-specific рекомендации
+- **Tool chain depth**: 4 тула за 3 итерации — модель построила полный анализ без промежуточных вопросов
+- **Thumbnail analysis**: обложку описал детально (тёплые тона, композиция, CTR 2.86%)
+
+**Проблемы:**
+- ⚠️ `mentionVideo` не вызван для referenced видео из topSources (mention:// ссылки без tool call). Известное ограничение Haiku — не всегда вызывает mentionVideo при большом количестве ссылок.
+
+**Ответ на ключевой вопрос #5 (Tool chain trigger):** `snapshotCount: 11` → модель вызвала `analyzeTrafficSources` + `analyzeSuggestedTraffic` + `viewThumbnails`. Chain работает надёжно.
+
+</details>
+
+<details>
+<summary>Trace #4 — External video API fallback (тест #3) ✅</summary>
+
+- **Промпт**: "Расскажи про видео dydMvdW6gFg"
+- **Контекст**: пустой (projectId: null)
+- **Модель**: claude-haiku-4-5
+- **Результат**: ✅ YouTube API fallback, `quotaUsed: 1`
+
+**Что сработало:**
+- Cascade прошёл все 4 Firestore-уровня (videos/ → reverse → cached → trendChannels/) — видео не найдено
+- YouTube API fallback: `quotaUsed: 1` — видео успешно получено
+- `ownership: "external"` — правильно
+- Полные метаданные: 134K views, 5.1K likes, 140 comments, description, tags
+- View deltas: все `None` — канал gesus8 не в Trends. Ожидаемое поведение.
+- Tool chain: модель вызвала `viewThumbnails` для визуального анализа
+- Результат закэширован в `cached_external_videos/` — следующий lookup будет 0-cost
+
+**Ответ на ключевой вопрос #1 (Cascade efficiency):** YouTube API fallback работает корректно. Trace #1-#3 показали Firestore-only, trace #4 — API fallback. Cascade покрыт полностью.
+
+</details>
+
+<details>
+<summary>Trace #5 — Title not found (тест #5) ✅</summary>
+
+- **Промпт**: "Расскажи про видео «как правильно мыть руки перед едой»"
+- **Контекст**: пустой (projectId: null)
+- **Модель**: claude-haiku-4-5
+- **Результат**: ✅ title search → `notFoundTitles` → честный ответ без галлюцинации
+
+**Что сработало:**
+- Tool call: `getMultipleVideoDetails({ titles: ["как правильно мыть руки перед едой"] })`
+- `notFoundTitles: ["как правильно мыть руки перед едой"]` — title корректно вернулся
+- 0 API cost (`quotaUsed` отсутствует) — не пошёл в YouTube API за несуществующим видео
+- Модель не галлюцинировала: честно сказала "видео не найдено", предложила уточнить название или дать ссылку
+
+</details>
 
 ### Ещё не проверено в бою
 
 | Сценарий | Почему важно |
 |----------|-------------|
-| **Title fallback** | Частый user pattern: "расскажи про видео [название]" без ID |
-| **quotaUsed > 0** | Убедиться что API fallback работает и кеширует |
-| **Custom video resolution** | Reverse lookup по publishedVideoId — нетривиальный путь |
-| **notFound handling** | Модель должна сообщить что видео не найдено, не галлюцинировать |
+| **Batch (multiple IDs)** | Mix own + external в одном call |
+| **View deltas usage** | Использует ли модель viewDelta для оценки динамики |
 
 ---
 

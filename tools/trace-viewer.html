@@ -471,6 +471,47 @@
     .cascade-cache { background: var(--success-dim); color: var(--success); }
     .cascade-api { background: var(--warning-dim); color: var(--warning); }
 
+    .thumb-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 12px;
+      margin-top: 8px;
+    }
+    .thumb-grid-item {
+      background: var(--bg-section);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .thumb-grid-item img {
+      width: 100%;
+      aspect-ratio: 16/9;
+      object-fit: cover;
+      display: block;
+      background: var(--bg-app);
+    }
+    .thumb-grid-caption {
+      padding: 8px 10px;
+    }
+    .thumb-grid-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-primary);
+      text-decoration: none;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      line-height: 1.3;
+    }
+    .thumb-grid-title:hover { color: var(--accent); }
+    .thumb-grid-id {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-tertiary);
+      margin-top: 3px;
+    }
+
     .video-card {
       background: var(--bg-section);
       border: 1px solid var(--border);
@@ -2056,13 +2097,98 @@
     }
 
     /* ==========================================================
+     *  viewThumbnails renderer
+     * ========================================================== */
+
+    function renderViewThumbnails(result, totalTokens) {
+      var container = el('div');
+
+      if (!result.videos || !result.videos.length) {
+        container.appendChild(el('div', { style: { color: 'var(--text-tertiary)', fontSize: '13px' } },
+          'No thumbnails found'));
+        return container;
+      }
+
+      /* summary line */
+      var summary = result.videos.length + ' thumbnail' + (result.videos.length !== 1 ? 's' : '');
+      if (result.notFound && result.notFound.length > 0) {
+        summary += ' \u00B7 ' + result.notFound.length + ' not found';
+      }
+      if (result.notFoundTitles && result.notFoundTitles.length > 0) {
+        summary += ' \u00B7 ' + result.notFoundTitles.length + ' title' + (result.notFoundTitles.length !== 1 ? 's' : '') + ' not found';
+      }
+      container.appendChild(el('div', {
+        style: { color: 'var(--text-tertiary)', fontSize: '12px', marginBottom: '8px' }
+      }, summary));
+
+      /* thumbnail grid */
+      var grid = el('div', { className: 'thumb-grid' });
+      result.videos.forEach(function(video) {
+        var item = el('div', { className: 'thumb-grid-item' });
+
+        if (video.thumbnailUrl) {
+          item.appendChild(el('img', { src: video.thumbnailUrl, alt: video.title || '' }));
+        }
+
+        var caption = el('div', { className: 'thumb-grid-caption' });
+        caption.appendChild(el('a', {
+          className: 'thumb-grid-title',
+          href: 'https://www.youtube.com/watch?v=' + video.videoId,
+          target: '_blank'
+        }, video.title || video.videoId));
+        caption.appendChild(el('div', { className: 'thumb-grid-id' }, video.videoId));
+        item.appendChild(caption);
+
+        grid.appendChild(item);
+      });
+      container.appendChild(grid);
+
+      /* notFound — only when non-empty */
+      if (result.notFound && result.notFound.length > 0) {
+        var nf = el('div', { style: { marginTop: '10px' } });
+        nf.appendChild(el('div', {
+          style: { color: 'var(--warning)', fontSize: '12px', fontWeight: '500', marginBottom: '4px' }
+        }, 'Not Found (' + result.notFound.length + ')'));
+        var nfPills = el('div', { className: 'tag-pills' });
+        result.notFound.forEach(function(id) {
+          nfPills.appendChild(el('span', {
+            className: 'tag-pill',
+            style: { background: 'var(--danger-dim)', color: 'var(--danger)' }
+          }, id));
+        });
+        nf.appendChild(nfPills);
+        container.appendChild(nf);
+      }
+
+      /* notFoundTitles — only when non-empty */
+      if (result.notFoundTitles && result.notFoundTitles.length > 0) {
+        var nft = el('div', { style: { marginTop: '10px' } });
+        nft.appendChild(el('div', {
+          style: { color: 'var(--warning)', fontSize: '12px', fontWeight: '500', marginBottom: '4px' }
+        }, 'Not Found Titles (' + result.notFoundTitles.length + ')'));
+        var nftPills = el('div', { className: 'tag-pills' });
+        result.notFoundTitles.forEach(function(title) {
+          nftPills.appendChild(el('span', {
+            className: 'tag-pill',
+            style: { background: 'var(--danger-dim)', color: 'var(--danger)' }
+          }, title));
+        });
+        nft.appendChild(nftPills);
+        container.appendChild(nft);
+      }
+
+      return container;
+    }
+
+    /* ==========================================================
      *  MAIN RENDER
      * ========================================================== */
 
     var TOOL_RENDERERS = {
       'analyzeTrafficSources': renderTrafficSources,
       'analyzeSuggestedTraffic': renderSuggestedTraffic,
-      'getMultipleVideoDetails': renderVideoDetails
+      'getMultipleVideoDetails': renderVideoDetails,
+      'viewThumbnails': renderViewThumbnails
     };
 
     function renderTrace(trace) {
