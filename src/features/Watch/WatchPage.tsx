@@ -29,6 +29,9 @@ import { WatchPageSkeleton } from './components/WatchPageSkeleton';
 import { WatchPageVideoPlayer } from './components/WatchPageVideoPlayer';
 import { WatchPageVideoInfo } from './components/WatchPageVideoInfo';
 import { WatchPageNotes } from './components/WatchPageNotes';
+import { WatchPageKnowledge } from './components/WatchPageKnowledge';
+
+type WatchTab = 'notes' | 'research';
 
 export const WatchPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -52,6 +55,7 @@ export const WatchPage: React.FC = () => {
     const [selectedFilter, setSelectedFilter] = useState<FilterType>(FilterType.ALL);
     const [selectedPlaylistIds, setSelectedPlaylistIds] = useState<string[]>([]);
     const [sortBy, setSortBy] = useState<SortOption>(SortOption.DEFAULT);
+    const [activeWatchTab, setActiveWatchTab] = useState<WatchTab>('notes');
 
     const video = videos.find(v => v.id === id);
 
@@ -272,7 +276,35 @@ export const WatchPage: React.FC = () => {
             <div className="min-w-0">
                 <WatchPageVideoPlayer video={video} />
                 <WatchPageVideoInfo video={video} />
-                <WatchPageNotes video={video} />
+                {/* Tab bar: Notes / AI Research */}
+                <div className="flex items-center gap-2 mt-4 border-b border-[var(--color-border)]">
+                    {(['notes', 'research'] as const).map((tab) => (
+                        <button
+                            key={tab}
+                            onClick={() => setActiveWatchTab(tab)}
+                            className={`px-4 pb-3 text-sm font-medium transition-all relative ${
+                                activeWatchTab === tab
+                                    ? 'text-[var(--color-text-primary)]'
+                                    : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
+                            }`}
+                        >
+                            {tab === 'notes' ? 'My Notes' : 'AI Research'}
+                            {activeWatchTab === tab && (
+                                <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[var(--color-text-primary)] rounded-t-full" />
+                            )}
+                        </button>
+                    ))}
+                </div>
+
+                {/* Tab content */}
+                {activeWatchTab === 'notes' && <WatchPageNotes video={video} />}
+                {activeWatchTab === 'research' && user?.uid && currentChannel?.id && video.id && (
+                    <WatchPageKnowledge
+                        userId={user.uid}
+                        channelId={currentChannel.id}
+                        videoId={video.id}
+                    />
+                )}
             </div>
 
             {/* Recommendations Sidebar */}
