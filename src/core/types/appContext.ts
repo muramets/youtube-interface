@@ -37,6 +37,10 @@ export interface VideoCardContext {
     // Denormalized snapshot counts — LLM uses these to decide whether to call traffic tools
     trafficSourceSnapshotCount?: number;
     suggestedTrafficSnapshotCount?: number;
+    // Knowledge Items discovery flags — LLM sees these and can call listKnowledge/getKnowledge
+    knowledgeItemCount?: number;
+    knowledgeCategories?: string[];
+    lastAnalyzedAt?: string;
 }
 
 /**
@@ -268,6 +272,21 @@ export function getContextItemKey(item: AppContextItem): string {
 }
 
 // --- Context merging (deduplication by type-specific key) ---
+
+/**
+ * Channel metadata injected into the system prompt for LLM awareness.
+ * Includes Knowledge Items discovery flags for channel-level KI.
+ */
+export interface ChannelMetadata {
+    name: string;
+    handle?: string;
+    subscriberCount?: number;
+    videoCount?: number;
+    /** Knowledge Items discovery flags */
+    knowledgeItemCount?: number;
+    knowledgeCategories?: string[];
+    lastAnalyzedAt?: string;
+}
 
 /** Merge incoming items into existing, skipping duplicates by video/source ID. */
 export function mergeContextItems(

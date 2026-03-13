@@ -10,7 +10,8 @@
 // =============================================================================
 
 import type { AiAssistantSettings, ChatProject, ConversationMemory } from '../types/chat/chat';
-import type { AppContextItem } from '../types/appContext';
+import type { AppContextItem, ChannelMetadata } from '../types/appContext';
+import type { KnowledgeCategoryEntry } from '../types/knowledge';
 import { buildSettingsLayer } from './layers/settingsLayer';
 import { buildPersistentContextLayer } from './layers/persistentContextLayer';
 import { buildCrossConversationLayer } from './layers/crossConversationLayer';
@@ -31,9 +32,11 @@ export function buildSystemPrompt(
     activeProjectId: string | null,
     appContext?: AppContextItem[],
     memories?: ConversationMemory[],
+    channelMetadata?: ChannelMetadata,
+    knowledgeCategories?: KnowledgeCategoryEntry[],
 ): SystemPromptResult {
     const settingsSections = buildSettingsLayer(aiSettings, projects, activeProjectId);
-    const contextSections = buildPersistentContextLayer(appContext);   // Layer 1
+    const contextSections = buildPersistentContextLayer(appContext, channelMetadata, knowledgeCategories);   // Layer 1
     // Layer 2 (per-message context) lives server-side in buildHistory()
     // Layer 3 (summarization) lives server-side in buildMemory()
     const memorySections = buildCrossConversationLayer(memories);      // Layer 4

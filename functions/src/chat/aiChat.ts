@@ -16,7 +16,7 @@ import { createProviderRouter } from "../services/ai/providerRouter.js";
 import { geminiFactory } from "../services/gemini/factory.js";
 import { geminiContext } from "../services/gemini/context.js";
 import { claudeFactory } from "../services/claude/factory.js";
-import { TOOL_DECLARATIONS } from "../services/tools/definitions.js";
+import { TOOL_DECLARATIONS, CONCLUDE_TOOL_DECLARATIONS } from "../services/tools/definitions.js";
 import type { StreamCallbacks, AttachmentRef, ToolCallRecord } from "../services/ai/types.js";
 import { writeSSE } from "./sseWriter.js";
 import type { ContextBreakdown, AuxiliaryCost } from "../shared/models.js";
@@ -319,8 +319,8 @@ export const aiChat = onRequest(
                 text: body.text,
                 attachments: currentAttachments,
                 imageUrls: body.thumbnailUrls,
-                tools: TOOL_DECLARATIONS,
-                toolContext: { userId, channelId: body.channelId, channelName, youtubeApiKey: userYoutubeApiKey },
+                tools: body.isConclude ? [...TOOL_DECLARATIONS, ...CONCLUDE_TOOL_DECLARATIONS] : TOOL_DECLARATIONS,
+                toolContext: { userId, channelId: body.channelId, channelName, youtubeApiKey: userYoutubeApiKey, conversationId: body.conversationId, model, isConclude: body.isConclude },
                 thinkingOptionId,
                 callbacks,
                 providerContext,
@@ -361,13 +361,23 @@ export const aiChat = onRequest(
             // Determine message status (immutable after write)
             const messageStatus = partial ? 'stopped' as const : 'complete' as const;
 
+            // Strip large KI content from toolCalls before sending to client / persisting
+            // Replaces saveKnowledge args.content with a lightweight reference pointer.
+            // Preserves summary (lightweight, useful for history reconstruction).
+            const persistToolCalls = toolCalls?.map(tc => {
+                if (tc.name === 'saveKnowledge' && tc.args?.content && tc.result?.id) {
+                    return { ...tc, args: { ...tc.args, content: `[Saved as KI ${tc.result.id}]` } };
+                }
+                return tc;
+            });
+
             // Final event with complete response + token usage + summary status
             writeSSE(res, {
                 type: "done",
                 text: responseText,
                 tokenUsage,
                 normalizedUsage,
-                toolCalls,
+                toolCalls: persistToolCalls,
                 usedSummary: memory.usedSummary,
                 summary: memory.newSummary,
                 status: messageStatus,

@@ -109,6 +109,7 @@ export const AiService = {
         thinkingOptionId?: string;
         largePayloadApproved?: boolean;
         signal?: AbortSignal;
+        isConclude?: boolean;
     }): Promise<AiSendResult> {
         return AiProxy.streamChat({
             channelId: opts.channelId,
@@ -130,6 +131,7 @@ export const AiService = {
             thinkingOptionId: opts.thinkingOptionId,
             largePayloadApproved: opts.largePayloadApproved,
             signal: opts.signal,
+            isConclude: opts.isConclude,
         });
     },
 
