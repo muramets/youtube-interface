@@ -897,12 +897,23 @@
       topSources.forEach(function(src, i) {
         var barW = maxImp > 0 ? (src.impressions / maxImp * 100) : 0;
 
-        var row = el('tr', { style: { cursor: 'pointer' } },
-          el('td', { className: 'num' }, String(i + 1)),
-          el('td', {},
+        var videoCell = el('td', {},
             el('span', { className: 'inline-bar', style: { width: barW + '%', maxWidth: '80px', background: 'var(--accent)', opacity: '0.3' } }),
             truncate(src.sourceTitle, 45)
-          ),
+        );
+        if (src.videoId) {
+          var vidLink = el('a', {
+            href: 'https://www.youtube.com/watch?v=' + src.videoId,
+            target: '_blank',
+            style: { fontSize: '10px', color: 'var(--text-tertiary)', marginLeft: '6px', textDecoration: 'none' }
+          }, src.videoId);
+          vidLink.addEventListener('click', function(e) { e.stopPropagation(); });
+          videoCell.appendChild(vidLink);
+        }
+
+        var row = el('tr', { style: { cursor: 'pointer' } },
+          el('td', { className: 'num' }, String(i + 1)),
+          videoCell,
           el('td', { className: 'num' }, fmtNum(src.views)),
           el('td', { className: 'num' }, fmtNum(src.impressions)),
           el('td', { className: 'num' }, src.ctr != null ? src.ctr + '%' : '\u2014'),
@@ -1201,16 +1212,29 @@
     function renderTrajectoryViz(trajectory) {
       var container = el('div');
 
+      container.appendChild(el('div', {
+        style: { fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '8px' }
+      }, trajectory.length + ' snapshots \u00B7 click to expand top videos & channel distribution'));
+
       trajectory.forEach(function(snap) {
+        var hasDetails = (snap.topVideos && snap.topVideos.length) ||
+                         (snap.channelDistribution && snap.channelDistribution.length);
+
+        var chevron = el('span', {
+          style: { color: 'var(--text-tertiary)', fontSize: '10px', marginRight: '6px', display: 'inline-block', transition: 'transform 0.15s' }
+        }, '\u25B6');
+
         var card = el('div', {
           style: {
-            padding: '8px 12px', marginBottom: '6px',
-            background: 'var(--bg-app)', borderRadius: 'var(--radius-sm)', fontSize: '12px'
+            padding: '8px 12px', marginBottom: '2px',
+            background: 'var(--bg-app)', borderRadius: 'var(--radius-sm)', fontSize: '12px',
+            cursor: hasDetails ? 'pointer' : 'default'
           }
         });
 
         card.appendChild(el('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: '4px' } },
           el('span', { style: { fontFamily: 'var(--font-mono)', fontWeight: '500' } },
+            hasDetails ? chevron : el('span'),
             snap.label + (snap.isLatest ? ' (latest)' : '')),
           el('span', { style: { color: 'var(--text-tertiary)' } },
             snap.totalSources + ' sources \u00B7 ' + fmtNum(snap.totalImpressions) + ' imp')
@@ -1226,12 +1250,95 @@
           card.appendChild(el('div', { style: { color: 'var(--text-tertiary)' } }, 'Shared tags: ' + tags));
         }
 
-        if (snap.topVideos && snap.topVideos.length) {
-          card.appendChild(el('div', { style: { color: 'var(--text-tertiary)' } },
-            snap.topVideos.length + ' top videos, tail: ' + fmtNum(snap.tailImpressions) + ' imp'));
-        }
-
         container.appendChild(card);
+
+        /* expandable details: topVideos table + channelDistribution bars */
+        if (hasDetails) {
+          var details = el('div', {
+            style: {
+              display: 'none', padding: '6px 12px 10px', marginBottom: '6px',
+              background: 'var(--bg-app)', borderRadius: '0 0 var(--radius-sm) var(--radius-sm)',
+              borderTop: '1px solid var(--border)'
+            }
+          });
+
+          /* top videos table */
+          if (snap.topVideos && snap.topVideos.length) {
+            details.appendChild(el('div', {
+              style: { fontSize: '11px', color: 'var(--text-tertiary)', fontWeight: '500', marginBottom: '4px' }
+            }, 'Top ' + snap.topVideos.length + ' Videos' +
+              (snap.tailImpressions != null ? '  \u00B7  tail: ' + fmtNum(snap.tailImpressions) + ' imp' : '')));
+
+            var maxImp = Math.max.apply(null, snap.topVideos.map(function(v) { return v.impressions || 0; }));
+
+            var vTable = el('table', { className: 'data-table' });
+            vTable.appendChild(el('thead', {},
+              el('tr', {},
+                el('th', {}, '#'),
+                el('th', {}, 'Video'),
+                el('th', { className: 'num' }, 'Views'),
+                el('th', { className: 'num' }, 'Imp'),
+                el('th', { className: 'num' }, '\u0394Imp'),
+                el('th', { className: 'num' }, 'CTR'),
+                el('th', { className: 'num' }, 'AVD')
+              )
+            ));
+            var vTbody = el('tbody');
+            snap.topVideos.forEach(function(v, idx) {
+              var barW = maxImp > 0 ? (v.impressions / maxImp * 100) : 0;
+              var vCell = el('td', {},
+                  el('span', { className: 'inline-bar', style: { width: barW + '%', maxWidth: '60px', background: 'var(--accent)', opacity: '0.3' } }),
+                  truncate(v.sourceTitle, 40)
+              );
+              if (v.videoId) {
+                vCell.appendChild(el('a', {
+                  href: 'https://www.youtube.com/watch?v=' + v.videoId,
+                  target: '_blank',
+                  style: { fontSize: '10px', color: 'var(--text-tertiary)', marginLeft: '6px', textDecoration: 'none' }
+                }, v.videoId));
+              }
+              vTbody.appendChild(el('tr', {},
+                el('td', { className: 'num' }, String(idx + 1)),
+                vCell,
+                el('td', { className: 'num' }, fmtNum(v.views)),
+                el('td', { className: 'num' }, fmtNum(v.impressions)),
+                el('td', { className: 'num ' + deltaClass(v.deltaImpressions) }, fmtDelta(v.deltaImpressions)),
+                el('td', { className: 'num' }, v.ctr != null ? v.ctr + '%' : '\u2014'),
+                el('td', { className: 'num' }, v.avgViewDuration || '\u2014')
+              ));
+            });
+            vTable.appendChild(vTbody);
+            details.appendChild(vTable);
+          }
+
+          /* channel distribution bars */
+          if (snap.channelDistribution && snap.channelDistribution.length) {
+            details.appendChild(el('div', {
+              style: { fontSize: '11px', color: 'var(--text-tertiary)', fontWeight: '500', marginTop: '10px', marginBottom: '4px' }
+            }, 'Channel Distribution'));
+
+            var maxC = Math.max.apply(null, snap.channelDistribution.map(function(c) { return c.count; }));
+            var chBars = el('div', { className: 'h-bars' });
+            snap.channelDistribution.forEach(function(c) {
+              chBars.appendChild(el('div', { className: 'h-bar-row' },
+                el('span', { className: 'h-bar-label' }, truncate(c.channelTitle, 25)),
+                el('div', { className: 'h-bar-track' },
+                  el('div', { className: 'h-bar-fill', style: { width: (c.count / maxC * 100) + '%' } })
+                ),
+                el('span', { className: 'h-bar-value' }, String(c.count))
+              ));
+            });
+            details.appendChild(chBars);
+          }
+
+          card.addEventListener('click', function() {
+            var open = details.style.display !== 'none';
+            details.style.display = open ? 'none' : 'block';
+            chevron.style.transform = open ? '' : 'rotate(90deg)';
+          });
+
+          container.appendChild(details);
+        }
       });
 
       return container;
