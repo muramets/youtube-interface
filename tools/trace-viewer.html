@@ -448,6 +448,151 @@
     .delta-zero { color: var(--text-tertiary); }
     .delta-null { color: var(--text-tertiary); font-style: italic; }
 
+    /* ========== Video Details Cards ========== */
+    .cascade-info {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: var(--bg-section);
+      border-radius: var(--radius-sm);
+      margin-bottom: 12px;
+      font-size: 12px;
+      font-family: var(--font-mono);
+    }
+
+    .cascade-badge {
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .cascade-cache { background: var(--success-dim); color: var(--success); }
+    .cascade-api { background: var(--warning-dim); color: var(--warning); }
+
+    .video-card {
+      background: var(--bg-section);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+
+    .video-card-header { display: flex; gap: 12px; margin-bottom: 10px; }
+
+    .video-thumb {
+      width: 120px;
+      height: 68px;
+      object-fit: cover;
+      border-radius: var(--radius-sm);
+      flex-shrink: 0;
+      background: var(--bg-app);
+    }
+
+    .video-info { flex: 1; min-width: 0; }
+
+    .video-title {
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--text-primary);
+      text-decoration: none;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      line-height: 1.3;
+    }
+    .video-title:hover { color: var(--accent); }
+
+    .video-channel-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 4px;
+      font-size: 12px;
+    }
+
+    .video-channel { color: var(--text-secondary); }
+
+    .ownership-badge {
+      padding: 1px 8px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .ownership-own-published { background: var(--success-dim); color: var(--success); }
+    .ownership-own-draft { background: var(--warning-dim); color: var(--warning); }
+    .ownership-external { background: rgba(188,140,255,0.12); color: var(--purple); }
+
+    .video-metrics { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+
+    .metric-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      background: var(--bg-app);
+      border-radius: var(--radius-sm);
+      font-size: 11px;
+      font-family: var(--font-mono);
+    }
+
+    .metric-label { color: var(--text-tertiary); }
+    .metric-value { color: var(--text-primary); }
+
+    .video-deltas {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+
+    .deltas-label { font-size: 11px; color: var(--text-tertiary); font-family: var(--font-mono); }
+
+    .delta-pill {
+      padding: 2px 8px;
+      border-radius: var(--radius-sm);
+      font-size: 11px;
+      font-family: var(--font-mono);
+    }
+
+    .delta-pill.delta-positive { background: var(--success-dim); }
+    .delta-pill.delta-negative { background: var(--danger-dim); }
+    .delta-pill.delta-zero, .delta-pill.delta-null { background: var(--bg-app); }
+
+    .video-snapshots { display: flex; gap: 6px; margin-bottom: 8px; }
+
+    .snapshot-pill {
+      padding: 2px 8px;
+      background: var(--accent-dim);
+      border-radius: var(--radius-sm);
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--accent);
+    }
+
+    .video-tags { margin-bottom: 8px; }
+
+    .video-desc {
+      margin-top: 8px;
+      border-top: 1px solid rgba(48,54,61,0.5);
+      padding-top: 8px;
+    }
+
+    .not-found-section {
+      margin-top: 12px;
+      padding: 8px 12px;
+      background: var(--bg-section);
+      border-radius: var(--radius-sm);
+      border-left: 3px solid var(--warning);
+    }
+
     /* ========== Response Panel ========== */
     .response-label {
       font-size: 11px;
@@ -575,6 +720,32 @@
       if (v > 0) return '+' + fmtNum(v);
       if (v < 0) return fmtNum(v);
       return '0';
+    }
+
+    function parseDuration(iso) {
+      if (!iso) return '\u2014';
+      var match = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+      if (!match) return iso;
+      var parts = [];
+      if (match[1]) parts.push(match[1] + 'h');
+      if (match[2]) parts.push(match[2] + 'm');
+      if (match[3]) parts.push(match[3] + 's');
+      return parts.join(' ') || '0s';
+    }
+
+    function formatDate(iso) {
+      if (!iso) return '\u2014';
+      try {
+        var d = new Date(iso);
+        return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+      } catch(e) { return iso; }
+    }
+
+    function metricPill(label, value) {
+      return el('span', { className: 'metric-pill' },
+        el('span', { className: 'metric-label' }, label),
+        el('span', { className: 'metric-value' }, value)
+      );
     }
 
     /* DOM helper */
@@ -1495,7 +1666,6 @@
 
     function renderResponse(text) {
       var panel = document.getElementById('response-panel');
-      panel.innerHTML = '';
 
       panel.appendChild(el('div', { className: 'response-label' }, 'Model Response'));
 
@@ -1705,38 +1875,219 @@
     }
 
     /* ==========================================================
+     *  getMultipleVideoDetails RENDERER
+     * ========================================================== */
+
+    function renderVideoDetails(result, totalTokens) {
+      var container = el('div');
+
+      if (!result.videos) {
+        container.appendChild(el('pre', { className: 'json-raw' }, JSON.stringify(result, null, 2)));
+        return container;
+      }
+
+      /* cascade info bar */
+      var cascadeInfo = el('div', { className: 'cascade-info' });
+      if (result.quotaUsed != null) {
+        cascadeInfo.appendChild(el('span', { className: 'cascade-badge cascade-api' },
+          'YouTube API: ' + result.quotaUsed + ' unit' + (result.quotaUsed !== 1 ? 's' : '')));
+      } else {
+        cascadeInfo.appendChild(el('span', { className: 'cascade-badge cascade-cache' },
+          'Firestore only (0 API cost)'));
+      }
+      cascadeInfo.appendChild(el('span', { style: { color: 'var(--text-tertiary)', fontSize: '12px' } },
+        result.videos.length + ' video' + (result.videos.length !== 1 ? 's' : '') +
+        (result.notFound && result.notFound.length > 0 ? ' \u00B7 ' + result.notFound.length + ' not found' : '')));
+      container.appendChild(cascadeInfo);
+
+      /* video cards */
+      result.videos.forEach(function(video) {
+        var card = el('div', { className: 'video-card' });
+
+        /* header: thumbnail + title + channel */
+        var header = el('div', { className: 'video-card-header' });
+        if (video.thumbnailUrl) {
+          header.appendChild(el('img', {
+            className: 'video-thumb',
+            src: video.thumbnailUrl,
+            alt: ''
+          }));
+        }
+
+        var info = el('div', { className: 'video-info' });
+
+        /* title → YouTube link */
+        var ytId = video.youtubeVideoId || video.videoId;
+        info.appendChild(el('a', {
+          className: 'video-title',
+          href: 'https://www.youtube.com/watch?v=' + ytId,
+          target: '_blank'
+        }, video.title || video.videoId));
+
+        /* channel + ownership badge + videoId */
+        var channelRow = el('div', { className: 'video-channel-row' });
+        if (video.channelTitle) {
+          channelRow.appendChild(el('span', { className: 'video-channel' }, video.channelTitle));
+        }
+        channelRow.appendChild(el('span', {
+          className: 'ownership-badge ownership-' + (video.ownership || 'external')
+        }, video.ownership || 'unknown'));
+        channelRow.appendChild(el('span', {
+          style: { fontFamily: 'var(--font-mono)', fontSize: '10px', color: 'var(--text-tertiary)' }
+        }, video.videoId));
+        info.appendChild(channelRow);
+
+        header.appendChild(info);
+        card.appendChild(header);
+
+        /* metrics row */
+        var metrics = el('div', { className: 'video-metrics' });
+        if (video.viewCount != null) metrics.appendChild(metricPill('views', fmtNum(Number(video.viewCount))));
+        if (video.likeCount != null) metrics.appendChild(metricPill('likes', fmtNum(Number(video.likeCount))));
+        if (video.commentCount != null) metrics.appendChild(metricPill('comments', fmtNum(Number(video.commentCount))));
+        if (video.duration) metrics.appendChild(metricPill('duration', parseDuration(video.duration)));
+        if (video.publishedAt) metrics.appendChild(metricPill('published', formatDate(video.publishedAt)));
+        card.appendChild(metrics);
+
+        /* view deltas */
+        var hasDeltas = video.viewDelta24h !== undefined || video.viewDelta7d !== undefined || video.viewDelta30d !== undefined;
+        if (hasDeltas) {
+          var deltas = el('div', { className: 'video-deltas' });
+          deltas.appendChild(el('span', { className: 'deltas-label' }, 'View deltas:'));
+          [['24h', video.viewDelta24h], ['7d', video.viewDelta7d], ['30d', video.viewDelta30d]].forEach(function(pair) {
+            deltas.appendChild(el('span', { className: 'delta-pill ' + deltaClass(pair[1]) },
+              pair[0] + ': ' + fmtDelta(pair[1])));
+          });
+          card.appendChild(deltas);
+        }
+
+        /* traffic snapshot counts (own videos) */
+        if (video.suggestedTrafficSnapshotCount != null || video.trafficSourceSnapshotCount != null) {
+          var snapshots = el('div', { className: 'video-snapshots' });
+          if (video.suggestedTrafficSnapshotCount != null) {
+            snapshots.appendChild(el('span', { className: 'snapshot-pill' },
+              'Suggested snapshots: ' + video.suggestedTrafficSnapshotCount));
+          }
+          if (video.trafficSourceSnapshotCount != null) {
+            snapshots.appendChild(el('span', { className: 'snapshot-pill' },
+              'Traffic source snapshots: ' + video.trafficSourceSnapshotCount));
+          }
+          card.appendChild(snapshots);
+        }
+
+        /* tags */
+        if (video.tags && video.tags.length > 0) {
+          var pills = el('div', { className: 'tag-pills video-tags' });
+          video.tags.forEach(function(tag) {
+            pills.appendChild(el('span', { className: 'tag-pill' }, tag));
+          });
+          card.appendChild(pills);
+        }
+
+        /* description (truncated, expandable) */
+        if (video.description) {
+          var descSection = el('div', { className: 'video-desc' });
+          var shortDesc = truncate(video.description, 150);
+          var descText = el('div', {
+            style: { color: 'var(--text-tertiary)', fontSize: '12px', whiteSpace: 'pre-wrap', lineHeight: '1.5' }
+          }, shortDesc);
+          descSection.appendChild(descText);
+
+          if (video.description.length > 150) {
+            var expanded = false;
+            var moreBtn = el('span', {
+              style: { color: 'var(--accent)', cursor: 'pointer', fontSize: '11px', marginLeft: '4px' }
+            }, 'show more');
+            moreBtn.addEventListener('click', function() {
+              expanded = !expanded;
+              descText.textContent = expanded ? video.description : shortDesc;
+              moreBtn.textContent = expanded ? 'show less' : 'show more';
+            });
+            descSection.appendChild(moreBtn);
+          }
+          card.appendChild(descSection);
+        }
+
+        /* youtubeVideoId for custom videos */
+        if (video.youtubeVideoId) {
+          card.appendChild(el('div', {
+            style: { fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '6px', fontFamily: 'var(--font-mono)' }
+          }, 'youtubeVideoId: ' + video.youtubeVideoId + ' (custom video)'));
+        }
+
+        container.appendChild(card);
+      });
+
+      /* notFound */
+      if (result.notFound && result.notFound.length > 0) {
+        var nf = el('div', { className: 'not-found-section' });
+        nf.appendChild(el('div', {
+          style: { color: 'var(--warning)', fontSize: '12px', fontWeight: '500', marginBottom: '6px' }
+        }, 'Not Found (' + result.notFound.length + ')'));
+        var nfPills = el('div', { className: 'tag-pills' });
+        result.notFound.forEach(function(id) {
+          nfPills.appendChild(el('span', {
+            className: 'tag-pill',
+            style: { background: 'var(--danger-dim)', color: 'var(--danger)' }
+          }, id));
+        });
+        nf.appendChild(nfPills);
+        container.appendChild(nf);
+      }
+
+      /* notFoundTitles */
+      if (result.notFoundTitles && result.notFoundTitles.length > 0) {
+        var nft = el('div', { className: 'not-found-section' });
+        nft.appendChild(el('div', {
+          style: { color: 'var(--warning)', fontSize: '12px', fontWeight: '500', marginBottom: '6px' }
+        }, 'Not Found Titles (' + result.notFoundTitles.length + ')'));
+        var nftPills = el('div', { className: 'tag-pills' });
+        result.notFoundTitles.forEach(function(title) {
+          nftPills.appendChild(el('span', {
+            className: 'tag-pill',
+            style: { background: 'var(--danger-dim)', color: 'var(--danger)' }
+          }, title));
+        });
+        nft.appendChild(nftPills);
+        container.appendChild(nft);
+      }
+
+      return container;
+    }
+
+    /* ==========================================================
      *  MAIN RENDER
      * ========================================================== */
 
     var TOOL_RENDERERS = {
       'analyzeTrafficSources': renderTrafficSources,
-      'analyzeSuggestedTraffic': renderSuggestedTraffic
+      'analyzeSuggestedTraffic': renderSuggestedTraffic,
+      'getMultipleVideoDetails': renderVideoDetails
     };
 
     function renderTrace(trace) {
       var meta = trace.meta || {};
       var messages = trace.messages || [];
 
-      var modelMsg = null;
-      var userMsg = null;
+      var modelMessages = [];
       messages.forEach(function(m) {
-        if (m.role === 'model' && !modelMsg) modelMsg = m;
-        if (m.role === 'user' && !userMsg) userMsg = m;
+        if (m.role === 'model') modelMessages.push(m);
       });
+      var lastModelMsg = modelMessages[modelMessages.length - 1] || null;
 
       /* meta bar */
-      renderMeta(meta, modelMsg);
+      renderMeta(meta, lastModelMsg);
 
       /* context breakdown — scale chars → tokens */
       var breakdownSection = document.getElementById('context-breakdown-section');
       breakdownSection.innerHTML = '';
-      if (modelMsg && modelMsg.contextBreakdown) {
-        var inputTokens = modelMsg.normalizedUsage &&
-          modelMsg.normalizedUsage.contextWindow &&
-          modelMsg.normalizedUsage.contextWindow.inputTokens;
+      if (lastModelMsg && lastModelMsg.contextBreakdown) {
+        var inputTokens = lastModelMsg.normalizedUsage &&
+          lastModelMsg.normalizedUsage.contextWindow &&
+          lastModelMsg.normalizedUsage.contextWindow.inputTokens;
         var scaledBreakdown = inputTokens
-          ? scaleBreakdown(modelMsg.contextBreakdown, inputTokens)
-          : modelMsg.contextBreakdown;
+          ? scaleBreakdown(lastModelMsg.contextBreakdown, inputTokens)
+          : lastModelMsg.contextBreakdown;
 
         breakdownSection.appendChild(el('div', {
           style: { fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '600' }
@@ -1744,68 +2095,83 @@
         breakdownSection.appendChild(renderContextBreakdown(scaledBreakdown));
       }
 
-      /* tools panel */
+      /* tools panel — render ALL messages in conversation order */
       var toolsPanel = document.getElementById('tools-panel');
       toolsPanel.innerHTML = '';
 
-      /* user message */
-      if (userMsg) {
-        toolsPanel.appendChild(el('div', {
-          style: {
-            padding: '10px 16px', background: 'var(--bg-card)', borderRadius: 'var(--radius)',
-            marginBottom: '16px', borderLeft: '3px solid var(--accent)'
-          }
-        },
-          el('div', { style: { fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '1px' } }, 'User Message'),
-          el('div', { style: { color: 'var(--text-secondary)' } }, userMsg.text || '')
-        ));
-      }
+      messages.forEach(function(msg) {
+        if (msg.role === 'user') {
+          toolsPanel.appendChild(el('div', {
+            style: {
+              padding: '10px 16px', background: 'var(--bg-card)', borderRadius: 'var(--radius)',
+              marginBottom: '16px', borderLeft: '3px solid var(--accent)'
+            }
+          },
+            el('div', { style: { fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '1px' } }, 'User Message'),
+            el('div', { style: { color: 'var(--text-secondary)' } }, msg.text || '')
+          ));
+        } else if (msg.role === 'model' && msg.toolCalls) {
+          msg.toolCalls.forEach(function(tc) {
+            var totalTokens = estimateTokens(tc.result);
+            var card = el('div', { className: 'tool-card' });
 
-      /* tool call cards */
-      if (modelMsg && modelMsg.toolCalls) {
-        modelMsg.toolCalls.forEach(function(tc) {
-          var totalTokens = estimateTokens(tc.result);
-          var card = el('div', { className: 'tool-card' });
+            var chevron = el('span', { style: { fontSize: '10px', color: 'var(--text-tertiary)' } }, '\u25BC');
+            var header = el('div', { className: 'tool-header' },
+              chevron,
+              el('span', { className: 'tool-name' }, tc.name),
+              el('span', { className: 'tool-tokens' }, '~' + fmtNum(totalTokens) + ' tokens')
+            );
 
-          var chevron = el('span', { style: { fontSize: '10px', color: 'var(--text-tertiary)' } }, '\u25BC');
-          var header = el('div', { className: 'tool-header' },
-            chevron,
-            el('span', { className: 'tool-name' }, tc.name),
-            el('span', { className: 'tool-tokens' }, '~' + fmtNum(totalTokens) + ' tokens')
-          );
+            var args = el('div', { className: 'tool-args' },
+              el('span', { style: { color: 'var(--text-tertiary)' } }, 'args: '),
+              JSON.stringify(tc.args)
+            );
 
-          var args = el('div', { className: 'tool-args' },
-            el('span', { style: { color: 'var(--text-tertiary)' } }, 'args: '),
-            JSON.stringify(tc.args)
-          );
+            var body = el('div', { className: 'tool-body' });
+            var renderer = TOOL_RENDERERS[tc.name];
+            if (renderer) {
+              body.appendChild(renderer(tc.result, totalTokens));
+            } else {
+              body.appendChild(renderGenericResult(tc.result, totalTokens));
+            }
 
-          var body = el('div', { className: 'tool-body' });
-          var renderer = TOOL_RENDERERS[tc.name];
-          if (renderer) {
-            body.appendChild(renderer(tc.result, totalTokens));
-          } else {
-            body.appendChild(renderGenericResult(tc.result, totalTokens));
-          }
+            var bodyVisible = true;
+            header.addEventListener('click', function() {
+              bodyVisible = !bodyVisible;
+              body.style.display = bodyVisible ? '' : 'none';
+              args.style.display = bodyVisible ? '' : 'none';
+              chevron.textContent = bodyVisible ? '\u25BC' : '\u25B6';
+            });
 
-          var bodyVisible = true;
-          header.addEventListener('click', function() {
-            bodyVisible = !bodyVisible;
-            body.style.display = bodyVisible ? '' : 'none';
-            args.style.display = bodyVisible ? '' : 'none';
-            chevron.textContent = bodyVisible ? '\u25BC' : '\u25B6';
+            card.appendChild(header);
+            card.appendChild(args);
+            card.appendChild(body);
+            toolsPanel.appendChild(card);
           });
+        }
+      });
 
-          card.appendChild(header);
-          card.appendChild(args);
-          card.appendChild(body);
-          toolsPanel.appendChild(card);
+      /* model responses — render ALL in separate cards */
+      var responsePanel = document.getElementById('response-panel');
+      responsePanel.innerHTML = '';
+      modelMessages.forEach(function(msg, idx) {
+        var card = el('div', {
+          style: {
+            background: 'var(--bg-card)', border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)', padding: '16px', marginBottom: '16px'
+          }
         });
-      }
-
-      /* model response */
-      if (modelMsg) {
-        renderResponse(modelMsg.text);
-      }
+        card.appendChild(el('div', { className: 'response-label' },
+          'Model Response' + (modelMessages.length > 1 ? ' #' + (idx + 1) : '')));
+        var content = el('div');
+        if (typeof marked !== 'undefined' && marked.parse) {
+          content.innerHTML = marked.parse(msg.text || '');
+        } else {
+          content.appendChild(el('pre', { style: { whiteSpace: 'pre-wrap', color: 'var(--text-secondary)' } }, msg.text || ''));
+        }
+        card.appendChild(content);
+        responsePanel.appendChild(card);
+      });
 
       /* show viewer */
       document.getElementById('upload-zone').style.display = 'none';

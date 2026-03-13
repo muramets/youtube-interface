@@ -133,7 +133,7 @@ YouTube API результаты кэшируются в `cached_external_videos
 | # | Сценарий | Что проверяет | Промпт-идея | Проверено |
 |---|----------|---------------|-------------|-----------|
 | 1 | **Happy path (own video)** | Cascade level 1: прямой lookup в videos/ | "Расскажи подробнее про моё видео [X]" | — |
-| 2 | **External video (cached)** | Cascade level 3: cached_external_videos/ без API call | "Что за видео [videoId из suggested traffic]?" | — |
+| 2 | **External video (cached)** | Cascade level 3: cached_external_videos/ без API call | "Что за видео [videoId из suggested traffic]?" | ✅ |
 | 3 | **External video (API fallback)** | Cascade level 5: YouTube API + caching | "Расскажи про видео [неизвестный ID]" | — |
 | 4 | **Title lookup** | titles param: Firestore search → videoId resolution (0 API cost) | "Расскажи про видео 'exact title here'" | — |
 | 5 | **Title not found** | notFoundTitles в ответе — не галлюцинирует ли модель? | "Расскажи про видео 'несуществующее название'" | — |
@@ -153,7 +153,32 @@ YouTube API результаты кэшируются в `cached_external_videos
 
 ### Проверено в бою
 
-_Пока нет dedicated traces. Тест #8 покрыт через [analyzeSuggestedTraffic trace #1](../layer-3-analysis/2-analyze-suggested-traffic-tool.md) — модель увидела snapshotCount и вызвала drill-down._
+<details>
+<summary>Trace #1 — External video from suggested traffic (тест #2) ✅</summary>
+
+- **Промпт**: "что за видео fVJ6iDoziiY?"
+- **Контекст**: после `analyzeSuggestedTraffic` для own-видео (spring piano playlist)
+- **Модель**: claude-haiku-4-5
+- **Результат**: ✅ тул отработал корректно, cascade Firestore-only (`quotaUsed` отсутствует)
+
+**Что сработало:**
+- Tool call: `getMultipleVideoDetails({ videoIds: ["fVJ6iDoziiY"] })` — модель правильно извлекла videoId
+- Cascade: 0 API cost — видео найдено в Firestore (trendChannels или cached_external_videos)
+- `ownership: "external"` — правильно
+- Модель связала данные с предыдущим `analyzeSuggestedTraffic` (impressions, CTR, avgViewDuration)
+- Description, tags, viewCount использованы в ответе
+
+**Проблемы:**
+- ⚠️ **Haiku arithmetic error**: написал "25:54 — дольше, чем 38:47" (перепутал направление сравнения). Данные верные, интерпретация ошибочная. Sonnet/Opus вероятно не допустят — не усложняем тул.
+- ⚠️ **`viewCount`/`likeCount` как строки**: `formatVideoData()` пробрасывает Firestore-значения без конверсии. YouTube API path конвертирует через `parseInt()`, Firestore path — нет. **Баг подтверждён, фикс запланирован.**
+- **`commentCount` отсутствует** при Firestore-only resolve — ограничение cascade, поле optional.
+- **`viewDelta` полей нет** — канал Giuseppe Centonze не в Trends. Ожидаемое поведение.
+
+**Ответ на ключевой вопрос #1 (Cascade efficiency):** в этом trace YouTube API не вызывался — видео зарезолвилось через Firestore. Cascade работает как задумано.
+
+</details>
+
+_Тест #8 покрыт через [analyzeSuggestedTraffic trace #1](../layer-3-analysis/2-analyze-suggested-traffic-tool.md) — модель увидела snapshotCount и вызвала drill-down._
 
 ### Ещё не проверено в бою
 
