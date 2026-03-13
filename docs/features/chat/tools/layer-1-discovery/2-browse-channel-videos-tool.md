@@ -110,6 +110,63 @@ Custom videos создаются с document ID `custom-XXXXX`, а YouTube video
 
 ---
 
+## Battle Testing
+
+Статус проверки инструмента в реальных диалогах (не unit-тесты, а production traces с живыми данными).
+
+### План проверки
+
+| # | Сценарий | Что проверяет | Промпт-идея | Проверено |
+|---|----------|---------------|-------------|-----------|
+| 1 | **Happy path (competitor)** | Полный chain: overview → browse → список видео | "Покажи видео канала @veritasium" | ✅ |
+| 2 | **Smart caching** | Второй вызов того же канала → `alreadyCached > 0`, `quotaUsed` меньше | Повторный browse того же канала | ✅ |
+| 3 | **Own channel sync** | `ownChannelSync` отдаётся и LLM комментирует inApp vs onYouTube delta | "Покажи мои видео" (через getChannelOverview → browse с channelId) | — |
+| 4 | **publishedAfter filter** | Фильтр по дате: только недавние видео | "Покажи видео канала за последние 3 месяца" | — |
+| 5 | **channelId passthrough** | LLM передаёт channelId из overview в browseChannelVideos args | (trace: проверить args browseChannelVideos содержат channelId) | ✅ |
+| 6 | **Video list → drill down** | LLM выбирает интересные видео из списка → вызывает getMultipleVideoDetails | "Покажи видео канала и расскажи подробнее про самые популярные" | — |
+| 7 | ~~**Cache efficiency reporting**~~ | ~~LLM упоминает alreadyCached / fetchedFromYouTube в ответе~~ | Удалён: пользователю не нужны детали добычи данных, quota info видна в tool pill | N/A |
+| 8 | **Large channel (100+)** | Пагинация YouTube API, quota на несколько страниц | Канал с 100+ видео | — |
+
+### Ключевые вопросы
+
+1. ~~**Cache hit ratio**~~ — ✅ Подтверждено: `alreadyCached: 61` = `totalVideosOnYouTube: 61`, кеш не протухает между сессиями.
+2. **publishedAfter UX** — LLM сама переводит "за последние 3 месяца" в ISO date? Или ошибается в формате?
+3. **ownChannelSync accuracy** — Custom videos с `publishedVideoId` правильно учитываются? Source upgrade работает в production?
+4. **Drill-down pattern** — Выбирает ли LLM видео для drill-down по viewCount? Или случайно?
+5. ~~**Quota reporting**~~ — N/A. Пользователю не нужны детали добычи данных, quota info видна в tool pill.
+
+### Проверено в бою
+
+<details>
+<summary>#1 Happy path + #5 channelId passthrough ✅ (2026-03-13, claude-haiku-4-5)</summary>
+
+- **Trace:** `trace--livresdanse-4548c160 (1).json`
+- **Промпт:** "Покажи мне все видео канала @livresdanse" → пользователь подтвердил квоту
+- **Happy path:** overview → browse → 61 видео, полный chain работает. `fetchedFromYouTube: 61`, `alreadyCached: 0`, `quotaUsed: 4`.
+- **channelId passthrough:** LLM передала `channelId: "UCHw-FmDg7RVH7A6opPZINnA"` дословно из `getChannelOverview` result.
+</details>
+
+<details>
+<summary>#2 Smart caching ✅ (2026-03-13, claude-haiku-4-5)</summary>
+
+- **Trace:** `trace--livresdanse-f6a78db3.json` (новый чат, тот же канал)
+- **Промпт:** "Покажи мне все видео канала @livresdanse" (повторный запрос в новом чате)
+- **Результат:** `alreadyCached: 61`, `fetchedFromYouTube: 0`, `quotaUsed: 2` — все видео из кеша `cached_external_videos/`. YouTube API вызван только для playlist listing (2 units), `getVideoDetails()` не вызывался.
+- **Сравнение:** первый вызов `quotaUsed: 4`, повторный `quotaUsed: 2` — экономия 50%.
+</details>
+
+
+### Ещё не проверено в бою
+
+| Сценарий | Почему важно |
+|----------|-------------|
+| **Own channel sync** | Ключевая метрика для пользователя — сколько видео не синхронизировано |
+| **publishedAfter** | Экономия output tokens для каналов с длинной историей |
+| **Drill-down pattern** | browse → getMultipleVideoDetails — основной Telescope flow |
+| **Large channel (100+)** | Пагинация YouTube API, quota на несколько страниц |
+
+---
+
 ## Roadmap
 
 ### `publishedAfter` early stop при пагинации
