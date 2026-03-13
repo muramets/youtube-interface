@@ -34,6 +34,9 @@ export interface VideoCardContext {
     delta24h?: number | null;
     delta7d?: number | null;
     delta30d?: number | null;
+    // Denormalized snapshot counts — LLM uses these to decide whether to call traffic tools
+    trafficSourceSnapshotCount?: number;
+    suggestedTrafficSnapshotCount?: number;
 }
 
 /**

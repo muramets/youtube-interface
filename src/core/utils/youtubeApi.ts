@@ -60,6 +60,9 @@ export interface VideoDetails {
     // Visual Gallery
     galleryItems?: GalleryItem[]; // Array of gallery images for this video
     gallerySources?: GallerySource[]; // Array of inspiration sources for this video
+    // Denormalized snapshot counts (written by TrafficSourceService / TrafficSnapshotService)
+    trafficSourceSnapshotCount?: number;
+    suggestedTrafficSnapshotCount?: number;
 }
 
 

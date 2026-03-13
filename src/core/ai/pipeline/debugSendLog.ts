@@ -63,7 +63,11 @@ export function debugSendLog(params: DebugSendLogParams): void {
                 videoIdx++;
                 const ownerLabel = v.ownership === 'own-draft' ? 'Draft' : v.ownership === 'own-published' ? 'Video' : 'Competitor';
                 console.log(`  #${videoIdx} 🎬 [${ownerLabel}] ${v.title}`);
-                console.log(`      views: ${v.viewCount ?? '—'} | dur: ${v.duration ?? '—'} | pub: ${v.publishedAt ?? '—'} | ch: ${v.channelTitle ?? '—'}`);
+                const snapParts: string[] = [];
+                if (v.trafficSourceSnapshotCount) snapParts.push(`traffic sources: ${v.trafficSourceSnapshotCount}`);
+                if (v.suggestedTrafficSnapshotCount) snapParts.push(`suggested traffic: ${v.suggestedTrafficSnapshotCount}`);
+                const snapInfo = snapParts.length > 0 ? `\n      📊 snapshots: ${snapParts.join(', ')}` : '';
+                console.log(`      views: ${v.viewCount ?? '—'} | dur: ${v.duration ?? '—'} | pub: ${v.publishedAt ?? '—'} | ch: ${v.channelTitle ?? '—'}${snapInfo}`);
                 const deltaParts: string[] = [];
                 if (v.delta24h != null) deltaParts.push(`24h: ${v.delta24h >= 0 ? '+' : ''}${v.delta24h}`);
                 if (v.delta7d != null) deltaParts.push(`7d: ${v.delta7d >= 0 ? '+' : ''}${v.delta7d}`);

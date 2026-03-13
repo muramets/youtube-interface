@@ -79,5 +79,7 @@ export const videoToCardContext = (
         ...(publishedAt && ownership !== 'own-draft' ? { publishedAt } : {}),
         ...(duration ? { duration } : {}),
         ...(video.channelTitle ? { channelTitle: video.channelTitle } : {}),
+        ...(video.trafficSourceSnapshotCount ? { trafficSourceSnapshotCount: video.trafficSourceSnapshotCount } : {}),
+        ...(video.suggestedTrafficSnapshotCount ? { suggestedTrafficSnapshotCount: video.suggestedTrafficSnapshotCount } : {}),
     };
 };
