@@ -182,6 +182,52 @@ YouTube API возвращает два текстовых поля:
 
 ---
 
+## Battle Testing
+
+Статус проверки инструмента в реальных диалогах (не unit-тесты, а production traces с живыми данными).
+
+### План проверки
+
+| # | Сценарий | Что проверяет | Промпт-идея | Проверено |
+|---|----------|---------------|-------------|-----------|
+| 1 | **Happy path (own video)** | 100 комментариев по relevance, sentiment analysis | "Что люди пишут в комментариях к моему видео [X]?" | — |
+| 2 | **Competitor video** | Работа с чужим публичным видео | "Посмотри комментарии у [конкурент videoId]" | — |
+| 3 | **Sentiment interpretation** | Выделяет ли модель темы, настроение, ключевые вопросы | "Какое настроение в комментариях? Что хвалят, что ругают?" | — |
+| 4 | **Comparison (two videos)** | Параллельные вызовы, сравнение аудитории | "Сравни комментарии под этими двумя видео" | — |
+| 5 | **Pagination control** | Не запрашивает ли модель лишние страницы (maxPages > 1) без причины | "Посмотри комменты" (ожидаем maxPages=1) | — |
+| 6 | **Explicit more pages** | Запрашивает maxPages > 1 когда пользователь явно просит | "Покажи побольше комментариев, хочу полную картину" | — |
+| 7 | **Comments disabled** | Graceful handling ошибки 403 commentsDisabled | Вызов для видео с отключёнными комментариями | — |
+| 8 | **coveragePercent usage** | Упоминает ли модель "100 из ~15K" контекст | (покрывается любым trace с > 100 комментариев) | — |
+| 9 | **_systemNote compliance** | Следует ли модель инструкции "only request more if EXPLICITLY asked" | "Посмотри комменты" → ожидаем 1 call, не 3 | — |
+| 10 | **Tool chain: details → comments** | commentCount из getMultipleVideoDetails как триггер | "Расскажи всё про это видео" (ожидаем: details → видит commentCount → comments) | — |
+| 11 | **Reply analysis** | Использует ли модель topReplies для deeper analysis | "Есть ли интересные дискуссии в комментариях?" | — |
+| 12 | **authorChannelId patterns** | Замечает ли модель повторяющихся авторов / engagement farms | "Есть ли подозрительная активность в комментариях?" | — |
+
+### Ключевые вопросы
+
+1. **Pagination discipline** — Следует ли модель _systemNote? Или всегда запрашивает 3 страницы "на всякий случай"?
+2. **Sentiment without pre-compute** — Модель определяет тон из raw text (by design). Качество?
+3. **Tool chain trigger** — commentCount из getMultipleVideoDetails реально триггерит вызов getVideoComments?
+4. **Token budget** — 100 комментариев ≈ сколько токенов? Помещается ли в context window с другими tool results?
+5. **Multi-language** — Комментарии на разных языках — справляется ли модель с sentiment analysis?
+6. **Comments disabled UX** — Внятно ли модель объясняет "комментарии отключены" или путается?
+
+### Проверено в бою
+
+_Пока нет dedicated traces._
+
+### Ещё не проверено в бою
+
+| Сценарий | Почему важно |
+|----------|-------------|
+| **Basic sentiment** | Core use case: модель читает комменты и даёт summary |
+| **Pagination control** | _systemNote — ключевой паттерн контроля поведения LLM |
+| **Comments disabled** | Edge case, но частый — kids content, age-restricted |
+| **Tool chain** | commentCount → getVideoComments — работает ли implicit trigger? |
+| **Token budget** | 100 комментариев с replies могут быть тяжёлыми |
+
+---
+
 ## Technical Implementation
 
 | Файл | Назначение |

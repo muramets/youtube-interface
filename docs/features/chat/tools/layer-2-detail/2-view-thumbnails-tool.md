@@ -210,6 +210,48 @@ ChatMessageList renders <ConfirmLargePayloadBanner count={N} onConfirm={...} onD
 
 ---
 
+## Battle Testing
+
+Статус проверки инструмента в реальных диалогах (не unit-тесты, а production traces с живыми данными).
+
+### План проверки
+
+| # | Сценарий | Что проверяет | Промпт-идея | Проверено |
+|---|----------|---------------|-------------|-----------|
+| 1 | **Proactive call** | Вызывает ли модель viewThumbnails сама после CTR-рекомендаций | "Почему у моего видео низкий CTR в suggested?" | — |
+| 2 | **Explicit request (own)** | Прямой запрос на просмотр своих обложек | "Покажи обложки моих последних 5 видео" | — |
+| 3 | **Competitor thumbnails** | Обложки из suggested traffic / trend videos | "Покажи обложки топ конкурентов из suggested traffic" | — |
+| 4 | **Visual analysis quality** | Качество описания: цвета, шрифты, лица, стиль, паттерны | "Сравни мою обложку с обложками конкурентов" | — |
+| 5 | **Approval gate (Gemini, ≥15)** | Срабатывает ли gate, понятно ли сообщение пользователю | "Покажи обложки всех 30 видео из suggested" | — |
+| 6 | **Title lookup** | titles param когда videoId неизвестен | "Покажи обложку видео 'exact title'" | — |
+| 7 | **Mixed batch** | Own + external видео в одном call | "Покажи обложку моего видео и 3 конкурентов рядом" | — |
+| 8 | **Claude provider** | Работает ли без approval gate, inline URL images | (тот же промпт, другой provider) | — |
+| 9 | **Post-analysis call** | Вызов после analyzeSuggestedTraffic — как в guidance написано | "Проведи полный анализ suggested traffic" (ожидаем viewThumbnails после) | — |
+| 10 | **Not found handling** | notFound видео — не ломается ли анализ | Вызов с несуществующим videoId | — |
+
+### Ключевые вопросы
+
+1. **Proactive behavior** — Tool description говорит "call PROACTIVELY". Делает ли модель это без явного запроса?
+2. **Visual analysis depth** — Описывает ли модель конкретные элементы (текст на обложке, эмоции лиц) или просто "яркая обложка"?
+3. **Cross-tool chain** — После analyzeSuggestedTraffic guidance просит viewThumbnails. Работает ли цепочка?
+4. **Approval gate UX** — Понятно ли пользователю, что нужно нажать Load? Не теряется ли контекст?
+5. **Token cost** — Сколько токенов занимают image parts? При 10+ обложках — влияет ли на quality ответа?
+
+### Проверено в бою
+
+_Пока нет dedicated traces. В [analyzeSuggestedTraffic trace #1](../layer-3-analysis/2-analyze-suggested-traffic-tool.md) модель НЕ вызвала viewThumbnails, хотя дала thumbnail-рекомендации — отмечено как FAIL (partial). Guidance уточнён._
+
+### Ещё не проверено в бою
+
+| Сценарий | Почему важно |
+|----------|-------------|
+| **Proactive viewThumbnails** | Ключевая фича: модель должна САМА смотреть обложки перед рекомендациями |
+| **Approval gate flow** | Баннер + Load/Cancel — end-to-end UX при ≥15 обложках |
+| **Provider comparison** | Gemini (Files API + gate) vs Claude (inline URLs, no gate) — оба работают? |
+| **Visual analysis quality** | Насколько полезен анализ? Или модель повторяет "professional thumbnail" штампы? |
+
+---
+
 ## Расположение файлов
 
 ```

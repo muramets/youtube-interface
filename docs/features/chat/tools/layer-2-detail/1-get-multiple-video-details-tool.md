@@ -124,6 +124,48 @@ YouTube API результаты кэшируются в `cached_external_videos
 
 ---
 
+## Battle Testing
+
+Статус проверки инструмента в реальных диалогах (не unit-тесты, а production traces с живыми данными).
+
+### План проверки
+
+| # | Сценарий | Что проверяет | Промпт-идея | Проверено |
+|---|----------|---------------|-------------|-----------|
+| 1 | **Happy path (own video)** | Cascade level 1: прямой lookup в videos/ | "Расскажи подробнее про моё видео [X]" | — |
+| 2 | **External video (cached)** | Cascade level 3: cached_external_videos/ без API call | "Что за видео [videoId из suggested traffic]?" | — |
+| 3 | **External video (API fallback)** | Cascade level 5: YouTube API + caching | "Расскажи про видео [неизвестный ID]" | — |
+| 4 | **Title lookup** | titles param: Firestore search → videoId resolution (0 API cost) | "Расскажи про видео 'exact title here'" | — |
+| 5 | **Title not found** | notFoundTitles в ответе — не галлюцинирует ли модель? | "Расскажи про видео 'несуществующее название'" | — |
+| 6 | **Batch (multiple IDs)** | Несколько видео за один call, mix own + external | "Сравни эти 5 видео: [IDs]" | — |
+| 7 | **View deltas usage** | Использует ли модель viewDelta24h/7d/30d для оценки динамики | "Какие из моих видео сейчас растут?" | — |
+| 8 | **Snapshot counts → tool chain** | Видит ли модель suggestedTrafficSnapshotCount и вызывает drill-down | "Проанализируй трафик [видео с CSV]" | ✅ (via analyzeSuggestedTraffic trace #1) |
+| 9 | **Custom video (publishedVideoId)** | Cascade level 2: reverse lookup для custom videos | Вызов с custom-* videoId | — |
+| 10 | **Ownership labeling** | Правильно ли модель различает own-published / external | "Это моё видео или конкурента?" | — |
+
+### Ключевые вопросы
+
+1. **Cascade efficiency** — Как часто срабатывает YouTube API fallback vs Firestore-only? Нужен trace с quotaUsed > 0
+2. **Title lookup accuracy** — Точный match по title достаточен? Или пользователь пишет приблизительно?
+3. **View deltas interpretation** — Модель понимает разницу между null (нет данных) и 0 (стагнация)?
+4. **Batch size** — При 10+ видео ответ помещается в context window? Как модель фильтрует релевантные?
+5. **Tool chain trigger** — suggestedTrafficSnapshotCount > 0 надёжно запускает chain в analyzeTrafficSources/analyzeSuggestedTraffic?
+
+### Проверено в бою
+
+_Пока нет dedicated traces. Тест #8 покрыт через [analyzeSuggestedTraffic trace #1](../layer-3-analysis/2-analyze-suggested-traffic-tool.md) — модель увидела snapshotCount и вызвала drill-down._
+
+### Ещё не проверено в бою
+
+| Сценарий | Почему важно |
+|----------|-------------|
+| **Title fallback** | Частый user pattern: "расскажи про видео [название]" без ID |
+| **quotaUsed > 0** | Убедиться что API fallback работает и кеширует |
+| **Custom video resolution** | Reverse lookup по publishedVideoId — нетривиальный путь |
+| **notFound handling** | Модель должна сообщить что видео не найдено, не галлюцинировать |
+
+---
+
 ## Technical Implementation
 
 | Файл | Назначение |
