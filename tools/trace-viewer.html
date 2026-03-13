@@ -1,0 +1,1754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trace Viewer — Tool Result Inspector</title>
+  <style>
+    /* ========== Reset & Variables ========== */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg-app: #0d1117;
+      --bg-card: #161b22;
+      --bg-section: #1c2128;
+      --bg-hover: #21262d;
+      --border: #30363d;
+      --text-primary: #e6edf3;
+      --text-secondary: #8b949e;
+      --text-tertiary: #6e7681;
+      --accent: #58a6ff;
+      --accent-dim: rgba(88,166,255,0.1);
+      --success: #3fb950;
+      --success-dim: rgba(63,185,80,0.12);
+      --danger: #f85149;
+      --danger-dim: rgba(248,81,73,0.12);
+      --warning: #d29922;
+      --warning-dim: rgba(210,153,34,0.12);
+      --purple: #bc8cff;
+      --font-mono: 'SF Mono', 'Fira Code', 'JetBrains Mono', Consolas, monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      --radius: 8px;
+      --radius-sm: 4px;
+    }
+
+    body {
+      background: var(--bg-app);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    /* ========== Upload Zone ========== */
+    #upload-zone {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 40px;
+    }
+
+    .upload-content {
+      text-align: center;
+      padding: 80px 60px;
+      border: 2px dashed var(--border);
+      border-radius: 16px;
+      max-width: 480px;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    .upload-content:hover,
+    #upload-zone.drag-over .upload-content {
+      border-color: var(--accent);
+      background: rgba(88,166,255,0.03);
+    }
+
+    .upload-icon { font-size: 48px; margin-bottom: 16px; }
+    .upload-content h1 { font-size: 24px; margin-bottom: 8px; font-weight: 600; }
+    .upload-content p { color: var(--text-secondary); margin-bottom: 24px; }
+
+    .upload-btn {
+      display: inline-block;
+      padding: 10px 24px;
+      background: var(--accent);
+      color: #fff;
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-weight: 500;
+      transition: opacity 0.2s;
+    }
+    .upload-btn input { display: none; }
+    .upload-btn:hover { opacity: 0.85; }
+
+    /* ========== Meta Bar ========== */
+    #meta-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 20px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+
+    .meta-title { font-weight: 600; font-size: 15px; margin-right: auto; }
+
+    .meta-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 10px;
+      background: var(--bg-section);
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-family: var(--font-mono);
+      color: var(--text-secondary);
+    }
+    .meta-badge .label { color: var(--text-tertiary); }
+    .meta-badge .value { color: var(--text-primary); }
+
+    /* ========== Context Breakdown ========== */
+    #context-breakdown-section {
+      padding: 12px 20px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .breakdown-bars { display: flex; flex-direction: column; gap: 3px; }
+
+    .breakdown-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+    }
+
+    .breakdown-label {
+      width: 150px;
+      text-align: right;
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+      flex-shrink: 0;
+      font-size: 11px;
+    }
+
+    .breakdown-bar-bg {
+      flex: 1;
+      height: 18px;
+      background: var(--bg-section);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+    }
+
+    .breakdown-bar-fill {
+      height: 100%;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      padding-left: 6px;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: var(--text-primary);
+      white-space: nowrap;
+      min-width: fit-content;
+    }
+
+    .breakdown-tokens {
+      width: 70px;
+      text-align: right;
+      color: var(--text-tertiary);
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+
+    /* ========== Split View ========== */
+    .split-view { display: flex; height: calc(100vh - 110px); }
+
+    .panel { overflow-y: auto; padding: 16px; }
+    .panel-left { flex: 1; border-right: 1px solid var(--border); }
+    .panel-right { flex: 1; max-width: 50%; }
+
+    /* ========== Tool Cards ========== */
+    .tool-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+
+    .tool-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      background: var(--bg-section);
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.15s;
+    }
+    .tool-header:hover { background: var(--bg-hover); }
+
+    .tool-name { font-family: var(--font-mono); font-weight: 600; color: var(--accent); }
+
+    .tool-tokens {
+      margin-left: auto;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .tool-body { padding: 16px; }
+
+    .tool-args {
+      padding: 6px 16px;
+      background: var(--bg-app);
+      border-bottom: 1px solid var(--border);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    /* ========== Token Budget Bar ========== */
+    .token-budget { margin-bottom: 16px; }
+
+    .budget-bar {
+      display: flex;
+      height: 28px;
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      gap: 1px;
+    }
+
+    .budget-segment {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: #fff;
+      min-width: 3px;
+      transition: opacity 0.15s;
+      cursor: default;
+    }
+    .budget-segment:hover { opacity: 0.8; }
+
+    .budget-legend { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 8px; }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--text-secondary);
+    }
+
+    .legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+
+    /* ========== Token Size Classes ========== */
+    .token-heavy { background: var(--danger); }
+    .token-heavy-dim { background: var(--danger-dim); color: var(--danger); }
+    .token-moderate { background: var(--warning); }
+    .token-moderate-dim { background: var(--warning-dim); color: var(--warning); }
+    .token-light { background: var(--success); }
+    .token-light-dim { background: var(--success-dim); color: var(--success); }
+
+    /* ========== Collapsible Sections ========== */
+    .section {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      margin-bottom: 8px;
+      overflow: hidden;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px;
+      background: var(--bg-section);
+      cursor: pointer;
+      user-select: none;
+      font-size: 13px;
+      transition: background 0.15s;
+    }
+    .section-header:hover { background: var(--bg-hover); }
+
+    .section-chevron {
+      font-size: 10px;
+      color: var(--text-tertiary);
+      transition: transform 0.2s;
+    }
+    .section.open .section-chevron { transform: rotate(90deg); }
+
+    .section-name { font-family: var(--font-mono); font-weight: 500; }
+
+    .section-tokens {
+      margin-left: auto;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: var(--radius-sm);
+    }
+
+    .section-body { display: none; padding: 12px; font-size: 13px; }
+    .section.open .section-body { display: block; }
+
+    /* ========== Data Tables ========== */
+    .data-table { width: 100%; border-collapse: collapse; font-size: 12px; font-family: var(--font-mono); }
+
+    .data-table th {
+      text-align: left;
+      padding: 5px 8px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-tertiary);
+      font-weight: 500;
+      white-space: nowrap;
+      position: sticky;
+      top: 0;
+      background: var(--bg-card);
+    }
+
+    .data-table td {
+      padding: 5px 8px;
+      border-bottom: 1px solid rgba(48,54,61,0.5);
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+    .data-table tr:hover td { background: var(--bg-hover); }
+    .data-table .num { text-align: right; }
+
+    .timeline-subtable { margin: 4px 0 4px 20px; font-size: 11px; }
+    .timeline-subtable td { padding: 3px 6px; }
+    .timeline-subtable th { padding: 3px 6px; }
+
+    /* ========== Inline Bars ========== */
+    .inline-bar {
+      display: inline-block;
+      height: 12px;
+      border-radius: 2px;
+      vertical-align: middle;
+      margin-right: 6px;
+      min-width: 2px;
+    }
+
+    /* ========== Tag Pills ========== */
+    .tag-pills { display: flex; flex-wrap: wrap; gap: 4px; }
+
+    .tag-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      background: var(--accent-dim);
+      border-radius: 12px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--accent);
+    }
+
+    .tag-count {
+      background: rgba(88,166,255,0.2);
+      padding: 0 5px;
+      border-radius: 6px;
+      font-size: 10px;
+    }
+
+    /* ========== Horizontal Bar Charts ========== */
+    .h-bars { display: flex; flex-direction: column; gap: 3px; }
+
+    .h-bar-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+
+    .h-bar-label {
+      width: 140px;
+      text-align: right;
+      color: var(--text-secondary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex-shrink: 0;
+      font-size: 11px;
+    }
+
+    .h-bar-track {
+      flex: 1;
+      height: 16px;
+      background: var(--bg-app);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .h-bar-fill { height: 100%; border-radius: 2px; background: var(--accent); opacity: 0.6; }
+
+    .h-bar-value {
+      width: 36px;
+      text-align: right;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-tertiary);
+    }
+
+    /* ========== Self-Channel Gauge ========== */
+    .gauge { display: flex; align-items: center; gap: 16px; padding: 8px; }
+
+    .gauge-value { font-size: 36px; font-weight: 700; font-family: var(--font-mono); }
+    .gauge-label { font-size: 13px; color: var(--text-secondary); }
+
+    .gauge-classification {
+      display: inline-block;
+      font-size: 12px;
+      font-family: var(--font-mono);
+      padding: 3px 10px;
+      border-radius: var(--radius-sm);
+      margin-top: 4px;
+    }
+
+    /* ========== Transitions ========== */
+    .transition-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 0;
+      font-size: 12px;
+      border-bottom: 1px solid rgba(48,54,61,0.4);
+    }
+
+    .transition-period {
+      font-family: var(--font-mono);
+      color: var(--text-secondary);
+      min-width: 110px;
+      font-size: 11px;
+    }
+
+    .transition-counts { display: flex; gap: 10px; font-family: var(--font-mono); font-size: 12px; }
+    .transition-new { color: var(--success); }
+    .transition-dropped { color: var(--danger); }
+
+    .transition-bar {
+      flex: 1;
+      display: flex;
+      gap: 2px;
+      align-items: center;
+    }
+
+    .transition-bar-new, .transition-bar-dropped {
+      height: 14px;
+      border-radius: 2px;
+      min-width: 0;
+      transition: width 0.3s;
+    }
+    .transition-bar-new { background: var(--success); opacity: 0.5; }
+    .transition-bar-dropped { background: var(--danger); opacity: 0.5; }
+
+    /* ========== Deltas ========== */
+    .delta-positive { color: var(--success); }
+    .delta-negative { color: var(--danger); }
+    .delta-zero { color: var(--text-tertiary); }
+    .delta-null { color: var(--text-tertiary); font-style: italic; }
+
+    /* ========== Response Panel ========== */
+    .response-label {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      margin-bottom: 16px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: 600;
+    }
+
+    #response-panel h1 { font-size: 20px; margin: 20px 0 8px; }
+    #response-panel h2 { font-size: 16px; margin: 24px 0 8px; color: var(--accent); }
+    #response-panel h3 { font-size: 14px; margin: 16px 0 6px; }
+    #response-panel p { margin: 8px 0; color: var(--text-secondary); line-height: 1.7; }
+    #response-panel strong { color: var(--text-primary); }
+    #response-panel em { color: var(--text-secondary); font-style: italic; }
+    #response-panel ul, #response-panel ol { padding-left: 24px; margin: 8px 0; }
+    #response-panel li { margin: 4px 0; color: var(--text-secondary); line-height: 1.6; }
+
+    #response-panel code {
+      font-family: var(--font-mono);
+      background: var(--bg-section);
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 12px;
+    }
+
+    #response-panel hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+    #response-panel a { color: var(--accent); text-decoration: none; }
+
+    #response-panel blockquote {
+      border-left: 3px solid var(--border);
+      padding-left: 12px;
+      color: var(--text-tertiary);
+      margin: 8px 0;
+    }
+
+    /* ========== JSON Fallback ========== */
+    .json-raw {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-secondary);
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 400px;
+      overflow-y: auto;
+      padding: 12px;
+      background: var(--bg-app);
+      border-radius: var(--radius-sm);
+    }
+
+    /* ========== Scrollbar ========== */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: var(--bg-app); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
+
+    /* ========== Responsive ========== */
+    @media (max-width: 1200px) {
+      .split-view { flex-direction: column; height: auto; }
+      .panel-left { border-right: none; border-bottom: 1px solid var(--border); }
+      .panel-right { max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="upload-zone">
+      <div class="upload-content">
+        <div class="upload-icon">&#128269;</div>
+        <h1>Trace Viewer</h1>
+        <p>Drop a chat trace JSON file here to inspect tool results</p>
+        <label class="upload-btn">
+          Choose file
+          <input type="file" accept=".json" id="file-input">
+        </label>
+      </div>
+    </div>
+
+    <div id="viewer" style="display:none">
+      <div id="meta-bar"></div>
+      <div id="context-breakdown-section"></div>
+      <div class="split-view">
+        <div class="panel panel-left" id="tools-panel"></div>
+        <div class="panel panel-right" id="response-panel"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script>
+    /* ==========================================================
+     *  UTILITIES
+     * ========================================================== */
+
+    function estimateTokens(obj) {
+      return Math.ceil(JSON.stringify(obj).length / 4);
+    }
+
+    function fmtNum(n) {
+      if (n == null) return '\u2014';
+      return Number(n).toLocaleString('en-US');
+    }
+
+    function fmtCost(n) {
+      if (n == null) return '\u2014';
+      return '$' + n.toFixed(4);
+    }
+
+    function truncate(s, max) {
+      if (max === undefined) max = 55;
+      if (!s) return '\u2014';
+      return s.length > max ? s.slice(0, max) + '\u2026' : s;
+    }
+
+    function deltaClass(v) {
+      if (v == null) return 'delta-null';
+      if (v > 0) return 'delta-positive';
+      if (v < 0) return 'delta-negative';
+      return 'delta-zero';
+    }
+
+    function fmtDelta(v) {
+      if (v == null) return '\u2014';
+      if (v > 0) return '+' + fmtNum(v);
+      if (v < 0) return fmtNum(v);
+      return '0';
+    }
+
+    /* DOM helper */
+    function el(tag, attrs) {
+      var children = Array.prototype.slice.call(arguments, 2);
+      var elem = document.createElement(tag);
+      if (attrs) {
+        for (var k in attrs) {
+          if (!attrs.hasOwnProperty(k)) continue;
+          var v = attrs[k];
+          if (k === 'className') elem.className = v;
+          else if (k === 'style' && typeof v === 'object') Object.assign(elem.style, v);
+          else if (k.startsWith('on')) elem.addEventListener(k.slice(2).toLowerCase(), v);
+          else elem.setAttribute(k, v);
+        }
+      }
+      children.forEach(function(child) {
+        if (typeof child === 'string' || typeof child === 'number')
+          elem.appendChild(document.createTextNode(child));
+        else if (child) elem.appendChild(child);
+      });
+      return elem;
+    }
+
+    /* ==========================================================
+     *  TOKEN BUDGET CLASSIFICATION
+     * ========================================================== */
+
+    function getTokenSizeClass(percentage) {
+      if (percentage >= 25) return 'token-heavy';
+      if (percentage >= 10) return 'token-moderate';
+      return 'token-light';
+    }
+
+    /* ==========================================================
+     *  COLLAPSIBLE SECTION
+     * ========================================================== */
+
+    function createSection(name, data, totalTokens, contentFn, startOpen) {
+      var tokens = estimateTokens(data);
+      var pct = totalTokens > 0 ? (tokens / totalTokens * 100) : 0;
+      var sizeClass = getTokenSizeClass(pct);
+
+      var section = el('div', { className: 'section' + (startOpen ? ' open' : '') });
+
+      var header = el('div', { className: 'section-header' },
+        el('span', { className: 'section-chevron' }, '\u25B6'),
+        el('span', { className: 'section-name' }, name),
+        el('span', { className: 'section-tokens ' + sizeClass + '-dim' },
+          fmtNum(tokens) + ' tok (' + pct.toFixed(1) + '%)')
+      );
+
+      var body = el('div', { className: 'section-body' });
+      var rendered = false;
+
+      if (startOpen) { contentFn(body); rendered = true; }
+
+      header.addEventListener('click', function() {
+        section.classList.toggle('open');
+        if (!rendered) { contentFn(body); rendered = true; }
+      });
+
+      section.appendChild(header);
+      section.appendChild(body);
+      return section;
+    }
+
+    /* ==========================================================
+     *  TOKEN BUDGET STACKED BAR
+     * ========================================================== */
+
+    var SECTION_COLORS = [
+      '#f85149', '#d29922', '#58a6ff', '#3fb950', '#bc8cff',
+      '#f778ba', '#79c0ff', '#56d364', '#e3b341', '#db61a2'
+    ];
+
+    function renderTokenBudget(sections) {
+      var total = sections.reduce(function(s, sec) { return s + sec.tokens; }, 0);
+      var container = el('div', { className: 'token-budget' });
+
+      /* stacked bar */
+      var bar = el('div', { className: 'budget-bar' });
+      sections.forEach(function(sec, i) {
+        var pct = total > 0 ? (sec.tokens / total * 100) : 0;
+        var segment = el('div', {
+          className: 'budget-segment',
+          style: { width: Math.max(pct, 0.5) + '%', background: SECTION_COLORS[i % SECTION_COLORS.length] },
+          title: sec.name + ': ' + fmtNum(sec.tokens) + ' tokens (' + pct.toFixed(1) + '%)'
+        });
+        if (pct > 10) segment.textContent = sec.name;
+        bar.appendChild(segment);
+      });
+      container.appendChild(bar);
+
+      /* legend */
+      var legend = el('div', { className: 'budget-legend' });
+      sections.forEach(function(sec, i) {
+        var pct = total > 0 ? (sec.tokens / total * 100) : 0;
+        legend.appendChild(el('div', { className: 'legend-item' },
+          el('span', { className: 'legend-dot', style: { background: SECTION_COLORS[i % SECTION_COLORS.length] } }),
+          el('span', {}, sec.name + ' \u00B7 ' + fmtNum(sec.tokens) + ' (' + pct.toFixed(1) + '%)')
+        ));
+      });
+      container.appendChild(legend);
+
+      /* total */
+      container.appendChild(el('div', {
+        style: { marginTop: '6px', fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--text-tertiary)' }
+      }, 'Total: ' + fmtNum(total) + ' tokens'));
+
+      return container;
+    }
+
+    /* ==========================================================
+     *  analyzeTrafficSources RENDERER
+     * ========================================================== */
+
+    function renderTrafficSources(result, totalTokens) {
+      var container = el('div');
+
+      if (!result.sources) {
+        container.appendChild(el('pre', { className: 'json-raw' }, JSON.stringify(result, null, 2)));
+        return container;
+      }
+
+      var maxImp = Math.max.apply(null, result.sources.map(function(s) { return s.impressions || 0; }));
+
+      var table = el('table', { className: 'data-table' });
+      table.appendChild(el('thead', {},
+        el('tr', {},
+          el('th', {}, 'Source'),
+          el('th', { className: 'num' }, 'Views'),
+          el('th', { className: 'num' }, 'Impressions'),
+          el('th', { className: 'num' }, 'CTR'),
+          el('th', { className: 'num' }, 'AVD'),
+          el('th', { className: 'num' }, 'Watch Time')
+        )
+      ));
+
+      var tbody = el('tbody');
+      result.sources.forEach(function(src) {
+        var barW = maxImp > 0 ? (src.impressions / maxImp * 100) : 0;
+
+        var row = el('tr', { style: { cursor: src.timeline ? 'pointer' : 'default' } },
+          el('td', {},
+            el('span', { className: 'inline-bar', style: { width: barW + '%', maxWidth: '60px', background: 'var(--accent)', opacity: '0.35' } }),
+            src.source || '\u2014'
+          ),
+          el('td', { className: 'num' }, fmtNum(src.views)),
+          el('td', { className: 'num' }, fmtNum(src.impressions)),
+          el('td', { className: 'num' }, src.ctr != null ? src.ctr + '%' : '\u2014'),
+          el('td', { className: 'num' }, src.avgViewDuration || '\u2014'),
+          el('td', { className: 'num' }, src.watchTimeHours != null ? src.watchTimeHours.toFixed(1) + 'h' : '\u2014')
+        );
+
+        tbody.appendChild(row);
+
+        /* expandable timeline */
+        if (src.timeline && src.timeline.length > 0) {
+          var tlRow = el('tr', { style: { display: 'none' } });
+          var tlCell = el('td', { colspan: '6' });
+          tlCell.appendChild(renderInlineTimeline(src.timeline));
+          tlRow.appendChild(tlCell);
+          row.addEventListener('click', function() {
+            tlRow.style.display = tlRow.style.display === 'none' ? '' : 'none';
+          });
+          tbody.appendChild(tlRow);
+        }
+      });
+
+      table.appendChild(tbody);
+
+      var hasTimelines = result.sources.some(function(s) { return s.timeline && s.timeline.length > 0; });
+      if (hasTimelines) {
+        container.appendChild(el('div', {
+          style: { fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '6px' }
+        }, result.sources.length + ' sources \u00B7 click row to expand timeline (' +
+          result.sources[0].timeline.length + ' snapshots each)'));
+      }
+      container.appendChild(table);
+      return container;
+    }
+
+    /* ==========================================================
+     *  analyzeSuggestedTraffic RENDERER
+     * ========================================================== */
+
+    function renderSuggestedTraffic(result, totalTokens) {
+      var container = el('div');
+
+      /* section sizes for token budget */
+      var sectionKeys = ['topSources', 'contentTrajectory', 'transitions', 'contentAnalysis',
+        'analysisGuidance', 'selfChannelStats', 'snapshotTimeline', 'sourceVideo', 'tail'];
+      var sections = [];
+      sectionKeys.forEach(function(key) {
+        if (result[key] != null) {
+          sections.push({ name: key, tokens: estimateTokens(result[key]) });
+        }
+      });
+      container.appendChild(renderTokenBudget(sections));
+
+      /* topSources */
+      if (result.topSources) {
+        container.appendChild(createSection('topSources', result.topSources, totalTokens, function(body) {
+          body.appendChild(renderTopSourcesTable(result.topSources));
+        }, true));
+      }
+
+      /* selfChannelStats */
+      if (result.selfChannelStats) {
+        container.appendChild(createSection('selfChannelStats', result.selfChannelStats, totalTokens, function(body) {
+          body.appendChild(renderSelfChannelViz(result.selfChannelStats));
+        }, true));
+      }
+
+      /* transitions */
+      if (result.transitions) {
+        container.appendChild(createSection('transitions', result.transitions, totalTokens, function(body) {
+          body.appendChild(renderTransitionsViz(result.transitions));
+        }));
+      }
+
+      /* contentAnalysis */
+      if (result.contentAnalysis) {
+        container.appendChild(createSection('contentAnalysis', result.contentAnalysis, totalTokens, function(body) {
+          body.appendChild(renderContentAnalysisViz(result.contentAnalysis));
+        }));
+      }
+
+      /* contentTrajectory */
+      if (result.contentTrajectory) {
+        container.appendChild(createSection('contentTrajectory', result.contentTrajectory, totalTokens, function(body) {
+          body.appendChild(renderTrajectoryViz(result.contentTrajectory));
+        }));
+      }
+
+      /* analysisGuidance */
+      if (result.analysisGuidance) {
+        container.appendChild(createSection('analysisGuidance', result.analysisGuidance, totalTokens, function(body) {
+          body.appendChild(el('div', { className: 'json-raw' }, result.analysisGuidance));
+        }));
+      }
+
+      /* sourceVideo */
+      if (result.sourceVideo) {
+        container.appendChild(createSection('sourceVideo', result.sourceVideo, totalTokens, function(body) {
+          var sv = result.sourceVideo;
+          body.appendChild(el('div', {},
+            el('p', {}, el('strong', {}, 'Title: '), sv.title || '\u2014'),
+            el('p', {}, el('strong', {}, 'Channel: '), sv.channelTitle || '\u2014'),
+            el('p', {}, el('strong', {}, 'Tags: '))
+          ));
+          if (sv.tags && sv.tags.length) {
+            var pills = el('div', { className: 'tag-pills', style: { marginTop: '4px' } });
+            sv.tags.forEach(function(t) { pills.appendChild(el('span', { className: 'tag-pill' }, t)); });
+            body.appendChild(pills);
+          }
+        }));
+      }
+
+      /* snapshotTimeline */
+      if (result.snapshotTimeline) {
+        container.appendChild(createSection('snapshotTimeline', result.snapshotTimeline, totalTokens, function(body) {
+          var table = el('table', { className: 'data-table' });
+          table.appendChild(el('thead', {},
+            el('tr', {},
+              el('th', {}, 'Label'),
+              el('th', {}, 'Date'),
+              el('th', { className: 'num' }, 'Sources'))
+          ));
+          var tbody = el('tbody');
+          result.snapshotTimeline.forEach(function(s) {
+            tbody.appendChild(el('tr', {},
+              el('td', {}, s.label),
+              el('td', {}, s.date),
+              el('td', { className: 'num' }, String(s.totalSources))
+            ));
+          });
+          table.appendChild(tbody);
+          body.appendChild(table);
+        }));
+      }
+
+      /* tail */
+      if (result.tail) {
+        container.appendChild(createSection('tail', result.tail, totalTokens, function(body) {
+          body.appendChild(el('div', {},
+            el('p', {}, fmtNum(result.tail.count) + ' videos \u00B7 ' +
+              fmtNum(result.tail.totalImpressions) + ' impressions \u00B7 ' +
+              fmtNum(result.tail.totalViews) + ' views')
+          ));
+        }));
+      }
+
+      return container;
+    }
+
+    /* --- topSources table --- */
+
+    function renderTopSourcesTable(topSources) {
+      var container = el('div');
+      var maxImp = Math.max.apply(null, topSources.map(function(s) { return s.impressions || 0; }));
+
+      var table = el('table', { className: 'data-table' });
+      table.appendChild(el('thead', {},
+        el('tr', {},
+          el('th', {}, '#'),
+          el('th', {}, 'Video'),
+          el('th', { className: 'num' }, 'Views'),
+          el('th', { className: 'num' }, 'Imp'),
+          el('th', { className: 'num' }, 'CTR'),
+          el('th', { className: 'num' }, 'AVD'),
+          el('th', { className: 'num' }, '\u039424h'),
+          el('th', { className: 'num' }, '\u03947d'),
+          el('th', { className: 'num' }, '\u039430d')
+        )
+      ));
+
+      var tbody = el('tbody');
+      topSources.forEach(function(src, i) {
+        var barW = maxImp > 0 ? (src.impressions / maxImp * 100) : 0;
+
+        var row = el('tr', { style: { cursor: 'pointer' } },
+          el('td', { className: 'num' }, String(i + 1)),
+          el('td', {},
+            el('span', { className: 'inline-bar', style: { width: barW + '%', maxWidth: '80px', background: 'var(--accent)', opacity: '0.3' } }),
+            truncate(src.sourceTitle, 45)
+          ),
+          el('td', { className: 'num' }, fmtNum(src.views)),
+          el('td', { className: 'num' }, fmtNum(src.impressions)),
+          el('td', { className: 'num' }, src.ctr != null ? src.ctr + '%' : '\u2014'),
+          el('td', { className: 'num' }, src.avgViewDuration || '\u2014'),
+          el('td', { className: 'num ' + deltaClass(src.viewDelta24h) }, fmtDelta(src.viewDelta24h)),
+          el('td', { className: 'num ' + deltaClass(src.viewDelta7d) }, fmtDelta(src.viewDelta7d)),
+          el('td', { className: 'num ' + deltaClass(src.viewDelta30d) }, fmtDelta(src.viewDelta30d))
+        );
+
+        tbody.appendChild(row);
+
+        /* expandable timeline */
+        if (src.timeline && src.timeline.length > 0) {
+          var tlRow = el('tr', { style: { display: 'none' } });
+          var tlCell = el('td', { colspan: '9' });
+          tlCell.appendChild(renderInlineTimeline(src.timeline));
+          tlRow.appendChild(tlCell);
+          row.addEventListener('click', function() {
+            tlRow.style.display = tlRow.style.display === 'none' ? '' : 'none';
+          });
+          tbody.appendChild(tlRow);
+        }
+      });
+
+      table.appendChild(tbody);
+      container.appendChild(el('div', {
+        style: { fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '6px' }
+      }, topSources.length + ' sources \u00B7 click row to expand timeline'));
+      container.appendChild(table);
+      return container;
+    }
+
+    /* --- inline timeline sub-table --- */
+
+    function renderInlineTimeline(timeline) {
+      var table = el('table', { className: 'data-table timeline-subtable' });
+      table.appendChild(el('thead', {},
+        el('tr', {},
+          el('th', {}, 'Period'),
+          el('th', { className: 'num' }, 'Views'),
+          el('th', { className: 'num' }, '\u0394Views'),
+          el('th', { className: 'num' }, 'Imp'),
+          el('th', { className: 'num' }, '\u0394Imp'),
+          el('th', { className: 'num' }, 'CTR'),
+          el('th', { className: 'num' }, 'AVD'),
+          el('th', { className: 'num' }, 'Watch')
+        )
+      ));
+
+      var tbody = el('tbody');
+      timeline.forEach(function(t) {
+        tbody.appendChild(el('tr', {},
+          el('td', {}, t.label),
+          el('td', { className: 'num' }, fmtNum(t.views)),
+          el('td', { className: 'num ' + deltaClass(t.deltaViews) }, fmtDelta(t.deltaViews)),
+          el('td', { className: 'num' }, fmtNum(t.impressions)),
+          el('td', { className: 'num ' + deltaClass(t.deltaImpressions) }, fmtDelta(t.deltaImpressions)),
+          el('td', { className: 'num' }, t.ctr != null ? t.ctr + '%' : '\u2014'),
+          el('td', { className: 'num' }, t.avgViewDuration || '\u2014'),
+          el('td', { className: 'num' }, t.watchTimeHours != null ? t.watchTimeHours.toFixed(2) + 'h' : '\u2014')
+        ));
+      });
+      table.appendChild(tbody);
+      return table;
+    }
+
+    /* --- transitions visualization --- */
+
+    function renderTransitionsViz(transitions) {
+      var container = el('div');
+
+      container.appendChild(el('div', {
+        style: { fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '10px', lineHeight: '1.5' }
+      }, 'Pool rotation between snapshots: +new sources appeared, -dropped sources disappeared. ' +
+         'Large spikes = YouTube testing your video against new content.'));
+
+      var maxChange = Math.max.apply(null, transitions.map(function(t) {
+        return Math.max(t.newCount || 0, t.droppedCount || 0);
+      })) || 1;
+
+      transitions.forEach(function(t) {
+        var hasChanges = (t.newCount > 0 || t.droppedCount > 0);
+        var newW = (t.newCount / maxChange * 100);
+        var dropW = (t.droppedCount / maxChange * 100);
+
+        var returningLabel = (t.returningCount > 0)
+          ? ' (' + t.returningCount + ' returning)'
+          : '';
+
+        var item = el('div', { className: 'transition-item' },
+          el('span', { className: 'transition-period' }, t.periodFromLabel + ' \u2192 ' + t.periodToLabel),
+          el('span', { className: 'transition-counts' },
+            el('span', { className: 'transition-new' }, '+' + t.newCount),
+            returningLabel ? el('span', { style: { color: 'var(--text-tertiary)', fontSize: '11px' } }, returningLabel) : el('span'),
+            el('span', { className: 'transition-dropped' }, '-' + t.droppedCount)
+          ),
+          el('div', { className: 'transition-bar' },
+            el('div', { className: 'transition-bar-new', style: { width: newW + '%' } }),
+            el('div', { className: 'transition-bar-dropped', style: { width: dropW + '%' } })
+          )
+        );
+
+        container.appendChild(item);
+
+        /* expandable details */
+        if (hasChanges && ((t.topNew && t.topNew.length) || (t.topDropped && t.topDropped.length))) {
+          var details = el('div', { style: { display: 'none', padding: '4px 0 8px 118px', fontSize: '11px' } });
+
+          if (t.topNew && t.topNew.length) {
+            details.appendChild(el('div', { style: { marginBottom: '3px' } },
+              el('span', { style: { color: 'var(--success)', fontWeight: '500' } }, 'New: '),
+              el('span', { style: { color: 'var(--text-secondary)' } },
+                t.topNew.map(function(v) { return truncate(v.sourceTitle, 35) + ' (' + v.impressions + ' imp)'; }).join(', '))
+            ));
+          }
+
+          if (t.topDropped && t.topDropped.length) {
+            details.appendChild(el('div', {},
+              el('span', { style: { color: 'var(--danger)', fontWeight: '500' } }, 'Dropped: '),
+              el('span', { style: { color: 'var(--text-secondary)' } },
+                t.topDropped.map(function(v) { return truncate(v.sourceTitle, 35) + ' (' + v.impressions + ' imp)'; }).join(', '))
+            ));
+          }
+
+          item.style.cursor = 'pointer';
+          item.addEventListener('click', function() {
+            details.style.display = details.style.display === 'none' ? 'block' : 'none';
+          });
+          container.appendChild(details);
+        }
+      });
+
+      return container;
+    }
+
+    /* --- content analysis visualization --- */
+
+    function renderContentAnalysisViz(analysis) {
+      var container = el('div');
+
+      if (analysis.aggregate) {
+        var agg = analysis.aggregate;
+
+        /* shared tags */
+        if (agg.mostFrequentSharedTags && agg.mostFrequentSharedTags.length) {
+          container.appendChild(el('div', { style: { marginBottom: '14px' } },
+            el('div', { style: { fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '6px', fontWeight: '500' } }, 'Shared Tags with Source Video')
+          ));
+          var pills = el('div', { className: 'tag-pills' });
+          agg.mostFrequentSharedTags.forEach(function(t) {
+            pills.appendChild(el('span', { className: 'tag-pill' },
+              t.tag, el('span', { className: 'tag-count' }, String(t.count))
+            ));
+          });
+          container.lastChild.appendChild(pills);
+        }
+
+        /* keywords */
+        if (agg.topKeywordsInSuggestedTitles && agg.topKeywordsInSuggestedTitles.length) {
+          var maxK = Math.max.apply(null, agg.topKeywordsInSuggestedTitles.map(function(k) { return k.count; }));
+          var kwDiv = el('div', { style: { marginBottom: '14px' } },
+            el('div', { style: { fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '6px', fontWeight: '500' } }, 'Top Keywords in Suggested Titles')
+          );
+          var bars = el('div', { className: 'h-bars' });
+          agg.topKeywordsInSuggestedTitles.slice(0, 15).forEach(function(k) {
+            bars.appendChild(el('div', { className: 'h-bar-row' },
+              el('span', { className: 'h-bar-label' }, k.keyword),
+              el('div', { className: 'h-bar-track' },
+                el('div', { className: 'h-bar-fill', style: { width: (k.count / maxK * 100) + '%' } })
+              ),
+              el('span', { className: 'h-bar-value' }, String(k.count))
+            ));
+          });
+          kwDiv.appendChild(bars);
+          container.appendChild(kwDiv);
+        }
+
+        /* channel distribution */
+        if (agg.channelDistribution && agg.channelDistribution.length) {
+          var maxC = Math.max.apply(null, agg.channelDistribution.map(function(c) { return c.count; }));
+          var chDiv = el('div', { style: { marginBottom: '14px' } },
+            el('div', { style: { fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '6px', fontWeight: '500' } }, 'Channel Distribution')
+          );
+          var chBars = el('div', { className: 'h-bars' });
+          agg.channelDistribution.slice(0, 15).forEach(function(c) {
+            chBars.appendChild(el('div', { className: 'h-bar-row' },
+              el('span', { className: 'h-bar-label' }, truncate(c.channelTitle, 28)),
+              el('div', { className: 'h-bar-track' },
+                el('div', { className: 'h-bar-fill', style: { width: (c.count / maxC * 100) + '%' } })
+              ),
+              el('span', { className: 'h-bar-value' }, String(c.count))
+            ));
+          });
+          chDiv.appendChild(chBars);
+          container.appendChild(chDiv);
+        }
+      }
+
+      /* perVideoOverlap — collapsed summary */
+      if (analysis.perVideoOverlap && analysis.perVideoOverlap.length) {
+        var overlapHeader = el('div', {
+          style: { fontSize: '12px', color: 'var(--text-tertiary)', cursor: 'pointer', padding: '4px 0' }
+        }, '\u25B6 Per-Video Overlap (' + analysis.perVideoOverlap.length + ' videos)');
+
+        var overlapBody = el('div', { style: { display: 'none' } });
+        var olTable = el('table', { className: 'data-table' });
+        olTable.appendChild(el('thead', {},
+          el('tr', {},
+            el('th', {}, 'Video'),
+            el('th', {}, 'Shared Tags'),
+            el('th', {}, 'Shared Keywords'))
+        ));
+        var olTbody = el('tbody');
+        analysis.perVideoOverlap.forEach(function(v) {
+          olTbody.appendChild(el('tr', {},
+            el('td', {}, truncate(v.sourceTitle, 35)),
+            el('td', {}, (v.sharedTags || []).join(', ') || '\u2014'),
+            el('td', {}, (v.sharedKeywords || []).join(', ') || '\u2014')
+          ));
+        });
+        olTable.appendChild(olTbody);
+        overlapBody.appendChild(olTable);
+
+        overlapHeader.addEventListener('click', function() {
+          var open = overlapBody.style.display !== 'none';
+          overlapBody.style.display = open ? 'none' : 'block';
+          overlapHeader.textContent = (open ? '\u25B6' : '\u25BC') + ' Per-Video Overlap (' + analysis.perVideoOverlap.length + ' videos)';
+        });
+
+        container.appendChild(overlapHeader);
+        container.appendChild(overlapBody);
+      }
+
+      return container;
+    }
+
+    /* --- self-channel stats visualization --- */
+
+    function renderSelfChannelViz(stats) {
+      var container = el('div');
+
+      var classification, classColor;
+      if (stats.selfPercentage > 60) {
+        classification = 'Channel Ecosystem Boost';
+        classColor = 'var(--warning)';
+      } else if (stats.selfPercentage > 30) {
+        classification = 'Hybrid Reach';
+        classColor = 'var(--accent)';
+      } else {
+        classification = 'External Discovery';
+        classColor = 'var(--success)';
+      }
+
+      container.appendChild(el('div', { className: 'gauge' },
+        el('span', { className: 'gauge-value', style: { color: classColor } }, stats.selfPercentage + '%'),
+        el('div', {},
+          el('div', { className: 'gauge-label' }, 'Self-channel: ' + (stats.channelTitle || '\u2014')),
+          el('div', { className: 'gauge-classification', style: { background: classColor.replace(')', ',0.15)').replace('var(', ''), color: classColor } }, classification)
+        )
+      ));
+
+      /* timeline */
+      if (stats.timeline && stats.timeline.length) {
+        container.appendChild(el('div', { style: { marginTop: '10px' } },
+          el('div', { style: { fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '6px', fontWeight: '500' } }, 'Self-Channel % Over Time')
+        ));
+
+        var bars = el('div', { className: 'h-bars' });
+        stats.timeline.forEach(function(s) {
+          bars.appendChild(el('div', { className: 'h-bar-row' },
+            el('span', { className: 'h-bar-label' }, s.label),
+            el('div', { className: 'h-bar-track' },
+              el('div', { className: 'h-bar-fill', style: { width: Math.min(s.selfPercentage, 100) + '%', background: classColor, opacity: '0.5' } })
+            ),
+            el('span', { className: 'h-bar-value' }, s.selfPercentage + '%')
+          ));
+        });
+        container.lastChild.appendChild(bars);
+      }
+
+      /* top self videos */
+      if (stats.selfTopVideos && stats.selfTopVideos.length) {
+        container.appendChild(el('div', { style: { marginTop: '12px', fontSize: '12px', color: 'var(--text-tertiary)', fontWeight: '500' } }, 'Top Self-Channel Videos'));
+        stats.selfTopVideos.forEach(function(v) {
+          container.appendChild(el('div', { style: { fontSize: '12px', padding: '3px 0', color: 'var(--text-secondary)' } },
+            '\u2022 ' + truncate(v.sourceTitle, 45) + ' \u2014 ' + v.impressions + ' imp, ' + v.views + ' views'
+          ));
+        });
+      }
+
+      return container;
+    }
+
+    /* --- content trajectory visualization --- */
+
+    function renderTrajectoryViz(trajectory) {
+      var container = el('div');
+
+      trajectory.forEach(function(snap) {
+        var card = el('div', {
+          style: {
+            padding: '8px 12px', marginBottom: '6px',
+            background: 'var(--bg-app)', borderRadius: 'var(--radius-sm)', fontSize: '12px'
+          }
+        });
+
+        card.appendChild(el('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: '4px' } },
+          el('span', { style: { fontFamily: 'var(--font-mono)', fontWeight: '500' } },
+            snap.label + (snap.isLatest ? ' (latest)' : '')),
+          el('span', { style: { color: 'var(--text-tertiary)' } },
+            snap.totalSources + ' sources \u00B7 ' + fmtNum(snap.totalImpressions) + ' imp')
+        ));
+
+        if (snap.topKeywords && snap.topKeywords.length) {
+          var kw = snap.topKeywords.slice(0, 8).map(function(k) { return k.keyword + '(' + k.count + ')'; }).join(', ');
+          card.appendChild(el('div', { style: { color: 'var(--text-tertiary)' } }, 'Keywords: ' + kw));
+        }
+
+        if (snap.topSharedTags && snap.topSharedTags.length) {
+          var tags = snap.topSharedTags.slice(0, 6).map(function(t) { return t.tag + '(' + t.count + ')'; }).join(', ');
+          card.appendChild(el('div', { style: { color: 'var(--text-tertiary)' } }, 'Shared tags: ' + tags));
+        }
+
+        if (snap.topVideos && snap.topVideos.length) {
+          card.appendChild(el('div', { style: { color: 'var(--text-tertiary)' } },
+            snap.topVideos.length + ' top videos, tail: ' + fmtNum(snap.tailImpressions) + ' imp'));
+        }
+
+        container.appendChild(card);
+      });
+
+      return container;
+    }
+
+    /* ==========================================================
+     *  CONTEXT BREAKDOWN — chars → tokens scaling
+     * ========================================================== */
+
+    /**
+     * contextBreakdown stores CHARACTERS, not tokens.
+     * This replicates the frontend scaleBreakdown() logic from tokenDisplay.ts:
+     * scale = (actualInputTokens - imageTokens) / totalTextChars
+     */
+    function scaleBreakdown(raw, inputTokens) {
+      if (!raw || !inputTokens) return raw;
+
+      /* sum text-based char fields (mirrors tokenDisplay.ts) */
+      var textChars = (raw.systemPrompt || 0) + (raw.toolDefinitions || 0) +
+        (raw.history || 0) + (raw.historyToolResults || 0) + (raw.memory || 0) +
+        (raw.currentMessage || 0) + (raw.toolResults || 0);
+
+      var imageTokens = raw.imageTokens || 0;
+      var textBudget = inputTokens - Math.min(imageTokens, inputTokens);
+      var scale = textChars > 0 ? textBudget / textChars : 0;
+
+      var scaled = {};
+      for (var key in raw) {
+        if (!raw.hasOwnProperty(key)) continue;
+        var val = raw[key];
+        if (key === 'imageTokens') {
+          scaled[key] = val; /* already in tokens */
+        } else if (key === 'imageCount' || key === 'usedSummary' || key === 'historyMessageCount') {
+          scaled[key] = val; /* not chars — keep as-is */
+        } else if (typeof val === 'number') {
+          scaled[key] = Math.round(val * scale);
+        } else if (typeof val === 'object' && val) {
+          scaled[key] = {};
+          for (var sub in val) {
+            if (typeof val[sub] === 'number') scaled[key][sub] = Math.round(val[sub] * scale);
+            else scaled[key][sub] = val[sub];
+          }
+        } else {
+          scaled[key] = val;
+        }
+      }
+      return scaled;
+    }
+
+    function renderContextBreakdown(breakdown) {
+      var container = el('div', { className: 'breakdown-bars' });
+
+      /* flatten into items, but skip systemPrompt if systemLayers exists (avoid double-count) */
+      var hasSystemLayers = breakdown.systemLayers && typeof breakdown.systemLayers === 'object';
+      var items = [];
+      for (var key in breakdown) {
+        if (!breakdown.hasOwnProperty(key)) continue;
+        if (key === 'systemPrompt' && hasSystemLayers) continue; /* sub-items shown instead */
+        if (key === 'imageCount' || key === 'usedSummary' || key === 'historyMessageCount') continue;
+        var val = breakdown[key];
+        if (typeof val === 'number' && val > 0) {
+          items.push({ label: key, tokens: val });
+        } else if (typeof val === 'object' && val) {
+          for (var sub in val) {
+            if (val.hasOwnProperty(sub) && typeof val[sub] === 'number' && val[sub] > 0) {
+              items.push({ label: key + '.' + sub, tokens: val[sub] });
+            }
+          }
+        }
+      }
+
+      items.sort(function(a, b) { return b.tokens - a.tokens; });
+      var maxTokens = (items[0] && items[0].tokens) || 1;
+
+      var colors = ['var(--accent)', 'var(--warning)', 'var(--success)', 'var(--danger)', 'var(--purple)',
+        '#f778ba', '#79c0ff', '#56d364', '#e3b341', '#db61a2'];
+
+      items.forEach(function(item, i) {
+        var pct = item.tokens / maxTokens * 100;
+        container.appendChild(el('div', { className: 'breakdown-row' },
+          el('span', { className: 'breakdown-label' }, item.label),
+          el('div', { className: 'breakdown-bar-bg' },
+            el('div', {
+              className: 'breakdown-bar-fill',
+              style: { width: pct + '%', background: colors[i % colors.length], opacity: '0.6' }
+            }, fmtNum(item.tokens))
+          ),
+          el('span', { className: 'breakdown-tokens' }, fmtNum(item.tokens))
+        ));
+      });
+
+      return container;
+    }
+
+    /* ==========================================================
+     *  META BAR
+     * ========================================================== */
+
+    function renderMeta(meta, modelMsg) {
+      var bar = document.getElementById('meta-bar');
+      bar.innerHTML = '';
+
+      bar.appendChild(el('span', { className: 'meta-title' }, meta.title || 'Untitled'));
+
+      if (modelMsg && modelMsg.model) {
+        bar.appendChild(el('span', { className: 'meta-badge' },
+          el('span', { className: 'label' }, 'Model '),
+          el('span', { className: 'value' }, modelMsg.model)
+        ));
+      }
+
+      if (modelMsg && modelMsg.normalizedUsage && modelMsg.normalizedUsage.billing) {
+        var bill = modelMsg.normalizedUsage.billing;
+        if (bill.cost && bill.cost.total != null) {
+          bar.appendChild(el('span', { className: 'meta-badge' },
+            el('span', { className: 'label' }, 'Cost '),
+            el('span', { className: 'value' }, fmtCost(bill.cost.total))
+          ));
+        }
+        if (bill.iterations) {
+          bar.appendChild(el('span', { className: 'meta-badge' },
+            el('span', { className: 'label' }, 'Iter '),
+            el('span', { className: 'value' }, String(bill.iterations))
+          ));
+        }
+      }
+
+      if (modelMsg && modelMsg.normalizedUsage && modelMsg.normalizedUsage.contextWindow) {
+        var cw = modelMsg.normalizedUsage.contextWindow;
+        bar.appendChild(el('span', { className: 'meta-badge' },
+          el('span', { className: 'label' }, 'Context '),
+          el('span', { className: 'value' }, cw.percent + '% of ' + fmtNum(cw.limit))
+        ));
+      }
+
+      if (meta.totalToolCalls) {
+        bar.appendChild(el('span', { className: 'meta-badge' },
+          el('span', { className: 'label' }, 'Tools '),
+          el('span', { className: 'value' }, String(meta.totalToolCalls))
+        ));
+      }
+
+      if (meta.exportedAt) {
+        bar.appendChild(el('span', { className: 'meta-badge' },
+          el('span', { className: 'label' }, 'Date '),
+          el('span', { className: 'value' }, new Date(meta.exportedAt).toLocaleDateString())
+        ));
+      }
+    }
+
+    /* ==========================================================
+     *  MODEL RESPONSE
+     * ========================================================== */
+
+    function renderResponse(text) {
+      var panel = document.getElementById('response-panel');
+      panel.innerHTML = '';
+
+      panel.appendChild(el('div', { className: 'response-label' }, 'Model Response'));
+
+      var content = el('div');
+      if (typeof marked !== 'undefined' && marked.parse) {
+        content.innerHTML = marked.parse(text || '');
+      } else {
+        content.appendChild(el('pre', { style: { whiteSpace: 'pre-wrap', color: 'var(--text-secondary)' } }, text || ''));
+      }
+      panel.appendChild(content);
+    }
+
+    /* ==========================================================
+     *  GENERIC RENDERER — auto-detects data patterns
+     * ========================================================== */
+
+    function renderGenericResult(result, totalTokens) {
+      var container = el('div');
+
+      var keys = Object.keys(result);
+      var sections = [];
+      keys.forEach(function(key) {
+        if (result[key] != null) {
+          sections.push({ name: key, tokens: estimateTokens(result[key]), data: result[key] });
+        }
+      });
+
+      /* token budget bar if 2+ sections */
+      if (sections.length > 1) {
+        container.appendChild(renderTokenBudget(sections));
+      }
+
+      /* render each section */
+      sections.forEach(function(sec, i) {
+        container.appendChild(createSection(sec.name, sec.data, totalTokens, function(body) {
+          body.appendChild(renderAutoValue(sec.data));
+        }, i < 3));
+      });
+
+      return container;
+    }
+
+    /** Auto-detect data shape and pick the best renderer */
+    function renderAutoValue(value) {
+      if (value == null) return el('span', { style: { color: 'var(--text-tertiary)' } }, 'null');
+
+      if (typeof value === 'string') {
+        if (value.length > 200) return el('div', { className: 'json-raw' }, value);
+        return el('span', { style: { color: 'var(--text-secondary)' } }, value);
+      }
+
+      if (typeof value === 'number') {
+        return el('span', { style: { fontFamily: 'var(--font-mono)', color: 'var(--accent)' } }, fmtNum(value));
+      }
+
+      if (typeof value === 'boolean') {
+        return el('span', { style: { fontFamily: 'var(--font-mono)', color: value ? 'var(--success)' : 'var(--danger)' } }, String(value));
+      }
+
+      if (Array.isArray(value)) {
+        if (value.length === 0) return el('span', { style: { color: 'var(--text-tertiary)' } }, '[ ] (empty)');
+
+        /* [{ something, count }] → bar chart */
+        if (isCountArray(value)) return renderCountBars(value);
+
+        /* array of objects → auto-table */
+        if (typeof value[0] === 'object' && value[0] !== null && !Array.isArray(value[0])) {
+          return renderAutoTable(value);
+        }
+
+        /* array of primitives */
+        if (value.length <= 20) {
+          var pills = el('div', { className: 'tag-pills' });
+          value.forEach(function(v) { pills.appendChild(el('span', { className: 'tag-pill' }, String(v))); });
+          return pills;
+        }
+        return el('pre', { className: 'json-raw' }, JSON.stringify(value, null, 2));
+      }
+
+      if (typeof value === 'object') {
+        return renderAutoObject(value);
+      }
+
+      return el('span', {}, String(value));
+    }
+
+    /** Detect [{ label, count }] pattern */
+    function isCountArray(arr) {
+      if (arr.length === 0 || typeof arr[0] !== 'object' || arr[0] === null) return false;
+      var keys = Object.keys(arr[0]);
+      return keys.length >= 2 && keys.length <= 4 && keys.includes('count');
+    }
+
+    /** Render [{ label, count }] as horizontal bar chart */
+    function renderCountBars(arr) {
+      var labelKey = Object.keys(arr[0]).find(function(k) { return k !== 'count'; });
+      var maxCount = Math.max.apply(null, arr.map(function(item) { return item.count || 0; })) || 1;
+
+      var container = el('div', { className: 'h-bars' });
+      arr.slice(0, 20).forEach(function(item) {
+        container.appendChild(el('div', { className: 'h-bar-row' },
+          el('span', { className: 'h-bar-label' }, truncate(String(item[labelKey] || ''), 30)),
+          el('div', { className: 'h-bar-track' },
+            el('div', { className: 'h-bar-fill', style: { width: (item.count / maxCount * 100) + '%' } })
+          ),
+          el('span', { className: 'h-bar-value' }, String(item.count))
+        ));
+      });
+      if (arr.length > 20) {
+        container.appendChild(el('div', {
+          style: { fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '4px' }
+        }, '+ ' + (arr.length - 20) + ' more'));
+      }
+      return container;
+    }
+
+    /** Render array of objects as a table with expandable timeline rows */
+    function renderAutoTable(arr) {
+      /* collect all unique keys */
+      var keysSet = {};
+      arr.forEach(function(obj) { Object.keys(obj).forEach(function(k) { keysSet[k] = true; }); });
+      var allKeys = Object.keys(keysSet);
+
+      /* too many columns → fall back to JSON */
+      if (allKeys.length > 14) {
+        return el('pre', { className: 'json-raw' }, JSON.stringify(arr, null, 2));
+      }
+
+      var hasTimeline = allKeys.includes('timeline');
+      var displayKeys = allKeys.filter(function(k) { return k !== 'timeline'; });
+
+      var table = el('table', { className: 'data-table' });
+      var headerRow = el('tr');
+      displayKeys.forEach(function(k) {
+        headerRow.appendChild(el('th', { className: typeof arr[0][k] === 'number' ? 'num' : '' }, k));
+      });
+      table.appendChild(el('thead', {}, headerRow));
+
+      var tbody = el('tbody');
+      arr.forEach(function(obj) {
+        var row = el('tr', { style: { cursor: hasTimeline && obj.timeline ? 'pointer' : 'default' } });
+        displayKeys.forEach(function(k) {
+          var val = obj[k];
+          var isNum = typeof val === 'number';
+          var isArr = Array.isArray(val);
+          var isObj = typeof val === 'object' && val !== null && !isArr;
+          var display;
+          if (val == null) display = '\u2014';
+          else if (isNum) display = fmtNum(val);
+          else if (isArr) display = '[' + val.length + ']';
+          else if (isObj) display = '{...}';
+          else display = truncate(String(val), 40);
+          row.appendChild(el('td', { className: isNum ? 'num' : '' }, display));
+        });
+        tbody.appendChild(row);
+
+        /* expandable timeline sub-row */
+        if (hasTimeline && obj.timeline && Array.isArray(obj.timeline) && obj.timeline.length > 0) {
+          var tlRow = el('tr', { style: { display: 'none' } });
+          var tlCell = el('td', { colspan: String(displayKeys.length) });
+          tlCell.appendChild(renderInlineTimeline(obj.timeline));
+          tlRow.appendChild(tlCell);
+          row.addEventListener('click', function() {
+            tlRow.style.display = tlRow.style.display === 'none' ? '' : 'none';
+          });
+          tbody.appendChild(tlRow);
+        }
+      });
+
+      table.appendChild(tbody);
+
+      var container = el('div');
+      container.appendChild(el('div', {
+        style: { fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '4px' }
+      }, arr.length + ' items' + (hasTimeline ? ' \u00B7 click row to expand timeline' : '')));
+      container.appendChild(table);
+      return container;
+    }
+
+    /** Render a plain object as key-value pairs with auto-rendered values */
+    function renderAutoObject(obj) {
+      var container = el('div');
+      var keys = Object.keys(obj);
+
+      keys.forEach(function(k) {
+        var val = obj[k];
+        var row = el('div', { style: { marginBottom: '6px' } });
+
+        row.appendChild(el('span', {
+          style: { fontFamily: 'var(--font-mono)', color: 'var(--accent)', fontSize: '12px', fontWeight: '500' }
+        }, k + ': '));
+
+        if (typeof val === 'string' && val.length <= 100) {
+          row.appendChild(el('span', { style: { color: 'var(--text-secondary)' } }, val));
+        } else if (typeof val === 'number' || typeof val === 'boolean') {
+          row.appendChild(el('span', { style: { fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' } }, String(val)));
+        } else if (val != null) {
+          row.appendChild(el('div', { style: { marginTop: '4px', marginLeft: '12px' } }, renderAutoValue(val)));
+        } else {
+          row.appendChild(el('span', { style: { color: 'var(--text-tertiary)' } }, '\u2014'));
+        }
+
+        container.appendChild(row);
+      });
+
+      return container;
+    }
+
+    /* ==========================================================
+     *  MAIN RENDER
+     * ========================================================== */
+
+    var TOOL_RENDERERS = {
+      'analyzeTrafficSources': renderTrafficSources,
+      'analyzeSuggestedTraffic': renderSuggestedTraffic
+    };
+
+    function renderTrace(trace) {
+      var meta = trace.meta || {};
+      var messages = trace.messages || [];
+
+      var modelMsg = null;
+      var userMsg = null;
+      messages.forEach(function(m) {
+        if (m.role === 'model' && !modelMsg) modelMsg = m;
+        if (m.role === 'user' && !userMsg) userMsg = m;
+      });
+
+      /* meta bar */
+      renderMeta(meta, modelMsg);
+
+      /* context breakdown — scale chars → tokens */
+      var breakdownSection = document.getElementById('context-breakdown-section');
+      breakdownSection.innerHTML = '';
+      if (modelMsg && modelMsg.contextBreakdown) {
+        var inputTokens = modelMsg.normalizedUsage &&
+          modelMsg.normalizedUsage.contextWindow &&
+          modelMsg.normalizedUsage.contextWindow.inputTokens;
+        var scaledBreakdown = inputTokens
+          ? scaleBreakdown(modelMsg.contextBreakdown, inputTokens)
+          : modelMsg.contextBreakdown;
+
+        breakdownSection.appendChild(el('div', {
+          style: { fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '600' }
+        }, 'Context Breakdown (estimated tokens)'));
+        breakdownSection.appendChild(renderContextBreakdown(scaledBreakdown));
+      }
+
+      /* tools panel */
+      var toolsPanel = document.getElementById('tools-panel');
+      toolsPanel.innerHTML = '';
+
+      /* user message */
+      if (userMsg) {
+        toolsPanel.appendChild(el('div', {
+          style: {
+            padding: '10px 16px', background: 'var(--bg-card)', borderRadius: 'var(--radius)',
+            marginBottom: '16px', borderLeft: '3px solid var(--accent)'
+          }
+        },
+          el('div', { style: { fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '1px' } }, 'User Message'),
+          el('div', { style: { color: 'var(--text-secondary)' } }, userMsg.text || '')
+        ));
+      }
+
+      /* tool call cards */
+      if (modelMsg && modelMsg.toolCalls) {
+        modelMsg.toolCalls.forEach(function(tc) {
+          var totalTokens = estimateTokens(tc.result);
+          var card = el('div', { className: 'tool-card' });
+
+          var chevron = el('span', { style: { fontSize: '10px', color: 'var(--text-tertiary)' } }, '\u25BC');
+          var header = el('div', { className: 'tool-header' },
+            chevron,
+            el('span', { className: 'tool-name' }, tc.name),
+            el('span', { className: 'tool-tokens' }, '~' + fmtNum(totalTokens) + ' tokens')
+          );
+
+          var args = el('div', { className: 'tool-args' },
+            el('span', { style: { color: 'var(--text-tertiary)' } }, 'args: '),
+            JSON.stringify(tc.args)
+          );
+
+          var body = el('div', { className: 'tool-body' });
+          var renderer = TOOL_RENDERERS[tc.name];
+          if (renderer) {
+            body.appendChild(renderer(tc.result, totalTokens));
+          } else {
+            body.appendChild(renderGenericResult(tc.result, totalTokens));
+          }
+
+          var bodyVisible = true;
+          header.addEventListener('click', function() {
+            bodyVisible = !bodyVisible;
+            body.style.display = bodyVisible ? '' : 'none';
+            args.style.display = bodyVisible ? '' : 'none';
+            chevron.textContent = bodyVisible ? '\u25BC' : '\u25B6';
+          });
+
+          card.appendChild(header);
+          card.appendChild(args);
+          card.appendChild(body);
+          toolsPanel.appendChild(card);
+        });
+      }
+
+      /* model response */
+      if (modelMsg) {
+        renderResponse(modelMsg.text);
+      }
+
+      /* show viewer */
+      document.getElementById('upload-zone').style.display = 'none';
+      document.getElementById('viewer').style.display = '';
+    }
+
+    /* ==========================================================
+     *  FILE UPLOAD
+     * ========================================================== */
+
+    function handleFile(file) {
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          var trace = JSON.parse(e.target.result);
+          renderTrace(trace);
+        } catch (err) {
+          var zone = document.getElementById('upload-zone');
+          zone.querySelector('p').textContent = 'Invalid JSON: ' + err.message;
+          zone.querySelector('p').style.color = 'var(--danger)';
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function init() {
+      var zone = document.getElementById('upload-zone');
+      var input = document.getElementById('file-input');
+
+      zone.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        zone.classList.add('drag-over');
+      });
+
+      zone.addEventListener('dragleave', function() {
+        zone.classList.remove('drag-over');
+      });
+
+      zone.addEventListener('drop', function(e) {
+        e.preventDefault();
+        zone.classList.remove('drag-over');
+        if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+      });
+
+      input.addEventListener('change', function() {
+        if (input.files.length) handleFile(input.files[0]);
+      });
+    }
+
+    init();
+  </script>
+</body>
+</html>

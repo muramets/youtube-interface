@@ -154,6 +154,8 @@ export interface Transition {
     periodToLabel: string;
     newCount: number;
     droppedCount: number;
+    /** How many of `newCount` were seen in ANY earlier snapshot (reappearing after absence). */
+    returningCount: number;
     /** Top new sources by impressions (capped at 10). */
     topNew: VideoSnapshotEntry[];
     /** Top dropped sources by last known impressions (capped at 10). */
@@ -247,12 +249,25 @@ export function getTransitions(
 ): Transition[] {
     const transitions: Transition[] = [];
 
+    // Track all videoIds seen in snapshots 0..i-1 to detect returning videos.
+    // A "returning" video is one that appears as "new" (not in snapshot[i-1])
+    // but WAS present in some earlier snapshot — it dropped out and came back.
+    const allPreviouslySeen = new Set<string>();
+    if (snapshots.length > 0) {
+        for (const entry of snapshots[0]) {
+            allPreviouslySeen.add(entry.videoId);
+        }
+    }
+
     for (let i = 1; i < snapshots.length; i++) {
         const prevIds = new Set(snapshots[i - 1].map(e => e.videoId));
         const currIds = new Set(snapshots[i].map(e => e.videoId));
 
         const newEntries = snapshots[i].filter(e => !prevIds.has(e.videoId));
         const droppedEntries = snapshots[i - 1].filter(e => !currIds.has(e.videoId));
+
+        // Of the "new" entries, how many were seen in any snapshot before i-1?
+        const returningCount = newEntries.filter(e => allPreviouslySeen.has(e.videoId)).length;
 
         // Sort by impressions descending, take top N
         const topNew = [...newEntries]
@@ -269,9 +284,15 @@ export function getTransitions(
             periodToLabel: labels?.[i] ?? `v${i + 1}`,
             newCount: newEntries.length,
             droppedCount: droppedEntries.length,
+            returningCount,
             topNew,
             topDropped,
         });
+
+        // Add current snapshot's videoIds for next iterations
+        for (const entry of snapshots[i]) {
+            allPreviouslySeen.add(entry.videoId);
+        }
     }
 
     return transitions;

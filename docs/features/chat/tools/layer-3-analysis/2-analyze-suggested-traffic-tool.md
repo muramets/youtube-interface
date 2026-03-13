@@ -106,14 +106,15 @@ Graceful degradation: если `getViewDeltas()` падает — handler про
 
 Для каждой пары последовательных снапшотов считает:
 - `newCount` / `droppedCount` — масштаб ротации пула
+- `returningCount` — сколько из "new" видео уже встречались в ЛЮБОМ предыдущем снапшоте (были, исчезли, вернулись). Высокий `returningCount/newCount` = YouTube повторно тестирует тот же пул; низкий = нашёл новый контент.
 - `topNew` / `topDropped` — топ 10 примеров по impressions
 
 ```typescript
 transitions: [
     { periodFromDate: "2026-01-15", periodToDate: "2026-01-22",
-      newCount: 439, droppedCount: 0, topNew: [...], topDropped: [] },
+      newCount: 439, droppedCount: 0, returningCount: 0, topNew: [...], topDropped: [] },
     { periodFromDate: "2026-01-22", periodToDate: "2026-02-15",
-      newCount: 20, droppedCount: 23, topNew: [...], topDropped: [...] },
+      newCount: 20, droppedCount: 23, returningCount: 15, topNew: [...], topDropped: [...] },
 ]
 ```
 
@@ -183,7 +184,7 @@ Per-snapshot эволюция контента:
     }],
     transitions: [{
         periodFromDate, periodFromLabel, periodToDate, periodToLabel,
-        newCount, droppedCount,
+        newCount, droppedCount, returningCount,
         topNew: VideoSnapshotEntry[],
         topDropped: VideoSnapshotEntry[]
     }],
@@ -220,7 +221,8 @@ Per-snapshot эволюция контента:
 |---|---|
 | Кто чаще всего рядом? | `topSources` — топ N по impressions с полным timeline |
 | Как менялась динамика? | `timeline[]` — trajectory каждого видео по всем снапшотам |
-| Как менялся пул? | `transitions` — newCount/droppedCount + примеры за каждый период |
+| Как менялся пул? | `transitions` — newCount/droppedCount/returningCount + примеры за каждый период |
+| YouTube тестирует новый контент или старый? | `transitions[].returningCount` — сколько "new" видео уже были раньше (drop→reappear) |
 | По каким тегам ставят? | `contentAnalysis.mostFrequentSharedTags` |
 | Какие каналы-конкуренты? | `contentAnalysis.channelDistribution` |
 | Тематика окружения? | `contentAnalysis.topKeywordsInSuggestedTitles` |

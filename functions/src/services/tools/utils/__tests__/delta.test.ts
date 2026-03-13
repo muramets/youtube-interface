@@ -206,6 +206,48 @@ describe('getTransitions', () => {
         expect(transitions[1].topDropped[0].videoId).toBe('new2');
     });
 
+    it('returningCount = 0 for first transition (no history to return from)', () => {
+        const s1 = [makeEntry('abc', 200, 3000)];
+        const s2 = [makeEntry('abc', 2800, 45000), makeEntry('new1', 100, 500)];
+
+        const transitions = getTransitions([s1, s2], ['2026-01-15', '2026-01-22']);
+
+        expect(transitions[0].returningCount).toBe(0); // new1 was never seen before
+    });
+
+    it('returningCount detects videos that reappear after being dropped', () => {
+        const s1 = [makeEntry('abc', 200, 3000), makeEntry('flash', 50, 100)];
+        const s2 = [makeEntry('abc', 2800, 45000)]; // flash dropped
+        const s3 = [makeEntry('abc', 5000, 80000), makeEntry('flash', 80, 200)]; // flash returns
+
+        const transitions = getTransitions(
+            [s1, s2, s3],
+            ['2026-01-15', '2026-01-22', '2026-02-15'],
+        );
+
+        // s1→s2: flash dropped, no new entries
+        expect(transitions[0].newCount).toBe(0);
+        expect(transitions[0].returningCount).toBe(0);
+        // s2→s3: flash is "new" (not in s2) but was in s1 → returning
+        expect(transitions[1].newCount).toBe(1);
+        expect(transitions[1].returningCount).toBe(1);
+    });
+
+    it('returningCount distinguishes truly new from returning in a spike', () => {
+        const s1 = [makeEntry('a', 10, 100), makeEntry('b', 10, 100), makeEntry('c', 10, 100)];
+        const s2 = [makeEntry('a', 20, 200)]; // b, c dropped
+        const s3 = [makeEntry('a', 30, 300), makeEntry('b', 15, 150), makeEntry('d', 5, 50)];
+        // b returns, d is truly new
+
+        const transitions = getTransitions(
+            [s1, s2, s3],
+            ['2026-01-01', '2026-01-02', '2026-01-03'],
+        );
+
+        expect(transitions[1].newCount).toBe(2);         // b + d
+        expect(transitions[1].returningCount).toBe(1);    // only b (was in s1)
+    });
+
     it('topNew is sorted by impressions and capped at 10', () => {
         const s1: VideoSnapshotEntry[] = [];
         // Create 15 new entries with varying impressions
