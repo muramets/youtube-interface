@@ -8,8 +8,9 @@
 // to this layer — they produce the Markdown that LLM reads.
 // =============================================================================
 
-import type { AppContextItem, VideoCardContext, SuggestedTrafficContext, CanvasSelectionContext, VideoContextNode, TrafficSourceContextNode, StickyNoteContextNode, ImageContextNode, SnapshotFrameContextNode, TrafficDiscrepancy } from '../../types/appContext';
+import type { AppContextItem, VideoCardContext, SuggestedTrafficContext, CanvasSelectionContext, VideoContextNode, TrafficSourceContextNode, StickyNoteContextNode, ImageContextNode, SnapshotFrameContextNode, TrafficDiscrepancy, ChannelMetadata } from '../../types/appContext';
 import { getVideoCards, getTrafficContexts, getCanvasContexts } from '../../types/appContext';
+import type { KnowledgeCategoryEntry } from '../../types/knowledge';
 import { OWNERSHIP_CONFIG } from '../../config/referencePatterns';
 
 import {
@@ -30,14 +31,68 @@ import {
 // =============================================================================
 
 /**
+ * Format channel metadata as a system prompt section (~100 tokens).
+ * Includes Knowledge Items discovery flags for channel-level awareness.
+ */
+export function formatChannelContext(channel: ChannelMetadata): string {
+    const lines: string[] = ['### Channel'];
+
+    const handle = channel.handle ? ` (@${channel.handle})` : '';
+    const subs = channel.subscriberCount ? `${channel.subscriberCount.toLocaleString()} subscribers` : '';
+    const vids = channel.videoCount ? `${channel.videoCount} videos` : '';
+    const metaParts = [subs, vids].filter(Boolean).join(', ');
+
+    lines.push(`- "${channel.name}"${handle}${metaParts ? ` — ${metaParts}` : ''}`);
+
+    if (channel.knowledgeItemCount && channel.knowledgeItemCount > 0) {
+        const cats = channel.knowledgeCategories?.join(', ') || 'uncategorized';
+        const lastDate = channel.lastAnalyzedAt || 'unknown';
+        lines.push(`- AI Research: ${channel.knowledgeItemCount} items (${cats}), last analyzed ${lastDate}`);
+    }
+
+    return lines.join('\n');
+}
+
+/**
+ * Format the Knowledge Categories registry as a system prompt section (~500 tokens).
+ * Guides LLM on which categories to use when creating Knowledge Items.
+ */
+export function formatCategoryRegistry(categories: KnowledgeCategoryEntry[]): string {
+    if (categories.length === 0) return '';
+
+    const lines: string[] = ['### Knowledge Categories'];
+    lines.push('Use these categories when saving Knowledge Items (or propose a new kebab-case slug):');
+    lines.push('');
+
+    for (const cat of categories) {
+        lines.push(`- **${cat.slug}** (${cat.level}): ${cat.description}`);
+    }
+
+    return lines.join('\n');
+}
+
+/**
  * Memory Layer 1: Persistent Context
  * Builds system prompt sections from attached videos, traffic, and canvas data.
  */
-export function buildPersistentContextLayer(appContext?: AppContextItem[]): string[] {
-    if (!appContext || appContext.length === 0) return [];
-
+export function buildPersistentContextLayer(
+    appContext?: AppContextItem[],
+    channelMetadata?: ChannelMetadata,
+    knowledgeCategories?: KnowledgeCategoryEntry[],
+): string[] {
     const sections: string[] = [];
 
+    // Channel metadata section (always present if available)
+    if (channelMetadata) {
+        sections.push(formatChannelContext(channelMetadata));
+    }
+
+    // Knowledge categories registry (~500 tokens)
+    if (knowledgeCategories && knowledgeCategories.length > 0) {
+        sections.push(formatCategoryRegistry(knowledgeCategories));
+    }
+
+    if (!appContext || appContext.length === 0) return sections;
 
     const videoCards = getVideoCards(appContext);
     if (videoCards.length > 0) {
@@ -112,6 +167,13 @@ function formatSingleVideo(lines: string[], v: VideoCardContext): void {
     if (v.duration) metrics.push(`Duration: ${v.duration}`);
     const metricsStr = metrics.length > 0 ? ` — ${metrics.join(' | ')}` : '';
     lines.push(`- ${prefix}: "${v.title}" [id: ${v.videoId}]${channel}${metricsStr}`);
+
+    // Knowledge Items discovery flags (if present)
+    if (v.knowledgeItemCount && v.knowledgeItemCount > 0) {
+        const cats = v.knowledgeCategories?.join(', ') || 'uncategorized';
+        const lastDate = v.lastAnalyzedAt || 'unknown';
+        lines.push(`  — KI: ${v.knowledgeItemCount} items (${cats}), last: ${lastDate}`);
+    }
 }
 
 /** Compact delta formatting: +1200 → "+1.2K", -300 → "-300" */

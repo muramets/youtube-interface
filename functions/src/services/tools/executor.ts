@@ -20,6 +20,10 @@ import { handleBrowseTrendVideos } from "./handlers/browseTrendVideos.js";
 import { handleGetNicheSnapshot } from "./handlers/getNicheSnapshot.js";
 import { handleFindSimilarVideos } from "./handlers/findSimilarVideos.js";
 import { handleSearchDatabase } from "./handlers/searchDatabase.js";
+import { handleSaveKnowledge } from "./handlers/knowledge/saveKnowledge.js";
+import { handleListKnowledge } from "./handlers/knowledge/listKnowledge.js";
+import { handleGetKnowledge } from "./handlers/knowledge/getKnowledge.js";
+import { handleSaveMemory } from "./handlers/knowledge/saveMemory.js";
 
 // --- Handler registry ---
 
@@ -37,6 +41,10 @@ const HANDLERS: Record<ToolName, ToolHandler> = {
     [TOOL_NAMES.GET_NICHE_SNAPSHOT]: handleGetNicheSnapshot,
     [TOOL_NAMES.FIND_SIMILAR_VIDEOS]: handleFindSimilarVideos,
     [TOOL_NAMES.SEARCH_DATABASE]: handleSearchDatabase,
+    [TOOL_NAMES.SAVE_KNOWLEDGE]: handleSaveKnowledge,
+    [TOOL_NAMES.LIST_KNOWLEDGE]: handleListKnowledge,
+    [TOOL_NAMES.GET_KNOWLEDGE]: handleGetKnowledge,
+    [TOOL_NAMES.SAVE_MEMORY]: handleSaveMemory,
 };
 
 // --- Dispatcher ---

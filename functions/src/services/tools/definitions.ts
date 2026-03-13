@@ -31,6 +31,10 @@ export const TOOL_NAMES = {
     GET_NICHE_SNAPSHOT: "getNicheSnapshot",
     FIND_SIMILAR_VIDEOS: "findSimilarVideos",
     SEARCH_DATABASE: "searchDatabase",
+    SAVE_KNOWLEDGE: "saveKnowledge",
+    LIST_KNOWLEDGE: "listKnowledge",
+    GET_KNOWLEDGE: "getKnowledge",
+    SAVE_MEMORY: "saveMemory",
 } as const;
 
 export type ToolName = (typeof TOOL_NAMES)[keyof typeof TOOL_NAMES];
@@ -482,7 +486,150 @@ const searchDatabase: ToolDefinition = {
     },
 };
 
-// --- Exported registry ---
+// --- Knowledge Items tools ---
+
+const saveKnowledge: ToolDefinition = {
+    name: TOOL_NAMES.SAVE_KNOWLEDGE,
+    description:
+        "Save a structured analysis result as a Knowledge Item. " +
+        "Call when the user asks to save analysis, or when you have a significant finding worth preserving " +
+        "for future conversations (traffic breakdown, packaging audit, suggested pool analysis, etc.). " +
+        "Each KI should focus on ONE topic/category. For video analysis, include videoId. " +
+        "For channel-level insights (strategy, growth, journey), omit videoId. " +
+        "Choose a category from the Knowledge Categories registry in the system prompt, " +
+        "or propose a new kebab-case slug if none fits. " +
+        "Write comprehensive markdown content (1000-5000 words) — this is the full analysis record. " +
+        "Write a concise summary (2-3 sentences) for quick reference.",
+    parametersJsonSchema: {
+        type: "object",
+        properties: {
+            category: {
+                type: "string",
+                description:
+                    "Category slug (kebab-case, e.g. 'traffic-analysis'). " +
+                    "Choose from existing categories or propose a new one.",
+            },
+            title: {
+                type: "string",
+                description: "Human-readable title, e.g. 'Traffic Analysis — March 2026'",
+            },
+            content: {
+                type: "string",
+                description:
+                    "Full markdown content of the analysis (1000-5000 words). " +
+                    "Include data, findings, patterns, and recommendations.",
+            },
+            summary: {
+                type: "string",
+                description: "2-3 sentence summary for quick reference and card display.",
+            },
+            videoId: {
+                type: "string",
+                description:
+                    "Video ID this analysis is about. Omit for channel-level insights.",
+            },
+            videoRefs: {
+                type: "array",
+                items: { type: "string" },
+                description: "IDs of other videos referenced in the analysis (for cross-linking).",
+            },
+            toolsUsed: {
+                type: "array",
+                items: { type: "string" },
+                description: "Names of tools used during this analysis (e.g. 'analyzeTrafficSources').",
+            },
+        },
+        required: ["category", "title", "content", "summary"],
+    },
+};
+
+const listKnowledge: ToolDefinition = {
+    name: TOOL_NAMES.LIST_KNOWLEDGE,
+    description:
+        "List existing Knowledge Items for a video or channel. " +
+        "Returns summaries and metadata, NOT full content (~500 tokens total). " +
+        "Use to check what analysis already exists before conducting new research. " +
+        "Excludes superseded (outdated) items. " +
+        "After listing, use getKnowledge to fetch full content of specific items you need.",
+    parametersJsonSchema: {
+        type: "object",
+        properties: {
+            videoId: {
+                type: "string",
+                description: "Filter to KI about a specific video.",
+            },
+            scope: {
+                type: "string",
+                enum: ["video", "channel"],
+                description: "Filter by scope. 'channel' = channel-level insights only.",
+            },
+            category: {
+                type: "string",
+                description: "Filter by category slug (e.g. 'traffic-analysis').",
+            },
+        },
+    },
+};
+
+const getKnowledge: ToolDefinition = {
+    name: TOOL_NAMES.GET_KNOWLEDGE,
+    description:
+        "Retrieve full content of specific Knowledge Items. " +
+        "This is a heavy operation (~3-5K tokens per item). " +
+        "Use after listKnowledge to fetch only the items you need for the current task. " +
+        "Can fetch by IDs (from listKnowledge results) or by video + category filters.",
+    parametersJsonSchema: {
+        type: "object",
+        properties: {
+            ids: {
+                type: "array",
+                items: { type: "string" },
+                description: "Specific KI IDs to fetch (from listKnowledge results).",
+            },
+            videoId: {
+                type: "string",
+                description: "Fetch all KI for a specific video.",
+            },
+            categories: {
+                type: "array",
+                items: { type: "string" },
+                description: "Filter by category slugs (e.g. ['traffic-analysis', 'packaging-audit']).",
+            },
+        },
+    },
+};
+
+// --- Conclude-only tools (injected when isConclude = true) ---
+
+const saveMemory: ToolDefinition = {
+    name: TOOL_NAMES.SAVE_MEMORY,
+    description:
+        "Save a cross-conversation memory summarizing key decisions and insights. " +
+        "ONLY available during memorize/conclude turns. " +
+        "Call AFTER all saveKnowledge calls are complete. " +
+        "The memory should reference Knowledge Items by ID (from saveKnowledge results), " +
+        "NOT duplicate their content. Keep the memory concise — it's a pointer, not a copy. " +
+        "Include: key decisions made, open questions, action items, and KI references.",
+    parametersJsonSchema: {
+        type: "object",
+        properties: {
+            content: {
+                type: "string",
+                description:
+                    "Memory content in markdown. Reference KI by ID, don't duplicate. " +
+                    "Sections: Decisions, Insights, Action Items, Open Questions.",
+            },
+            kiRefs: {
+                type: "array",
+                items: { type: "string" },
+                description: "IDs of Knowledge Items created during this conversation (from saveKnowledge results).",
+            },
+        },
+        required: ["content"],
+    },
+};
+
+// --- Exported registries ---
 
 export const TOOL_DECLARATIONS: ToolDefinition[] = [
     mentionVideo,
@@ -498,4 +645,12 @@ export const TOOL_DECLARATIONS: ToolDefinition[] = [
     getNicheSnapshot,
     findSimilarVideos,
     searchDatabase,
+    saveKnowledge,
+    listKnowledge,
+    getKnowledge,
+];
+
+/** Conclude-only tools — injected into tool list when isConclude = true */
+export const CONCLUDE_TOOL_DECLARATIONS: ToolDefinition[] = [
+    saveMemory,
 ];

@@ -15,6 +15,10 @@ import { debugSendLog } from '../../../ai/pipeline/debugSendLog';
 import { getVideoCards, getTrafficContexts, getCanvasContexts } from '../../../types/appContext';
 import { buildSystemPrompt } from '../../../ai/systemPrompt';
 import { useAppContextStore, selectAllItems } from '../../appContextStore';
+import { useChannelStore } from '../../channelStore';
+import { KnowledgeCategoryService } from '../../../services/knowledge/knowledgeCategoryService';
+import type { ChannelMetadata } from '../../../types/appContext';
+import type { KnowledgeCategoryEntry } from '../../../types/knowledge';
 import { debug } from '../../../utils/debug';
 import type { ChatMessage, ToolCallRecord, TokenUsage, NormalizedTokenUsage, MessageStatus } from '../../../types/chat/chat';
 import type { ReadyAttachment } from '../../../types/chat/chatAttachment';
@@ -178,9 +182,28 @@ async function resumeSendFlow(
     const thumbnailUrls = extractThumbnails(persistedContext ?? appContext);
     const activeConv = get().conversations.find(c => c.id === convId);
     const model = resolveModel(aiSettings, projects, activeProjectId, activeConv?.model, get().pendingModel);
-    const { prompt: systemPrompt, layerSizes: systemLayers } = buildSystemPrompt(aiSettings, projects, activeProjectId, persistedContext, memories);
 
-    debugSendLog({ model, aiSettings, projects, activeProjectId, persistedContext, appContext, messages, memories, thumbnailUrls, systemPrompt });
+    // Build channel metadata from channelStore (lightweight — no async)
+    const currentChannel = useChannelStore.getState().currentChannel;
+    const channelMetadata: ChannelMetadata | undefined = currentChannel
+        ? { name: currentChannel.name }
+        : undefined;
+
+    // Fetch knowledge categories (small payload, rarely changes)
+    const { userId, channelId } = requireContext(get);
+    let knowledgeCategories: KnowledgeCategoryEntry[] | undefined;
+    try {
+        knowledgeCategories = await KnowledgeCategoryService.getCategories(userId, channelId);
+    } catch {
+        // Non-critical — continue without categories
+    }
+
+    const { prompt: systemPrompt, layerSizes: systemLayers } = buildSystemPrompt(
+        aiSettings, projects, activeProjectId, persistedContext, memories,
+        channelMetadata, knowledgeCategories,
+    );
+
+    debugSendLog({ model, aiSettings, projects, activeProjectId, persistedContext, appContext, messages, memories, thumbnailUrls, systemPrompt, channelMetadata, knowledgeCategories });
 
     const contextMeta = persistedContext ? {
         videoCards: getVideoCards(persistedContext).length,
@@ -189,7 +212,6 @@ async function resumeSendFlow(
         totalItems: persistedContext.length,
     } : undefined;
 
-    const { userId, channelId } = requireContext(get);
     const scopedSet = (partial: Partial<ChatState>) => {
         if (session.streamingNonce === nonce) set(partial);
     };

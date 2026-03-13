@@ -219,6 +219,8 @@ export interface AiChatRequest {
     };
     /** User confirmed loading a large batch of thumbnails (≥15) via the confirmation UI. */
     largePayloadApproved?: boolean;
+    /** Whether this is a conclude/memorize turn — injects saveMemory tool. */
+    isConclude?: boolean;
 }
 
 /**

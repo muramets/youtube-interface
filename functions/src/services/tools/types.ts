@@ -11,6 +11,12 @@ export interface ToolContext {
     youtubeApiKey?: string;
     /** Optional: emit a mid-execution progress message to the client via SSE. */
     reportProgress?: (message: string) => void;
+    /** Conversation ID — used by Knowledge Items for provenance tracking. */
+    conversationId?: string;
+    /** Model name — used by Knowledge Items for provenance (e.g. "claude-sonnet-4-6"). */
+    model?: string;
+    /** Whether this is a conclude/memorize turn — affects KI source field. */
+    isConclude?: boolean;
 }
 
 export interface FunctionCallInput {

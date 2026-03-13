@@ -11,7 +11,8 @@
 // =============================================================================
 
 import type { AiAssistantSettings, ChatProject, ChatMessage, ConversationMemory } from '../../types/chat/chat';
-import type { AppContextItem } from '../../types/appContext';
+import type { AppContextItem, ChannelMetadata } from '../../types/appContext';
+import type { KnowledgeCategoryEntry } from '../../types/knowledge';
 import { getVideoCards, getTrafficContexts, getCanvasContexts } from '../../types/appContext';
 import { DEBUG_ENABLED } from '../../utils/debug';
 
@@ -26,6 +27,8 @@ interface DebugSendLogParams {
     memories: ConversationMemory[];
     thumbnailUrls: string[];
     systemPrompt: string;
+    channelMetadata?: ChannelMetadata;
+    knowledgeCategories?: KnowledgeCategoryEntry[];
 }
 
 /**
@@ -35,9 +38,21 @@ interface DebugSendLogParams {
 export function debugSendLog(params: DebugSendLogParams): void {
     if (!import.meta.env.DEV || !DEBUG_ENABLED.chat) return;
 
-    const { model, aiSettings, projects, activeProjectId, persistedContext, appContext, messages, memories, thumbnailUrls, systemPrompt } = params;
+    const { model, aiSettings, projects, activeProjectId, persistedContext, appContext, messages, memories, thumbnailUrls, systemPrompt, channelMetadata, knowledgeCategories } = params;
 
     console.group('🤖 Sent to chat | Model:', model);
+
+    // Channel metadata + Knowledge
+    if (channelMetadata) {
+        const kiInfo = channelMetadata.knowledgeItemCount
+            ? ` | KI: ${channelMetadata.knowledgeItemCount} items`
+            : '';
+        console.log(`📺 Channel: "${channelMetadata.name}"${channelMetadata.handle ? ` @${channelMetadata.handle}` : ''}${kiInfo}`);
+    }
+    if (knowledgeCategories && knowledgeCategories.length > 0) {
+        const catChars = knowledgeCategories.map(c => `${c.slug} (${c.level})`).join(', ');
+        console.log(`📚 Knowledge Categories: ${knowledgeCategories.length} (~${Math.ceil(catChars.length / 4)} tokens) — ${catChars}`);
+    }
 
     // Settings layer
     console.groupCollapsed('⚙️ Settings Layer');
@@ -73,6 +88,9 @@ export function debugSendLog(params: DebugSendLogParams): void {
                 if (v.delta7d != null) deltaParts.push(`7d: ${v.delta7d >= 0 ? '+' : ''}${v.delta7d}`);
                 if (v.delta30d != null) deltaParts.push(`30d: ${v.delta30d >= 0 ? '+' : ''}${v.delta30d}`);
                 console.log(`      desc: ${v.description ? `✓ (${v.description.length}ch, not in prompt — available via tool)` : '—'} | tags: ${v.tags && v.tags.length > 0 ? `${v.tags.length} (not in prompt — available via tool)` : '—'}${deltaParts.length > 0 ? ` | Δ: ${deltaParts.join(' / ')}` : ''}`);
+                if (v.knowledgeItemCount) {
+                    console.log(`      📚 KI: ${v.knowledgeItemCount} items (${v.knowledgeCategories?.join(', ') || '—'}), last: ${v.lastAnalyzedAt ?? '—'}`);
+                }
 
             } else if (item.type === 'suggested-traffic') {
                 const sv = item.sourceVideo;

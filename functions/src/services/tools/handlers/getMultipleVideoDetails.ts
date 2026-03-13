@@ -203,5 +203,13 @@ function formatVideoData(
             ? { suggestedTrafficSnapshotCount: data.suggestedTrafficSnapshotCount } : {}),
         ...(isOwn && typeof data.trafficSourceSnapshotCount === "number"
             ? { trafficSourceSnapshotCount: data.trafficSourceSnapshotCount } : {}),
+        // Knowledge Items discovery flags (denormalized by saveKnowledge handler)
+        ...(typeof data.knowledgeItemCount === "number" && data.knowledgeItemCount > 0
+            ? {
+                knowledgeItemCount: data.knowledgeItemCount,
+                ...(Array.isArray(data.knowledgeCategories) && data.knowledgeCategories.length > 0
+                    ? { knowledgeCategories: data.knowledgeCategories } : {}),
+                ...(data.lastAnalyzedAt ? { lastAnalyzedAt: data.lastAnalyzedAt } : {}),
+            } : {}),
     };
 }

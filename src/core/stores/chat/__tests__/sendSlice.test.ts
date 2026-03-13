@@ -68,6 +68,16 @@ vi.mock('../../appContextStore', () => ({
     selectAllItems: vi.fn(() => []),
 }));
 
+vi.mock('../../channelStore', () => ({
+    useChannelStore: { getState: vi.fn(() => ({ currentChannel: null })) },
+}));
+
+vi.mock('../../../services/knowledge/knowledgeCategoryService', () => ({
+    KnowledgeCategoryService: {
+        getCategories: vi.fn(() => Promise.resolve([])),
+    },
+}));
+
 vi.mock('../../../utils/debug', () => ({
     debug: { chat: vi.fn() },
 }));

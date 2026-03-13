@@ -37,6 +37,8 @@ interface StreamChatOpts {
     /** Called when the server retries a failed AI request. attempt is 1-based. */
     onRetry?: (attempt: number) => void;
     signal?: AbortSignal;
+    /** Whether this is a conclude/memorize turn — injects saveMemory tool on backend. */
+    isConclude?: boolean;
 }
 
 interface GeminiUploadResult {
@@ -99,6 +101,7 @@ export async function streamChat(opts: StreamChatOpts): Promise<AiChatResult> {
         contextMeta,
         thinkingOptionId,
         largePayloadApproved,
+        ...(opts.isConclude ? { isConclude: true } : {}),
     };
 
     // --- Fetch with automatic retry for transient failures ---
