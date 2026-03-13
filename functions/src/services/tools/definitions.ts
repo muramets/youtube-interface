@@ -104,7 +104,7 @@ const analyzeSuggestedTraffic: ToolDefinition = {
         "(viewDelta24h/7d/30d) showing whether it is growing or stagnating on YouTube overall. " +
         "Returns structured findings for strategic interpretation. " +
         "Use when the user asks about suggested traffic, algorithmic neighbors, " +
-        "or which videos appear alongside theirs. " +
+        "or alongside which videos YouTube shows theirs. " +
         "IMPORTANT: This tool only works for videos that have Suggested Traffic CSV snapshots " +
         "uploaded by the user in the app. Check suggestedTrafficSnapshotCount from " +
         "getMultipleVideoDetails — if 0 or missing, do NOT call this tool. " +

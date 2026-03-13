@@ -360,10 +360,12 @@ export async function handleAnalyzeSuggestedTraffic(
 
     const analysisGuidance = `You have received pre-computed analytics from YouTube Suggested Traffic data.
 
+DIRECTION (read carefully): These source videos are the "shelves" — YouTube shows the user's video as a suggestion when viewers watch these source videos. Viewers come FROM source videos TO the user's video. When you describe a source video, say "YouTube shows your video alongside [source]" or "your video appears as a suggestion next to [source]" — NEVER "YouTube shows [source] next to yours" (that reverses the direction).
+
 CRITICAL RULES:
 - All numbers are deterministic — calculated by code, never estimated.
 - Each video in topSources has a "timeline" array: raw metric values at each snapshot where the video was present, plus pre-computed deltas vs the previous point. Use timelines for trajectory analysis (growth/decline/stability over time).
-- "transitions" shows how the source pool changed between consecutive snapshots: newCount/droppedCount for scale, topNew/topDropped for notable examples.
+- "transitions" shows how the source pool changed between consecutive snapshots: newCount/droppedCount for scale, topNew/topDropped for notable examples. IMPORTANT: check snapshotTimeline.totalSources across ALL snapshots — if the pool size spikes, retracts, then spikes again, these are SEPARATE algorithmic test waves. Describe each wave individually; do NOT collapse multiple expansions into one narrative.
 - "avgViewDuration" = how long viewers from this source watched YOUR video on average (format "H:MM:SS"). Compare with the source video's total duration for engagement depth insight.
 - "sharedTags" = exact tag match between your video and the suggested video.
 - "topKeywordsInSuggestedTitles" = most frequent words from ALL suggested video titles — useful for niche/topic discovery.
@@ -383,12 +385,12 @@ CRITICAL RULES:
   • <30% = "External Discovery" — the video broke into external suggested pools, reaching new audiences beyond the subscriber base. This is a sign of broader algorithmic reach and topic authority.
   selfChannelStats.timeline shows self-channel percentage PER SNAPSHOT — use it to identify the inflection point where self-channel traffic started growing. For example, if timeline shows [0%, 10%, 40%, 73%], explain WHEN the shift happened and correlate with topSources timelines to identify which specific video triggered the ecosystem boost.
   Always call out selfPercentage explicitly when present. This is one of the most strategically important metrics in the analysis.
-- "viewDelta24h/7d/30d" on each topSource = YouTube-wide view growth of that suggested video over the last 24 hours / 7 days / 30 days. A video driving impressions to yours while itself growing rapidly (high viewDelta24h) signals a strong algorithmic association — YouTube is actively promoting both videos together. A stagnating source (viewDelta ≈ 0) means the traffic comes from an older, evergreen association. Null = no trend data available for that video's channel.
+- "viewDelta24h/7d/30d" on each topSource = YouTube-wide view growth of that source video over the last 24 hours / 7 days / 30 days. A source video that is itself growing rapidly (high viewDelta24h) means more viewers watch it → more viewers see the user's video as a suggestion next to it → higher potential for impressions. A stagnating source (viewDelta ≈ 0) means the placement is stable but not growing. Null = no trend data available for that video's channel.
 - DO NOT recalculate any numbers. Interpret and explain what the findings mean strategically.
 - If timelines have only 1 point (single snapshot), note that trend data requires at least 2 snapshots.
 - If you need deeper content analysis for specific videos — call getMultipleVideoDetails with their IDs. Do this selectively for the most interesting movers.
 - When referencing specific videos from topSources, ALWAYS call the mentionVideo tool with the real videoId from the data. Then write [Video Title](mention://videoId) in your response text. NEVER invent video IDs — use exactly the videoId field from topSources.
-- When your analysis leads to thumbnail/CTR recommendations, ALWAYS call viewThumbnails with the relevant videoIds to perform visual analysis yourself. Never tell the user to "look at thumbnails" — you have the tool to do it.`;
+- When your analysis leads to thumbnail/CTR recommendations, ALWAYS call viewThumbnails with the relevant videoIds (both the user's video AND top source videos) to perform a side-by-side visual comparison yourself. Never recommend thumbnail changes without first seeing what the competitors' thumbnails look like.`;
 
     // --- Step 8: Return structured result -----------------------------------
 
