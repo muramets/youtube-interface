@@ -691,6 +691,117 @@
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
     ::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
 
+    /* ========== Comment Cards ========== */
+    .comments-summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: var(--bg-section);
+      border-radius: var(--radius-sm);
+      margin-bottom: 12px;
+      font-size: 12px;
+      font-family: var(--font-mono);
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .comments-summary-left { display: flex; align-items: center; gap: 10px; }
+    .comments-summary-right { display: flex; align-items: center; gap: 10px; color: var(--text-tertiary); }
+
+    .coverage-bar {
+      width: 60px;
+      height: 6px;
+      background: var(--bg-app);
+      border-radius: 3px;
+      overflow: hidden;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    .coverage-bar-fill { height: 100%; border-radius: 3px; background: var(--success); }
+
+    .comment-card {
+      background: var(--bg-section);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      margin-bottom: 6px;
+    }
+
+    .comment-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+
+    .comment-author {
+      font-weight: 600;
+      font-size: 12px;
+      color: var(--text-primary);
+    }
+
+    .comment-date {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-tertiary);
+    }
+
+    .comment-text {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin-bottom: 6px;
+    }
+
+    .comment-metrics {
+      display: flex;
+      gap: 10px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-tertiary);
+    }
+
+    .comment-metric-active { color: var(--accent); }
+
+    .comment-replies {
+      margin-top: 6px;
+      margin-left: 16px;
+      padding-left: 12px;
+      border-left: 2px solid var(--border);
+    }
+
+    .reply-card {
+      padding: 6px 0;
+      border-bottom: 1px solid rgba(48,54,61,0.3);
+    }
+    .reply-card:last-child { border-bottom: none; }
+
+    .reply-author {
+      font-weight: 600;
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .reply-text {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      line-height: 1.4;
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin: 2px 0;
+    }
+
+    .reply-meta {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-tertiary);
+      display: flex;
+      gap: 8px;
+    }
+
     /* ========== Responsive ========== */
     @media (max-width: 1200px) {
       .split-view { flex-direction: column; height: auto; }
@@ -2181,6 +2292,163 @@
     }
 
     /* ==========================================================
+     *  getVideoComments RENDERER
+     * ========================================================== */
+
+    function renderVideoComments(result, totalTokens) {
+      var container = el('div');
+
+      if (result.error) {
+        container.appendChild(el('div', {
+          style: { color: 'var(--danger)', fontSize: '13px', padding: '8px 12px', background: 'var(--danger-dim)', borderRadius: 'var(--radius-sm)' }
+        }, result.error));
+        return container;
+      }
+
+      /* summary bar */
+      var summary = el('div', { className: 'comments-summary' });
+      var left = el('div', { className: 'comments-summary-left' });
+
+      var ytLink = el('a', {
+        href: 'https://www.youtube.com/watch?v=' + result.videoId,
+        target: '_blank',
+        style: { color: 'var(--accent)', textDecoration: 'none', fontSize: '12px' }
+      }, result.videoId);
+      left.appendChild(ytLink);
+
+      var coveragePct = result.coveragePercent || 0;
+      var coverageText = (result.fetchedCount || 0) + ' / ' + (result.totalTopLevelThreads || 0) + ' threads (' + coveragePct + '%)';
+      left.appendChild(el('span', { style: { color: 'var(--text-secondary)' } }, coverageText));
+
+      var coverageBar = el('span', { className: 'coverage-bar' },
+        el('span', { className: 'coverage-bar-fill', style: { width: Math.min(coveragePct, 100) + '%' } })
+      );
+      left.appendChild(coverageBar);
+      summary.appendChild(left);
+
+      var right = el('div', { className: 'comments-summary-right' });
+      right.appendChild(el('span', { className: 'cascade-badge cascade-api' },
+        (result.quotaUsed || 0) + ' quota unit' + ((result.quotaUsed || 0) !== 1 ? 's' : '')));
+      if (result.hasMore) {
+        right.appendChild(el('span', { style: { color: 'var(--warning)', fontSize: '11px' } }, 'has more pages'));
+      }
+      summary.appendChild(right);
+      container.appendChild(summary);
+
+      /* comments list */
+      var comments = result.comments || [];
+      if (comments.length === 0) {
+        container.appendChild(el('div', { style: { color: 'var(--text-tertiary)', fontSize: '13px', padding: '12px' } }, 'No comments'));
+        return container;
+      }
+
+      /* compute stats for token budget sections */
+      var totalReplies = 0;
+      var withReplies = 0;
+      var maxLikes = 0;
+      comments.forEach(function(c) {
+        totalReplies += (c.replyCount || 0);
+        if (c.replyCount > 0) withReplies++;
+        if (c.likeCount > maxLikes) maxLikes = c.likeCount;
+      });
+
+      /* quick stats row */
+      var stats = el('div', { style: { display: 'flex', gap: '12px', marginBottom: '12px', flexWrap: 'wrap' } });
+      stats.appendChild(metricPill('top-level', String(comments.length)));
+      stats.appendChild(metricPill('total replies', String(totalReplies)));
+      stats.appendChild(metricPill('threads with replies', withReplies + ' (' + (comments.length > 0 ? Math.round(withReplies / comments.length * 100) : 0) + '%)'));
+      stats.appendChild(metricPill('max likes', String(maxLikes)));
+      container.appendChild(stats);
+
+      /* each comment card */
+      comments.forEach(function(comment) {
+        var card = el('div', { className: 'comment-card' });
+
+        /* header: author + date */
+        var header = el('div', { className: 'comment-header' });
+        header.appendChild(el('span', { className: 'comment-author' }, comment.author || 'Unknown'));
+        header.appendChild(el('span', { className: 'comment-date' }, formatDate(comment.publishedAt)));
+        card.appendChild(header);
+
+        /* text (expandable if > 200 chars) */
+        var text = comment.text || '';
+        var shortText = text.length > 200 ? text.slice(0, 200) + '\u2026' : text;
+        var textEl = el('div', { className: 'comment-text' }, shortText);
+        card.appendChild(textEl);
+
+        if (text.length > 200) {
+          var expanded = false;
+          var moreBtn = el('span', {
+            style: { color: 'var(--accent)', cursor: 'pointer', fontSize: '11px' }
+          }, 'show more');
+          moreBtn.addEventListener('click', function() {
+            expanded = !expanded;
+            textEl.textContent = expanded ? text : shortText;
+            moreBtn.textContent = expanded ? 'show less' : 'show more';
+          });
+          card.appendChild(moreBtn);
+        }
+
+        /* metrics: likes + replies */
+        var metrics = el('div', { className: 'comment-metrics' });
+        metrics.appendChild(el('span', { className: comment.likeCount > 0 ? 'comment-metric-active' : '' },
+          '\u2764 ' + (comment.likeCount || 0)));
+        metrics.appendChild(el('span', { className: comment.replyCount > 0 ? 'comment-metric-active' : '' },
+          '\u21A9 ' + (comment.replyCount || 0) + ' repl' + (comment.replyCount === 1 ? 'y' : 'ies')));
+        if (comment.authorChannelId) {
+          metrics.appendChild(el('span', {}, comment.authorChannelId.slice(0, 10) + '\u2026'));
+        }
+        card.appendChild(metrics);
+
+        /* topReplies — nested thread */
+        if (comment.topReplies && comment.topReplies.length > 0) {
+          var repliesContainer = el('div', { className: 'comment-replies' });
+
+          comment.topReplies.forEach(function(reply) {
+            var replyCard = el('div', { className: 'reply-card' });
+
+            replyCard.appendChild(el('span', { className: 'reply-author' }, reply.author || 'Unknown'));
+            replyCard.appendChild(el('div', { className: 'reply-text' }, reply.text || ''));
+
+            var replyMeta = el('div', { className: 'reply-meta' });
+            if (reply.likeCount > 0) {
+              replyMeta.appendChild(el('span', {}, '\u2764 ' + reply.likeCount));
+            }
+            replyMeta.appendChild(el('span', {}, formatDate(reply.publishedAt)));
+            replyCard.appendChild(replyMeta);
+
+            repliesContainer.appendChild(replyCard);
+          });
+
+          /* indicator if more replies exist than returned */
+          if (comment.replyCount > comment.topReplies.length) {
+            repliesContainer.appendChild(el('div', {
+              style: { fontSize: '10px', color: 'var(--text-tertiary)', fontStyle: 'italic', paddingTop: '4px' }
+            }, '+ ' + (comment.replyCount - comment.topReplies.length) + ' more repl' +
+              ((comment.replyCount - comment.topReplies.length) === 1 ? 'y' : 'ies') + ' (not fetched)'));
+          }
+
+          card.appendChild(repliesContainer);
+        }
+
+        container.appendChild(card);
+      });
+
+      /* _systemNote */
+      if (result._systemNote) {
+        container.appendChild(el('div', {
+          style: {
+            marginTop: '12px', padding: '8px 12px', background: 'var(--warning-dim)',
+            borderRadius: 'var(--radius-sm)', fontSize: '11px', color: 'var(--warning)',
+            fontFamily: 'var(--font-mono)', whiteSpace: 'pre-wrap'
+          }
+        }, '_systemNote: ' + result._systemNote));
+      }
+
+      return container;
+    }
+
+    /* ==========================================================
      *  MAIN RENDER
      * ========================================================== */
 
@@ -2188,7 +2456,8 @@
       'analyzeTrafficSources': renderTrafficSources,
       'analyzeSuggestedTraffic': renderSuggestedTraffic,
       'getMultipleVideoDetails': renderVideoDetails,
-      'viewThumbnails': renderViewThumbnails
+      'viewThumbnails': renderViewThumbnails,
+      'getVideoComments': renderVideoComments
     };
 
     function renderTrace(trace) {

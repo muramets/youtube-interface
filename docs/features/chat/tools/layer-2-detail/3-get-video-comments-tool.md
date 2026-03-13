@@ -190,17 +190,17 @@ YouTube API возвращает два текстовых поля:
 
 | # | Сценарий | Что проверяет | Промпт-идея | Проверено |
 |---|----------|---------------|-------------|-----------|
-| 1 | **Happy path (own video)** | 100 комментариев по relevance, sentiment analysis | "Что люди пишут в комментариях к моему видео [X]?" | — |
+| 1 | **Happy path (own video)** | 100 комментариев по relevance, sentiment analysis | "Что люди пишут в комментариях к моему видео [X]?" | ✅ trace #1 |
 | 2 | **Competitor video** | Работа с чужим публичным видео | "Посмотри комментарии у [конкурент videoId]" | — |
-| 3 | **Sentiment interpretation** | Выделяет ли модель темы, настроение, ключевые вопросы | "Какое настроение в комментариях? Что хвалят, что ругают?" | — |
+| 3 | **Sentiment interpretation** | Выделяет ли модель темы, настроение, ключевые вопросы | "Какое настроение в комментариях? Что хвалят, что ругают?" | ✅ trace #1 |
 | 4 | **Comparison (two videos)** | Параллельные вызовы, сравнение аудитории | "Сравни комментарии под этими двумя видео" | — |
-| 5 | **Pagination control** | Не запрашивает ли модель лишние страницы (maxPages > 1) без причины | "Посмотри комменты" (ожидаем maxPages=1) | — |
+| 5 | **Pagination control** | Не запрашивает ли модель лишние страницы (maxPages > 1) без причины | "Посмотри комменты" (ожидаем maxPages=1) | ✅ trace #1 |
 | 6 | **Explicit more pages** | Запрашивает maxPages > 1 когда пользователь явно просит | "Покажи побольше комментариев, хочу полную картину" | — |
 | 7 | **Comments disabled** | Graceful handling ошибки 403 commentsDisabled | Вызов для видео с отключёнными комментариями | — |
-| 8 | **coveragePercent usage** | Упоминает ли модель "100 из ~15K" контекст | (покрывается любым trace с > 100 комментариев) | — |
-| 9 | **_systemNote compliance** | Следует ли модель инструкции "only request more if EXPLICITLY asked" | "Посмотри комменты" → ожидаем 1 call, не 3 | — |
-| 10 | **Tool chain: details → comments** | commentCount из getMultipleVideoDetails как триггер | "Расскажи всё про это видео" (ожидаем: details → видит commentCount → comments) | — |
-| 11 | **Reply analysis** | Использует ли модель topReplies для deeper analysis | "Есть ли интересные дискуссии в комментариях?" | — |
+| 8 | **coveragePercent usage** | Упоминает ли модель "100 из ~15K" контекст | (покрывается любым trace с > 100 комментариев) | ⚠️ trace #1 |
+| 9 | **_systemNote compliance** | Следует ли модель инструкции "only request more if EXPLICITLY asked" | "Посмотри комменты" → ожидаем 1 call, не 3 | ✅ trace #1 |
+| 10 | **Tool chain: details → comments** | commentCount из getMultipleVideoDetails как триггер | "Расскажи всё про это видео" (ожидаем: details → видит commentCount → comments) | ✅ trace #1 |
+| 11 | **Reply analysis** | Использует ли модель topReplies для deeper analysis | "Есть ли интересные дискуссии в комментариях?" | ✅ trace #1 |
 | 12 | **authorChannelId patterns** | Замечает ли модель повторяющихся авторов / engagement farms | "Есть ли подозрительная активность в комментариях?" | — |
 
 ### Ключевые вопросы
@@ -214,17 +214,72 @@ YouTube API возвращает два текстовых поля:
 
 ### Проверено в бою
 
-_Пока нет dedicated traces._
+<details>
+<summary>Trace #0 — Title resolution fail (предварительный прогон) ❌→✅</summary>
+
+- **Промпт**: "что люди писали под моим видео a playlist for a quiet morning 🍁 autumn version. ? для чего использовали видео?"
+- **Контекст**: пустой (projectId: null)
+- **Модель**: claude-haiku-4-5
+- **Результат**: ❌ title lookup fail → модель не дошла до `getVideoComments`
+
+**Что произошло:**
+- Tool call: `getMultipleVideoDetails({ titles: ["a playlist for a quiet morning 🍁 autumn version"] })` — без точки в конце
+- Firestore title: `"a playlist for a quiet morning 🍁 autumn version."` — с точкой
+- Exact match fail → `notFoundTitles` → модель попросила ID
+- LLM отрезала точку из названия, восприняв её как конец предложения (title не был в кавычках)
+
+**Фикс**: пользователь обернул title в кавычки → LLM сохранила точку → trace #1 прошёл.
+
+**Вывод**: `resolveVideosByTitle` с exact match хрупок — один символ пунктуации ломает lookup. Кавычки в промпте — workaround, не fix. Нормализация title (strip trailing punctuation, lowercase) — потенциальное улучшение на будущее.
+
+</details>
+
+<details>
+<summary>Trace #1 — Happy path own video + sentiment + replies (тесты #1, #3, #5, #8, #9, #10, #11) ✅</summary>
+
+- **Промпт**: "что люди писали под моим видео с названием "a playlist for a quiet morning 🍁 autumn version." ? для чего использовали видео?"
+- **Контекст**: пустой (projectId: null)
+- **Модель**: claude-haiku-4-5
+- **Результат**: ✅ title lookup → getVideoComments → structured sentiment analysis
+
+**Tool chain (3 итерации, 2 tool calls):**
+1. `getMultipleVideoDetails({ titles: [...] })` → `ownership: "own-published"`, `youtubeVideoId: "A4SkhlJ2mK8"`, `videoId: "custom-1770397384029"`
+2. `getVideoComments({ videoId: "A4SkhlJ2mK8" })` → 24 комментария, `coveragePercent: 100`, `quotaUsed: 1`
+3. Финальный ответ с анализом
+
+**Что сработало:**
+- **#1 Happy path**: own-published видео найдено, 24 комментария + 18 replies получены
+- **#3 Sentiment**: модель выделила 4 категории использования (учёба, творчество, эмоциональное состояние, наслаждение) + интересные детали (запросы нот, трек 7:32, вопрос про AI)
+- **#5 Pagination control**: `maxPages` не указан → default 1 → 1 запрос, 1 quota unit
+- **#9 _systemNote compliance**: модель не запросила дополнительные страницы
+- **#10 Tool chain**: `getMultipleVideoDetails` → извлёк `youtubeVideoId` → `getVideoComments`. Модель правильно использовала YouTube ID (не custom-* ID)
+- **#11 Reply analysis**: использовала topReplies — thread про экономику (3 replies), SoundCloud ссылку (4 replies), ответы автора канала
+- **Multi-language**: итальянский коммент правильно интерпретирован
+
+**Замечания:**
+- **#8 coveragePercent**: данные есть (`coveragePercent: 100`, `24 of 24`), но модель не упомянула coverage в ответе. Для маленького видео это не критично, но для видео с 15K комментариев "100 из ~15K" — важный контекст. Нужен trace с большим видео.
+- **authorChannelId**: повторяющиеся авторы не анализировались (в данном trace нет engagement farms — ожидаемо)
+
+**Ответы на ключевые вопросы:**
+1. **Pagination discipline**: ✅ — 1 page, не запросила больше
+2. **Sentiment quality**: ✅ — 4 категории + interesting details, без pre-compute
+3. **Tool chain trigger**: ✅ — title → videoId → comments, chain работает (но trigger был от промпта, не от commentCount)
+4. **Token budget**: 24 комментария + 18 replies = `toolResults: 10145` токенов (5% context window). Для 100 комментариев ≈ 40K токенов — помещается
+5. **Multi-language**: ✅ — итальянский распознан
+
+</details>
 
 ### Ещё не проверено в бою
 
 | Сценарий | Почему важно |
 |----------|-------------|
-| **Basic sentiment** | Core use case: модель читает комменты и даёт summary |
-| **Pagination control** | _systemNote — ключевой паттерн контроля поведения LLM |
+| **Competitor video** | Работает ли с чужим публичным видео (не только своё) |
 | **Comments disabled** | Edge case, но частый — kids content, age-restricted |
-| **Tool chain** | commentCount → getVideoComments — работает ли implicit trigger? |
-| **Token budget** | 100 комментариев с replies могут быть тяжёлыми |
+| **coveragePercent на большом видео** | "100 из ~15K" — упоминает ли модель контекст неполного покрытия |
+| **Explicit more pages** | Запрашивает ли maxPages > 1 по просьбе пользователя |
+| **Comparison (two videos)** | Параллельные вызовы через executeToolBatch |
+| **authorChannelId patterns** | Engagement farms detection — нужно видео с подозрительной активностью |
+| **commentCount → implicit trigger** | "Расскажи всё про видео" → details видит commentCount → сама вызывает comments |
 
 ---
 
