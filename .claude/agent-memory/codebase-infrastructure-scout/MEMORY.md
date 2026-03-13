@@ -1,5 +1,8 @@
 # Codebase Infrastructure Scout - Memory
 
+## Infrastructure Maps
+- [notes-insights-infrastructure.md](./notes-insights-infrastructure.md) — All note, insight, and memory systems: VideoNote, TrafficNote, Canvas Insights, Chat L4 Memory, Save-from-Chat
+
 ## Tool System Architecture (AI Chat) — VERIFIED 2026-03-09
 
 ### Adding a New Tool (4-step checklist)
