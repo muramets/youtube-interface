@@ -182,7 +182,7 @@ export const KnowledgePage: React.FC = () => {
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto px-6 pb-6">
+            <div className="flex-1 overflow-y-auto scrollbar-auto-hide px-6 pb-6">
                 <KnowledgeList
                     items={displayItems}
                     onEdit={handleEdit}

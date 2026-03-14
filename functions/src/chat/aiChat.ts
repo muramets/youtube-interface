@@ -311,12 +311,34 @@ export const aiChat = onRequest(
                 ...(body.systemLayers ? { systemLayers: body.systemLayers } : {}),
             };
 
+            // --- Enrich conclude text with existing KI (avoids duplicate creation) ---
+            let concludeText = body.text;
+            if (body.isConclude && body.conversationId) {
+                try {
+                    const kiPath = `users/${userId}/channels/${body.channelId}/knowledgeItems`;
+                    const existingKI = await db.collection(kiPath)
+                        .where("conversationId", "==", body.conversationId)
+                        .where("supersededBy", "==", null)
+                        .get();
+                    if (!existingKI.empty) {
+                        const kiList = existingKI.docs.map(doc => {
+                            const d = doc.data();
+                            return `- ${d.category}: "${d.title}" [id: ${doc.id}]`;
+                        }).join('\n');
+                        concludeText += `\n\nKnowledge Items already saved for this conversation (do NOT recreate):\n${kiList}`;
+                        console.info(`[aiChat] ── Conclude context ── ${existingKI.size} existing KI injected`);
+                    }
+                } catch (err) {
+                    console.warn('[aiChat] Failed to load existing KI for conclude:', err);
+                }
+            }
+
             // --- Provider-agnostic stream call via router ---
             const result = await router.streamChat({
                 model,
                 systemPrompt: body.systemPrompt,
                 history: memory.history,
-                text: body.text,
+                text: concludeText,
                 attachments: body.isConclude ? undefined : currentAttachments, // Skip attachments for conclude — context already in history
                 imageUrls: body.isConclude ? undefined : body.thumbnailUrls, // Skip thumbnails for conclude — AI doesn't need images when memorizing
                 tools: body.isConclude ? [...TOOL_DECLARATIONS, ...CONCLUDE_TOOL_DECLARATIONS] : TOOL_DECLARATIONS,
