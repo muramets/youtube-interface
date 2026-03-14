@@ -22,7 +22,7 @@ import {
 
 // --- Types ---
 
-export type ToolColor = 'indigo' | 'amber' | 'emerald';
+export type ToolColor = 'indigo' | 'amber' | 'emerald' | 'accent';
 
 export interface ToolConfig {
     /** Lucide icon component, or string literal (e.g. '@' for mentionVideo). */
@@ -135,7 +135,7 @@ const TOOL_REGISTRY: Record<string, ToolConfig> = {
     },
     saveMemory: {
         icon: Brain,
-        color: 'indigo',
+        color: 'accent',
         hasExpandableContent: true,
     },
 };

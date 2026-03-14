@@ -52,7 +52,11 @@ const COLOR_CLASSES: Record<string, string> = {
     indigo: 'bg-indigo-400/[0.08] text-indigo-400',
     amber: 'bg-amber-400/[0.08] text-amber-400',
     emerald: 'bg-emerald-500/[0.06] text-emerald-400',
+    accent: 'text-accent',
 };
+
+/** Inline style for accent background (CSS variable, can't use Tailwind opacity modifier). */
+const ACCENT_BG_STYLE = { backgroundColor: 'color-mix(in srgb, var(--accent) 10%, transparent)' };
 
 // --- Sub-components ---
 
@@ -112,6 +116,7 @@ const GroupPill: React.FC<{
             <button
                 type="button"
                 className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] leading-tight max-w-full overflow-hidden transition-colors duration-200 ${stateClasses} ${expandable ? 'cursor-pointer hover:brightness-125' : 'cursor-default'} ${!group.allResolved ? 'animate-stream-pulse' : ''}`}
+                style={config?.color === 'accent' && group.allResolved && !group.hasErrors ? ACCENT_BG_STYLE : undefined}
                 onClick={() => expandable && setExpanded(v => !v)}
                 disabled={!expandable}
             >
