@@ -2,20 +2,29 @@
  * Synthetic user message sent when the user clicks "Memorize".
  * The LLM processes this as the last turn of the conversation,
  * calling saveKnowledge for significant findings and saveMemory for the summary.
+ *
+ * Backend appends existing KI list (if any) to avoid duplicate creation.
  */
-export const CONCLUDE_INSTRUCTION = `Based on our conversation, extract Knowledge Items and Memory:
+export const CONCLUDE_INSTRUCTION = `Based on our conversation, extract Knowledge Items and Memory.
 
-1. For each significant analysis result (traffic breakdown, packaging audit, suggested pool analysis, channel journey, strategy insight, etc.), call saveKnowledge with:
-   - An appropriate category slug (from the Knowledge Categories in the system prompt, or propose a new kebab-case slug)
-   - A descriptive title
-   - Comprehensive markdown content (the full analysis, not a summary)
-   - A 2-3 sentence summary
-   - The videoId if the analysis is about a specific video
-   - The tools you used during the analysis
+RULES:
+- Only save Knowledge Items for analyses YOU actually performed in this conversation using tools (analyzeTrafficSources, analyzeSuggestedTraffic, getMultipleVideoDetails, viewThumbnails, etc.)
+- Do NOT create KI for general observations, opinions, or discussions — only for tool-backed analysis results
+- Do NOT recreate or rephrase Knowledge Items that already exist (listed below if any)
+- If a KI already exists for a category+video combination, skip it entirely
+- Always pass videoId when the analysis is about a specific video
 
-2. After all Knowledge Items are saved, call saveMemory with:
-   - A concise summary of the conversation (key decisions, insights, action items, open questions)
-   - References to the Knowledge Item IDs you just created (kiRefs)
-   - Do NOT duplicate KI content in the memory — reference by ID instead
+For each qualifying analysis, call saveKnowledge with:
+- category: kebab-case slug from the Knowledge Categories in system prompt, or propose a new one
+- title: descriptive title
+- content: comprehensive markdown with the full analysis (not a summary)
+- summary: 2-3 sentence summary
+- videoId: the video this analysis is about (omit only for channel-level insights)
+- toolsUsed: which tools you used
 
-3. If this conversation was purely casual or administrative with no significant analysis results, skip saveKnowledge and only call saveMemory.`;
+After all Knowledge Items are saved, call saveMemory with:
+- A concise summary (key decisions, insights, action items, open questions)
+- kiRefs: IDs of Knowledge Items you just created
+- Do NOT duplicate KI content in memory — reference by ID
+
+If this conversation had no tool-backed analysis, skip saveKnowledge and only call saveMemory.`;
