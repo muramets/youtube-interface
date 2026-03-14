@@ -286,7 +286,15 @@ function buildHistory(messages: HistoryMessage[]): MessageParam[] {
             text = `${label}\n\n${text}`;
         }
 
-        blocks.push({ type: "text", text } as TextBlockParam);
+        // Skip empty text blocks — Claude rejects cache_control on empty text
+        if (text) {
+            blocks.push({ type: "text", text } as TextBlockParam);
+        }
+
+        // Ensure at least one block exists (Claude requires non-empty content)
+        if (blocks.length === 0) {
+            blocks.push({ type: "text", text: "(empty)" } as TextBlockParam);
+        }
 
         return [{ role, content: blocks }];
     });
