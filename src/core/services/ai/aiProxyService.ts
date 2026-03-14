@@ -303,19 +303,3 @@ export async function generateChatTitle(
     return result.data.title;
 }
 
-// --- Conclude Conversation (Layer 4 memory) ---
-
-export async function concludeConversation(
-    channelId: string,
-    conversationId: string,
-    guidance?: string,
-    model?: string
-): Promise<{ memoryId: string; content: string }> {
-    const callable = httpsCallable<
-        { channelId: string; conversationId: string; guidance?: string; model?: string },
-        { memoryId: string; content: string }
-    >(functions, 'concludeConversation');
-
-    const result = await callable({ channelId, conversationId, guidance, model });
-    return result.data;
-}

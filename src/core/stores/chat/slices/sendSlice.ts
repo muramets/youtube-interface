@@ -66,6 +66,7 @@ async function streamAiResponse(
     onConfirmLargePayload?: (count: number) => void,
     onRetry?: (attempt: number) => void,
     systemLayers?: { settings: number; persistentContext: number; crossMemory: number },
+    isConclude?: boolean,
 ): Promise<{ text: string; tokenUsage?: TokenUsage; normalizedUsage?: NormalizedTokenUsage; toolCalls?: ToolCallRecord[]; usedSummary?: boolean; contextBreakdown?: import('../../../../../shared/models').ContextBreakdown }> {
     return AiService.sendMessage({
         channelId,
@@ -117,6 +118,7 @@ async function streamAiResponse(
         onRetry,
         largePayloadApproved,
         signal,
+        isConclude,
     });
 }
 
@@ -173,6 +175,7 @@ async function resumeSendFlow(
     abortController: AbortController,
     largePayloadApproved?: boolean,
     isFirstExchange?: boolean,
+    isConclude?: boolean,
 ): Promise<void> {
     const { aiSettings, projects, activeProjectId, messages, memories } = get();
 
@@ -224,6 +227,7 @@ async function resumeSendFlow(
         (count) => scopedSet({ pendingLargePayloadConfirmation: { count, text, attachments, convId, appContext, persistedContext } }),
         (attempt) => scopedSet({ retryAttempt: attempt, streamingText: '', thinkingText: '' }),
         systemLayers,
+        isConclude,
     );
 
     debug.chat(`📝 Layer 3: ${usedSummary ? '✓ summary used (older messages were compressed)' : '— full history (no summarization needed)'}`);
@@ -286,7 +290,7 @@ export function createSendSlice(
         // Actions
         clearError: () => set({ error: null }),
 
-        sendMessage: async (text, attachments, conversationId, largePayloadApproved) => {
+        sendMessage: async (text, attachments, conversationId, largePayloadApproved, options) => {
             const { userId, channelId } = requireContext(get);
             const { activeConversationId, pendingConversationId, activeProjectId, messages, aiSettings, projects, isStreaming } = get();
             let convId = conversationId || activeConversationId;
@@ -334,8 +338,9 @@ export function createSendSlice(
                     existingPersisted,
                 );
 
-                // 4. Continue to Gemini
-                await resumeSendFlow(get, set, convId!, text, attachments, appContext, persistedContext, myNonce, myAbortController, largePayloadApproved, isFirstExchange);
+                // 4. Continue to AI — use backendText for conclude turns (display text already persisted)
+                const textForBackend = options?.backendText ?? text;
+                await resumeSendFlow(get, set, convId!, textForBackend, attachments, appContext, persistedContext, myNonce, myAbortController, largePayloadApproved, isFirstExchange, options?.isConclude);
             } catch (err) {
                 if (err instanceof DOMException && err.name === 'AbortError') {
                     // User stopped generation — preserve partial response as ghost message (session-only, never sent to API)

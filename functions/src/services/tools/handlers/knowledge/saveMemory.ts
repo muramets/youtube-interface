@@ -74,7 +74,21 @@ export async function handleSaveMemory(
     };
 
     if (kiRefs && kiRefs.length > 0) {
-        memoryData.kiRefs = kiRefs;
+        // Validate that referenced KI documents exist
+        const kiCollectionPath = `${basePath}/knowledgeItems`;
+        const kiDocRefs = kiRefs.map(id => db.doc(`${kiCollectionPath}/${id}`));
+        const kiDocs = await db.getAll(...kiDocRefs);
+        const validKiRefs = kiDocs.filter(doc => doc.exists).map(doc => doc.id);
+
+        if (validKiRefs.length < kiRefs.length) {
+            console.warn(
+                `[saveMemory] ${kiRefs.length - validKiRefs.length} of ${kiRefs.length} kiRefs not found — saving only valid ones`
+            );
+        }
+
+        if (validKiRefs.length > 0) {
+            memoryData.kiRefs = validKiRefs;
+        }
     }
 
     const memoryRef = await db.collection(memoriesPath).add(memoryData);

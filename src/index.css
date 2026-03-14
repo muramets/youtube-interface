@@ -395,6 +395,46 @@ body {
 }
 
 /* =============================================================================
+   PROSEMIRROR TABLE (Tiptap RichTextEditor)
+   Required for resizable tables, cell selection, and column resize handles.
+   ============================================================================= */
+
+.ProseMirror .tableWrapper {
+   overflow-x: auto;
+   margin: 1rem 0;
+}
+
+.ProseMirror table .column-resize-handle {
+   position: absolute;
+   right: -2px;
+   top: 0;
+   bottom: 0;
+   width: 4px;
+   background-color: var(--accent);
+   pointer-events: none;
+}
+
+.ProseMirror .selectedCell::after {
+   z-index: 2;
+   position: absolute;
+   content: "";
+   inset: 0;
+   background: color-mix(in srgb, var(--accent) 20%, transparent);
+   pointer-events: none;
+}
+
+.ProseMirror table td,
+.ProseMirror table th {
+   position: relative;
+   min-width: 50px;
+   vertical-align: top;
+}
+
+.ProseMirror.resize-cursor {
+   cursor: col-resize;
+}
+
+/* =============================================================================
    FORM UTILITIES
    ============================================================================= */
 

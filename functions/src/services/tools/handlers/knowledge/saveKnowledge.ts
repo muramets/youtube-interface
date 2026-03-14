@@ -10,8 +10,7 @@
 import { db } from "../../../../shared/db.js";
 import { FieldValue } from "firebase-admin/firestore";
 import type { ToolContext } from "../../types.js";
-
-const SLUG_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+import { SLUG_PATTERN } from "../../../../shared/knowledge.js";
 
 interface SaveKnowledgeArgs {
     category: string;

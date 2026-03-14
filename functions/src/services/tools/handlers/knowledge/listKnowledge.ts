@@ -30,8 +30,8 @@ export async function handleListKnowledge(
         query = query.where("category", "==", category);
     }
 
-    // Order by newest first
-    query = query.orderBy("createdAt", "desc");
+    // Order by newest first, cap at 50 results
+    query = query.orderBy("createdAt", "desc").limit(50);
 
     const snapshot = await query.get();
 

@@ -4,10 +4,9 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Brain, ChevronDown, Pencil, Check, X, Trash2 } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import type { ConversationMemory } from '../../../core/types/chat/chat';
 import { MemoryVideoChips } from './MemoryVideoChips';
+import { RichTextEditor, RichTextViewer } from '../../../components/ui/organisms/RichTextEditor';
 
 interface MemoryCheckpointProps {
     memory: ConversationMemory;
@@ -20,18 +19,7 @@ export const MemoryCheckpoint: React.FC<MemoryCheckpointProps> = ({ memory, onUp
     const [isEditing, setIsEditing] = useState(false);
     const [editText, setEditText] = useState(memory.content);
     const [isSaving, setIsSaving] = useState(false);
-    const textareaRef = useRef<HTMLTextAreaElement>(null);
     const rootRef = useRef<HTMLDivElement>(null);
-
-    // Auto-resize textarea
-    useEffect(() => {
-        if (isEditing && textareaRef.current) {
-            const el = textareaRef.current;
-            el.style.height = 'auto';
-            el.style.height = el.scrollHeight + 'px';
-            el.focus();
-        }
-    }, [isEditing]);
 
     // Scroll checkpoint to top of chat when expanded
     useEffect(() => {
@@ -106,23 +94,10 @@ export const MemoryCheckpoint: React.FC<MemoryCheckpointProps> = ({ memory, onUp
                     )}
                     {isEditing ? (
                         <>
-                            <textarea
-                                ref={textareaRef}
+                            <RichTextEditor
                                 value={editText}
-                                onChange={(e) => {
-                                    setEditText(e.target.value);
-                                    e.target.style.height = 'auto';
-                                    e.target.style.height = e.target.scrollHeight + 'px';
-                                }}
-                                className="w-full bg-transparent text-sm text-text-primary outline-none resize-none border rounded-md p-2"
-                                style={{ borderColor: 'color-mix(in srgb, var(--accent) 25%, transparent)' }}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Escape') {
-                                        e.stopPropagation();
-                                        handleCancel();
-                                    }
-                                }}
-                                disabled={isSaving}
+                                onChange={setEditText}
+                                placeholder="Edit memory..."
                             />
                             <div className="flex items-center justify-end gap-1.5 mt-2">
                                 <button
@@ -145,40 +120,23 @@ export const MemoryCheckpoint: React.FC<MemoryCheckpointProps> = ({ memory, onUp
                     ) : (
                         <>
                             <div
-                                className="prose prose-sm prose-invert max-w-none text-text-secondary cursor-pointer
-                                [&_h1]:text-sm [&_h1]:font-semibold [&_h1]:text-text-primary [&_h1]:mt-0 [&_h1]:mb-2
-                                [&_h2]:text-[13px] [&_h2]:font-semibold [&_h2]:text-text-primary [&_h2]:mt-3 [&_h2]:mb-1.5
-                                [&_h3]:text-xs [&_h3]:font-semibold [&_h3]:text-text-primary [&_h3]:mt-2 [&_h3]:mb-1
-                                [&_p]:text-sm [&_p]:leading-relaxed [&_p]:my-1.5
-                                [&_ul]:text-sm [&_ul]:my-1.5 [&_ul]:pl-4
-                                [&_ol]:text-sm [&_ol]:my-1.5 [&_ol]:pl-4
-                                [&_li]:my-0.5
-                                [&_strong]:text-text-primary [&_strong]:font-semibold
-                                [&_a]:underline
-                            "
+                                className="cursor-pointer"
                                 onDoubleClick={() => {
                                     setIsEditing(true);
                                     requestAnimationFrame(() => {
-                                        requestAnimationFrame(() => {
-                                            rootRef.current?.scrollIntoView({ behavior: 'instant', block: 'start' });
-                                        });
+                                        rootRef.current?.scrollIntoView({ behavior: 'instant', block: 'start' });
                                     });
                                 }}
                             >
-                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                    {memory.content}
-                                </ReactMarkdown>
+                                <RichTextViewer content={memory.content} />
                             </div>
                             <div className="flex items-center justify-end gap-1 mt-2">
                                 <button
                                     className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] text-text-tertiary bg-transparent border-none cursor-pointer hover:text-text-secondary hover:bg-white/[0.05] transition-colors"
                                     onClick={() => {
                                         setIsEditing(true);
-                                        // Double rAF: first lets textarea render, second lets auto-resize complete
                                         requestAnimationFrame(() => {
-                                            requestAnimationFrame(() => {
-                                                rootRef.current?.scrollIntoView({ behavior: 'instant', block: 'start' });
-                                            });
+                                            rootRef.current?.scrollIntoView({ behavior: 'instant', block: 'start' });
                                         });
                                     }}
                                 >

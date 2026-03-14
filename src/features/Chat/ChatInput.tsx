@@ -183,7 +183,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             setIsMemorizing(false);
             setText('');
             if (textareaRef.current) textareaRef.current.style.height = 'auto';
-            showToast('Memory saved', 'success');
+            // No toast — AI response in chat shows results (KI + Memory tool call badges)
         } catch (err) {
             const message = err instanceof Error ? err.message : 'Unknown error';
             console.error('[ChatInput] memorize failed:', message, { conversationId: activeConversationId });

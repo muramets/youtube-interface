@@ -40,7 +40,7 @@ export async function handleGetKnowledge(
             query = query.where("category", "in", categories);
         }
 
-        query = query.orderBy("createdAt", "desc");
+        query = query.orderBy("createdAt", "desc").limit(20);
         const snapshot = await query.get();
         docs = snapshot.docs;
     }

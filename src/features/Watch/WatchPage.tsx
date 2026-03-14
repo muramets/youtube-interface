@@ -29,6 +29,7 @@ import { WatchPageSkeleton } from './components/WatchPageSkeleton';
 import { WatchPageVideoPlayer } from './components/WatchPageVideoPlayer';
 import { WatchPageVideoInfo } from './components/WatchPageVideoInfo';
 import { WatchPageNotes } from './components/WatchPageNotes';
+import { WatchPageKnowledge } from './components/WatchPageKnowledge';
 
 export const WatchPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -47,6 +48,9 @@ export const WatchPage: React.FC = () => {
     } = useSettings();
 
     const hiddenPlaylistIds = useMemo(() => generalSettings.hiddenPlaylistIds || [], [generalSettings.hiddenPlaylistIds]);
+
+    // Tab state for notes / knowledge
+    const [activeTab, setActiveTab] = useState<'notes' | 'research'>('notes');
 
     // Filter states
     const [selectedFilter, setSelectedFilter] = useState<FilterType>(FilterType.ALL);
@@ -272,7 +276,30 @@ export const WatchPage: React.FC = () => {
             <div className="min-w-0">
                 <WatchPageVideoPlayer video={video} />
                 <WatchPageVideoInfo video={video} />
-                <WatchPageNotes video={video} />
+                {/* Tab bar: My Notes | AI Research */}
+                <div className="flex items-center gap-2 mt-4 border-b border-border">
+                    <button
+                        onClick={() => setActiveTab('notes')}
+                        className={`px-4 pb-3 text-sm font-medium transition-all relative ${activeTab === 'notes' ? 'text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}
+                    >
+                        My Notes
+                        {activeTab === 'notes' && (
+                            <div className="absolute bottom-0 left-0 w-full h-0.5 bg-text-primary rounded-t-full" />
+                        )}
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('research')}
+                        className={`px-4 pb-3 text-sm font-medium transition-all relative ${activeTab === 'research' ? 'text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}
+                    >
+                        AI Research
+                        {activeTab === 'research' && (
+                            <div className="absolute bottom-0 left-0 w-full h-0.5 bg-text-primary rounded-t-full" />
+                        )}
+                    </button>
+                </div>
+
+                {activeTab === 'notes' && <WatchPageNotes video={video} />}
+                {activeTab === 'research' && <WatchPageKnowledge videoId={video.id} />}
             </div>
 
             {/* Recommendations Sidebar */}

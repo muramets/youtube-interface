@@ -1,3 +1,5 @@
+import typography from '@tailwindcss/typography'
+
 /** @type {import('tailwindcss').Config} */
 export default {
     content: [
@@ -163,5 +165,7 @@ export default {
         'z-panel-elevated',
         'z-overlay-ui',
     ],
-    plugins: [],
+    plugins: [
+        typography,
+    ],
 }

@@ -60,6 +60,7 @@ const PlaylistsPage = lazyWithRetry(() => import('./pages/Playlists/PlaylistsPag
 const PlaylistDetailPage = lazyWithRetry(() => import('./pages/Playlists/PlaylistDetailPage').then(m => ({ default: m.PlaylistDetailPage as React.ComponentType<unknown> })));
 const TrendsPage = lazyWithRetry(() => import('./pages/Trends/TrendsPage').then(m => ({ default: m.TrendsPage as React.ComponentType<unknown> })));
 const MusicPage = lazyWithRetry(() => import('./pages/Music/MusicPage').then(m => ({ default: m.MusicPage as React.ComponentType<unknown> })));
+const KnowledgePage = lazyWithRetry(() => import('./pages/Knowledge/KnowledgePage').then(m => ({ default: m.KnowledgePage as React.ComponentType<unknown> })));
 const DetailsPage = lazyWithRetry(() => import('./pages/Details').then(m => ({ default: m.DetailsPage as React.ComponentType<unknown> })));
 
 function AppContent() {
@@ -113,6 +114,7 @@ function AppContent() {
                         <Route path="/music" element={<MusicPage />} />
                         <Route path="/music/liked" element={<MusicPage />} />
                         <Route path="/music/playlist/:playlistId" element={<MusicPage />} />
+                        <Route path="/knowledge" element={<KnowledgePage />} />
                       </Routes>
                     </main>
                   </div>

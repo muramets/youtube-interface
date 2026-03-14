@@ -111,8 +111,10 @@ export const AudioPlayer: React.FC = () => {
     // Close player on Esc — only if no modals are open
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            const tag = (e.target as HTMLElement)?.tagName;
+            const target = e.target as HTMLElement;
+            const tag = target?.tagName;
             if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+            if (target?.isContentEditable) return;
             if (showPlaylistModal || showTrackSettings) return;
             if (document.querySelector('[role="dialog"]')) return;
 

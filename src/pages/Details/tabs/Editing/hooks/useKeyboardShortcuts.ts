@@ -27,8 +27,10 @@ export function useKeyboardShortcuts(
             // Skip all keyboard shortcuts during active timeline drag
             if (isDraggingTimeline) return;
 
-            const tag = (e.target as HTMLElement)?.tagName;
+            const target = e.target as HTMLElement;
+            const tag = target?.tagName;
             if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+            if (target?.isContentEditable) return;
 
             if (e.code === 'Space') {
                 e.preventDefault();

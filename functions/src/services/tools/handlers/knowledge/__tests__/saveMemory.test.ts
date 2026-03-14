@@ -7,6 +7,8 @@ const mockCollectionAdd = vi.fn();
 const mockCollectionWhere = vi.fn();
 const mockGet = vi.fn();
 const mockDocGet = vi.fn();
+const mockGetAll = vi.fn();
+const mockDocPaths = new Map<string, string>();
 
 const createChainedQuery = () => ({
     where: (...args: unknown[]) => {
@@ -26,9 +28,16 @@ vi.mock('../../../../../shared/db.js', () => ({
             },
             add: (data: unknown) => mockCollectionAdd(data),
         }),
-        doc: () => ({
-            get: () => mockDocGet(),
-        }),
+        doc: (path: string) => {
+            const id = path.split('/').pop() || path;
+            mockDocPaths.set(id, path);
+            return {
+                get: () => mockDocGet(),
+                id,
+                path,
+            };
+        },
+        getAll: (...refs: unknown[]) => mockGetAll(...refs),
     },
 }));
 
@@ -48,6 +57,7 @@ const CTX: ToolContext = {
 
 beforeEach(() => {
     vi.clearAllMocks();
+    mockDocPaths.clear();
     // Default: no duplicate, conversation exists
     mockGet.mockResolvedValue({ empty: true, docs: [] });
     mockDocGet.mockResolvedValue({
@@ -55,10 +65,15 @@ beforeEach(() => {
         data: () => ({ title: 'Test Conversation' }),
     });
     mockCollectionAdd.mockResolvedValue({ id: 'mem-new-id' });
+    // Default: all KI refs exist
+    mockGetAll.mockResolvedValue([
+        { exists: true, id: 'ki-1' },
+        { exists: true, id: 'ki-2' },
+    ]);
 });
 
 describe('handleSaveMemory', () => {
-    it('creates Memory doc with kiRefs', async () => {
+    it('creates Memory doc with validated kiRefs', async () => {
         const result = await handleSaveMemory(
             { content: '## Decisions\n- chose X', kiRefs: ['ki-1', 'ki-2'] },
             CTX,
@@ -78,6 +93,42 @@ describe('handleSaveMemory', () => {
     it('creates Memory without kiRefs when empty', async () => {
         const result = await handleSaveMemory(
             { content: '## Quick notes' },
+            CTX,
+        );
+
+        expect(result.memoryId).toBe('mem-new-id');
+
+        const savedData = mockCollectionAdd.mock.calls[0][0];
+        expect(savedData).not.toHaveProperty('kiRefs');
+        expect(mockGetAll).not.toHaveBeenCalled();
+    });
+
+    it('filters out non-existent kiRefs', async () => {
+        mockGetAll.mockResolvedValue([
+            { exists: true, id: 'ki-1' },
+            { exists: false, id: 'ki-bad' },
+            { exists: true, id: 'ki-3' },
+        ]);
+
+        const result = await handleSaveMemory(
+            { content: '## Notes', kiRefs: ['ki-1', 'ki-bad', 'ki-3'] },
+            CTX,
+        );
+
+        expect(result.memoryId).toBe('mem-new-id');
+
+        const savedData = mockCollectionAdd.mock.calls[0][0];
+        expect(savedData.kiRefs).toEqual(['ki-1', 'ki-3']);
+    });
+
+    it('omits kiRefs entirely when all are invalid', async () => {
+        mockGetAll.mockResolvedValue([
+            { exists: false, id: 'ki-bad-1' },
+            { exists: false, id: 'ki-bad-2' },
+        ]);
+
+        const result = await handleSaveMemory(
+            { content: '## Notes', kiRefs: ['ki-bad-1', 'ki-bad-2'] },
             CTX,
         );
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, List, Settings, TrendingUp, Music } from 'lucide-react';
+import { Home, List, Settings, TrendingUp, Music, BookOpen } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { SettingsModal } from '../../features/Settings/SettingsModal';
 import { useUIStore } from '../../core/stores/uiStore';
@@ -293,6 +293,7 @@ export const Sidebar: React.FC = () => {
   const isPlaylists = location.pathname.startsWith('/playlists');
   const isTrends = location.pathname.startsWith('/trends');
   const isMusic = location.pathname.startsWith('/music');
+  const isKnowledge = location.pathname.startsWith('/knowledge');
 
   // Icons - normal (outline) and active (filled/bold)
   const homeIcon = <Home size={24} strokeWidth={1.5} />;
@@ -305,6 +306,8 @@ export const Sidebar: React.FC = () => {
   const trendsActiveIcon = <TrendingUp size={24} strokeWidth={2.5} />;
   const musicIcon = <Music size={24} strokeWidth={1.5} />;
   const musicActiveIcon = <Music size={24} strokeWidth={2.5} fill="currentColor" />;
+  const knowledgeIcon = <BookOpen size={24} strokeWidth={1.5} />;
+  const knowledgeActiveIcon = <BookOpen size={24} strokeWidth={2.5} fill="currentColor" />;
 
   return (
     <>
@@ -338,11 +341,16 @@ export const Sidebar: React.FC = () => {
                 <MusicSidebarSection expanded={true} />
 
                 <TrendsSidebarSection expanded={true} />
-
-                <SidebarDivider />
               </div>
 
               <div className="border-t border-border pt-2">
+                <ExpandedSidebarItem
+                  icon={knowledgeIcon}
+                  activeIcon={knowledgeActiveIcon}
+                  label="Knowledge"
+                  active={isKnowledge}
+                  onClick={() => navigate('/knowledge')}
+                />
                 <ExpandedSidebarItem
                   icon={settingsIcon}
                   activeIcon={settingsActiveIcon}
@@ -386,7 +394,7 @@ export const Sidebar: React.FC = () => {
                   // Preload or ensure logic is ready if needed
                 }}
               >
-                {/* Main Trends Icon - acts as hover trigger for the group if we wrap it? 
+                {/* Main Trends Icon - acts as hover trigger for the group if we wrap it?
                       Actually, we want the list to stay open when hovering the list too.
                       So we need a wrapper around both.
                   */}
@@ -404,6 +412,14 @@ export const Sidebar: React.FC = () => {
               </div>
 
               <div className="mt-auto">
+                <CollapsedSidebarItem
+                  icon={knowledgeIcon}
+                  activeIcon={knowledgeActiveIcon}
+                  label="Knowledge"
+                  active={isKnowledge}
+                  noBackground={true}
+                  onClick={() => navigate('/knowledge')}
+                />
                 <CollapsedSidebarItem
                   icon={settingsIcon}
                   activeIcon={settingsActiveIcon}

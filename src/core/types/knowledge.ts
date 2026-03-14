@@ -103,8 +103,8 @@ export interface KnowledgeFlags {
 // Constants
 // =============================================================================
 
-/** Slug must be lowercase kebab-case. Dots would corrupt Firestore map field paths. */
-export const SLUG_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+/** Slug must be lowercase kebab-case. Re-exported from shared SSOT. */
+export { SLUG_PATTERN } from '../../../shared/knowledge';
 
 /** Firestore document ID for the single category registry doc */
 export const KNOWLEDGE_CATEGORIES_DOC_ID = 'registry';

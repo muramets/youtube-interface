@@ -18,11 +18,11 @@ export { deleteRender } from "./render/deleteRender.js";
 export { aiChat } from "./chat/aiChat.js";
 export { geminiUpload } from "./chat/geminiUpload.js";
 export { generateChatTitle } from "./chat/generateChatTitle.js";
-export { concludeConversation } from "./chat/concludeConversation.js";
 
 // ─── Firestore Triggers ────────────────────────────────────────────────
 export { onConversationDeleted } from "./triggers/onConversationDeleted.js";
 export { onProjectDeleted } from "./triggers/onProjectDeleted.js";
+export { onKnowledgeItemDeleted } from "./triggers/onKnowledgeItemDeleted.js";
 
 // ─── Embedding Sync ───────────────────────────────────────────────────
 export { scheduledEmbeddingSync } from "./embedding/scheduledEmbeddingSync.js";

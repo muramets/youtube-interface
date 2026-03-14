@@ -21,6 +21,14 @@ export interface ActiveToolCall extends ToolCallRecord {
     _callIndex: number;
 }
 
+/** Options for sendMessage that don't fit positional params. */
+export interface SendOptions {
+    /** Marks this turn as a conclude/memorize turn — backend injects saveMemory tool. */
+    isConclude?: boolean;
+    /** Text sent to backend (if different from display text persisted in chat). */
+    backendText?: string;
+}
+
 export interface ChatState {
     // Context (set once via setContext)
     userId: string | null;
@@ -105,13 +113,13 @@ export interface ChatState {
     updatePersistedContext: (conversationId: string, items: AppContextItem[]) => Promise<void>;
 
     // Actions — AI
-    sendMessage: (text: string, attachments?: ReadyAttachment[], conversationId?: string, largePayloadApproved?: boolean) => Promise<void>;
+    sendMessage: (text: string, attachments?: ReadyAttachment[], conversationId?: string, largePayloadApproved?: boolean, options?: SendOptions) => Promise<void>;
     confirmLargePayload: () => Promise<void>;
     dismissLargePayload: () => void;
     retryLastMessage: () => Promise<void>;
     stopGeneration: () => void;
     saveAiSettings: (settings: Partial<AiAssistantSettings>) => Promise<void>;
-    memorizeConversation: (guidance?: string) => Promise<{ memoryId: string; content: string }>;
+    memorizeConversation: (guidance?: string) => Promise<void>;
     createMemory: (content: string, title?: string) => Promise<void>;
     updateMemory: (memoryId: string, content: string) => Promise<void>;
     deleteMemory: (memoryId: string) => Promise<void>;

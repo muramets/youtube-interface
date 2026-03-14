@@ -16,6 +16,7 @@ const createChainedQuery = () => ({
         mockOrderBy(...args);
         return createChainedQuery();
     },
+    limit: () => createChainedQuery(),
     get: () => mockGet(),
 });
 

@@ -5,7 +5,7 @@
 import type { AiAssistantSettings, ConversationMemory } from '../../../types/chat/chat';
 import { DEFAULT_AI_SETTINGS } from '../../../types/chat/chat';
 import { ChatService } from '../../../services/ai/chatService';
-import * as AiProxy from '../../../services/ai/aiProxyService';
+import { CONCLUDE_INSTRUCTION } from '../../../config/concludePrompt';
 import type { ChatState } from '../types';
 import { requireContext } from '../helpers';
 
@@ -50,14 +50,23 @@ export function createSettingsSlice(
         },
 
         memorizeConversation: async (guidance?: string) => {
-            const { channelId, activeConversationId, conversations } = get();
-            if (!channelId || !activeConversationId) {
+            const { activeConversationId } = get();
+            if (!activeConversationId) {
                 throw new Error('No active conversation to memorize');
             }
-            const conv = conversations.find(c => c.id === activeConversationId);
-            const model = conv?.model || get().aiSettings.defaultModel;
 
-            return AiProxy.concludeConversation(channelId, activeConversationId, guidance, model);
+            const displayText = guidance
+                ? `Memorize: ${guidance}`
+                : 'Memorize this conversation';
+
+            const backendText = guidance
+                ? `${CONCLUDE_INSTRUCTION}\n\nUser guidance: ${guidance}`
+                : CONCLUDE_INSTRUCTION;
+
+            await get().sendMessage(displayText, undefined, undefined, undefined, {
+                isConclude: true,
+                backendText,
+            });
         },
 
         createMemory: async (content: string, title?: string) => {
