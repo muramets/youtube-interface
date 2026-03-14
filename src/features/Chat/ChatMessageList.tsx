@@ -392,7 +392,7 @@ const MessageItem: React.FC<MessageItemProps> = React.memo(({ msg, modelPricing,
                 {msg.role === 'model' && (
                     <CopyButton text={msg.text} title="Copy message" />
                 )}
-                {msg.role === 'user' && !isFailed && !isStreaming && (
+                {msg.role === 'user' && !isFailed && !isStreaming && !msg.text.startsWith('Memorize') && (
                     <button
                         className="bg-transparent border-none text-text-tertiary cursor-pointer p-0.5 flex opacity-0 transition-opacity duration-150 hover:text-text-primary group-hover/msg:opacity-100"
                         onClick={() => onEdit?.(msg)}

@@ -63,6 +63,8 @@ export interface VideoDetails {
     // Denormalized snapshot counts (written by TrafficSourceService / TrafficSnapshotService)
     trafficSourceSnapshotCount?: number;
     suggestedTrafficSnapshotCount?: number;
+    // Knowledge Items discovery flags (written by saveKnowledge handler)
+    knowledgeItemCount?: number;
 }
 
 

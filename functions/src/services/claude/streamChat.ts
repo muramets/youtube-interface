@@ -422,6 +422,7 @@ function applyCacheBreakpoints(messages: MessageParam[]): MessageParam[] {
  * Claude-specific transient error predicate.
  * Returns true for errors that are safe to retry:
  *   - AiStreamTimeoutError: stream stalled (no events for 90s)
+ *   - HTTP 429: Rate limit exceeded (retry after cooldown)
  *   - HTTP 529: API overloaded
  *   - HTTP 500: Internal server error
  *   - HTTP 503: Service unavailable
@@ -431,9 +432,17 @@ function applyCacheBreakpoints(messages: MessageParam[]): MessageParam[] {
 function isClaudeTransient(err: unknown): boolean {
     if (err instanceof AiStreamTimeoutError) return true;
     if (err instanceof APIError) {
-        return err.status === 529 || err.status === 500 || err.status === 503;
+        return err.status === 429 || err.status === 529 || err.status === 500 || err.status === 503;
     }
     return false;
+}
+
+/** Per-error delay: 60s for rate limits, default for others. */
+function getClaudeRetryDelay(err: unknown): number | undefined {
+    if (err instanceof APIError && err.status === 429) {
+        return 60_000;
+    }
+    return undefined; // use default delayMs
 }
 
 // =============================================================================
@@ -592,6 +601,7 @@ export async function streamChat(
             {
                 maxRetries: MAX_STREAM_RETRIES,
                 isTransient: isClaudeTransient,
+                getRetryDelay: getClaudeRetryDelay,
                 delayMs: RETRY_DELAY_MS,
                 onRetry: (attempt) => {
                     console.log(

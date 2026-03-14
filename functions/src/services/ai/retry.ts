@@ -27,6 +27,8 @@ export interface StreamRetryOpts {
     isTransient: (err: unknown) => boolean;
     /** Delay in ms before retrying (applied to all transient errors). Defaults to 2000. */
     delayMs?: number;
+    /** Optional per-error delay override (e.g., longer wait for rate limits). Takes precedence over delayMs. */
+    getRetryDelay?: (err: unknown) => number | undefined;
     /** Called on each retry attempt (1-indexed). */
     onRetry?: (attempt: number) => void;
     /** AbortSignal for caller-initiated cancellation — skips retry if aborted. */
@@ -51,7 +53,7 @@ export async function withStreamRetry<T>(
     fn: () => Promise<T>,
     opts: StreamRetryOpts,
 ): Promise<T> {
-    const { maxRetries, isTransient, delayMs = 2_000, onRetry, signal } = opts;
+    const { maxRetries, isTransient, delayMs = 2_000, getRetryDelay, onRetry, signal } = opts;
 
     for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
         try {
@@ -68,8 +70,9 @@ export async function withStreamRetry<T>(
                 console.log(
                     `[withStreamRetry] Retry attempt ${attempt}/${maxRetries} after transient error`,
                 );
-                if (delayMs > 0) {
-                    await new Promise((r) => setTimeout(r, delayMs));
+                const effectiveDelay = getRetryDelay?.(err) ?? delayMs;
+                if (effectiveDelay > 0) {
+                    await new Promise((r) => setTimeout(r, effectiveDelay));
                 }
                 onRetry?.(attempt);
                 continue;

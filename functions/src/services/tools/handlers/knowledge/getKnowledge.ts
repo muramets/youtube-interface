@@ -67,6 +67,11 @@ export async function handleGetKnowledge(
             };
         });
 
+    console.info(
+        `[getKnowledge] ── Fetched ── ${items.length} items` +
+        `${ids ? ` byIds=[${ids.join(",")}]` : ""}${videoId ? ` videoId=${videoId}` : ""}${categories ? ` categories=[${categories.join(",")}]` : ""}`
+    );
+
     if (items.length === 0) {
         return {
             content: "No Knowledge Items found matching the criteria.",

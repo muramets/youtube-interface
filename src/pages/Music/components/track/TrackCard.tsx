@@ -247,7 +247,7 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
             {...attributes}
             onClick={handleCardClick}
 
-            className={`group flex items-center gap-4 px-4 py-4 rounded-lg transition-all duration-300 cursor-pointer relative select-none
+            className={`group flex items-center gap-4 px-4 py-4 rounded-lg hover-trail cursor-pointer relative select-none
                 ${isOver && !isDragging ? 'ring-2 ring-indigo-400/50 bg-indigo-500/[0.06]' : ''}
                 ${isCurrentTrack
                     ? 'bg-black/5 hover:bg-black/10 dark:bg-white/[0.06] dark:hover:bg-white/[0.09]'

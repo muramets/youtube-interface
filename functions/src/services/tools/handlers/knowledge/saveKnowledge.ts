@@ -56,10 +56,12 @@ export async function handleSaveKnowledge(
     // --- Validation ---
 
     if (!category || !title || !content || !summary) {
+        console.warn(`[saveKnowledge] ── Validation failed ── missing required fields conv=${ctx.conversationId}`);
         return { error: "Required fields: category, title, content, summary" };
     }
 
     if (!SLUG_PATTERN.test(category)) {
+        console.warn(`[saveKnowledge] ── Validation failed ── invalid slug "${category}" conv=${ctx.conversationId}`);
         return {
             error: `Invalid category slug "${category}". Must be lowercase kebab-case (e.g. "traffic-analysis"). ` +
                 `Pattern: /^[a-z0-9]+(-[a-z0-9]+)*$/`,
@@ -67,6 +69,7 @@ export async function handleSaveKnowledge(
     }
 
     if (!ctx.conversationId) {
+        console.warn(`[saveKnowledge] ── Validation failed ── no conversationId`);
         return { error: "conversationId is required in tool context" };
     }
 
@@ -86,6 +89,7 @@ export async function handleSaveKnowledge(
 
     if (!idempotencySnapshot.empty) {
         const existingId = idempotencySnapshot.docs[0].id;
+        console.info(`[saveKnowledge] ── Duplicate ── conv=${ctx.conversationId} category=${category} existing=${existingId}`);
         return {
             content: `Knowledge Item already exists for this conversation + category: ${title} [id: ${existingId}] (skipped duplicate)`,
             id: existingId,
@@ -132,6 +136,12 @@ export async function handleSaveKnowledge(
 
     await batch.commit();
 
+    console.info(
+        `[saveKnowledge] ── Persisted ── id=${kiId} scope=${scope} category=${category}` +
+        ` title="${title.slice(0, 60)}" conv=${ctx.conversationId} model=${ctx.model || "unknown"}` +
+        ` source=${ctx.isConclude ? "conclude" : "chat-tool"} contentLen=${content.length}`
+    );
+
     // --- Registry update (outside batch, atomic map merge) ---
 
     try {
@@ -171,6 +181,7 @@ export async function handleSaveKnowledge(
 
         if (supersededCount > 0) {
             await supersedeBatch.commit();
+            console.info(`[saveKnowledge] ── Superseded ── ${supersededCount} old KI marked by ${kiId}`);
         }
     } catch (err) {
         // Non-critical — KI is saved even if supersede fails

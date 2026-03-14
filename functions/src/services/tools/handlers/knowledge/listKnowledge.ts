@@ -54,6 +54,11 @@ export async function handleListKnowledge(
             };
         });
 
+    console.info(
+        `[listKnowledge] ── Query ── ${items.length} active of ${snapshot.size} total` +
+        `${videoId ? ` videoId=${videoId}` : ""}${scope ? ` scope=${scope}` : ""}${category ? ` category=${category}` : ""}`
+    );
+
     if (items.length === 0) {
         return {
             content: videoId

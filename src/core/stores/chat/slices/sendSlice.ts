@@ -357,10 +357,13 @@ export function createSendSlice(
                     }
                 } else {
                     const errorMessage = err instanceof Error ? err.message : 'Failed to get AI response';
-                    const isContextOverflow = /token|context.*limit|too long|payload size/i.test(errorMessage);
-                    const displayMessage = isContextOverflow
-                        ? 'Context window exceeded. Start a new conversation or delete old messages.'
-                        : errorMessage;
+                    const isRateLimit = /rate.limit|429/i.test(errorMessage);
+                    const isContextOverflow = !isRateLimit && /token|context.*limit|too long|payload size/i.test(errorMessage);
+                    const displayMessage = isRateLimit
+                        ? 'Rate limit reached. Please wait a minute and try again.'
+                        : isContextOverflow
+                            ? 'Context window exceeded. Start a new conversation or delete old messages.'
+                            : errorMessage;
 
                     // Only update UI if this stream is still the current one
                     if (session.streamingNonce === myNonce) {

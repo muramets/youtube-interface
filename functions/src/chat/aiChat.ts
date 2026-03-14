@@ -317,8 +317,8 @@ export const aiChat = onRequest(
                 systemPrompt: body.systemPrompt,
                 history: memory.history,
                 text: body.text,
-                attachments: currentAttachments,
-                imageUrls: body.thumbnailUrls,
+                attachments: body.isConclude ? undefined : currentAttachments, // Skip attachments for conclude — context already in history
+                imageUrls: body.isConclude ? undefined : body.thumbnailUrls, // Skip thumbnails for conclude — AI doesn't need images when memorizing
                 tools: body.isConclude ? [...TOOL_DECLARATIONS, ...CONCLUDE_TOOL_DECLARATIONS] : TOOL_DECLARATIONS,
                 toolContext: { userId, channelId: body.channelId, channelName, youtubeApiKey: userYoutubeApiKey, conversationId: body.conversationId, model, isConclude: body.isConclude },
                 thinkingOptionId,

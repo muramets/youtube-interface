@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { MoreVertical, Info, Trash2, AlertTriangle, Loader2, MessageSquareText, Sparkles } from 'lucide-react';
+import { MoreVertical, Info, Trash2, AlertTriangle, Loader2, MessageSquareText, Sparkles, BookOpen } from 'lucide-react';
 import { type VideoDetails } from '../../core/utils/youtubeApi';
 import { VideoService } from '../../core/services/videoService';
 import { formatDuration, formatViewCount } from '../../core/utils/formatUtils';
@@ -500,9 +500,15 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
             </div>
           )}
 
-          {/* Duration + Notes Badges (bottom-right) */}
-          {(displayVideo.duration || (video.notes && video.notes.length > 0)) && (
+          {/* Duration + Notes + KI Badges (bottom-right) */}
+          {(displayVideo.duration || (video.notes && video.notes.length > 0) || (video.knowledgeItemCount && video.knowledgeItemCount > 0)) && (
             <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1 z-10">
+              {video.knowledgeItemCount && video.knowledgeItemCount > 0 && (
+                <div className="bg-black/60 px-1.5 py-0.5 rounded text-[10px] font-semibold text-white/70 flex items-center gap-1 transition-colors duration-150 hover:text-text-primary hover:bg-black/80">
+                  <BookOpen size={10} />
+                  {video.knowledgeItemCount}
+                </div>
+              )}
               {video.notes && video.notes.length > 0 && (() => {
                 const hasAiNotes = video.notes!.some(n => n.source === 'ai-chat');
                 return (

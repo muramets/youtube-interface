@@ -35,7 +35,7 @@ export function CollapsibleSection({
             : "text-xl font-semibold";
 
     // Shared color transition logic
-    const colorClass = "text-text-tertiary group-hover:text-text-primary transition-colors duration-200";
+    const colorClass = "text-text-tertiary group-hover/section:text-text-primary hover-trail";
 
     const iconClass = isCompact ? "w-2.5 h-2.5" : "w-5 h-5";
     const gapClass = isCompact ? "gap-2" : "gap-3";
@@ -63,7 +63,7 @@ export function CollapsibleSection({
 
     return (
         <div className={`w-full ${className}`}>
-            <div className={`flex items-center ${mbClass} group`}>
+            <div className={`flex items-center ${mbClass} group/section`}>
                 {dragHandle && (
                     <div className={`mr-2 ${colorClass}`} onClick={(e) => e.stopPropagation()}>
                         {dragHandle}
@@ -83,7 +83,7 @@ export function CollapsibleSection({
                     }}
                 >
                     <div className={`flex items-center ${gapClass} ${headerClass} text-left`}>
-                        <div className={`transition-all duration-200 ${isSectionOpen ? '' : '-rotate-90'} text-text-tertiary group-hover:text-text-primary`}>
+                        <div className={`hover-trail [transition-property:color,transform] ${isSectionOpen ? '' : '-rotate-90'} text-text-tertiary group-hover/section:text-text-primary`}>
                             <ChevronDown className={iconClass} />
                         </div>
                         <span className={colorClass}>{title}</span>

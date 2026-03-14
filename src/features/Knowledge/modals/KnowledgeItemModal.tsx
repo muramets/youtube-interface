@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Bot, Calendar, Tag, Wrench } from 'lucide-react'
 import { Button } from '../../../components/ui/atoms/Button/Button'
+import { Badge } from '../../../components/ui/atoms/Badge/Badge'
 import { RichTextEditor } from '../../../components/ui/organisms/RichTextEditor'
 import type { KnowledgeItem } from '../../../core/types/knowledge'
 import { formatKnowledgeDate } from '../utils/formatDate'
@@ -93,9 +94,9 @@ export const KnowledgeItemModal = React.memo(({
                                 {item.toolsUsed.join(', ')}
                             </span>
                         )}
-                        <span className="text-text-tertiary/50">
-                            {item.source === 'manual' ? 'Manual' : item.source === 'conclude' ? 'Conclude' : 'Chat Tool'}
-                        </span>
+                        <Badge variant="neutral">
+                            {item.source === 'manual' ? 'Manual' : item.source === 'conclude' ? 'via Memorize' : 'Chat'}
+                        </Badge>
                     </div>
 
                     {/* Title input */}
