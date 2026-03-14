@@ -395,6 +395,25 @@ body {
 }
 
 /* =============================================================================
+   VIDEO REFERENCE HIGHLIGHT (global — used in Chat + Knowledge cards)
+   ============================================================================= */
+
+.video-reference-highlight {
+   color: var(--reference-highlight) !important;
+   text-decoration: none !important;
+   cursor: default;
+   transition: color 150ms ease;
+}
+
+.video-reference-highlight:hover {
+   filter: brightness(1.2);
+}
+
+a:has(.video-reference-highlight) {
+   text-decoration: none !important;
+}
+
+/* =============================================================================
    PROSEMIRROR TABLE (Tiptap RichTextEditor)
    Required for resizable tables, cell selection, and column resize handles.
    ============================================================================= */

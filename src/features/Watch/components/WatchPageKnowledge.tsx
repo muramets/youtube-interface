@@ -1,7 +1,9 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useMemo } from 'react'
 import { useAuth } from '../../../core/hooks/useAuth'
 import { useChannelStore } from '../../../core/stores/channelStore'
-import { useVideoKnowledgeItems, useUpdateKnowledgeItem } from '../../../core/hooks/useKnowledgeItems'
+import { useVideoKnowledgeItems, useUpdateKnowledgeItem, useDeleteKnowledgeItem } from '../../../core/hooks/useKnowledgeItems'
+import { useVideos } from '../../../core/hooks/useVideos'
+import { buildVideoRefMap } from '../../Knowledge/utils/videoRefMap'
 import { KnowledgeList } from '../../Knowledge/components/KnowledgeList'
 import { KnowledgeItemModal } from '../../Knowledge/modals/KnowledgeItemModal'
 import type { KnowledgeItem } from '../../../core/types/knowledge'
@@ -24,7 +26,10 @@ export const WatchPageKnowledge = React.memo(({ videoId }: WatchPageKnowledgePro
     const channelId = currentChannel?.id ?? ''
 
     const { items, isLoading, error } = useVideoKnowledgeItems(userId, channelId, videoId)
+    const { videos } = useVideos(userId, channelId)
     const updateMutation = useUpdateKnowledgeItem(userId, channelId)
+    const deleteMutation = useDeleteKnowledgeItem(userId, channelId)
+    const videoMap = useMemo(() => buildVideoRefMap(videos), [videos])
 
     const [editingItem, setEditingItem] = useState<KnowledgeItem | null>(null)
 
@@ -36,6 +41,10 @@ export const WatchPageKnowledge = React.memo(({ videoId }: WatchPageKnowledgePro
         if (!editingItem) return
         updateMutation.mutate({ itemId: editingItem.id, updates })
     }, [editingItem, updateMutation])
+
+    const handleDelete = useCallback((item: KnowledgeItem) => {
+        deleteMutation.mutate(item.id)
+    }, [deleteMutation])
 
     if (isLoading) {
         return (
@@ -61,6 +70,8 @@ export const WatchPageKnowledge = React.memo(({ videoId }: WatchPageKnowledgePro
                 <KnowledgeList
                     items={items}
                     onEdit={handleEdit}
+                    onDelete={handleDelete}
+                    videoMap={videoMap}
                     emptyMessage="No AI research yet. Use the chat to analyze this video and generate Knowledge Items."
                 />
             </div>

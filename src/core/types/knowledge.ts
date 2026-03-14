@@ -7,6 +7,7 @@
 // =============================================================================
 
 import type { Timestamp } from 'firebase/firestore';
+import type { MemoryVideoRef } from '../../../shared/memory';
 
 /**
  * A structured analysis result created by LLM or manually by the user.
@@ -47,8 +48,10 @@ export interface KnowledgeItem {
     scope: 'video' | 'channel';
     /** OWNER: video this KI is about (absent for channel-level) */
     videoId?: string;
-    /** REFERENCES: videos mentioned in this KI (for cross-linking) */
+    /** REFERENCES: video IDs mentioned in this KI (passed by LLM) */
     videoRefs?: string[];
+    /** RESOLVED: video snapshots extracted from content at save time (code-driven, not LLM) */
+    resolvedVideoRefs?: MemoryVideoRef[];
 
     // — Timestamps —
 

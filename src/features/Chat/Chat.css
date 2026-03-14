@@ -278,23 +278,7 @@
     text-decoration: underline;
 }
 
-/* Video reference — inline @mention */
-.chat-message-bubble .video-reference-highlight,
-.chat-message-bubble a:has(.video-reference-highlight) {
-    color: var(--reference-highlight) !important;
-    text-decoration: none !important;
-    cursor: default;
-    transition: color 150ms ease;
-}
-
-.chat-message-bubble .video-reference-highlight:hover {
-    color: var(--reference-highlight) !important;
-    filter: brightness(1.2);
-}
-
-.chat-message-bubble a:has(.video-reference-highlight):hover {
-    text-decoration: none !important;
-}
+/* Video reference styles moved to global index.css (shared with Knowledge cards) */
 
 .chat-message-bubble blockquote {
     border-left: 3px solid var(--border);

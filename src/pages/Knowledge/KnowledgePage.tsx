@@ -4,8 +4,10 @@ import { Button } from '../../components/ui/atoms/Button/Button'
 import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip'
 import { useAuth } from '../../core/hooks/useAuth'
 import { useChannelStore } from '../../core/stores/channelStore'
-import { useChannelKnowledgeItems, useUpdateKnowledgeItem, useCreateKnowledgeItem } from '../../core/hooks/useKnowledgeItems'
+import { useChannelKnowledgeItems, useUpdateKnowledgeItem, useCreateKnowledgeItem, useDeleteKnowledgeItem } from '../../core/hooks/useKnowledgeItems'
+import { useVideos } from '../../core/hooks/useVideos'
 import { useKnowledgeStore } from '../../core/stores/knowledgeStore'
+import { buildVideoRefMap } from '../../features/Knowledge/utils/videoRefMap'
 import { KnowledgeList } from '../../features/Knowledge/components/KnowledgeList'
 import { KnowledgeItemModal } from '../../features/Knowledge/modals/KnowledgeItemModal'
 import { CreateKnowledgeItemModal } from '../../features/Knowledge/modals/CreateKnowledgeItemModal'
@@ -28,8 +30,12 @@ export const KnowledgePage: React.FC = () => {
     const channelId = currentChannel?.id ?? ''
 
     const { items, isLoading, error } = useChannelKnowledgeItems(userId, channelId)
+    const { videos } = useVideos(userId, channelId)
     const updateMutation = useUpdateKnowledgeItem(userId, channelId)
     const createMutation = useCreateKnowledgeItem(userId, channelId)
+    const deleteMutation = useDeleteKnowledgeItem(userId, channelId)
+
+    const videoMap = useMemo(() => buildVideoRefMap(videos), [videos])
 
     const { selectedCategory, sortOrder, setCategory, setSortOrder } = useKnowledgeStore()
 
@@ -72,6 +78,10 @@ export const KnowledgePage: React.FC = () => {
     const handleCreate = useCallback((item: { category: string; title: string; content: string; summary: string }) => {
         createMutation.mutate({ ...item, scope: 'channel' })
     }, [createMutation])
+
+    const handleDelete = useCallback((item: KnowledgeItem) => {
+        deleteMutation.mutate(item.id)
+    }, [deleteMutation])
 
     if (isLoading) {
         return (
@@ -176,6 +186,8 @@ export const KnowledgePage: React.FC = () => {
                 <KnowledgeList
                     items={displayItems}
                     onEdit={handleEdit}
+                    onDelete={handleDelete}
+                    videoMap={videoMap}
                     emptyMessage={
                         selectedCategory
                             ? 'No Knowledge Items in this category yet.'

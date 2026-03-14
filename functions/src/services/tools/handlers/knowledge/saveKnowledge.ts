@@ -11,6 +11,8 @@ import { db } from "../../../../shared/db.js";
 import { FieldValue } from "firebase-admin/firestore";
 import type { ToolContext } from "../../types.js";
 import { SLUG_PATTERN } from "../../../../shared/knowledge.js";
+import { resolveVideosByIds } from "../../utils/resolveVideos.js";
+import type { MemoryVideoRef } from "../../../../shared/memory.js";
 
 interface SaveKnowledgeArgs {
     category: string;
@@ -141,6 +143,38 @@ export async function handleSaveKnowledge(
         ` title="${title.slice(0, 60)}" conv=${ctx.conversationId} model=${ctx.model || "unknown"}` +
         ` source=${ctx.isConclude ? "conclude" : "chat-tool"} contentLen=${content.length}`
     );
+
+    // --- Resolve video references from content (code-driven, non-blocking) ---
+
+    try {
+        // Extract video-ID-like strings: YouTube IDs (11 chars, alphanumeric + _-) and custom IDs (custom-\d+)
+        const idPattern = /\b([A-Za-z0-9_-]{11}|custom-\d+)\b/g;
+        const candidateIds = [...new Set(Array.from(content.matchAll(idPattern), m => m[1]))];
+
+        if (candidateIds.length > 0) {
+            const { resolved } = await resolveVideosByIds(basePath, candidateIds);
+
+            if (resolved.size > 0) {
+                const resolvedVideoRefs: MemoryVideoRef[] = [];
+                for (const [requestedId, rv] of resolved) {
+                    const d = rv.data;
+                    resolvedVideoRefs.push({
+                        videoId: requestedId,
+                        title: (d.title as string) || requestedId,
+                        thumbnailUrl: (d.thumbnail as string) || (d.thumbnailUrl as string) || '',
+                        ownership: rv.source === 'video_grid'
+                            ? (d.isDraft ? 'own-draft' : 'own-published')
+                            : 'competitor',
+                    });
+                }
+                await kiRef.update({ resolvedVideoRefs });
+                console.info(`[saveKnowledge] ── VideoRefs ── ${resolvedVideoRefs.length} resolved from ${candidateIds.length} candidates`);
+            }
+        }
+    } catch (err) {
+        // Non-critical — KI is saved even if video ref resolution fails
+        console.warn(`[saveKnowledge] Video ref resolution failed:`, err);
+    }
 
     // --- Registry update (outside batch, atomic map merge) ---
 

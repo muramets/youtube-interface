@@ -1,5 +1,6 @@
 import React from 'react'
 import type { KnowledgeItem } from '../../../core/types/knowledge'
+import type { VideoPreviewData } from '../../Video/types'
 import { KnowledgeCard } from './KnowledgeCard'
 
 interface KnowledgeListProps {
@@ -7,8 +8,12 @@ interface KnowledgeListProps {
     items: KnowledgeItem[]
     /** Called when user clicks Edit on a card */
     onEdit: (item: KnowledgeItem) => void
+    /** Called when user clicks Delete on a card */
+    onDelete?: (item: KnowledgeItem) => void
     /** Optional empty state message */
     emptyMessage?: string
+    /** Video reference map for highlighting video IDs in KI content */
+    videoMap?: Map<string, VideoPreviewData>
 }
 
 /**
@@ -16,12 +21,14 @@ interface KnowledgeListProps {
  *
  * Shared between:
  * - Watch Page: video-level KI (AI Research tab)
- * - Lab Page: channel-level KI (full page)
+ * - Knowledge Page: channel-level KI (full page)
  */
 export const KnowledgeList = React.memo(({
     items,
     onEdit,
+    onDelete,
     emptyMessage = 'No Knowledge Items yet. Start a chat conversation and analyze content to generate insights.',
+    videoMap,
 }: KnowledgeListProps) => {
     if (items.length === 0) {
         return (
@@ -40,6 +47,8 @@ export const KnowledgeList = React.memo(({
                     key={item.id}
                     item={item}
                     onEdit={onEdit}
+                    onDelete={onDelete}
+                    videoMap={videoMap}
                 />
             ))}
         </div>
