@@ -69,7 +69,13 @@ Sidebar: пункт **Knowledge** (иконка BookOpen). Route: `/knowledge`.
 
 **Явная команда:** пользователь просит сохранить → AI вызывает `saveKnowledge` с category, title, content, summary, videoId, videoRefs, toolsUsed.
 
-**При Memorize:** кнопка "Memorize" отправляет synthetic conclude turn через `aiChat` (та же модель, тёплый кэш). AI вызывает `saveKnowledge` ×N + `saveMemory` ×1. Tool calls видны в чате как badges.
+**При Memorize:** кнопка "Memorize" отправляет synthetic conclude turn через `aiChat` (та же модель, тёплый кэш). AI вызывает `saveKnowledge` ×N + `saveMemory` ×1. Tool calls видны в чате как human-friendly badges (expandable для KI — category, summary, ID).
+
+**Conclude context injection:** бэкенд при `isConclude: true` запрашивает существующие KI для этого `conversationId` и добавляет их список в conclude message. AI видит "already saved, do NOT recreate" → создаёт только отсутствующие. Экономия: ~50 tokens input вместо ~6K wasted output per duplicate.
+
+**Custom video resolution:** LLM передаёт YouTube video ID (e.g. `A4SkhlJ2mK8`), но Firestore doc может быть `custom-177...`. `saveKnowledge` handler резолвит через `resolveVideosByIds` (3-step) перед `batch.update()`. Если video не найдено — graceful fallback на channel-level KI.
+
+**Retry:** при rate limit или ошибке, Retry кнопка сохраняет `SendOptions` (`isConclude` + `backendText`) и повторяет conclude turn корректно.
 
 ### Discovery (zero cost)
 
@@ -134,13 +140,13 @@ Composite indexes deployed: idempotency guard (`conversationId + category + vide
 
 | File | Role |
 |------|------|
-| `functions/src/services/tools/handlers/knowledge/saveKnowledge.ts` | Slug validation, idempotency guard, atomic batch (KI doc + discovery flags), registry update, auto-supersede, **video ref resolution** (regex extract → `resolveVideosByIds` 3-step → `resolvedVideoRefs` snapshot). Structured logging: `── Validation failed ──`, `── Duplicate ──`, `── Persisted ──`, `── VideoRefs ──`, `── Superseded ──` |
+| `functions/src/services/tools/handlers/knowledge/saveKnowledge.ts` | Slug validation, idempotency guard, **custom video ID resolution** (`resolveVideosByIds` before batch — maps YouTube IDs to `custom-*` docs), atomic batch (KI doc + discovery flags), registry update, auto-supersede, **video ref resolution** (regex extract → `resolveVideosByIds` → `resolvedVideoRefs` snapshot). Structured logging: `── Validation failed ──`, `── Duplicate ──`, `── Video not found ──`, `── Persisted ──`, `── VideoRefs ──`, `── Superseded ──` |
 | `functions/src/services/tools/handlers/knowledge/listKnowledge.ts` | Summary + meta (no content), excludes superseded in-memory, `.limit(50)` |
 | `functions/src/services/tools/handlers/knowledge/getKnowledge.ts` | Full content by IDs (`db.getAll`) or filters, `.limit(20)` |
 | `functions/src/services/tools/handlers/knowledge/saveMemory.ts` | Conclude-only (`isConclude`), idempotency (60s window), orphan guard, validates `kiRefs` via `db.getAll()` |
 | `functions/src/triggers/onKnowledgeItemDeleted.ts` | Firestore trigger: `FieldValue.increment(-1)` + conditional `arrayRemove` for discovery flags |
 | `functions/src/services/tools/definitions.ts` | Tool definitions + `CONCLUDE_TOOL_DECLARATIONS` (saveMemory, injected at `isConclude`) |
-| `functions/src/chat/aiChat.ts` | `isConclude` → tool injection, strip `saveKnowledge` content before persist, skip thumbnails/attachments for conclude |
+| `functions/src/chat/aiChat.ts` | `isConclude` → **conclude context injection** (existing KI list appended to avoid duplicates), tool injection, strip `saveKnowledge` content before persist, skip thumbnails/attachments for conclude |
 
 ### Frontend
 
@@ -190,4 +196,6 @@ Composite indexes deployed: idempotency guard (`conversationId + category + vide
 | 10 | `onKnowledgeItemDeleted` trigger | Consistent flag decrements regardless of deletion source |
 | 11 | Resolve at write, render from snapshot | `saveKnowledge` extracts video IDs from content via regex → resolves via `resolveVideosByIds` (3-step: own/cached/trend) → stores `resolvedVideoRefs: MemoryVideoRef[]` on KI doc. Frontend renders from snapshot — zero Firestore reads. Works for own videos + competitors. Same `MemoryVideoRef` type as Memory system |
 | 12 | Video ref highlighting via `linkifyVideoRefs` | Pre-process markdown → `mention://` links → `VideoReferenceTooltip` (reuses chat pattern, zero LLM cost). Fallback to `useVideos` for legacy KI |
-| 13 | Knowledge/ as shared feature | Used by Watch Page + Knowledge Page (SRP) |
+| 13 | Conclude context injection | Backend injects existing KI list into conclude message → AI skips duplicates → ~50 tokens vs ~6K wasted output |
+| 14 | Custom video ID resolution | `saveKnowledge` resolves YouTube ID → `custom-*` doc ID via `resolveVideosByIds` before batch. Graceful fallback to channel-level |
+| 15 | Knowledge/ as shared feature | Used by Watch Page + Knowledge Page (SRP) |
