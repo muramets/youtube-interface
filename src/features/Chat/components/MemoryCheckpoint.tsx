@@ -169,10 +169,7 @@ export const MemoryCheckpoint: React.FC<MemoryCheckpointProps> = ({ memory, onUp
             {/* Expandable content */}
             {isExpanded && (
                 <div
-                    className="mt-1.5 mx-auto max-w-[90%] rounded-lg p-3 animate-memory-expand"
-                    style={{
-                        backgroundColor: 'color-mix(in srgb, var(--accent) 5%, var(--bg-primary))',
-                    }}
+                    className="mt-1.5 mx-auto max-w-[90%] rounded-lg p-3 animate-memory-expand bg-bg-secondary"
                 >
                     {memory.videoRefs && memory.videoRefs.length > 0 && (
                         <MemoryVideoChips videoRefs={memory.videoRefs} />

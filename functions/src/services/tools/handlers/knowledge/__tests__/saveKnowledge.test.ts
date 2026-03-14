@@ -47,9 +47,9 @@ vi.mock('../../../../../shared/db.js', () => ({
 }));
 
 vi.mock('../../../utils/resolveVideos.js', () => ({
-    resolveVideosByIds: vi.fn().mockResolvedValue({
-        resolved: new Map([['test-video-id', { requestedId: 'test-video-id', docId: 'test-video-id', data: {}, source: 'video_grid' }]]),
-        missingIds: [],
+    resolveVideosByIds: vi.fn().mockImplementation((_basePath: string, ids: string[]) => {
+        const resolved = new Map(ids.map(id => [id, { requestedId: id, docId: id, data: {}, source: 'video_grid' }]));
+        return Promise.resolve({ resolved, missingIds: [] });
     }),
 }));
 

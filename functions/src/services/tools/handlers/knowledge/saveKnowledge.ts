@@ -78,15 +78,33 @@ export async function handleSaveKnowledge(
     const basePath = `users/${ctx.userId}/channels/${ctx.channelId}`;
     const kiCollectionPath = `${basePath}/knowledgeItems`;
 
-    // --- Idempotency guard ---
+    // --- Resolve video doc ID FIRST (needed for both idempotency and storage) ---
+    // LLM passes YouTube ID (A4SkhlJ2mK8), but Firestore doc may be custom-*.
+    // Normalize to doc ID so frontend queries by doc ID match.
+
+    let resolvedDocId = videoId;
+    let effectiveScope = scope;
+
+    if (scope === "video" && videoId) {
+        const { resolved } = await resolveVideosByIds(basePath, [videoId], { skipExternal: true });
+        const match = resolved.get(videoId);
+        if (match) {
+            resolvedDocId = match.docId;
+        } else {
+            console.warn(`[saveKnowledge] ── Video not found ── videoId=${videoId}, saving as channel-level`);
+            effectiveScope = "channel";
+            resolvedDocId = undefined;
+        }
+    }
+
+    // --- Idempotency guard (uses normalized doc ID) ---
 
     const idempotencyQuery = db.collection(kiCollectionPath)
         .where("conversationId", "==", ctx.conversationId)
         .where("category", "==", category);
 
-    // For video-level KI, also filter by videoId
-    const idempotencySnapshot = videoId
-        ? await idempotencyQuery.where("videoId", "==", videoId).get()
+    const idempotencySnapshot = effectiveScope === "video" && resolvedDocId
+        ? await idempotencyQuery.where("videoId", "==", resolvedDocId).get()
         : await idempotencyQuery.where("scope", "==", "channel").get();
 
     if (!idempotencySnapshot.empty) {
@@ -99,7 +117,7 @@ export async function handleSaveKnowledge(
         };
     }
 
-    // --- Create KI document ---
+    // --- Create KI document (with normalized doc ID) ---
 
     const kiRef = db.collection(kiCollectionPath).doc();
     const kiId = kiRef.id;
@@ -112,35 +130,13 @@ export async function handleSaveKnowledge(
         conversationId: ctx.conversationId,
         model: ctx.model || "unknown",
         toolsUsed: toolsUsed || [],
-        scope,
-        videoId: videoId || undefined,
+        scope: effectiveScope,
+        videoId: (effectiveScope === "video" && resolvedDocId) ? resolvedDocId : undefined,
         videoRefs: videoRefs || undefined,
         createdAt: FieldValue.serverTimestamp(),
-        supersededBy: null,  // Explicit null so where("supersededBy", "==", null) matches
+        supersededBy: null,
         source: ctx.isConclude ? "conclude" : "chat-tool",
     });
-
-    // --- Resolve video doc ID (LLM may pass YouTube ID, but doc may be custom-*) ---
-
-    let resolvedDocId = videoId;
-    if (scope === "video" && videoId) {
-        const { resolved } = await resolveVideosByIds(basePath, [videoId], { skipExternal: true });
-        const match = resolved.get(videoId);
-        if (match) {
-            resolvedDocId = match.docId;
-        } else {
-            console.warn(`[saveKnowledge] ── Video not found ── videoId=${videoId}, saving as channel-level`);
-        }
-    }
-
-    // If video not found, fall back to channel-level KI
-    const effectiveScope = (scope === "video" && resolvedDocId) ? "video" : "channel";
-
-    // Update kiData if scope changed
-    if (effectiveScope !== scope) {
-        kiData.scope = effectiveScope;
-        delete kiData.videoId;
-    }
 
     // --- Atomic batch: KI doc + discovery flags ---
 

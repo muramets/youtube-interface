@@ -27,4 +27,6 @@ After all Knowledge Items are saved, call saveMemory with:
 - kiRefs: IDs of Knowledge Items you just created
 - Do NOT duplicate KI content in memory — reference by ID
 
-If this conversation had no tool-backed analysis, skip saveKnowledge and only call saveMemory.`;
+If this conversation had no tool-backed analysis, skip saveKnowledge and only call saveMemory.
+
+In your final text response, reference Knowledge Items by TITLE (not raw ID). Example: "Created Knowledge Item: Channel Performance Journey" — not "KI: jSZc2L1ctPd7xh9KLLgc".`;
