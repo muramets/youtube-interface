@@ -317,6 +317,35 @@ export function getGroupLabel(group: ToolCallGroup): string {
             : 'Comments loaded';
     }
 
+    if (group.toolName === 'saveKnowledge') {
+        if (group.hasErrors) return "Couldn't save knowledge";
+        if (!group.allResolved) return 'Saving knowledge...';
+        const savedCount = group.records.filter(r => !r.result?.skipped).length;
+        const skippedCount = group.records.length - savedCount;
+        const parts: string[] = [];
+        if (savedCount > 0) parts.push(`${savedCount} saved`);
+        if (skippedCount > 0) parts.push(`${skippedCount} skipped`);
+        return `Knowledge: ${parts.join(', ')}`;
+    }
+
+    if (group.toolName === 'listKnowledge') {
+        if (group.hasErrors) return "Couldn't load knowledge";
+        if (!group.allResolved) return 'Loading knowledge...';
+        const result = group.records[0]?.result;
+        const count = result?.count as number | undefined;
+        return count != null ? `${count} knowledge items found` : 'Knowledge loaded';
+    }
+
+    if (group.toolName === 'getKnowledge') {
+        if (group.hasErrors) return "Couldn't read knowledge";
+        return group.allResolved ? 'Knowledge loaded' : 'Reading knowledge...';
+    }
+
+    if (group.toolName === 'saveMemory') {
+        if (group.hasErrors) return "Couldn't save memory";
+        return group.allResolved ? 'Memory saved' : 'Saving memory...';
+    }
+
     // Fallback for unknown tools
     return group.allResolved ? group.toolName : `Running ${group.toolName}...`;
 }

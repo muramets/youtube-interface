@@ -6,7 +6,7 @@
 // =============================================================================
 
 import type { LucideIcon } from 'lucide-react';
-import { Images, Globe, PieChart, Users, TrendingUp, Telescope, Search, BarChart3, MessageSquare } from 'lucide-react';
+import { Images, Globe, PieChart, Users, TrendingUp, Telescope, Search, BarChart3, MessageSquare, BookOpen, Brain } from 'lucide-react';
 import type React from 'react';
 import {
     AnalysisStats,
@@ -117,6 +117,26 @@ const TOOL_REGISTRY: Record<string, ToolConfig> = {
         icon: MessageSquare,
         color: 'emerald',
         hasExpandableContent: false,
+    },
+    saveKnowledge: {
+        icon: BookOpen,
+        color: 'emerald',
+        hasExpandableContent: true,
+    },
+    listKnowledge: {
+        icon: BookOpen,
+        color: 'emerald',
+        hasExpandableContent: false,
+    },
+    getKnowledge: {
+        icon: BookOpen,
+        color: 'emerald',
+        hasExpandableContent: false,
+    },
+    saveMemory: {
+        icon: Brain,
+        color: 'indigo',
+        hasExpandableContent: true,
     },
 };
 
