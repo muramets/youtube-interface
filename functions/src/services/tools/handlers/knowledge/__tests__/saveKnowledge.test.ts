@@ -46,6 +46,13 @@ vi.mock('../../../../../shared/db.js', () => ({
     },
 }));
 
+vi.mock('../../../utils/resolveVideos.js', () => ({
+    resolveVideosByIds: vi.fn().mockResolvedValue({
+        resolved: new Map([['test-video-id', { requestedId: 'test-video-id', docId: 'test-video-id', data: {}, source: 'video_grid' }]]),
+        missingIds: [],
+    }),
+}));
+
 vi.mock('firebase-admin/firestore', () => ({
     FieldValue: {
         serverTimestamp: () => 'SERVER_TIMESTAMP',

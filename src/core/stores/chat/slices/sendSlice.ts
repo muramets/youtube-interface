@@ -367,7 +367,7 @@ export function createSendSlice(
 
                     // Only update UI if this stream is still the current one
                     if (session.streamingNonce === myNonce) {
-                        set({ error: displayMessage, lastFailedRequest: { text, attachments, messageId: userMessageId } });
+                        set({ error: displayMessage, lastFailedRequest: { text, attachments, messageId: userMessageId, sendOptions: options } });
                     }
 
                     // Ensure the user stays on the conversation (especially for first-message failures)
@@ -448,7 +448,7 @@ export function createSendSlice(
         retryLastMessage: async () => {
             const { lastFailedRequest } = get();
             if (!lastFailedRequest) return;
-            const { text, attachments, messageId } = lastFailedRequest;
+            const { text, attachments, messageId, sendOptions } = lastFailedRequest;
             set({ lastFailedRequest: null, error: null });
 
             const { userId, channelId } = requireContext(get);
@@ -467,13 +467,17 @@ export function createSendSlice(
                 const persistedContext = existingConv?.persistedContext;
                 const isFirstExchange = get().messages.length <= 1;
 
+                // For conclude retries: use backendText (CONCLUDE_INSTRUCTION) instead of display text
+                const textForBackend = sendOptions?.backendText ?? text;
+
                 await resumeSendFlow(
-                    get, set, convId, text, attachments,
+                    get, set, convId, textForBackend, attachments,
                     undefined,
                     persistedContext?.length ? persistedContext : undefined,
                     myNonce, myAbortController,
                     undefined,
                     isFirstExchange,
+                    sendOptions?.isConclude,
                 );
             } catch (err) {
                 if (err instanceof DOMException && err.name === 'AbortError') {
@@ -484,7 +488,7 @@ export function createSendSlice(
                 } else {
                     const errorMessage = err instanceof Error ? err.message : 'Failed to get AI response';
                     if (session.streamingNonce === myNonce) {
-                        set({ error: errorMessage, lastFailedRequest: { text, attachments, messageId } });
+                        set({ error: errorMessage, lastFailedRequest: { text, attachments, messageId, sendOptions } });
                         ChatService.setLastError(userId, channelId, convId, errorMessage, text).catch(() => {});
                     }
                 }

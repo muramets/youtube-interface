@@ -120,15 +120,37 @@ export async function handleSaveKnowledge(
         source: ctx.isConclude ? "conclude" : "chat-tool",
     });
 
+    // --- Resolve video doc ID (LLM may pass YouTube ID, but doc may be custom-*) ---
+
+    let resolvedDocId = videoId;
+    if (scope === "video" && videoId) {
+        const { resolved } = await resolveVideosByIds(basePath, [videoId], { skipExternal: true });
+        const match = resolved.get(videoId);
+        if (match) {
+            resolvedDocId = match.docId;
+        } else {
+            console.warn(`[saveKnowledge] ── Video not found ── videoId=${videoId}, saving as channel-level`);
+        }
+    }
+
+    // If video not found, fall back to channel-level KI
+    const effectiveScope = (scope === "video" && resolvedDocId) ? "video" : "channel";
+
+    // Update kiData if scope changed
+    if (effectiveScope !== scope) {
+        kiData.scope = effectiveScope;
+        delete kiData.videoId;
+    }
+
     // --- Atomic batch: KI doc + discovery flags ---
 
     const batch = db.batch();
     batch.set(kiRef, kiData);
 
     // Update discovery flags on the entity (video or channel) doc
-    const entityRef = scope === "video"
-        ? db.doc(`${basePath}/videos/${videoId}`)
-        : db.doc(`${basePath}`); // Channel doc is at basePath itself... but channels are at users/{uid}/channels/{chId}
+    const entityRef = effectiveScope === "video"
+        ? db.doc(`${basePath}/videos/${resolvedDocId}`)
+        : db.doc(`${basePath}`);
 
     batch.update(entityRef, {
         knowledgeItemCount: FieldValue.increment(1),
@@ -139,9 +161,10 @@ export async function handleSaveKnowledge(
     await batch.commit();
 
     console.info(
-        `[saveKnowledge] ── Persisted ── id=${kiId} scope=${scope} category=${category}` +
+        `[saveKnowledge] ── Persisted ── id=${kiId} scope=${effectiveScope} category=${category}` +
         ` title="${title.slice(0, 60)}" conv=${ctx.conversationId} model=${ctx.model || "unknown"}` +
-        ` source=${ctx.isConclude ? "conclude" : "chat-tool"} contentLen=${content.length}`
+        ` source=${ctx.isConclude ? "conclude" : "chat-tool"} contentLen=${content.length}` +
+        (videoId ? ` videoId=${videoId}${resolvedDocId !== videoId ? ` resolvedDoc=${resolvedDocId}` : ''}` : '')
     );
 
     // --- Resolve video references from content (code-driven, non-blocking) ---

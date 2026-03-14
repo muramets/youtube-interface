@@ -58,7 +58,7 @@ export interface ChatState {
     error: string | null;
     hasMoreMessages: boolean;
     hasMoreConversations: boolean;
-    lastFailedRequest: { text: string; attachments?: ReadyAttachment[]; messageId?: string } | null;
+    lastFailedRequest: { text: string; attachments?: ReadyAttachment[]; messageId?: string; sendOptions?: SendOptions } | null;
     pendingModel: string | null; // model override for not-yet-created conversations
     pendingThinkingOptionId: string | null; // thinking depth override (resets on model change)
     editingMessage: ChatMessage | null; // message being edited (user clicks pencil)
