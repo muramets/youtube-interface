@@ -30,6 +30,7 @@ export const WatchPageKnowledge = React.memo(({ videoId }: WatchPageKnowledgePro
     const updateMutation = useUpdateKnowledgeItem(userId, channelId)
     const deleteMutation = useDeleteKnowledgeItem(userId, channelId)
     const videoMap = useMemo(() => buildVideoRefMap(videos), [videos])
+    const videoIds = useMemo(() => videoMap ? new Set(videoMap.keys()) : undefined, [videoMap])
 
     const [editingItem, setEditingItem] = useState<KnowledgeItem | null>(null)
 
@@ -81,6 +82,7 @@ export const WatchPageKnowledge = React.memo(({ videoId }: WatchPageKnowledgePro
                     item={editingItem}
                     onSave={handleSave}
                     onClose={() => setEditingItem(null)}
+                    videoIds={videoIds}
                 />
             )}
         </>

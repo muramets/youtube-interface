@@ -14,6 +14,8 @@ interface KnowledgeItemModalProps {
     onSave: (updates: { title: string; content: string }) => void
     /** Called when modal should close */
     onClose: () => void
+    /** Video IDs to highlight in the editor */
+    videoIds?: Set<string>
 }
 
 /**
@@ -31,6 +33,7 @@ export const KnowledgeItemModal = React.memo(({
     item,
     onSave,
     onClose,
+    videoIds,
 }: KnowledgeItemModalProps) => {
     const [title, setTitle] = useState(item.title)
     const [content, setContent] = useState(item.content)
@@ -122,6 +125,7 @@ export const KnowledgeItemModal = React.memo(({
                             value={content}
                             onChange={setContent}
                             placeholder="Write your analysis..."
+                            videoIds={videoIds}
                         />
                     </div>
                 </div>

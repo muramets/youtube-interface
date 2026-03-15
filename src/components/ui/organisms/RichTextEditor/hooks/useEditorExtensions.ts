@@ -14,6 +14,7 @@ import { CollapsableHeadings } from '../extensions/CollapsableHeading'
 import { IndentedListItem } from '../extensions/IndentedListItem'
 import { TabIndentation } from '../extensions/TabIndentation'
 import { CustomBlockquote } from '../extensions/CustomBlockquote'
+import { VideoIdHighlight } from '../extensions/VideoIdHighlight'
 
 /**
  * Custom hook for configuring Tiptap editor extensions.
@@ -30,7 +31,7 @@ import { CustomBlockquote } from '../extensions/CustomBlockquote'
  * @param placeholder - Placeholder text for empty editor
  * @returns Array of configured Tiptap extensions
  */
-export function useEditorExtensions(placeholder?: string) {
+export function useEditorExtensions(placeholder?: string, videoIds?: Set<string>) {
     /**
      * Custom Code Mark Extension
      *
@@ -100,5 +101,10 @@ export function useEditorExtensions(placeholder?: string) {
 
         // Collapsable headings (IDE-like)
         CollapsableHeadings,
-    ], [placeholder, CustomCodeMark, CustomCodeBlockNode])
+
+        // Video ID highlighting (non-destructive decorations)
+        VideoIdHighlight.configure({
+            videoIds: videoIds ?? new Set(),
+        }),
+    ], [placeholder, videoIds, CustomCodeMark, CustomCodeBlockNode])
 }

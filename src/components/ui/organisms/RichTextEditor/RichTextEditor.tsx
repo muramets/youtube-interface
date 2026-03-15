@@ -37,7 +37,8 @@ export const RichTextEditor = ({
     value,
     onChange,
     placeholder,
-    className
+    className,
+    videoIds,
 }: RichTextEditorProps) => {
     // UI state
     const [showDebug, setShowDebug] = useState(false)
@@ -47,7 +48,7 @@ export const RichTextEditor = ({
     const turndownService = useTurndownService()
 
     // Get configured Tiptap extensions
-    const extensions = useEditorExtensions(placeholder)
+    const extensions = useEditorExtensions(placeholder, videoIds)
 
     /**
      * Parse initial markdown value to HTML for Tiptap

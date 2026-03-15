@@ -36,6 +36,7 @@ export const KnowledgePage: React.FC = () => {
     const deleteMutation = useDeleteKnowledgeItem(userId, channelId)
 
     const videoMap = useMemo(() => buildVideoRefMap(videos), [videos])
+    const videoIds = useMemo(() => videoMap ? new Set(videoMap.keys()) : undefined, [videoMap])
 
     const { selectedCategory, sortOrder, setCategory, setSortOrder } = useKnowledgeStore()
 
@@ -202,6 +203,7 @@ export const KnowledgePage: React.FC = () => {
                     item={editingItem}
                     onSave={handleSaveEdit}
                     onClose={() => setEditingItem(null)}
+                    videoIds={videoIds}
                 />
             )}
 

@@ -11,4 +11,6 @@ export interface RichTextEditorProps {
     placeholder?: string
     /** Additional CSS classes for the editor container */
     className?: string
+    /** Video IDs to highlight in the editor (non-destructive decorations) */
+    videoIds?: Set<string>
 }
