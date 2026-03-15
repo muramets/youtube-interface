@@ -126,7 +126,7 @@ export const RichTextEditor = ({
             />
 
             {!isExpanded ? (
-                <div className="overflow-y-auto custom-scrollbar flex-1 w-full min-h-[100px]">
+                <div className="overflow-y-auto scrollbar-auto-hide flex-1 w-full min-h-[100px]">
                     <EditorContent editor={editor} className="text-text-primary" />
                     {showDebug && editor && <DebugPanel editor={editor} />}
                 </div>
@@ -150,7 +150,7 @@ export const RichTextEditor = ({
                     toggleDebug={() => setShowDebug(!showDebug)}
                 />
 
-                <div className="flex-grow overflow-y-auto mt-4 custom-scrollbar">
+                <div className="flex-grow overflow-y-auto mt-4 scrollbar-auto-hide">
                     <EditorContent editor={editor} className="text-text-primary" />
                     {showDebug && editor && <DebugPanel editor={editor} />}
                 </div>

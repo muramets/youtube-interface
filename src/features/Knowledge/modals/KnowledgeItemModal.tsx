@@ -73,7 +73,7 @@ export const KnowledgeItemModal = React.memo(({
                 </div>
 
                 {/* Body */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                <div className="flex-1 overflow-y-auto scrollbar-auto-hide p-6 space-y-4">
                     {/* Provenance (read-only) */}
                     <div className="flex flex-wrap items-center gap-3 text-[11px] text-text-tertiary bg-bg-primary/50 rounded-lg px-3 py-2">
                         <span className="flex items-center gap-1">

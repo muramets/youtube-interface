@@ -92,7 +92,7 @@ export const KnowledgeViewer = React.memo(({
                     </div>
 
                     {/* Content */}
-                    <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                    <div className="flex-1 overflow-y-auto p-8 scrollbar-auto-hide">
                         <RichTextViewer content={content} />
                     </div>
                 </motion.div>

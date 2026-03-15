@@ -73,7 +73,7 @@ export const CreateKnowledgeItemModal = React.memo(({
                 </div>
 
                 {/* Body */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                <div className="flex-1 overflow-y-auto scrollbar-auto-hide p-6 space-y-4">
                     {/* Category dropdown */}
                     <div>
                         <label className="block text-xs text-text-secondary font-medium mb-1.5 uppercase tracking-wider">

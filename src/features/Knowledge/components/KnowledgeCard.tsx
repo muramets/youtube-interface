@@ -122,11 +122,16 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
     const [isZenMode, setIsZenMode] = useState(false)
     const cardRef = useRef<HTMLDivElement>(null)
 
-    // Prefer resolvedVideoRefs from KI doc (server-resolved, includes competitors)
-    // Fall back to external videoMap (legacy KI without resolvedVideoRefs)
+    // Merge resolvedVideoRefs (server-resolved, includes competitors) + externalVideoMap (channel videos)
+    // resolvedVideoRefs take precedence for overlap, externalVideoMap fills gaps (e.g. manually added IDs)
     const videoMap = useMemo(() => {
-        if (item.resolvedVideoRefs && item.resolvedVideoRefs.length > 0) {
-            const map = new Map<string, VideoPreviewData>()
+        const map = new Map<string, VideoPreviewData>()
+        // Base: channel videos (all own videos)
+        if (externalVideoMap) {
+            for (const [id, v] of externalVideoMap) map.set(id, v)
+        }
+        // Overlay: server-resolved refs (includes competitors, takes precedence)
+        if (item.resolvedVideoRefs) {
             for (const ref of item.resolvedVideoRefs) {
                 map.set(ref.videoId, {
                     videoId: ref.videoId,
@@ -135,9 +140,8 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
                     ownership: ref.ownership,
                 })
             }
-            return map
         }
-        return externalVideoMap
+        return map.size > 0 ? map : undefined
     }, [item.resolvedVideoRefs, externalVideoMap])
 
     const handleToggle = useCallback(() => {
@@ -221,7 +225,7 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
 
                     {/* Title + edit action */}
                     <div className="flex items-center justify-between gap-3">
-                        <h3 className="text-sm font-medium text-text-primary truncate">
+                        <h3 className="text-xs font-bold uppercase tracking-widest text-text-tertiary group-hover:text-text-primary hover-trail truncate">
                             {item.title}
                         </h3>
                         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
