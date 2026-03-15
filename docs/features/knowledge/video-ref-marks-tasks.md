@@ -23,6 +23,7 @@ Semantic video references in RichTextEditor: custom Tiptap Mark that renders vid
 4. **`@` mention trigger (future).** Typing `@` opens autocomplete dropdown with channel videos. Selecting inserts mark. Built on same Mark infrastructure.
 5. **VideoPreviewData as mark attrs.** Mark carries `{ videoId, title?, thumbnailUrl?, ownership? }`. Resolved at mark creation, not at render.
 6. **Same visual as read-only.** `video-reference-highlight` CSS class + `VideoReferenceTooltip` + `PortalTooltip`. Identical UX in edit and read mode.
+7. **Extended video map.** `buildVideoRefMap` currently uses only own videos (`useVideos`). For mark auto-detection and `@` autocomplete, extend to include trend channel videos (`trendChannels/`) and `resolvedVideoRefs` from KI doc (already includes competitors). Phase 4 task: create `useExtendedVideoMap` hook or expand `buildVideoRefMap` to accept multiple sources.
 
 ## Agent Orchestration Strategy
 
