@@ -58,7 +58,7 @@ describe('ChatService.createMemory', () => {
         expect(data.conversationTitle).toBe('Manual note');
         expect(data.content).toBe('## Decisions\n- chose X');
         expect(data.source).toBe('manual');
-        expect(data.videoRefs).toEqual([]);
+        expect(data.videoRefs).toBeUndefined();
         expect(data.createdAt).toBeDefined();
         expect(data.updatedAt).toBeDefined();
     });

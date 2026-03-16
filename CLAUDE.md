@@ -118,7 +118,7 @@ UI listens for status changes via Firestore `onSnapshot`. Download links come fr
 ### After Editing Code
 - Always run **`npm run check`** from the project root. This single command runs ESLint + TypeScript compiler + doc link checker. Never skip typecheck — ESLint alone does NOT catch TypeScript compilation errors (e.g. missing destructured variables, type mismatches).
 - Fix all lint/type errors and warnings following industry best practices — no hacks or workarounds. If a fix requires an architectural change, make it.
-- **Always run existing tests before deploying** (`npm run test:run` for frontend, `npx vitest run --project functions` for backend — both from project root). "Lint/typecheck pass" is NOT a substitute for passing tests. If test runner itself fails (timeout, worker crash, config issue) — fix the test infrastructure first, do not deploy with broken tests.
+- **Always run existing tests before deploying** (`npx vitest run --project frontend` and `npx vitest run --project functions` — run separately from project root). Do NOT rely on `npx vitest run` (both projects combined) with `tail` — a single test failure can hide in the middle of the output while the tail shows only the total count. Always check that **0 failed** appears in both runs. "Lint/typecheck pass" is NOT a substitute for passing tests. If test runner itself fails (timeout, worker crash, config issue) — fix the test infrastructure first, do not deploy with broken tests.
 - When renaming exported types, interfaces, or functions — grep `docs/features/` for the old name manually. `check:docs` (included in `npm run check`) only validates file paths, not symbol names.
 - Fix any broken references before finishing.
 
