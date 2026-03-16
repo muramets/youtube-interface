@@ -5,12 +5,15 @@ import { Button } from '../../../components/ui/atoms/Button/Button'
 import { Dropdown } from '../../../components/ui/molecules/Dropdown'
 import { RichTextEditor } from '../../../components/ui/organisms/RichTextEditor'
 import { SEED_CATEGORIES } from '../../../core/types/knowledge'
+import type { VideoPreviewData } from '../../Video/types'
 
 interface CreateKnowledgeItemModalProps {
     /** Called with new item fields when user saves */
     onSave: (item: { category: string; title: string; content: string; summary: string }) => void
     /** Called when modal should close */
     onClose: () => void
+    /** Video catalog for @-autocomplete */
+    videoCatalog?: VideoPreviewData[]
 }
 
 /** Channel-level seed categories for the dropdown */
@@ -27,8 +30,10 @@ const CHANNEL_CATEGORIES = Object.entries(SEED_CATEGORIES)
 export const CreateKnowledgeItemModal = React.memo(({
     onSave,
     onClose,
+    videoCatalog,
 }: CreateKnowledgeItemModalProps) => {
     const [title, setTitle] = useState('')
+    const [summary, setSummary] = useState('')
     const [content, setContent] = useState('')
     const [category, setCategory] = useState(CHANNEL_CATEGORIES[0]?.slug ?? '')
     const [catAnchorEl, setCatAnchorEl] = useState<HTMLElement | null>(null)
@@ -44,11 +49,11 @@ export const CreateKnowledgeItemModal = React.memo(({
     const handleSave = useCallback(() => {
         const trimmedTitle = title.trim()
         if (!trimmedTitle || !content.trim()) return
-        // Auto-generate summary from first ~200 chars of content
-        const summary = content.replace(/[#*_`>[\]()]/g, '').slice(0, 200).trim()
-        onSave({ category, title: trimmedTitle, content, summary })
+        // Use explicit summary if provided, otherwise auto-generate from content
+        const finalSummary = summary.trim() || content.replace(/[#*_`>[\]()]/g, '').slice(0, 200).trim()
+        onSave({ category, title: trimmedTitle, content, summary: finalSummary })
         onClose()
-    }, [title, content, category, onSave, onClose])
+    }, [title, summary, content, category, onSave, onClose])
 
     const canSave = title.trim().length > 0 && content.trim().length > 0
 
@@ -73,7 +78,7 @@ export const CreateKnowledgeItemModal = React.memo(({
                 </div>
 
                 {/* Body */}
-                <div className="flex-1 overflow-y-auto scrollbar-auto-hide p-6 space-y-4">
+                <div className="flex-1 overflow-y-auto p-6 space-y-4">
                     {/* Category dropdown */}
                     <div>
                         <label className="block text-xs text-text-secondary font-medium mb-1.5 uppercase tracking-wider">
@@ -128,6 +133,20 @@ export const CreateKnowledgeItemModal = React.memo(({
                         />
                     </div>
 
+                    {/* Summary input */}
+                    <div>
+                        <label className="block text-xs text-text-secondary font-medium mb-1.5 uppercase tracking-wider">
+                            Summary
+                        </label>
+                        <textarea
+                            value={summary}
+                            onChange={(e) => setSummary(e.target.value)}
+                            rows={4}
+                            className="w-full bg-input-bg border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-tertiary outline-none hover:border-text-primary focus:border-text-primary transition-colors resize-none"
+                            placeholder="2-3 sentence summary (optional — auto-generated from content if empty)"
+                        />
+                    </div>
+
                     {/* Content editor */}
                     <div>
                         <label className="block text-xs text-text-secondary font-medium mb-1.5 uppercase tracking-wider">
@@ -137,6 +156,7 @@ export const CreateKnowledgeItemModal = React.memo(({
                             value={content}
                             onChange={setContent}
                             placeholder="Write your analysis, observations, or insights..."
+                            videoCatalog={videoCatalog}
                         />
                     </div>
                 </div>

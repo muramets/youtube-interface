@@ -5,17 +5,18 @@ import { Button } from '../../../components/ui/atoms/Button/Button'
 import { Badge } from '../../../components/ui/atoms/Badge/Badge'
 import { RichTextEditor } from '../../../components/ui/organisms/RichTextEditor'
 import type { KnowledgeItem } from '../../../core/types/knowledge'
+import type { VideoPreviewData } from '../../Video/types'
 import { formatKnowledgeDate } from '../utils/formatDate'
 
 interface KnowledgeItemModalProps {
     /** The Knowledge Item to edit */
     item: KnowledgeItem
     /** Called with updated fields when user saves */
-    onSave: (updates: { title: string; content: string }) => void
+    onSave: (updates: { title: string; summary: string; content: string }) => void
     /** Called when modal should close */
     onClose: () => void
-    /** Video IDs to highlight in the editor */
-    videoIds?: Set<string>
+    /** Video catalog for @-autocomplete and vid:// tooltips */
+    videoCatalog?: VideoPreviewData[]
 }
 
 /**
@@ -33,9 +34,10 @@ export const KnowledgeItemModal = React.memo(({
     item,
     onSave,
     onClose,
-    videoIds,
+    videoCatalog,
 }: KnowledgeItemModalProps) => {
     const [title, setTitle] = useState(item.title)
+    const [summary, setSummary] = useState(item.summary)
     const [content, setContent] = useState(item.content)
 
     // ESC to close
@@ -48,11 +50,11 @@ export const KnowledgeItemModal = React.memo(({
     }, [onClose])
 
     const handleSave = useCallback(() => {
-        onSave({ title: title.trim(), content })
+        onSave({ title: title.trim(), summary: summary.trim(), content })
         onClose()
-    }, [title, content, onSave, onClose])
+    }, [title, summary, content, onSave, onClose])
 
-    const hasChanges = title.trim() !== item.title || content !== item.content
+    const hasChanges = title.trim() !== item.title || summary.trim() !== item.summary || content !== item.content
     const dateStr = formatKnowledgeDate(item.createdAt)
 
     return createPortal(
@@ -76,7 +78,7 @@ export const KnowledgeItemModal = React.memo(({
                 </div>
 
                 {/* Body */}
-                <div className="flex-1 overflow-y-auto scrollbar-auto-hide p-6 space-y-4">
+                <div className="flex-1 overflow-y-auto p-6 space-y-4">
                     {/* Provenance (read-only) */}
                     <div className="flex flex-wrap items-center gap-3 text-[11px] text-text-tertiary bg-bg-primary/50 rounded-lg px-3 py-2">
                         <span className="flex items-center gap-1">
@@ -91,10 +93,10 @@ export const KnowledgeItemModal = React.memo(({
                             <Calendar size={12} />
                             {dateStr}
                         </span>
-                        {item.toolsUsed.length > 0 && (
+                        {item.toolsUsed?.length > 0 && (
                             <span className="flex items-center gap-1">
                                 <Wrench size={12} />
-                                {item.toolsUsed.join(', ')}
+                                {item.toolsUsed?.join(', ')}
                             </span>
                         )}
                         <Badge variant="neutral">
@@ -116,6 +118,20 @@ export const KnowledgeItemModal = React.memo(({
                         />
                     </div>
 
+                    {/* Summary input */}
+                    <div>
+                        <label className="block text-xs text-text-secondary font-medium mb-1.5 uppercase tracking-wider">
+                            Summary
+                        </label>
+                        <textarea
+                            value={summary}
+                            onChange={(e) => setSummary(e.target.value)}
+                            rows={4}
+                            className="w-full bg-input-bg border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-tertiary outline-none hover:border-text-primary focus:border-text-primary transition-colors resize-none"
+                            placeholder="2-3 sentence summary for quick reference..."
+                        />
+                    </div>
+
                     {/* Content editor */}
                     <div>
                         <label className="block text-xs text-text-secondary font-medium mb-1.5 uppercase tracking-wider">
@@ -125,7 +141,7 @@ export const KnowledgeItemModal = React.memo(({
                             value={content}
                             onChange={setContent}
                             placeholder="Write your analysis..."
-                            videoIds={videoIds}
+                            videoCatalog={videoCatalog}
                         />
                     </div>
                 </div>

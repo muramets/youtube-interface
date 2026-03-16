@@ -589,7 +589,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
             ref={triggerRef}
             onPointerEnter={handleMouseEnter}
             onPointerLeave={handleMouseLeave}
-            className={`relative flex items-center justify-center ${triggerClassName}`}
+            className={`relative ${inline ? 'inline' : 'flex items-center justify-center'} ${triggerClassName}`}
             title={title}
         >
             {children}
@@ -634,7 +634,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                         {sizeMode === 'fixed' ? (
                             /* Fixed mode: Scroll Container for overflow handling */
                             <div
-                                className={`w-full overflow-y-auto overflow-x-hidden p-4 scrollbar-auto-hide ${position.autoHeight ? '' : 'h-full'}`}
+                                className={`w-full overflow-y-auto overflow-x-hidden p-4 ${position.autoHeight ? '' : 'h-full'}`}
                                 style={{
                                     ...(position.autoHeight && position.maxHeight ? { maxHeight: position.maxHeight } : {}),
                                 }}

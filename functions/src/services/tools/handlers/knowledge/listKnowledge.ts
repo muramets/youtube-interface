@@ -2,7 +2,7 @@
 // listKnowledge handler — lightweight listing of Knowledge Items
 //
 // Returns summary + metadata, NOT full content (~500 tokens per response).
-// Excludes superseded KI by default.
+// Old KI are auto-deleted when replaced (no supersede chain).
 // =============================================================================
 
 import { db } from "../../../../shared/db.js";
@@ -35,9 +35,7 @@ export async function handleListKnowledge(
 
     const snapshot = await query.get();
 
-    // Filter out superseded KI in-memory (Firestore doesn't support != null natively in compound queries)
     const items = snapshot.docs
-        .filter(doc => !doc.data().supersededBy)
         .map(doc => {
             const data = doc.data();
             return {

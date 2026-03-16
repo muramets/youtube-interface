@@ -277,7 +277,7 @@ L3 reliability & precision + масштабирование и продвину�
 - `generateSummary(apiKey, messages, existingSummary, model)` — LLM-суммаризация (first-time или incremental)
 - `buildMemory(opts)` — orchestrator: budget check → sliding window → summary generation → result
 - `extractCandidateVideos(messages)` — детерминистический сбор видео из `appContext` (video-card) + `mentionVideo` tool calls; дедупликация по videoId
-- `MemoryVideoRef` — interface: `{ videoId, title, ownership, thumbnailUrl }`
+- `MemoryVideoRef` — interface: `{ videoId, title, ownership, thumbnailUrl, viewCount?, publishedAt? }`
 - `generateConcludeSummary(apiKey, messages, guidance, model, candidateVideos)` — L4 focused insight extraction; Gemini JSON mode возвращает `{ content, referencedVideoIds }`; fallback на raw text при ошибке парсинга
 
 **Conclude flow:** Memorize = last turn of the chat via `aiChat` endpoint with `isConclude: true`.
@@ -347,6 +347,8 @@ L3 reliability & precision + масштабирование и продвину�
 - `title: string`
 - `ownership: 'own-published' | 'own-draft' | 'competitor'`
 - `thumbnailUrl: string`
+- `viewCount?: number` — real view count (only when `hasRealVideoData()` returns true)
+- `publishedAt?: string` — ISO date string (only when real data available)
 
 ### Constants
 

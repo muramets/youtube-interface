@@ -63,7 +63,6 @@ export async function handleGetKnowledge(
                 updatedAt: data.updatedAt?.toDate?.()?.toISOString() || null,
                 toolsUsed: data.toolsUsed || [],
                 source: data.source,
-                supersededBy: data.supersededBy || undefined,
             };
         });
 

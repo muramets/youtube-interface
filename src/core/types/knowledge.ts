@@ -62,8 +62,6 @@ export interface KnowledgeItem {
 
     // — Lifecycle —
 
-    /** ID of the newer KI that supersedes this one */
-    supersededBy?: string;
     /** How this KI was created */
     source: 'chat-tool' | 'conclude' | 'manual';
 }

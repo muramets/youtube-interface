@@ -2,6 +2,8 @@
  * Type definitions for RichTextEditor component
  */
 
+import type { VideoPreviewData } from '../../../../features/Video/types'
+
 export interface RichTextEditorProps {
     /** Markdown content value */
     value: string
@@ -11,6 +13,6 @@ export interface RichTextEditorProps {
     placeholder?: string
     /** Additional CSS classes for the editor container */
     className?: string
-    /** Video IDs to highlight in the editor (non-destructive decorations) */
-    videoIds?: Set<string>
+    /** Video catalog for @-autocomplete and vid:// tooltips in edit mode */
+    videoCatalog?: VideoPreviewData[]
 }

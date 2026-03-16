@@ -122,6 +122,14 @@ UI listens for status changes via Firestore `onSnapshot`. Download links come fr
 - When renaming exported types, interfaces, or functions — grep `docs/features/` for the old name manually. `check:docs` (included in `npm run check`) only validates file paths, not symbol names.
 - Fix any broken references before finishing.
 
+#### Self-Review Checkpoint (before lint/typecheck)
+Before running `npm run check`, answer these 4 questions about the code you just wrote:
+1. **Duplication?** Is there existing code in the touched files or nearby utils that already does what I wrote?
+2. **Magic values?** Are all strings/numbers extracted to named constants or enums?
+3. **Naming clarity?** Are function/variable names self-explanatory without comments?
+4. **Function size?** Are any functions longer than ~50 lines that should be split?
+If unable to answer confidently for a specific file — re-read it before proceeding.
+
 ### Communication Style
 - The user is a product director / orchestra conductor with no assumed technical background. Always accompany technical explanations with plain, everyday Russian language analogies.
 - Present solutions following industry best practices: clean code, separation of concerns, no anti-patterns, clear placement within the project structure.
@@ -220,6 +228,32 @@ After completing a multi-phase feature, review the task doc for patterns that wo
 - When new functionality contains 2+ files of the same domain (e.g. definitions + executor + handlers) — immediately place them in a dedicated folder.
 - One handler / hook / util = one file. Dispatcher / registry = separate file.
 - Every new file must have a single responsibility (SRP). If a file mixes routing and business logic — split immediately, not in a future refactor.
+- **Follow existing patterns.** Before creating a new file (service, hook, handler, component) — find the closest analogue in the codebase and match its structure, naming, and conventions. Consistency across the project > personal preference.
+
+### TypeScript Discipline
+- **No `any`.** Use `unknown` and narrow with type guards. If a type is genuinely unknowable (e.g., third-party library with no typings), use `unknown` with a type guard function.
+- **`as` type assertions** — allowed only at system boundaries (Firestore reads, external API responses) with a comment explaining why it's safe. Never use `as` to silence a type error inside application code — fix the types instead.
+- **`@ts-ignore` is banned.** Use `@ts-expect-error` only with a comment explaining what error is expected and why it cannot be fixed properly.
+- **Optional chaining depth ≤ 2.** If you need `a?.b?.c?.d`, the data model is unclear — define proper interfaces with required vs optional fields instead of chaining `?.` defensively.
+
+### Logging & Error Handling
+- **`console.log` / `console.error` / `console.warn` are banned** in application code. All logging goes through `debug.*` or `logger.*`.
+- **`debug.*`** (`src/core/utils/debug.ts`) — dev-time observation only: state changes, render cycles, performance measurements. Category-gated, tree-shaken in production. Never use for errors.
+- **`logger.*`** (`src/core/utils/logger.ts`) — production-significant events: errors, business logic milestones, external API boundaries. Always include `LogContext` (userId, component, etc.).
+- **Error handling in `catch`** — always `logger.error()` with context. Never silently swallow: no `catch (e) { }`, no `catch (e) { console.log(e) }`.
+- **`catch` parameter type** — always `catch (error: unknown)`, narrow before using. Never `catch (e: any)`.
+
+### Test Discipline
+- **New code = tests in the same phase.** Every new handler, service, utility, or business logic function gets tests as part of the same task — not "later", not "in a follow-up".
+- **What to cover:** happy path + edge cases + error cases. For handlers: valid input, invalid input, missing data, permission boundaries.
+- **Test behavior, not implementation.** Assert on outputs and observable side effects, not on internal method calls or state shape.
+- **Legacy untested code** discovered while working → add a specific entry to backlog (file path + what to cover). Do not interrupt the current task to write retroactive tests.
+
+### Clean As You Go
+- **Code related to the current task** — if you see a smell (poor naming, duplication, magic values, unclear logic) in code you're currently creating or modifying → fix immediately. No "TODO: refactor later" in new code.
+- **Unrelated legacy smells** discovered in neighboring code → add to backlog with file path and description. Do not derail the current task.
+- **No dead code.** Deleted means deleted — no commented-out blocks "just in case". Git remembers everything. No unused exports left after refactoring.
+- **Guard clauses over nesting.** Use early returns (`if (!x) return`) instead of wrapping logic in deeply nested `if/else` blocks. Flat code reads top-to-bottom without indentation ladders.
 
 ### Effort Estimation
 When estimating task duration, account for **agentic development speed**, not human-developer baselines:
@@ -238,3 +272,7 @@ Before implementing any new feature or extending existing functionality, challen
 1. **Deterministic vs magic.** Is the API contract explicit and predictable, or does it rely on the caller (LLM or human) guessing the right value? Prefer enums and structured options over free-form numeric parameters.
 2. **Computation vs interpretation.** Code does math (precise, deterministic). LLMs do pattern recognition and explanation. Never make an LLM compute deltas, percentages, or arithmetic — pre-compute and pass as structured data. Give raw data for pattern recognition AND pre-computed results for citation.
 3. **Data trajectory.** When temporal data exists (snapshots, versions, history), never reduce it to "latest + one delta". Preserve the full timeline so the consumer sees the shape of change over time, not just the last step. Each data point in a timeline should include its delta from the previous point (pre-computed by code, not the consumer).
+4. **Naming reveals intent.** Would a stranger understand what this function does from its name alone? `processData` → no. `enrichVideoWithViewDeltas` → yes. Same for variables: `data` → no. `channelVideos` → yes. Same for booleans: `flag` → no. `isPublished` → yes.
+5. **Function boundaries.** One function = one job. If describing what a function does requires "and" — split it. Target: ≤30 lines for logic functions, ≤50 lines for React components (JSX excluded from count).
+6. **Dependency evaluation.** Before adding an npm package: is the functionality we need ≤50 lines of custom code? If yes — write it locally. Every new dependency = maintenance burden + bundle size + supply chain risk.
+7. **React performance awareness.** Memoize expensive computations (`useMemo`), stabilize callback references (`useCallback`) when passed to child components. Avoid creating new objects/arrays in render body. Don't pre-optimize without reason — but know the patterns for lists, frequent state updates, and context providers.

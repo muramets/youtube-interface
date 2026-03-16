@@ -21,3 +21,6 @@
 | 11 | Traffic | Delete any snapshot, не только последний | Medium | [delete-any-snapshot.md](backlog/delete-any-snapshot.md) |
 | 12 | Chat / YT Research | Suggested Traffic tool: теги из описаний не анализируются | Medium | [Known Issues](features/chat/tools/layer-3-analysis/2-analyze-suggested-traffic-tool.md#known-issues) |
 | 13 | Chat / YT Research | Suggested Traffic tool: не передаёт viewer type / traffic type / niche (user annotations) | Medium | [Known Issues](features/chat/tools/layer-3-analysis/2-analyze-suggested-traffic-tool.md#known-issues) |
+| 14 | Video | Custom video: YouTube ID дублируется в `id` и `publishedVideoId` при привязке Published URL | Low | [Known Issues](features/knowledge/knowledge-items.md#known-issues) |
+| 15 | Chat | MemoryCheckpoint: save/delete ошибки молча проглатываются (нет toast feedback) | Low | `src/features/Chat/components/MemoryCheckpoint.tsx` |
+| 16 | Knowledge | headerComponents / HEADER_SIZE / INDENT дублированы между KnowledgeCard и MemoryCheckpoint | Low | `src/features/Knowledge/components/KnowledgeCard.tsx`, `src/features/Chat/components/MemoryCheckpoint.tsx` |

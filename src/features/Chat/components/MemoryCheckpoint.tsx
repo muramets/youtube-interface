@@ -10,6 +10,7 @@ import { Brain, ChevronDown, Pencil, Check, X } from 'lucide-react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import clsx from 'clsx';
 import type { ConversationMemory } from '../../../core/types/chat/chat';
 import { MemoryVideoChips } from './MemoryVideoChips';
@@ -17,24 +18,13 @@ import { RichTextEditor } from '../../../components/ui/organisms/RichTextEditor'
 import { CollapsibleSection } from '../../../components/ui/molecules/CollapsibleSection';
 import { ConfirmDeleteButton } from '../../../components/ui/atoms/ConfirmDeleteButton';
 import { parseMarkdownSections, type HierarchicalSection } from '../../Knowledge/utils/markdownSections';
+import { buildBodyComponents } from '../../Knowledge/utils/bodyComponents';
+import type { VideoPreviewData } from '../../Video/types';
 
-// --- Markdown components (matches KnowledgeCard body style) ---
-
-const bodyComponents: Components = {
-    h1: ({ className, style, children }) => <h1 className={clsx('text-sm font-bold mb-2 mt-4 first:mt-0 text-text-secondary', className)} style={style}>{children}</h1>,
-    h2: ({ className, style, children }) => <h2 className={clsx('text-xs font-bold mb-2 mt-3 text-text-secondary', className)} style={style}>{children}</h2>,
-    h3: ({ className, style, children }) => <h3 className={clsx('text-[11px] font-bold mb-1 mt-2 text-text-secondary', className)} style={style}>{children}</h3>,
-    p: ({ className, style, children }) => <p className={clsx('mb-1 last:mb-0 text-xs text-text-secondary leading-relaxed', className)} style={style}>{children}</p>,
-    ul: ({ className, style, children }) => <ul className={clsx('list-disc list-outside pl-5 mb-1 space-y-0.5 text-xs text-text-secondary', className)} style={style}>{children}</ul>,
-    ol: ({ className, style, children }) => <ol className={clsx('list-decimal list-outside pl-5 mb-1 space-y-0.5 text-xs text-text-secondary', className)} style={style}>{children}</ol>,
-    li: ({ className, style, children }) => <li className={clsx('pl-1 marker:text-text-tertiary', className)} style={style}>{children}</li>,
-    strong: ({ className, style, children }) => <strong className={clsx('font-bold text-text-primary', className)} style={style}>{children}</strong>,
-    code: ({ className, style, children }) => <code className={clsx('bg-bg-primary rounded px-1 py-0.5 text-[10px] font-mono text-text-primary', className)} style={style}>{children}</code>,
-    blockquote: ({ className, style, children }) => <blockquote className={clsx('border-l-2 border-accent/50 pl-3 my-2 text-text-secondary italic', className)} style={style}>{children}</blockquote>,
-    hr: ({ className, style }) => <hr className={clsx('my-3 border-none h-px bg-border', className)} style={style} />,
-    table: ({ className, style, children }) => <table className={clsx('border-collapse w-full my-2 text-[11px]', className)} style={style}>{children}</table>,
-    th: ({ className, style, children }) => <th className={clsx('border border-border p-1.5 text-left font-semibold bg-bg-primary/50 text-text-primary', className)} style={style}>{children}</th>,
-    td: ({ className, style, children }) => <td className={clsx('border border-border p-1.5 text-text-secondary', className)} style={style}>{children}</td>,
+const sanitizeSchema = {
+    ...defaultSchema,
+    protocols: { ...defaultSchema.protocols, href: [...(defaultSchema.protocols?.href ?? []), 'vid', 'mention'] },
+    attributes: { ...defaultSchema.attributes, a: [...(defaultSchema.attributes?.a ?? []), 'className', 'class'], span: [...(defaultSchema.attributes?.span ?? []), 'className', 'class'] },
 };
 
 const headerComponents: Components = {
@@ -76,6 +66,22 @@ export const MemoryCheckpoint: React.FC<MemoryCheckpointProps> = ({ memory, onUp
     const rootRef = useRef<HTMLDivElement>(null);
 
     const sections = useMemo(() => parseMarkdownSections(memory.content), [memory.content]);
+
+    const videoMap = useMemo(() => {
+        if (!memory.videoRefs?.length) return undefined
+        const map = new Map<string, VideoPreviewData>()
+        for (const ref of memory.videoRefs) {
+            map.set(ref.videoId, {
+                videoId: ref.videoId,
+                title: ref.title,
+                thumbnailUrl: ref.thumbnailUrl,
+                ownership: ref.ownership,
+            })
+        }
+        return map
+    }, [memory.videoRefs])
+
+    const bodyComponents = useMemo(() => buildBodyComponents(videoMap), [videoMap]);
 
     useEffect(() => {
         if (isExpanded && rootRef.current) {
@@ -121,7 +127,7 @@ export const MemoryCheckpoint: React.FC<MemoryCheckpointProps> = ({ memory, onUp
             variant="mini"
             title={
                 <div className="inline-block pointer-events-none">
-                    <ReactMarkdown rehypePlugins={[rehypeRaw]} components={headerComponents}>
+                    <ReactMarkdown rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]} components={headerComponents}>
                         {section.title}
                     </ReactMarkdown>
                 </div>
@@ -134,7 +140,7 @@ export const MemoryCheckpoint: React.FC<MemoryCheckpointProps> = ({ memory, onUp
                 HEADER_SIZE[section.level] ?? '[&_button]:text-xs',
             )}
         >
-            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={bodyComponents}>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]} components={bodyComponents}>
                 {section.content.join('\n')}
             </ReactMarkdown>
             {section.children.length > 0 && (
@@ -214,7 +220,7 @@ export const MemoryCheckpoint: React.FC<MemoryCheckpointProps> = ({ memory, onUp
                                 <div className="text-left">
                                     {sections.preamble && (
                                         <div className="mb-3">
-                                            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={bodyComponents}>
+                                            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]} components={bodyComponents}>
                                                 {sections.preamble}
                                             </ReactMarkdown>
                                         </div>

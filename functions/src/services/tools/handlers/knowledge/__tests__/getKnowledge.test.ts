@@ -126,7 +126,6 @@ describe('handleGetKnowledge', () => {
                 model: 'claude-sonnet-4-6',
                 toolsUsed: ['analyzeTrafficSources', 'getMultipleVideoDetails'],
                 source: 'conclude',
-                supersededBy: 'ki-4',
             }),
         ]);
 
@@ -137,6 +136,5 @@ describe('handleGetKnowledge', () => {
         expect(item.content).toBe('## Full markdown');
         expect(item.videoRefs).toEqual(['vid-other']);
         expect(item.toolsUsed).toEqual(['analyzeTrafficSources', 'getMultipleVideoDetails']);
-        expect(item.supersededBy).toBe('ki-4');
     });
 });

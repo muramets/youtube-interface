@@ -14,7 +14,9 @@ import { CollapsableHeadings } from '../extensions/CollapsableHeading'
 import { IndentedListItem } from '../extensions/IndentedListItem'
 import { TabIndentation } from '../extensions/TabIndentation'
 import { CustomBlockquote } from '../extensions/CustomBlockquote'
-import { VideoIdHighlight } from '../extensions/VideoIdHighlight'
+import { VideoRefMark } from '../extensions/VideoRefMark'
+import { VideoMention } from '../extensions/VideoMention'
+import type { VideoPreviewData } from '../../../../../features/Video/types'
 
 /**
  * Custom hook for configuring Tiptap editor extensions.
@@ -31,7 +33,7 @@ import { VideoIdHighlight } from '../extensions/VideoIdHighlight'
  * @param placeholder - Placeholder text for empty editor
  * @returns Array of configured Tiptap extensions
  */
-export function useEditorExtensions(placeholder?: string, videoIds?: Set<string>) {
+export function useEditorExtensions(placeholder?: string, videoCatalog?: VideoPreviewData[]) {
     /**
      * Custom Code Mark Extension
      *
@@ -102,9 +104,12 @@ export function useEditorExtensions(placeholder?: string, videoIds?: Set<string>
         // Collapsable headings (IDE-like)
         CollapsableHeadings,
 
-        // Video ID highlighting (non-destructive decorations)
-        VideoIdHighlight.configure({
-            videoIds: videoIds ?? new Set(),
+        // VideoRefMark: semantic vid:// links with React MarkView + tooltip
+        VideoRefMark,
+
+        // @-autocomplete for video references
+        VideoMention.configure({
+            videoCatalog: videoCatalog ?? [],
         }),
-    ], [placeholder, videoIds, CustomCodeMark, CustomCodeBlockNode])
+    ], [placeholder, videoCatalog, CustomCodeMark, CustomCodeBlockNode])
 }

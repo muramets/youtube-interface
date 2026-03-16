@@ -517,7 +517,10 @@ const saveKnowledge: ToolDefinition = {
                 type: "string",
                 description:
                     "Full markdown content of the analysis (1000-5000 words). " +
-                    "Include data, findings, patterns, and recommendations.",
+                    "Include data, findings, patterns, and recommendations. " +
+                    "When referencing specific videos, use markdown link format: " +
+                    "[video title](vid://VIDEO_ID). Use the exact title from your analysis. " +
+                    "Do NOT write video IDs as plain text — always wrap in a vid:// link.",
             },
             summary: {
                 type: "string",

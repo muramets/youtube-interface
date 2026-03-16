@@ -58,6 +58,12 @@ export const OWNERSHIP_CONFIG: Record<string, OwnershipConfig> = {
     'competitor': { label: 'Competitor Video', refType: 'competitor', badgePrefix: 'C' },
 };
 
+/** Regex for vid:// URIs — LLM-generated video references (e.g. [title](vid://ID)) */
+export const VID_RE = /^vid:\/{2,}\s*(.+)$/
+
+/** Regex for mention:// URIs — legacy/chat video references (e.g. [title](mention://ID)) */
+export const MENTION_RE = /^mention:\/{2,}\s*(.+)$/
+
 /** Display labels per reference type — used by VideoReferenceTooltip for canonical @mention text.
  *  Derived from OWNERSHIP_CONFIG to stay DRY; only non-ownership types added manually. */
 export const REF_TYPE_LABELS: Record<string, string> = {

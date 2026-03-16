@@ -5,14 +5,16 @@ import { Badge } from '../../../components/ui/atoms/Badge/Badge'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
 import clsx from 'clsx'
 import type { KnowledgeItem } from '../../../core/types/knowledge'
 import type { VideoPreviewData } from '../../Video/types'
 import { ConfirmDeleteButton } from '../../../components/ui/atoms/ConfirmDeleteButton'
 import { CollapsibleSection } from '../../../components/ui/molecules/CollapsibleSection'
-import { VideoReferenceTooltip } from '../../Chat/components/VideoReferenceTooltip'
 import { KnowledgeViewer } from './KnowledgeViewer'
 import { formatKnowledgeDate } from '../utils/formatDate'
+import { buildBodyComponents } from '../utils/bodyComponents'
+import { linkifyVideoRefs } from '../utils/linkifyVideoRefs'
 import { parseMarkdownSections, type HierarchicalSection } from '../utils/markdownSections'
 
 interface KnowledgeCardProps {
@@ -42,59 +44,14 @@ const INDENT: Record<number, string> = {
     6: 'pl-5',
 }
 
-/** Regex for mention:// URIs in markdown links. */
-const MENTION_RE = /^mention:\/{2,}\s*(.+)$/
-
-/** Allow mention:// URIs through ReactMarkdown's URL sanitizer. */
+/** Allow vid:// and mention:// URIs through ReactMarkdown's URL sanitizer. */
 const allowMentionUrls = (url: string) => url
 
-/**
- * Pre-process markdown: wrap known video IDs in mention:// links.
- * Scans for any video ID from videoMap found in the text (not limited to videoRefs).
- */
-function linkifyVideoRefs(markdown: string, _videoRefs: string[], videoMap: Map<string, VideoPreviewData>): string {
-    if (videoMap.size === 0) return markdown
-    // Sort by length descending to match longer IDs first (e.g. custom-1773061458547 before 1773061458547)
-    const ids = Array.from(videoMap.keys()).sort((a, b) => b.length - a.length)
-    // Escape special regex chars in IDs, match as whole word (surrounded by non-alphanumeric or start/end)
-    const pattern = new RegExp(
-        `(?<![\\w/-])(${ids.map(id => id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})(?![\\w/-])`,
-        'g'
-    )
-    // Wrap video ID in mention link — keep ID as display text (LLM already provides title context nearby)
-    return markdown.replace(pattern, (match) => `[${match}](mention://${match})`)
-}
-
-/** Build markdown body components, with optional video reference tooltip via mention:// links. */
-function buildBodyComponents(videoMap?: Map<string, VideoPreviewData>): Components {
-    return {
-        h1: ({ className, style, children }) => <h1 className={clsx('text-sm font-bold mb-2 mt-4 first:mt-0 text-text-secondary', className)} style={style}>{children}</h1>,
-        h2: ({ className, style, children }) => <h2 className={clsx('text-xs font-bold mb-2 mt-3 text-text-secondary', className)} style={style}>{children}</h2>,
-        h3: ({ className, style, children }) => <h3 className={clsx('text-[11px] font-bold mb-1 mt-2 text-text-secondary', className)} style={style}>{children}</h3>,
-        p: ({ className, style, children }) => <p className={clsx('mb-1 last:mb-0 text-xs text-text-secondary leading-relaxed', className)} style={style}>{children}</p>,
-        ul: ({ className, style, children }) => <ul className={clsx('list-disc list-outside pl-5 mb-1 space-y-0.5 text-xs text-text-secondary', className)} style={style}>{children}</ul>,
-        ol: ({ className, style, children }) => <ol className={clsx('list-decimal list-outside pl-5 mb-1 space-y-0.5 text-xs text-text-secondary', className)} style={style}>{children}</ol>,
-        li: ({ className, style, children }) => <li className={clsx('pl-1 marker:text-text-tertiary', className)} style={style}>{children}</li>,
-        strong: ({ className, style, children }) => <strong className={clsx('font-bold text-text-primary', className)} style={style}>{children}</strong>,
-        code: ({ className, style, children }) => <code className={clsx('bg-bg-primary rounded px-1 py-0.5 text-[10px] font-mono text-text-primary', className)} style={style}>{children}</code>,
-        blockquote: ({ className, style, children }) => <blockquote className={clsx('border-l-2 border-accent/50 pl-3 my-2 text-text-secondary italic', className)} style={style}>{children}</blockquote>,
-        hr: ({ className, style }) => <hr className={clsx('my-3 border-none h-px bg-border', className)} style={style} />,
-        table: ({ className, style, children }) => <table className={clsx('border-collapse w-full my-2 text-[11px]', className)} style={style}>{children}</table>,
-        th: ({ className, style, children }) => <th className={clsx('border border-border p-1.5 text-left font-semibold bg-bg-primary/50 text-text-primary', className)} style={style}>{children}</th>,
-        td: ({ className, style, children }) => <td className={clsx('border border-border p-1.5 text-text-secondary', className)} style={style}>{children}</td>,
-        // Video reference tooltip — same pattern as chat MarkdownMessage
-        a({ href, children }) {
-            if (href && videoMap) {
-                const match = MENTION_RE.exec(href)
-                if (match) {
-                    const videoId = match[1]
-                    const video = videoMap.get(videoId) ?? null
-                    return <VideoReferenceTooltip label={String(children)} video={video} refType="video" index={0} />
-                }
-            }
-            return <a href={href} target="_blank" rel="noreferrer">{children}</a>
-        },
-    }
+/** Sanitize schema: allow vid:// protocols + class attribute on links/spans */
+const sanitizeSchema = {
+    ...defaultSchema,
+    protocols: { ...defaultSchema.protocols, href: [...(defaultSchema.protocols?.href ?? []), 'vid', 'mention'] },
+    attributes: { ...defaultSchema.attributes, a: [...(defaultSchema.attributes?.a ?? []), 'className', 'class'], span: [...(defaultSchema.attributes?.span ?? []), 'className', 'class'] },
 }
 
 /** Markdown components for section titles (inside CollapsibleSection trigger). */
@@ -122,15 +79,11 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
     const [isZenMode, setIsZenMode] = useState(false)
     const cardRef = useRef<HTMLDivElement>(null)
 
-    // Merge resolvedVideoRefs (server-resolved, includes competitors) + externalVideoMap (channel videos)
-    // resolvedVideoRefs take precedence for overlap, externalVideoMap fills gaps (e.g. manually added IDs)
+    // Merge externalVideoMap (channel videos, rich data) + resolvedVideoRefs (server snapshot, fallback for competitors)
+    // externalVideoMap has viewCount/publishedAt; resolvedVideoRefs fills gaps for IDs not in externalVideoMap
     const videoMap = useMemo(() => {
         const map = new Map<string, VideoPreviewData>()
-        // Base: channel videos (all own videos)
-        if (externalVideoMap) {
-            for (const [id, v] of externalVideoMap) map.set(id, v)
-        }
-        // Overlay: server-resolved refs (includes competitors, takes precedence)
+        // Base: server-resolved refs (competitors + own, includes metrics when available)
         if (item.resolvedVideoRefs) {
             for (const ref of item.resolvedVideoRefs) {
                 map.set(ref.videoId, {
@@ -138,8 +91,14 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
                     title: ref.title,
                     thumbnailUrl: ref.thumbnailUrl,
                     ownership: ref.ownership,
+                    viewCount: ref.viewCount,
+                    publishedAt: ref.publishedAt,
                 })
             }
+        }
+        // Overlay: channel videos (richer data — viewCount, publishedAt, duration)
+        if (externalVideoMap) {
+            for (const [id, v] of externalVideoMap) map.set(id, v)
         }
         return map.size > 0 ? map : undefined
     }, [item.resolvedVideoRefs, externalVideoMap])
@@ -166,9 +125,9 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
     const bodyComponents = useMemo(() => buildBodyComponents(videoMap), [videoMap])
 
     const sections = useMemo(() => {
-        const content = videoMap ? linkifyVideoRefs(item.content, item.videoRefs ?? [], videoMap) : item.content
+        const content = videoMap ? linkifyVideoRefs(item.content, videoMap) : item.content
         return parseMarkdownSections(content)
-    }, [item.content, item.videoRefs, videoMap])
+    }, [item.content, videoMap])
 
     const renderSection = (section: HierarchicalSection, idx: number) => (
         <CollapsibleSection
@@ -177,7 +136,7 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
             variant="mini"
             title={
                 <div className="inline-block pointer-events-none">
-                    <ReactMarkdown rehypePlugins={[rehypeRaw]} components={headerComponents}>
+                    <ReactMarkdown rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]} components={headerComponents}>
                         {section.title}
                     </ReactMarkdown>
                 </div>
@@ -190,7 +149,7 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
                 HEADER_SIZE[section.level] ?? '[&_button]:text-xs',
             )}
         >
-            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} urlTransform={allowMentionUrls} components={bodyComponents}>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]} urlTransform={allowMentionUrls} components={bodyComponents}>
                 {section.content.join('\n')}
             </ReactMarkdown>
             {section.children.length > 0 && (
@@ -244,8 +203,8 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
 
                     {/* Summary — always visible */}
                     <div className="mt-1.5 text-xs text-text-secondary line-clamp-2 leading-relaxed [&_p]:m-0 [&_p]:inline">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} urlTransform={allowMentionUrls} components={bodyComponents}>
-                            {videoMap ? linkifyVideoRefs(item.summary, item.videoRefs ?? [], videoMap) : item.summary}
+                        <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]} urlTransform={allowMentionUrls} components={bodyComponents}>
+                            {videoMap ? linkifyVideoRefs(item.summary, videoMap) : item.summary}
                         </ReactMarkdown>
                     </div>
                 </div>
@@ -270,10 +229,10 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
                                         <Bot size={10} />
                                         {item.model}
                                     </span>
-                                    {item.toolsUsed.length > 0 && (
+                                    {item.toolsUsed?.length > 0 && (
                                         <span className="flex items-center gap-1">
                                             <Wrench size={10} />
-                                            {item.toolsUsed.length} tools
+                                            {item.toolsUsed?.length} tools
                                         </span>
                                     )}
                                     <Badge variant="neutral">
@@ -296,7 +255,7 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
                                 <div className="text-left px-4">
                                     {sections.preamble && (
                                         <div className="mb-3">
-                                            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} urlTransform={allowMentionUrls} components={bodyComponents}>
+                                            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]} urlTransform={allowMentionUrls} components={bodyComponents}>
                                                 {sections.preamble}
                                             </ReactMarkdown>
                                         </div>
@@ -328,7 +287,7 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
             {/* Zen Mode overlay */}
             {isZenMode && (
                 <KnowledgeViewer
-                    content={item.content}
+                    content={videoMap ? linkifyVideoRefs(item.content, videoMap) : item.content}
                     title={item.title}
                     meta={{
                         model: item.model,
@@ -336,6 +295,7 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
                         category: item.category.replace(/-/g, ' '),
                     }}
                     onClose={() => setIsZenMode(false)}
+                    videoMap={videoMap}
                 />
             )}
         </>

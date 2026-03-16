@@ -3,7 +3,7 @@
 //
 // Atomic batch: KI doc + discovery flags on video/channel doc.
 // Registry update (outside batch): atomic map merge.
-// Auto-supersede: marks old KI with supersededBy.
+// No auto-delete: each KI is a point-in-time snapshot. Idempotency guard prevents duplicates.
 // Idempotency: skips if same conversationId + category + videoId already exists.
 // =============================================================================
 
@@ -12,14 +12,13 @@ import { FieldValue } from "firebase-admin/firestore";
 import type { ToolContext } from "../../types.js";
 import { SLUG_PATTERN } from "../../../../shared/knowledge.js";
 import { resolveVideosByIds } from "../../utils/resolveVideos.js";
-import type { MemoryVideoRef } from "../../../../shared/memory.js";
+import { hasRealVideoData, type MemoryVideoRef } from "../../../../shared/memory.js";
 
 interface SaveKnowledgeArgs {
     category: string;
     title: string;
     content: string;
     summary: string;
-    scope?: "video" | "channel";
     videoId?: string;
     videoRefs?: string[];
     toolsUsed?: string[];
@@ -134,7 +133,6 @@ export async function handleSaveKnowledge(
         videoId: (effectiveScope === "video" && resolvedDocId) ? resolvedDocId : undefined,
         videoRefs: videoRefs || undefined,
         createdAt: FieldValue.serverTimestamp(),
-        supersededBy: null,
         source: ctx.isConclude ? "conclude" : "chat-tool",
     });
 
@@ -166,9 +164,15 @@ export async function handleSaveKnowledge(
     // --- Resolve video references from content (code-driven, non-blocking) ---
 
     try {
-        // Extract video-ID-like strings: YouTube IDs (11 chars, alphanumeric + _-) and custom IDs (custom-\d+)
+        // Extract video IDs from two sources:
+        // 1. vid:// links: [title](vid://VIDEO_ID) — LLM-generated references
+        const vidLinkPattern = /vid:\/\/([A-Za-z0-9_-]+)/g;
+        const vidLinkIds = Array.from(content.matchAll(vidLinkPattern), m => m[1]);
+        // 2. Raw video-ID-like strings: YouTube IDs (11 chars) and custom IDs (custom-\d+)
         const idPattern = /\b([A-Za-z0-9_-]{11}|custom-\d+)\b/g;
-        const candidateIds = [...new Set(Array.from(content.matchAll(idPattern), m => m[1]))];
+        const rawIds = Array.from(content.matchAll(idPattern), m => m[1]);
+        // Merge both candidate sets
+        const candidateIds = [...new Set([...vidLinkIds, ...rawIds])];
 
         if (candidateIds.length > 0) {
             const { resolved } = await resolveVideosByIds(basePath, candidateIds);
@@ -177,14 +181,21 @@ export async function handleSaveKnowledge(
                 const resolvedVideoRefs: MemoryVideoRef[] = [];
                 for (const [requestedId, rv] of resolved) {
                     const d = rv.data;
-                    resolvedVideoRefs.push({
+                    const ref: MemoryVideoRef = {
                         videoId: requestedId,
                         title: (d.title as string) || requestedId,
                         thumbnailUrl: (d.thumbnail as string) || (d.thumbnailUrl as string) || '',
                         ownership: rv.source === 'video_grid'
                             ? (d.isDraft ? 'own-draft' : 'own-published')
                             : 'competitor',
-                    });
+                    };
+                    const hasRealData = hasRealVideoData(d);
+                    if (hasRealData) {
+                        const vc = d.viewCount as string | number | undefined;
+                        if (vc !== undefined) ref.viewCount = typeof vc === 'string' ? Number(vc) : vc;
+                        if (d.publishedAt) ref.publishedAt = d.publishedAt as string;
+                    }
+                    resolvedVideoRefs.push(ref);
                 }
                 await kiRef.update({ resolvedVideoRefs });
                 console.info(`[saveKnowledge] ── VideoRefs ── ${resolvedVideoRefs.length} resolved from ${candidateIds.length} candidates`);
@@ -201,9 +212,9 @@ export async function handleSaveKnowledge(
         const registryRef = db.doc(`${basePath}/knowledgeCategories/registry`);
         await registryRef.set({
             [`categories.${category}`]: {
-                label: args.label as string || category.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" "),
-                level: scope === "video" ? "video" : "channel",
-                description: args.description as string || `${title} analysis`,
+                label: category.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" "),
+                level: effectiveScope === "video" ? "video" : "channel",
+                description: `${title} analysis`,
             },
         }, { merge: true });
     } catch (err) {
@@ -211,35 +222,9 @@ export async function handleSaveKnowledge(
         console.warn(`[saveKnowledge] Registry update failed for category "${category}":`, err);
     }
 
-    // --- Auto-supersede old KI ---
-
-    try {
-        const supersedeQuery = db.collection(kiCollectionPath)
-            .where("category", "==", category)
-            .where("supersededBy", "==", null);
-
-        const supersedeSnapshot = videoId
-            ? await supersedeQuery.where("videoId", "==", videoId).get()
-            : await supersedeQuery.where("scope", "==", "channel").get();
-
-        const supersedeBatch = db.batch();
-        let supersededCount = 0;
-
-        for (const doc of supersedeSnapshot.docs) {
-            if (doc.id !== kiId) {
-                supersedeBatch.update(doc.ref, { supersededBy: kiId });
-                supersededCount++;
-            }
-        }
-
-        if (supersededCount > 0) {
-            await supersedeBatch.commit();
-            console.info(`[saveKnowledge] ── Superseded ── ${supersededCount} old KI marked by ${kiId}`);
-        }
-    } catch (err) {
-        // Non-critical — KI is saved even if supersede fails
-        console.warn(`[saveKnowledge] Auto-supersede failed:`, err);
-    }
+    // No auto-delete: each KI is a point-in-time snapshot. Multiple KI with the same
+    // category+videoId are intentional (e.g. monthly traffic analyses). Idempotency guard
+    // (same conversationId + category + videoId) prevents duplicates within one conversation.
 
     return {
         content: `Knowledge Item saved: ${title} [id: ${kiId}]`,

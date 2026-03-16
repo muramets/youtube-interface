@@ -3,6 +3,7 @@ import { useAuth } from '../../../core/hooks/useAuth'
 import { useChannelStore } from '../../../core/stores/channelStore'
 import { useVideoKnowledgeItems, useUpdateKnowledgeItem, useDeleteKnowledgeItem } from '../../../core/hooks/useKnowledgeItems'
 import { useVideos } from '../../../core/hooks/useVideos'
+import { useVideosCatalog } from '../../../core/hooks/useVideosCatalog'
 import { buildVideoRefMap } from '../../Knowledge/utils/videoRefMap'
 import { KnowledgeList } from '../../Knowledge/components/KnowledgeList'
 import { KnowledgeItemModal } from '../../Knowledge/modals/KnowledgeItemModal'
@@ -30,7 +31,7 @@ export const WatchPageKnowledge = React.memo(({ videoId }: WatchPageKnowledgePro
     const updateMutation = useUpdateKnowledgeItem(userId, channelId)
     const deleteMutation = useDeleteKnowledgeItem(userId, channelId)
     const videoMap = useMemo(() => buildVideoRefMap(videos), [videos])
-    const videoIds = useMemo(() => videoMap ? new Set(videoMap.keys()) : undefined, [videoMap])
+    const videoCatalog = useVideosCatalog()
 
     const [editingItem, setEditingItem] = useState<KnowledgeItem | null>(null)
 
@@ -38,7 +39,7 @@ export const WatchPageKnowledge = React.memo(({ videoId }: WatchPageKnowledgePro
         setEditingItem(item)
     }, [])
 
-    const handleSave = useCallback((updates: { title: string; content: string }) => {
+    const handleSave = useCallback((updates: { title: string; summary: string; content: string }) => {
         if (!editingItem) return
         updateMutation.mutate({ itemId: editingItem.id, updates })
     }, [editingItem, updateMutation])
@@ -82,7 +83,7 @@ export const WatchPageKnowledge = React.memo(({ videoId }: WatchPageKnowledgePro
                     item={editingItem}
                     onSave={handleSave}
                     onClose={() => setEditingItem(null)}
-                    videoIds={videoIds}
+                    videoCatalog={videoCatalog}
                 />
             )}
         </>

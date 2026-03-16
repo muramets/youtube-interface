@@ -70,36 +70,6 @@ describe('handleListKnowledge', () => {
         expect(parsed[0]).not.toHaveProperty('content');
     });
 
-    it('excludes superseded items', async () => {
-        mockGet.mockResolvedValue({
-            docs: [
-                makeDoc('ki-1', {
-                    title: 'Old Analysis',
-                    summary: 'Old',
-                    category: 'traffic-analysis',
-                    scope: 'video',
-                    model: 'claude-sonnet-4-6',
-                    source: 'chat-tool',
-                    supersededBy: 'ki-2',
-                }),
-                makeDoc('ki-2', {
-                    title: 'New Analysis',
-                    summary: 'New',
-                    category: 'traffic-analysis',
-                    scope: 'video',
-                    model: 'claude-sonnet-4-6',
-                    source: 'chat-tool',
-                }),
-            ],
-        });
-
-        const result = await handleListKnowledge({}, CTX);
-
-        expect(result.count).toBe(1);
-        const parsed = JSON.parse(result.content as string);
-        expect(parsed[0].title).toBe('New Analysis');
-    });
-
     it('returns empty message when no items found', async () => {
         mockGet.mockResolvedValue({ docs: [] });
 

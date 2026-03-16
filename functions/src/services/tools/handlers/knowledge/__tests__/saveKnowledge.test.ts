@@ -5,9 +5,11 @@ import type { ToolContext } from '../../../types.js';
 
 const mockBatchSet = vi.fn();
 const mockBatchUpdate = vi.fn();
+const mockBatchDelete = vi.fn();
 const mockBatchCommit = vi.fn().mockResolvedValue(undefined);
 
-const mockCollectionDoc = vi.fn().mockReturnValue({ id: 'new-ki-id' });
+const mockKiRefUpdate = vi.fn().mockResolvedValue(undefined);
+const mockCollectionDoc = vi.fn().mockReturnValue({ id: 'new-ki-id', update: mockKiRefUpdate });
 const mockCollectionWhere = vi.fn();
 const mockQueryGet = vi.fn();
 const mockDocSet = vi.fn().mockResolvedValue(undefined);
@@ -41,6 +43,7 @@ vi.mock('../../../../../shared/db.js', () => ({
         batch: () => ({
             set: mockBatchSet,
             update: mockBatchUpdate,
+            delete: mockBatchDelete,
             commit: mockBatchCommit,
         }),
     },
@@ -63,6 +66,9 @@ vi.mock('firebase-admin/firestore', () => ({
 
 // Import after mocks
 import { handleSaveKnowledge } from '../saveKnowledge.js';
+import { resolveVideosByIds } from '../../../utils/resolveVideos.js';
+
+const mockResolveVideos = vi.mocked(resolveVideosByIds);
 
 const CTX: ToolContext = {
     userId: 'user1',
@@ -85,7 +91,8 @@ beforeEach(() => {
     // Default: no existing KI (idempotency check)
     mockQueryGet.mockResolvedValue({ empty: true, docs: [] });
     // Reset doc mock to return fresh ref
-    mockCollectionDoc.mockReturnValue({ id: 'new-ki-id' });
+    mockKiRefUpdate.mockClear();
+    mockCollectionDoc.mockReturnValue({ id: 'new-ki-id', update: mockKiRefUpdate });
     mockDocSet.mockResolvedValue(undefined);
 });
 
@@ -214,4 +221,122 @@ describe('handleSaveKnowledge', () => {
 
         expect(result.error).toContain('conversationId');
     });
+
+    // --- resolvedVideoRefs extraction (Gap 8) ---
+
+    describe('resolvedVideoRefs extraction', () => {
+        // Helper: 1st call = video doc resolution (default), 2nd call = content ref extraction (custom)
+        const mockContentRefs = (entries: [string, Record<string, unknown>][]) => {
+            // 1st call: video doc resolution — default behavior (resolve all IDs)
+            mockResolveVideos.mockImplementationOnce((_bp: string, ids: string[]) =>
+                Promise.resolve({ resolved: new Map(ids.map(id => [id, { requestedId: id, docId: id, data: {}, source: 'video_grid' }])), missingIds: [] })
+            );
+            // 2nd call: content ref extraction — custom data
+            mockResolveVideos.mockResolvedValueOnce({
+                resolved: new Map(entries.map(([id, data]) => [id, { requestedId: id, docId: id, data, source: (data.source as string) ?? 'video_grid' }])),
+                missingIds: [],
+            });
+        };
+
+        it('extracts vid:// links from content and stores resolvedVideoRefs', async () => {
+            mockContentRefs([['A4SkhlJ2mK8', { title: 'My Video', thumbnail: 'thumb.jpg' }]]);
+
+            await handleSaveKnowledge({
+                ...VALID_ARGS,
+                content: 'Check [My Video](vid://A4SkhlJ2mK8) for details',
+            }, CTX);
+
+            expect(mockKiRefUpdate).toHaveBeenCalledOnce();
+            const refs = mockKiRefUpdate.mock.calls[0][0].resolvedVideoRefs;
+            expect(refs).toHaveLength(1);
+            expect(refs[0].videoId).toBe('A4SkhlJ2mK8');
+            expect(refs[0].title).toBe('My Video');
+            expect(refs[0].ownership).toBe('own-published');
+        });
+
+        it('extracts raw YouTube IDs (11-char) from content', async () => {
+            mockContentRefs([['B5TklM3nL9x', { title: 'Raw ID Video', thumbnail: '' }]]);
+
+            await handleSaveKnowledge({
+                ...VALID_ARGS,
+                content: 'Raw ID: B5TklM3nL9x in text',
+            }, CTX);
+
+            expect(mockKiRefUpdate).toHaveBeenCalledOnce();
+            const refs = mockKiRefUpdate.mock.calls[0][0].resolvedVideoRefs;
+            expect(refs[0].videoId).toBe('B5TklM3nL9x');
+        });
+
+        it('deduplicates vid:// + raw ID for same video', async () => {
+            mockContentRefs([['A4SkhlJ2mK8', { title: 'Dup Video', thumbnail: '' }]]);
+
+            await handleSaveKnowledge({
+                ...VALID_ARGS,
+                content: '[Dup Video](vid://A4SkhlJ2mK8) and also A4SkhlJ2mK8',
+            }, CTX);
+
+            // 2nd resolveVideosByIds call (content refs) should receive deduplicated IDs
+            const contentRefCall = mockResolveVideos.mock.calls[mockResolveVideos.mock.calls.length - 1];
+            expect(contentRefCall[1]).toHaveLength(1);
+            expect(contentRefCall[1][0]).toBe('A4SkhlJ2mK8');
+        });
+
+        it('strips fake viewCount for custom video without successful fetch', async () => {
+            mockContentRefs([['custom-123', {
+                title: 'Draft', thumbnail: '', isCustom: true, fetchStatus: 'failed', viewCount: '1000000', publishedAt: '2025-01-01',
+            }]]);
+
+            await handleSaveKnowledge({
+                ...VALID_ARGS,
+                content: 'See custom-123 video',
+            }, CTX);
+
+            const refs = mockKiRefUpdate.mock.calls[0][0].resolvedVideoRefs;
+            expect(refs[0].viewCount).toBeUndefined();
+            expect(refs[0].publishedAt).toBeUndefined();
+        });
+
+        it('includes viewCount for custom video with successful fetch', async () => {
+            mockContentRefs([['custom-456', {
+                title: 'Published', thumbnail: '', isCustom: true, fetchStatus: 'success', viewCount: '5000', publishedAt: '2025-06-01',
+            }]]);
+
+            await handleSaveKnowledge({
+                ...VALID_ARGS,
+                content: 'See custom-456 video',
+            }, CTX);
+
+            const refs = mockKiRefUpdate.mock.calls[0][0].resolvedVideoRefs;
+            expect(refs[0].viewCount).toBe(5000);
+            expect(refs[0].publishedAt).toBe('2025-06-01');
+        });
+
+        it('does not write resolvedVideoRefs when no IDs found in content', async () => {
+            await handleSaveKnowledge({
+                ...VALID_ARGS,
+                content: 'No video references here',
+            }, CTX);
+
+            expect(mockKiRefUpdate).not.toHaveBeenCalled();
+        });
+
+        it('survives resolveVideosByIds failure gracefully', async () => {
+            // 1st call: video doc resolution — succeeds
+            mockResolveVideos.mockImplementationOnce((_bp: string, ids: string[]) =>
+                Promise.resolve({ resolved: new Map(ids.map(id => [id, { requestedId: id, docId: id, data: {}, source: 'video_grid' }])), missingIds: [] })
+            );
+            // 2nd call: content refs — fails
+            mockResolveVideos.mockRejectedValueOnce(new Error('Firestore timeout'));
+
+            const result = await handleSaveKnowledge({
+                ...VALID_ARGS,
+                content: 'Check [Video](vid://A4SkhlJ2mK8)',
+            }, CTX);
+
+            // KI should still be saved
+            expect(result.id).toBe('new-ki-id');
+            expect(mockBatchCommit).toHaveBeenCalledOnce();
+        });
+    });
+
 });

@@ -6,6 +6,7 @@ import { useAuth } from '../../core/hooks/useAuth'
 import { useChannelStore } from '../../core/stores/channelStore'
 import { useChannelKnowledgeItems, useUpdateKnowledgeItem, useCreateKnowledgeItem, useDeleteKnowledgeItem } from '../../core/hooks/useKnowledgeItems'
 import { useVideos } from '../../core/hooks/useVideos'
+import { useVideosCatalog } from '../../core/hooks/useVideosCatalog'
 import { useKnowledgeStore } from '../../core/stores/knowledgeStore'
 import { buildVideoRefMap } from '../../features/Knowledge/utils/videoRefMap'
 import { KnowledgeList } from '../../features/Knowledge/components/KnowledgeList'
@@ -36,7 +37,7 @@ export const KnowledgePage: React.FC = () => {
     const deleteMutation = useDeleteKnowledgeItem(userId, channelId)
 
     const videoMap = useMemo(() => buildVideoRefMap(videos), [videos])
-    const videoIds = useMemo(() => videoMap ? new Set(videoMap.keys()) : undefined, [videoMap])
+    const videoCatalog = useVideosCatalog()
 
     const { selectedCategory, sortOrder, setCategory, setSortOrder } = useKnowledgeStore()
 
@@ -71,7 +72,7 @@ export const KnowledgePage: React.FC = () => {
         setEditingItem(item)
     }, [])
 
-    const handleSaveEdit = useCallback((updates: { title: string; content: string }) => {
+    const handleSaveEdit = useCallback((updates: { title: string; summary: string; content: string }) => {
         if (!editingItem) return
         updateMutation.mutate({ itemId: editingItem.id, updates })
     }, [editingItem, updateMutation])
@@ -183,7 +184,7 @@ export const KnowledgePage: React.FC = () => {
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto scrollbar-auto-hide px-6 pb-6">
+            <div className="flex-1 overflow-y-auto px-6 pb-6">
                 <KnowledgeList
                     items={displayItems}
                     onEdit={handleEdit}
@@ -203,7 +204,7 @@ export const KnowledgePage: React.FC = () => {
                     item={editingItem}
                     onSave={handleSaveEdit}
                     onClose={() => setEditingItem(null)}
-                    videoIds={videoIds}
+                    videoCatalog={videoCatalog}
                 />
             )}
 
@@ -212,6 +213,7 @@ export const KnowledgePage: React.FC = () => {
                 <CreateKnowledgeItemModal
                     onSave={handleCreate}
                     onClose={() => setIsCreateOpen(false)}
+                    videoCatalog={videoCatalog}
                 />
             )}
         </div>

@@ -17,7 +17,7 @@ RULES:
 For each qualifying analysis, call saveKnowledge with:
 - category: kebab-case slug from the Knowledge Categories in system prompt, or propose a new one
 - title: descriptive title
-- content: comprehensive markdown with the full analysis (not a summary)
+- content: comprehensive markdown with the full analysis (not a summary). When referencing videos, use [video title](vid://VIDEO_ID) links — not raw IDs.
 - summary: 2-3 sentence summary
 - videoId: the video this analysis is about (omit only for channel-level insights)
 - toolsUsed: which tools you used

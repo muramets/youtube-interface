@@ -1,11 +1,14 @@
 import React from 'react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import rehypeRaw from 'rehype-raw'
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
 import clsx from 'clsx'
 
 export interface RichTextViewerProps {
     content: string
     className?: string
+    /** Override default markdown components (e.g. for video reference tooltips) */
+    components?: Components
 }
 
 const markdownComponents: Components = {
@@ -61,7 +64,13 @@ const markdownComponents: Components = {
     ),
 }
 
-export const RichTextViewer = React.memo(({ content, className }: RichTextViewerProps) => {
+const sanitizeSchema = {
+    ...defaultSchema,
+    protocols: { ...defaultSchema.protocols, href: [...(defaultSchema.protocols?.href ?? []), 'vid', 'mention'] },
+    attributes: { ...defaultSchema.attributes, a: [...(defaultSchema.attributes?.a ?? []), 'className', 'class'], span: [...(defaultSchema.attributes?.span ?? []), 'className', 'class'] },
+}
+
+export const RichTextViewer = React.memo(({ content, className, components }: RichTextViewerProps) => {
     return (
         <div className={clsx(
             "rich-text-viewer prose prose-invert prose-sm max-w-none",
@@ -70,7 +79,7 @@ export const RichTextViewer = React.memo(({ content, className }: RichTextViewer
             "selection:bg-accent/80 selection:text-text-primary",
             className
         )}>
-            <ReactMarkdown rehypePlugins={[rehypeRaw]} components={markdownComponents}>
+            <ReactMarkdown rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]} urlTransform={url => url} components={components ?? markdownComponents}>
                 {content}
             </ReactMarkdown>
         </div>

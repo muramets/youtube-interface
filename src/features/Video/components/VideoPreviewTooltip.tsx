@@ -135,21 +135,25 @@ export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
                         alt={title}
                         className="w-full h-full object-cover"
                     />
-                ) : canLoad ? (
-                    <iframe
-                        width="100%"
-                        height="100%"
-                        src={`https://www.youtube.com/embed/${embedId}?autoplay=0&mute=0&rel=0&modestbranding=1&controls=1`}
-                        title={title}
-                        frameBorder="0"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowFullScreen
-                        className="w-full h-full"
-                    />
                 ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-black/20">
-                        <div className="w-8 h-8 rounded-full border-2 border-white/10 border-t-white/50 animate-spin" />
-                    </div>
+                    <>
+                        {/* Spinner holds layout while iframe loads on top */}
+                        <div className="w-full h-full flex items-center justify-center bg-black/20">
+                            <div className="w-8 h-8 rounded-full border-2 border-white/10 border-t-white/50 animate-spin" />
+                        </div>
+                        {canLoad && (
+                            <iframe
+                                width="100%"
+                                height="100%"
+                                src={`https://www.youtube.com/embed/${embedId}?autoplay=0&mute=0&rel=0&modestbranding=1&controls=1`}
+                                title={title}
+                                frameBorder="0"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowFullScreen
+                                className="w-full h-full absolute inset-0"
+                            />
+                        )}
+                    </>
                 )}
             </div>
 

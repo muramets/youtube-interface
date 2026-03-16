@@ -1,8 +1,10 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Minimize, Bot, Calendar, Tag } from 'lucide-react'
 import { RichTextViewer } from '../../../components/ui/organisms/RichTextEditor'
+import { buildBodyComponents } from '../utils/bodyComponents'
+import type { VideoPreviewData } from '../../Video/types'
 
 interface KnowledgeViewerProps {
     /** Markdown content to display */
@@ -17,6 +19,8 @@ interface KnowledgeViewerProps {
     }
     /** Called when the viewer should close */
     onClose: () => void
+    /** Video data map for vid:// link tooltips */
+    videoMap?: Map<string, VideoPreviewData>
 }
 
 /**
@@ -33,7 +37,9 @@ export const KnowledgeViewer = React.memo(({
     title,
     meta,
     onClose,
+    videoMap,
 }: KnowledgeViewerProps) => {
+    const zenComponents = useMemo(() => buildBodyComponents(videoMap), [videoMap])
     // ESC to close
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -92,8 +98,8 @@ export const KnowledgeViewer = React.memo(({
                     </div>
 
                     {/* Content */}
-                    <div className="flex-1 overflow-y-auto p-8 scrollbar-auto-hide">
-                        <RichTextViewer content={content} />
+                    <div className="flex-1 overflow-y-auto p-8">
+                        <RichTextViewer content={content} components={zenComponents} />
                     </div>
                 </motion.div>
             </motion.div>

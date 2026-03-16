@@ -318,7 +318,7 @@ export const Sidebar: React.FC = () => {
       >
         <div
           ref={scrollRef}
-          className={`flex-1 min-w-0 flex flex-col overflow-x-hidden ${isSidebarExpanded ? 'px-3 py-1 overflow-y-auto scrollbar-auto-hide' : 'w-full overflow-hidden'}`}
+          className={`flex-1 min-w-0 flex flex-col overflow-x-hidden ${isSidebarExpanded ? 'px-3 py-1 overflow-y-auto' : 'w-full overflow-hidden'}`}
         >
           {isSidebarExpanded ? (
             // Expanded view - icon left, text right
