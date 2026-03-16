@@ -370,7 +370,6 @@ export const ChatService = {
             conversationTitle: title?.trim() || 'Manual note',
             content,
             source: 'manual',
-            videoRefs: [],
             createdAt: Timestamp.now(),
             updatedAt: Timestamp.now(),
         });

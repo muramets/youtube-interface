@@ -619,7 +619,8 @@ const saveMemory: ToolDefinition = {
             content: {
                 type: "string",
                 description:
-                    "Memory content in markdown. Reference KI by ID, don't duplicate. " +
+                    "Memory content in markdown. Reference KI by title (not raw ID). " +
+                    "When referencing videos, use [video title](vid://VIDEO_ID) links. " +
                     "Sections: Decisions, Insights, Action Items, Open Questions.",
             },
             kiRefs: {

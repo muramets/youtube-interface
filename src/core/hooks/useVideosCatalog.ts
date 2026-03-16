@@ -59,7 +59,7 @@ export function useVideosCatalog(): VideoPreviewData[] {
             )
             return perChannel.flat()
         },
-        staleTime: 5 * 60 * 1000,
+        staleTime: 90 * 60 * 1000,
         enabled: !!userId && !!channelId,
     })
 

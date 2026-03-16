@@ -2,13 +2,24 @@
 // SETTINGS: AI Assistant Settings View
 // =============================================================================
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { ChevronDown, Brain, Pencil, Trash2, Check, X, Plus } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
+import { buildBodyComponents } from '../../Knowledge/utils/bodyComponents';
+import { linkifyVideoRefs } from '../../Knowledge/utils/linkifyVideoRefs';
+
+const sanitizeSchema = {
+    ...defaultSchema,
+    protocols: { ...defaultSchema.protocols, href: [...(defaultSchema.protocols?.href ?? []), 'vid', 'mention'] },
+    attributes: { ...defaultSchema.attributes, a: [...(defaultSchema.attributes?.a ?? []), 'className', 'class'], span: [...(defaultSchema.attributes?.span ?? []), 'className', 'class'] },
+};
 import { Dropdown } from '../../../components/ui/molecules/Dropdown';
 import { SegmentedControl } from '../../../components/ui/molecules/SegmentedControl';
-import { MemoryVideoChips } from '../../Chat/components/MemoryVideoChips';
+import { useVideosCatalog } from '../../../core/hooks/useVideosCatalog';
+import type { VideoPreviewData } from '../../Video/types';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
 import { useChatStore } from '../../../core/stores/chat/chatStore';
@@ -42,6 +53,17 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
         const unsub2 = subscribeToMemories();
         return () => { unsub1(); unsub2(); };
     }, [userId, channelId, setContext, subscribeToAiSettings, subscribeToMemories]);
+
+    const videoCatalog = useVideosCatalog();
+    const videoMap = useMemo(() => {
+        if (!videoCatalog.length) return undefined;
+        const map = new Map<string, VideoPreviewData>();
+        for (const v of videoCatalog) {
+            map.set(v.videoId, v);
+            if (v.youtubeVideoId && v.youtubeVideoId !== v.videoId) map.set(v.youtubeVideoId, v);
+        }
+        return map;
+    }, [videoCatalog]);
 
     const memories = useChatStore(s => s.memories);
     const storeCreateMemory = useChatStore(s => s.createMemory);
@@ -336,9 +358,6 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
                                         </span>
                                     </div>
 
-                                    {mem.videoRefs && mem.videoRefs.length > 0 && (
-                                        <MemoryVideoChips videoRefs={mem.videoRefs} />
-                                    )}
                                     {isEditing ? (
                                         <>
                                             <textarea
@@ -395,9 +414,19 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
                                                 [&_strong]:text-text-primary [&_strong]:font-semibold
                                                 [&_a]:underline
                                             ">
-                                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                                    {mem.content}
-                                                </ReactMarkdown>
+                                                {(() => {
+                                                    const content = videoMap ? linkifyVideoRefs(mem.content, videoMap) : mem.content
+                                                    return (
+                                                        <ReactMarkdown
+                                                            remarkPlugins={[remarkGfm]}
+                                                            rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
+                                                            urlTransform={url => url}
+                                                            components={buildBodyComponents(videoMap)}
+                                                        >
+                                                            {content}
+                                                        </ReactMarkdown>
+                                                    )
+                                                })()}
                                             </div>
                                             <div className="flex items-center justify-end gap-1 mt-2">
                                                 <button

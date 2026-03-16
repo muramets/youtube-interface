@@ -23,7 +23,7 @@ For each qualifying analysis, call saveKnowledge with:
 - toolsUsed: which tools you used
 
 After all Knowledge Items are saved, call saveMemory with:
-- A concise summary (key decisions, insights, action items, open questions)
+- A concise summary (key decisions, insights, action items, open questions). When referencing videos, use [video title](vid://VIDEO_ID) links — not raw IDs. Reference Knowledge Items by TITLE, not raw ID.
 - kiRefs: IDs of Knowledge Items you just created
 - Do NOT duplicate KI content in memory — reference by ID
 

@@ -13,12 +13,13 @@ import rehypeRaw from 'rehype-raw';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import clsx from 'clsx';
 import type { ConversationMemory } from '../../../core/types/chat/chat';
-import { MemoryVideoChips } from './MemoryVideoChips';
 import { RichTextEditor } from '../../../components/ui/organisms/RichTextEditor';
 import { CollapsibleSection } from '../../../components/ui/molecules/CollapsibleSection';
 import { ConfirmDeleteButton } from '../../../components/ui/atoms/ConfirmDeleteButton';
 import { parseMarkdownSections, type HierarchicalSection } from '../../Knowledge/utils/markdownSections';
 import { buildBodyComponents } from '../../Knowledge/utils/bodyComponents';
+import { linkifyVideoRefs } from '../../Knowledge/utils/linkifyVideoRefs';
+import { useVideosCatalog } from '../../../core/hooks/useVideosCatalog';
 import type { VideoPreviewData } from '../../Video/types';
 
 const sanitizeSchema = {
@@ -65,23 +66,23 @@ export const MemoryCheckpoint: React.FC<MemoryCheckpointProps> = ({ memory, onUp
     const [isSaving, setIsSaving] = useState(false);
     const rootRef = useRef<HTMLDivElement>(null);
 
-    const sections = useMemo(() => parseMarkdownSections(memory.content), [memory.content]);
-
+    const videoCatalog = useVideosCatalog();
     const videoMap = useMemo(() => {
-        if (!memory.videoRefs?.length) return undefined
-        const map = new Map<string, VideoPreviewData>()
-        for (const ref of memory.videoRefs) {
-            map.set(ref.videoId, {
-                videoId: ref.videoId,
-                title: ref.title,
-                thumbnailUrl: ref.thumbnailUrl,
-                ownership: ref.ownership,
-            })
+        if (!videoCatalog.length) return undefined;
+        const map = new Map<string, VideoPreviewData>();
+        for (const v of videoCatalog) {
+            map.set(v.videoId, v);
+            if (v.youtubeVideoId && v.youtubeVideoId !== v.videoId) map.set(v.youtubeVideoId, v);
         }
-        return map
-    }, [memory.videoRefs])
+        return map;
+    }, [videoCatalog]);
 
     const bodyComponents = useMemo(() => buildBodyComponents(videoMap), [videoMap]);
+
+    const sections = useMemo(() => {
+        const content = videoMap ? linkifyVideoRefs(memory.content, videoMap) : memory.content
+        return parseMarkdownSections(content)
+    }, [memory.content, videoMap]);
 
     useEffect(() => {
         if (isExpanded && rootRef.current) {
@@ -140,7 +141,7 @@ export const MemoryCheckpoint: React.FC<MemoryCheckpointProps> = ({ memory, onUp
                 HEADER_SIZE[section.level] ?? '[&_button]:text-xs',
             )}
         >
-            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]} components={bodyComponents}>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]} urlTransform={url => url} components={bodyComponents}>
                 {section.content.join('\n')}
             </ReactMarkdown>
             {section.children.length > 0 && (
@@ -177,9 +178,6 @@ export const MemoryCheckpoint: React.FC<MemoryCheckpointProps> = ({ memory, onUp
                 <div
                     className="mt-1.5 mx-auto max-w-[90%] rounded-lg p-3 animate-memory-expand bg-bg-secondary"
                 >
-                    {memory.videoRefs && memory.videoRefs.length > 0 && (
-                        <MemoryVideoChips videoRefs={memory.videoRefs} />
-                    )}
                     {isEditing ? (
                         <>
                             <RichTextEditor
@@ -220,7 +218,7 @@ export const MemoryCheckpoint: React.FC<MemoryCheckpointProps> = ({ memory, onUp
                                 <div className="text-left">
                                     {sections.preamble && (
                                         <div className="mb-3">
-                                            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]} components={bodyComponents}>
+                                            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]} urlTransform={url => url} components={bodyComponents}>
                                                 {sections.preamble}
                                             </ReactMarkdown>
                                         </div>
