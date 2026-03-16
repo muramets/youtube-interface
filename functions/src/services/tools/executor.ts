@@ -7,23 +7,30 @@
 
 import { TOOL_NAMES, type ToolName } from "./definitions.js";
 import type { ToolContext, FunctionCallInput, FunctionCallResult, ToolHandler } from "./types.js";
-import { handleMentionVideo } from "./handlers/mentionVideo.js";
-import { handleGetMultipleVideoDetails } from "./handlers/getMultipleVideoDetails.js";
-import { handleAnalyzeSuggestedTraffic } from "./handlers/analyzeSuggestedTraffic.js";
-import { handleViewThumbnails } from "./handlers/viewThumbnails.js";
-import { handleGetVideoComments } from "./handlers/getVideoComments.js";
-import { handleGetChannelOverview } from "./handlers/getChannelOverview.js";
-import { handleBrowseChannelVideos } from "./handlers/browseChannelVideos.js";
-import { handleAnalyzeTrafficSources } from "./handlers/analyzeTrafficSources.js";
-import { handleListTrendChannels } from "./handlers/listTrendChannels.js";
-import { handleBrowseTrendVideos } from "./handlers/browseTrendVideos.js";
-import { handleGetNicheSnapshot } from "./handlers/getNicheSnapshot.js";
-import { handleFindSimilarVideos } from "./handlers/findSimilarVideos.js";
-import { handleSearchDatabase } from "./handlers/searchDatabase.js";
+// Layer 1: Discovery
+import { handleGetChannelOverview } from "./handlers/discovery/getChannelOverview.js";
+import { handleBrowseChannelVideos } from "./handlers/discovery/browseChannelVideos.js";
+// Layer 2: Detail
+import { handleGetMultipleVideoDetails } from "./handlers/detail/getMultipleVideoDetails.js";
+import { handleViewThumbnails } from "./handlers/detail/viewThumbnails.js";
+import { handleGetVideoComments } from "./handlers/detail/getVideoComments.js";
+// Layer 3: Analysis
+import { handleAnalyzeTrafficSources } from "./handlers/analysis/analyzeTrafficSources.js";
+import { handleAnalyzeSuggestedTraffic } from "./handlers/analysis/analyzeSuggestedTraffic.js";
+// Layer 4: Competition
+import { handleListTrendChannels } from "./handlers/competition/listTrendChannels.js";
+import { handleBrowseTrendVideos } from "./handlers/competition/browseTrendVideos.js";
+import { handleGetNicheSnapshot } from "./handlers/competition/getNicheSnapshot.js";
+import { handleFindSimilarVideos } from "./handlers/competition/findSimilarVideos.js";
+import { handleSearchDatabase } from "./handlers/competition/searchDatabase.js";
+// Knowledge
 import { handleSaveKnowledge } from "./handlers/knowledge/saveKnowledge.js";
+import { handleEditKnowledge } from "./handlers/knowledge/editKnowledge.js";
 import { handleListKnowledge } from "./handlers/knowledge/listKnowledge.js";
 import { handleGetKnowledge } from "./handlers/knowledge/getKnowledge.js";
 import { handleSaveMemory } from "./handlers/knowledge/saveMemory.js";
+// Utility
+import { handleMentionVideo } from "./handlers/utility/mentionVideo.js";
 
 // --- Handler registry ---
 
@@ -42,6 +49,7 @@ const HANDLERS: Record<ToolName, ToolHandler> = {
     [TOOL_NAMES.FIND_SIMILAR_VIDEOS]: handleFindSimilarVideos,
     [TOOL_NAMES.SEARCH_DATABASE]: handleSearchDatabase,
     [TOOL_NAMES.SAVE_KNOWLEDGE]: handleSaveKnowledge,
+    [TOOL_NAMES.EDIT_KNOWLEDGE]: handleEditKnowledge,
     [TOOL_NAMES.LIST_KNOWLEDGE]: handleListKnowledge,
     [TOOL_NAMES.GET_KNOWLEDGE]: handleGetKnowledge,
     [TOOL_NAMES.SAVE_MEMORY]: handleSaveMemory,

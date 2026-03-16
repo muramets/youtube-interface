@@ -181,7 +181,7 @@ Gemini Embedding API поддерживает параметр `taskType`:
 
 | Файл | Назначение |
 |------|-----------|
-| `functions/src/services/tools/handlers/searchDatabase.ts` | Handler: query embedding → vector search → enrichment |
+| `functions/src/services/tools/handlers/competition/searchDatabase.ts` | Handler: query embedding → vector search → enrichment |
 | `functions/src/embedding/queryEmbedding.ts` | `generateQueryEmbedding(query, apiKey)` — text → 768d vector с `taskType: RETRIEVAL_QUERY`. Uses `getClient` from `services/gemini/client.ts` (singleton SDK instance, same as `packagingEmbedding.ts`) |
 | `functions/src/services/tools/definitions.ts` | Tool declaration (query + channelIds + limit) |
 | `functions/src/services/tools/executor.ts` | Registration in HANDLERS map |
@@ -191,7 +191,7 @@ Gemini Embedding API поддерживает параметр `taskType`:
 | Файл | Tests |
 |------|-------|
 | `functions/src/embedding/__tests__/queryEmbedding.test.ts` | 7 tests — taskType, raw text, empty response, API error |
-| `functions/src/services/tools/handlers/__tests__/searchDatabase.test.ts` | 24 tests — validation, happy path, hidden filter, channelIds, limits, coverage, deltas, tiers |
+| `functions/src/services/tools/handlers/competition/__tests__/searchDatabase.test.ts` | 24 tests — validation, happy path, hidden filter, channelIds, limits, coverage, deltas, tiers |
 
 ### Переиспользуемый код
 

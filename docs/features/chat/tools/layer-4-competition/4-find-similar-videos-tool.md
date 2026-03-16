@@ -253,7 +253,7 @@ LLM может использовать coverage для calibration: "резул
 
 | Файл | Назначение |
 |------|-----------|
-| `functions/src/services/tools/handlers/findSimilarVideos.ts` | Handler: lookup, vector resolve, search, RRF merge, enrichment |
+| `functions/src/services/tools/handlers/competition/findSimilarVideos.ts` | Handler: lookup, vector resolve, search, RRF merge, enrichment |
 | `functions/src/embedding/vectorSearch.ts` | `findNearestVideos()` — batched pre-filter + findNearest + merge |
 | `functions/src/embedding/rrfMerge.ts` | `rrfMerge()` — Reciprocal Rank Fusion (pure utility) |
 | `functions/src/embedding/packagingEmbedding.ts` | Text embedding generation (gemini-embedding-001, 768d) |
@@ -296,5 +296,5 @@ Firestore:
 
 | Файл | Кейсов |
 |------|--------|
-| `functions/src/services/tools/handlers/__tests__/findSimilarVideos.test.ts` | 20 (packaging: competitor/own/not found/hidden filter/shared tags/view deltas/performance tiers/coverage; visual: competitor/no embedding/own/thumbnailDescription/coverage; both: RRF merge/packaging fallback/visual fallback/both unavailable/parallel search/coverage) |
+| `functions/src/services/tools/handlers/competition/__tests__/findSimilarVideos.test.ts` | 20 (packaging: competitor/own/not found/hidden filter/shared tags/view deltas/performance tiers/coverage; visual: competitor/no embedding/own/thumbnailDescription/coverage; both: RRF merge/packaging fallback/visual fallback/both unavailable/parallel search/coverage) |
 | `functions/src/embedding/__tests__/rrfMerge.test.ts` | 8 (overlap scoring, no overlap union, empty lists, finalLimit, k parameter, single list, data preservation, score semantics) |

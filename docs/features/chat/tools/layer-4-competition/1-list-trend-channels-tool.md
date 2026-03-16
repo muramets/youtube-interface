@@ -138,7 +138,7 @@ Handler читает ТОЛЬКО channel-level документы из `trendCh
 
 | Файл | Назначение |
 |------|-----------|
-| `functions/src/services/tools/handlers/listTrendChannels.ts` | Handler: read channel docs, format response |
+| `functions/src/services/tools/handlers/competition/listTrendChannels.ts` | Handler: read channel docs, format response |
 | `functions/src/services/tools/definitions.ts` | Tool declaration (no parameters) |
 | `functions/src/services/tools/executor.ts` | Tool routing |
 | `functions/src/services/sync.ts` | `updateChannelStats()` — caches `performanceDistribution` and `videoCount` on channel doc |
@@ -155,4 +155,4 @@ Firestore: users/{userId}/channels/{channelId}/trendChannels/{trendChannelId}
 
 | Файл | Кейсов |
 |------|--------|
-| `functions/src/services/tools/handlers/__tests__/listTrendChannels.test.ts` | 9 (empty state, fields, distribution null, lastUpdated formats, totalVideos, dataFreshness) |
+| `functions/src/services/tools/handlers/competition/__tests__/listTrendChannels.test.ts` | 9 (empty state, fields, distribution null, lastUpdated formats, totalVideos, dataFreshness) |

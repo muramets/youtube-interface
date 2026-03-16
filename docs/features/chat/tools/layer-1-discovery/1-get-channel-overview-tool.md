@@ -61,7 +61,7 @@
 
 | Файл | Назначение |
 |------|-----------|
-| `functions/src/services/tools/handlers/getChannelOverview.ts` | Handler: resolve + channel info + quota estimate |
+| `functions/src/services/tools/handlers/discovery/getChannelOverview.ts` | Handler: resolve + channel info + quota estimate |
 | `functions/src/services/tools/definitions.ts` | Tool declaration |
 | `functions/src/services/youtube.ts` | `resolveChannelId()`, `getChannelInfo()` |
 | `functions/src/chat/aiChat.ts` | Собирает `ToolContext` (читает `youtubeApiKey` из channel settings) |
@@ -71,7 +71,7 @@
 
 | Файл | Кейсов |
 |------|--------|
-| `functions/src/services/tools/handlers/__tests__/getChannelOverview.test.ts` | — |
+| `functions/src/services/tools/handlers/discovery/__tests__/getChannelOverview.test.ts` | — |
 
 ---
 

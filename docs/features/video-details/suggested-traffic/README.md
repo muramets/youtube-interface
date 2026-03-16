@@ -304,7 +304,7 @@ Bridge передаёт только IDs вместо полных данных.
 ### Backend (Cloud Functions)
 | Файл | Назначение |
 |------|-----------|
-| `functions/src/services/tools/handlers/analyzeSuggestedTraffic.ts` | Tool handler: Firestore → Cloud Storage → parse → timelines → content analysis → JSON |
+| `functions/src/services/tools/handlers/analysis/analyzeSuggestedTraffic.ts` | Tool handler: Firestore → Cloud Storage → parse → timelines → content analysis → JSON |
 | `functions/src/services/tools/utils/csvParser.ts` | Server-side CSV parser (RFC 4180, `YT_RELATED.{id}` extraction) |
 | `functions/src/services/tools/utils/delta.ts` | Per-video timeline builder + transitions (new/dropped) |
 | `functions/src/services/tools/utils/suggestedAnalysis.ts` | Content analysis: shared tags, keywords, channels, self-channel, trajectory |

@@ -88,7 +88,7 @@ Custom videos создаются с document ID `custom-XXXXX`, а YouTube video
 
 | Файл | Назначение |
 |------|-----------|
-| `functions/src/services/tools/handlers/browseChannelVideos.ts` | Handler: playlist fetch, cache + resolver, own channel sync |
+| `functions/src/services/tools/handlers/discovery/browseChannelVideos.ts` | Handler: playlist fetch, cache + resolver, own channel sync |
 | `functions/src/services/tools/utils/resolveVideos.ts` | Shared video resolution (direct + publishedVideoId lookup + source upgrade) |
 | `functions/src/services/tools/definitions.ts` | Tool declaration |
 | `functions/src/services/youtube.ts` | `getPlaylistVideos()`, `getVideoDetails()` |
@@ -106,7 +106,7 @@ Custom videos создаются с document ID `custom-XXXXX`, а YouTube video
 
 | Файл | Кейсов |
 |------|--------|
-| `functions/src/services/tools/handlers/__tests__/browseChannelVideos.test.ts` | — |
+| `functions/src/services/tools/handlers/discovery/__tests__/browseChannelVideos.test.ts` | — |
 
 ---
 

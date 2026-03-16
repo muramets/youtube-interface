@@ -285,7 +285,7 @@ _Тест #8 первоначально покрыт через [analyzeSuggeste
 
 | Файл | Назначение |
 |------|-----------|
-| `functions/src/services/tools/handlers/getMultipleVideoDetails.ts` | Handler: title resolution + cascade via resolveVideosByIds, formatting, denormalized counts, view delta enrichment, youtubeVideoId |
+| `functions/src/services/tools/handlers/detail/getMultipleVideoDetails.ts` | Handler: title resolution + cascade via resolveVideosByIds, formatting, denormalized counts, view delta enrichment, youtubeVideoId |
 | `functions/src/services/tools/utils/resolveVideos.ts` | Shared 3-step video resolution (direct + publishedVideoId + trendChannels) |
 | `functions/src/services/tools/utils/resolveVideosByTitle.ts` | Shared title→videoId resolution across 3 Firestore collections (videos/ → cached_external_videos/ → trendChannels/) |
 | `functions/src/services/trendSnapshotService.ts` | View delta enrichment: admin SDK → `calculateViewDeltas()` from `shared/viewDeltas.ts` |
@@ -296,6 +296,6 @@ _Тест #8 первоначально покрыт через [analyzeSuggeste
 
 | Файл | Кейсов |
 |------|--------|
-| `functions/src/services/tools/handlers/__tests__/getMultipleVideoDetails.bugfix.test.ts` | 2 |
-| `functions/src/services/tools/handlers/__tests__/getMultipleVideoDetails.viewDeltas.test.ts` | 5 (deltas present, null, failure graceful, channelId hints, mix own+external) |
-| `functions/src/services/tools/handlers/__tests__/getMultipleVideoDetails.titles.test.ts` | 7 (title resolution, notFoundTitles, merge titles+videoIds, deduplication, defensive string input, error on empty, no YouTube API for title-resolved) |
+| `functions/src/services/tools/handlers/detail/__tests__/getMultipleVideoDetails.bugfix.test.ts` | 2 |
+| `functions/src/services/tools/handlers/detail/__tests__/getMultipleVideoDetails.viewDeltas.test.ts` | 5 (deltas present, null, failure graceful, channelId hints, mix own+external) |
+| `functions/src/services/tools/handlers/detail/__tests__/getMultipleVideoDetails.titles.test.ts` | 7 (title resolution, notFoundTitles, merge titles+videoIds, deduplication, defensive string input, error on empty, no YouTube API for title-resolved) |

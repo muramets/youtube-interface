@@ -290,8 +290,8 @@ interface VideoDeltaStats {
 | `src/pages/Trends/hooks/useTrendTableData.ts` | Trends Table: cached snapshots → `calculateViewDeltas()` |
 | `src/pages/Trends/hooks/useTrendChannelTableData.ts` | Trends Channel Table: cached snapshots → per-channel aggregation |
 | `functions/src/services/trendSnapshotService.ts` | Server-side: admin SDK reads → `calculateViewDeltas()` from shared |
-| `functions/src/services/tools/handlers/getMultipleVideoDetails.ts` | Tool: enriches videos with `viewDelta24h/7d/30d` |
-| `functions/src/services/tools/handlers/analyzeSuggestedTraffic.ts` | Tool: enriches suggested videos with view deltas |
+| `functions/src/services/tools/handlers/detail/getMultipleVideoDetails.ts` | Tool: enriches videos with `viewDelta24h/7d/30d` |
+| `functions/src/services/tools/handlers/analysis/analyzeSuggestedTraffic.ts` | Tool: enriches suggested videos with view deltas |
 
 ### Snapshot Query
 

@@ -357,9 +357,9 @@ Suggested traffic semantics: a "suggested video" in the table is a competitor vi
 - [x] **T4.1** — Persist `channelId` in `cached_external_videos` (all writers)
   - **Root cause:** `YouTubeVideoSnippet` type in `functions/src/types.ts` (line 44) does NOT declare `channelId` even though YouTube API **always returns it**. Without fixing the type, TypeScript rejects `item.snippet.channelId`.
   - **Step 0 (type fix):** `functions/src/types.ts` → add `channelId?: string;` to `YouTubeVideoSnippet` interface
-  - **Writer 1:** `functions/src/services/tools/handlers/getMultipleVideoDetails.ts`
+  - **Writer 1:** `functions/src/services/tools/handlers/detail/getMultipleVideoDetails.ts`
     - Add `channelId: item.snippet.channelId` to `cacheData` object (line ~77-88)
-  - **Writer 2:** `functions/src/services/tools/handlers/browseChannelVideos.ts`
+  - **Writer 2:** `functions/src/services/tools/handlers/discovery/browseChannelVideos.ts`
     - Add `channelId: item.snippet.channelId` to `youtubeItemToCacheDoc()` (line ~187-199)
   - **Shared:** Add `channelId: data.channelId || undefined` to `formatVideoData()` in `getMultipleVideoDetails.ts`
   - This enables Phase 4 delta lookup: `channelId` → match with `trendChannels` → fetch snapshots
@@ -379,14 +379,14 @@ Suggested traffic semantics: a "suggested video" in the table is a competitor vi
   - Note for future scale: when concurrent users grow, add in-memory LRU cache (TTL 5min) on top of Firestore reads. Not needed now.
 
 - [x] **T4.3** — Enrich `getMultipleVideoDetails` handler
-  - File: `functions/src/services/tools/handlers/getMultipleVideoDetails.ts`
+  - File: `functions/src/services/tools/handlers/detail/getMultipleVideoDetails.ts`
   - After fetching video details, call `getViewDeltas()` for the returned videoIds
   - Use `channelId` from video data (T4.1) as hint to narrow snapshot queries
   - Add to response per video: `viewDelta24h`, `viewDelta7d`, `viewDelta30d` (null if unavailable)
   - Deltas should be in the formatted string output that LLM reads
 
 - [x] **T4.4** — Enrich `analyzeSuggestedTraffic` handler
-  - File: `functions/src/services/tools/handlers/analyzeSuggestedTraffic.ts`
+  - File: `functions/src/services/tools/handlers/analysis/analyzeSuggestedTraffic.ts`
   - After building `topSources`, call `getViewDeltas()` for all suggested video IDs
   - Add to each `topSource`: `viewDelta24h`, `viewDelta7d`, `viewDelta30d`
   - Update `analysisGuidance` to explain: "viewDelta fields show how fast each suggested video is growing on YouTube overall — a video giving impressions to yours while itself growing rapidly signals strong algorithmic association"
@@ -399,7 +399,7 @@ Suggested traffic semantics: a "suggested video" in the table is a competitor vi
 
 - [x] **T4.6** — Tests for server-side integration
   - Create: `functions/src/services/__tests__/trendSnapshotService.test.ts`
-  - Create: `functions/src/services/tools/handlers/__tests__/getMultipleVideoDetails.viewDeltas.test.ts`
+  - Create: `functions/src/services/tools/handlers/detail/__tests__/getMultipleVideoDetails.viewDeltas.test.ts`
   - Cases for trendSnapshotService:
     - Normal flow → correct deltas
     - No trend channels for user → empty map (graceful)

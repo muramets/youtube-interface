@@ -288,7 +288,7 @@ YouTube API возвращает два текстовых поля:
 | Файл | Назначение |
 |------|-----------|
 | `functions/src/services/youtube.ts` | `getCommentThreads()` — новый метод YouTubeService |
-| `functions/src/services/tools/handlers/getVideoComments.ts` | Handler: валидация → API → structured response |
+| `functions/src/services/tools/handlers/detail/getVideoComments.ts` | Handler: валидация → API → structured response |
 | `functions/src/services/tools/definitions.ts` | Tool declaration в `TOOL_NAMES` + `TOOL_DECLARATIONS` |
 | `functions/src/services/tools/executor.ts` | Регистрация handler'а в `HANDLERS` map |
 | `src/features/Chat/utils/toolCallGrouping.ts` | UI label, `isExpandable`, `extractVideoIdsForTool` |
@@ -323,9 +323,9 @@ replies.comments[].snippet.publishedAt  →  comment.topReplies[].publishedAt
 
 | Файл | Кейсов |
 |------|--------|
-| `functions/src/services/tools/handlers/__tests__/getVideoComments.test.ts` | 16 (validation, happy path, pagination, errors, edge cases) |
+| `functions/src/services/tools/handlers/detail/__tests__/getVideoComments.test.ts` | 16 (validation, happy path, pagination, errors, edge cases) |
 | `functions/src/services/__tests__/youtube.test.ts` (getCommentThreads describe) | 8 (happy path, pagination, 403, empty, replies, order, nextPageToken) |
-| `functions/src/services/tools/handlers/__tests__/getMultipleVideoDetails.commentCount.test.ts` | 4 (own, API fallback, cache, undefined) |
+| `functions/src/services/tools/handlers/detail/__tests__/getMultipleVideoDetails.commentCount.test.ts` | 4 (own, API fallback, cache, undefined) |
 
 ---
 

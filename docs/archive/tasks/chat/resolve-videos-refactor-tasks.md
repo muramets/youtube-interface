@@ -16,8 +16,8 @@
 Если потерян контекст — читать в этом порядке:
 1. **Этот файл** (статус + чеклисты)
 2. `functions/src/services/tools/utils/resolveVideos.ts` (текущий resolver, 2 шага)
-3. `functions/src/services/tools/handlers/getNicheSnapshot.ts` строки 66-98 (reference: как правильно искать в trendChannels через `db.getAll()`)
-4. `functions/src/services/tools/handlers/findSimilarVideos.ts` строки 56-112 (reference: `lookupVideo` — 3-layer cascade)
+3. `functions/src/services/tools/handlers/competition/getNicheSnapshot.ts` строки 66-98 (reference: как правильно искать в trendChannels через `db.getAll()`)
+4. `functions/src/services/tools/handlers/competition/findSimilarVideos.ts` строки 56-112 (reference: `lookupVideo` — 3-layer cascade)
 5. `functions/src/services/tools/definitions.ts` (tool definitions для LLM)
 6. `functions/src/services/tools/executor.ts` (handler registry)
 
@@ -190,20 +190,20 @@ npm run typecheck
 ### Tasks
 
 - [x] **T2.1** `mentionVideo` — обработать `source: "trend_channel"`
-  - Файл: `functions/src/services/tools/handlers/mentionVideo.ts`
+  - Файл: `functions/src/services/tools/handlers/utility/mentionVideo.ts`
   - Изменить: `ownership` для `trend_channel` source → `"competitor"`
   - `channelTitle` — уже есть в `data` (нормализован resolver'ом в T1.2)
   - Thumbnail fallback: `data.thumbnail` || YouTube CDN URL (как сейчас)
 
 - [x] **T2.2** `getMultipleVideoDetails` — обработать `source: "trend_channel"`
-  - Файл: `functions/src/services/tools/handlers/getMultipleVideoDetails.ts`
+  - Файл: `functions/src/services/tools/handlers/detail/getMultipleVideoDetails.ts`
   - `CollectionSource` type (строка 126): добавить `"competitor"`
   - Маппинг в цикле (строка 39): `entry.source === "trend_channel"` → `collectionSource = "competitor"`
   - `formatVideoData` (строка 128): `"competitor"` → `ownership: "external"`, включить `channelId` из data
   - YouTube API fallback: без изменений — срабатывает для оставшихся `notFoundIds` (которых теперь меньше)
 
 - [x] **T2.3** `viewThumbnails` — расширить `resolveVideoIdsByTitle()`
-  - Файл: `functions/src/services/tools/handlers/viewThumbnails.ts` строки 22-47
+  - Файл: `functions/src/services/tools/handlers/detail/viewThumbnails.ts` строки 22-47
   - Добавить 3-й параллельный query: для каждого title → query каждый trendChannel
   - Паттерн: `db.collection(basePath/trendChannels).get()` → для каждого channel × каждого title → `.where("title", "==", title).limit(1).get()`
   - Приоритет: videos/ > cached_external_videos/ > trendChannels/
@@ -250,7 +250,7 @@ npm run lint
 ### Tasks
 
 - [x] **T3.1** `findSimilarVideos.lookupVideo()` — заменить Promise.all на db.getAll
-  - Файл: `functions/src/services/tools/handlers/findSimilarVideos.ts` строки 89-96
+  - Файл: `functions/src/services/tools/handlers/competition/findSimilarVideos.ts` строки 89-96
   - Сейчас:
     ```typescript
     const checks = await Promise.all(
@@ -269,7 +269,7 @@ npm run lint
   - ⚠️ Семантика идентична — `getAll` возвращает snaps в том же порядке что refs
 
 - [x] **T3.2** `browseTrendVideos` — batch channel doc reads
-  - Файл: `functions/src/services/tools/handlers/browseTrendVideos.ts` строки 98-101
+  - Файл: `functions/src/services/tools/handlers/competition/browseTrendVideos.ts` строки 98-101
   - Сейчас: `Promise.all(channelIds.map(id => trendChannelsRef.doc(id).get()))` → filter exists
   - После: `db.getAll(...channelIds.map(id => trendChannelsRef.doc(id)))` → filter exists
   - Минорная оптимизация (обычно 2-5 channels), но выравнивает паттерн
@@ -307,11 +307,11 @@ npm run check
 
 > Проверь рефакторинг video resolver'а. Прочитай файлы:
 > 1. `functions/src/services/tools/utils/resolveVideos.ts`
-> 2. `functions/src/services/tools/handlers/mentionVideo.ts`
-> 3. `functions/src/services/tools/handlers/getMultipleVideoDetails.ts`
-> 4. `functions/src/services/tools/handlers/viewThumbnails.ts`
-> 5. `functions/src/services/tools/handlers/findSimilarVideos.ts` (lookupVideo)
-> 6. `functions/src/services/tools/handlers/browseTrendVideos.ts`
+> 2. `functions/src/services/tools/handlers/utility/mentionVideo.ts`
+> 3. `functions/src/services/tools/handlers/detail/getMultipleVideoDetails.ts`
+> 4. `functions/src/services/tools/handlers/detail/viewThumbnails.ts`
+> 5. `functions/src/services/tools/handlers/competition/findSimilarVideos.ts` (lookupVideo)
+> 6. `functions/src/services/tools/handlers/competition/browseTrendVideos.ts`
 > 7. `functions/src/services/tools/utils/__tests__/resolveVideos.test.ts`
 >
 > Проверить:

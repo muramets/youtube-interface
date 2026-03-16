@@ -13,7 +13,7 @@
 2. `docs/features/chat/competitive-intelligence.md` (архитектура, решения, примеры ответов)
 3. `functions/src/services/tools/definitions.ts` (существующие tool definitions — паттерн)
 4. `functions/src/services/tools/executor.ts` (как регистрируются handlers)
-5. `functions/src/services/tools/handlers/browseChannelVideos.ts` (ближайший паттерн — Layer 1 handler)
+5. `functions/src/services/tools/handlers/discovery/browseChannelVideos.ts` (ближайший паттерн — Layer 1 handler)
 6. `functions/src/services/trendSnapshotService.ts` (getViewDeltas — переиспользуем)
 
 ### Key Decisions (carry forward)
@@ -196,7 +196,7 @@ Fix all findings before moving to Phase 2.
   - ⚠️ Zero дополнительных Firestore reads — видео уже в памяти
 
 - [x] **T2.2b** — Handler: `listTrendChannels`
-  - Create: `functions/src/services/tools/handlers/listTrendChannels.ts`
+  - Create: `functions/src/services/tools/handlers/competition/listTrendChannels.ts`
   - Input: none (uses ctx)
   - Logic:
     1. Read all docs from `${basePath}/trendChannels/` — **10 doc reads, не 8000**
@@ -207,7 +207,7 @@ Fix all findings before moving to Phase 2.
   - ⚠️ Channels added before T2.2a won't have `performanceDistribution` — handler must handle `null` gracefully (omit field or return empty object). Distribution appears after first sync
 
 - [x] **T2.3** — Handler: `browseTrendVideos`
-  - Create: `functions/src/services/tools/handlers/browseTrendVideos.ts`
+  - Create: `functions/src/services/tools/handlers/competition/browseTrendVideos.ts`
   - Input: `{ channelIds?, dateRange?: {from, to}, performanceTier?, sort?, limit? }`
   - Logic:
     1. Get list of trend channels (all or filtered by `channelIds`)
@@ -224,7 +224,7 @@ Fix all findings before moving to Phase 2.
   - Output: `{ videos: [...], totalMatched, channels: [...], dataFreshness: [...] }`
 
 - [x] **T2.4** — Handler: `getNicheSnapshot`
-  - Create: `functions/src/services/tools/handlers/getNicheSnapshot.ts`
+  - Create: `functions/src/services/tools/handlers/competition/getNicheSnapshot.ts`
   - Input: `{ date?, videoId?, channelId?, windowDays? }`
   - ⚠️ `windowDays` default = `7` (window = ±7 дней = 14 дней total). Вынести в именованную константу `DEFAULT_WINDOW_DAYS`
   - ⚠️ `date` = **primary input**. Основной flow: bridge context передаёт publishedAt → AI вызывает `getNicheSnapshot(date: "...")` напрямую. `videoId` — fallback для edge case (пользователь вставляет ссылку без bridge context)
@@ -269,13 +269,13 @@ Fix all findings before moving to Phase 2.
   - ⚠️ Without this, new tools execute on backend but chat UI won't display results properly
 
 - [x] **T2.7** — Tests
-  - Create: `functions/src/services/tools/handlers/__tests__/listTrendChannels.test.ts`
+  - Create: `functions/src/services/tools/handlers/competition/__tests__/listTrendChannels.test.ts`
     - Mock Firestore (trend channels + videos subcollections)
     - Cases: multiple channels, empty channels, channel with 0 videos
-  - Create: `functions/src/services/tools/handlers/__tests__/browseTrendVideos.test.ts`
+  - Create: `functions/src/services/tools/handlers/competition/__tests__/browseTrendVideos.test.ts`
     - Mock Firestore + `getViewDeltas`
     - Cases: filter by channel, filter by date range, filter by tier, sort by views, sort by delta (with null fallback), limit, hidden videos filtered, empty result, dataFreshness present
-  - Create: `functions/src/services/tools/handlers/__tests__/getNicheSnapshot.test.ts`
+  - Create: `functions/src/services/tools/handlers/competition/__tests__/getNicheSnapshot.test.ts`
     - Mock Firestore + `resolveVideosByIds` + `getViewDeltas`
     - Cases: by date (primary path, zero resolution reads), by videoId with channelId (1 read), by videoId without channelId (trend channels scan → found), by videoId (not in trends → fallback to resolveVideosByIds → own video found), by videoId (not found anywhere → error), window calculation, common tags counting, empty window, dataFreshness present, DEFAULT_WINDOW_DAYS used when windowDays not specified
 

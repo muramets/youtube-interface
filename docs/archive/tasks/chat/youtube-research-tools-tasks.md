@@ -117,7 +117,7 @@ Two different CSV types exist in the system:
   - Write tests: `functions/src/services/tools/utils/__tests__/trafficSourceCsvParser.test.ts`
 
 - [x] **T1.4** — `analyzeTrafficSources` handler
-  - Create: `functions/src/services/tools/handlers/analyzeTrafficSources.ts`
+  - Create: `functions/src/services/tools/handlers/analysis/analyzeTrafficSources.ts`
   - Parameters: `{ videoId: string }`
   - Firestore path: `users/{uid}/channels/{channelId}/videos/{videoId}/trafficSource/main` (NOT traffic/main!)
   - Pipeline:
@@ -128,12 +128,12 @@ Two different CSV types exist in the system:
   - Response: `{ sourceVideo, snapshotTimeline, sources[].timeline[], totalTimeline }`
   - NO `analysisGuidance` — data is compact enough
   - Copy CSV download pattern from `analyzeSuggestedTraffic.ts` lines 115-130
-  - Write tests: `functions/src/services/tools/handlers/__tests__/analyzeTrafficSources.test.ts`
+  - Write tests: `functions/src/services/tools/handlers/analysis/__tests__/analyzeTrafficSources.test.ts`
     - Mock: Firestore + Cloud Storage (same pattern as `viewThumbnails.handler.test.ts`)
     - Cases: missing videoId, no traffic data, correct deltas, single snapshot (deltas=null), broken CSV, sources sorted by views, totalTimeline aggregation
 
 - [x] **T1.5** — `browseChannelVideos` handler
-  - Create: `functions/src/services/tools/handlers/browseChannelVideos.ts`
+  - Create: `functions/src/services/tools/handlers/discovery/browseChannelVideos.ts`
   - Parameters: `{ channelId: string, publishedAfter?: string, confirmed?: boolean }`
   - Two-phase execution:
     - Phase 1 (no confirmed): `resolveChannelId` → `getChannelInfo` → return QUOTA_GATE with `_systemNote: "QUOTA_GATE: N videos, up to ~X units (less if some already cached). Ask user."`
@@ -142,7 +142,7 @@ Two different CSV types exist in the system:
   - Own channel: always YouTube API → show `{ inApp, onYouTube, missing }` delta
   - `publishedAfter` early stop during pagination
   - Needs `ctx.youtubeApiKey` from T1.2
-  - Write tests: `functions/src/services/tools/handlers/__tests__/browseChannelVideos.test.ts`
+  - Write tests: `functions/src/services/tools/handlers/discovery/__tests__/browseChannelVideos.test.ts`
 
 ### Verification
 
@@ -186,7 +186,7 @@ Elite senior dev review:
   - Imported and registered both handlers in `HANDLERS` map
 
 - [x] **T2.3** — `getMultipleVideoDetails` extension
-  - File: `functions/src/services/tools/handlers/getMultipleVideoDetails.ts`
+  - File: `functions/src/services/tools/handlers/detail/getMultipleVideoDetails.ts`
   - 3-level cascade: `videos/` → `cached_external_videos/` → YouTube API (after cache consolidation)
   - YouTube results cached in `cached_external_videos/` with `source: "api_fallback"`
   - `quotaUsed` in response (no underscore prefix)
@@ -262,18 +262,18 @@ Elite senior dev review:
     - `uploadsPlaylistId` is required — structural dependency on `getChannelOverview` by design
     - Only does video fetching + caching (single responsibility)
   - **Files to change:**
-    - `functions/src/services/tools/handlers/browseChannelVideos.ts` — refactor, extract Phase 1
-    - `functions/src/services/tools/handlers/getChannelOverview.ts` — new handler
+    - `functions/src/services/tools/handlers/discovery/browseChannelVideos.ts` — refactor, extract Phase 1
+    - `functions/src/services/tools/handlers/discovery/getChannelOverview.ts` — new handler
     - `functions/src/services/tools/definitions.ts` — new tool definition + update existing
     - `functions/src/services/tools/executor.ts` — register new handler
-    - `functions/src/services/tools/handlers/__tests__/browseChannelVideos.test.ts` — update tests
-    - `functions/src/services/tools/handlers/__tests__/getChannelOverview.test.ts` — new tests
+    - `functions/src/services/tools/handlers/discovery/__tests__/browseChannelVideos.test.ts` — update tests
+    - `functions/src/services/tools/handlers/discovery/__tests__/getChannelOverview.test.ts` — new tests
     - `src/features/Chat/utils/toolCallGrouping.ts` — new tool label
     - `src/features/Chat/components/ToolCallSummary.tsx` — new tool pill (reuse `BrowseChannelStats`)
   - After completion: mark backlog item as done in `docs/backlog.md`
 
 - [x] **T3.3** — Trend channel smart caching in `browseChannelVideos`
-  - File: `functions/src/services/tools/handlers/browseChannelVideos.ts`
+  - File: `functions/src/services/tools/handlers/discovery/browseChannelVideos.ts`
   - **Logic:** before YouTube API, check if target channel is a tracked trend channel:
     1. Query `users/{uid}/channels/{channelId}/trendChannels/{targetChannelId}` — single doc read
     2. If exists → read `trendChannels/{targetChannelId}/videos/` — all videos already synced

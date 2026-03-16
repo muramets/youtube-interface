@@ -11,7 +11,7 @@
 Если потерян контекст — читать в этом порядке:
 1. Этот файл (статус + чеклисты)
 2. `docs/features/chat/tools/layer-4-competition/5-search-database-tool.md` (feature doc: дизайн, параметры, return format, Query vs Document Embedding)
-3. `functions/src/services/tools/handlers/findSimilarVideos.ts` (ближайший паттерн — handler с vector search + enrichment)
+3. `functions/src/services/tools/handlers/competition/findSimilarVideos.ts` (ближайший паттерн — handler с vector search + enrichment)
 4. `functions/src/embedding/packagingEmbedding.ts` (паттерн для `generateQueryEmbedding`)
 5. `functions/src/services/tools/definitions.ts` (паттерн tool definition)
 6. `functions/src/services/tools/executor.ts` (handler registration)
@@ -151,7 +151,7 @@ Fix all findings before moving to Phase 2.
 
 ### Critical Context
 
-- Handler паттерн: `functions/src/services/tools/handlers/findSimilarVideos.ts` — ближайший аналог (vector search + enrichment)
+- Handler паттерн: `functions/src/services/tools/handlers/competition/findSimilarVideos.ts` — ближайший аналог (vector search + enrichment)
 - ⚠️ `ToolContext` interface (`tools/types.ts`): `{ userId, channelId, youtubeApiKey?, reportProgress? }`
 - ⚠️ Handler signature: `(args: Record<string, unknown>, ctx: ToolContext) => Promise<Record<string, unknown>>`
 - ⚠️ `TOOL_NAMES` — `const` object с `as const` (НЕ TypeScript enum). Синтаксис: `SEARCH_DATABASE: "searchDatabase",` (двоеточие, не `=`). Строка 20–32 в `definitions.ts`
@@ -167,7 +167,7 @@ Fix all findings before moving to Phase 2.
 ### Tasks
 
 - [x] **T2.1** — Create handler
-  - Create: `functions/src/services/tools/handlers/searchDatabase.ts`
+  - Create: `functions/src/services/tools/handlers/competition/searchDatabase.ts`
   - Function: `handleSearchDatabase(args, ctx): Promise<Record<string, unknown>>`
   - Flow (точно по feature doc, секция "Поток выполнения handler"):
     1. Parse & validate: `query` (string, min 3 chars), `channelIds` (optional string[]), `limit` (number, default 20, max 50)
@@ -261,7 +261,7 @@ Fix all findings before moving to Phase 2.
   - Add to `HANDLERS` map: `[TOOL_NAMES.SEARCH_DATABASE]: handleSearchDatabase`
 
 - [x] **T2.4** — Tests для handler
-  - Create: `functions/src/services/tools/handlers/__tests__/searchDatabase.test.ts`
+  - Create: `functions/src/services/tools/handlers/competition/__tests__/searchDatabase.test.ts`
   - Mocks: `generateQueryEmbedding`, `findNearestVideos`, `getViewDeltas`, `getHiddenVideoIds`, `assignPercentileGroups`, `db` (Firestore admin)
   - Паттерн: `findSimilarVideos.test.ts` (тот же набор mocks + структура)
   - Cases:
@@ -365,7 +365,7 @@ npm run check     # lint + typecheck + doc links
 1. `docs/features/chat/tools/layer-4-competition/5-search-database-tool.md` (feature doc)
 2. `docs/features/chat/tools/layer-4-competition/search-database-tasks.md` (Key Decisions)
 3. `functions/src/embedding/queryEmbedding.ts`
-4. `functions/src/services/tools/handlers/searchDatabase.ts`
+4. `functions/src/services/tools/handlers/competition/searchDatabase.ts`
 5. `functions/src/services/tools/definitions.ts` (searchDatabase entry)
 6. `functions/src/services/tools/executor.ts` (registration)
 

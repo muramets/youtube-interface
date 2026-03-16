@@ -29,19 +29,19 @@ const {
     mockHandleViewThumbnails: vi.fn(),
 }));
 
-vi.mock("../handlers/mentionVideo.js", () => ({
+vi.mock("../handlers/utility/mentionVideo.js", () => ({
     handleMentionVideo: mockHandleMentionVideo,
 }));
 
-vi.mock("../handlers/getMultipleVideoDetails.js", () => ({
+vi.mock("../handlers/detail/getMultipleVideoDetails.js", () => ({
     handleGetMultipleVideoDetails: mockHandleGetMultipleVideoDetails,
 }));
 
-vi.mock("../handlers/analyzeSuggestedTraffic.js", () => ({
+vi.mock("../handlers/analysis/analyzeSuggestedTraffic.js", () => ({
     handleAnalyzeSuggestedTraffic: mockHandleAnalyzeSuggestedTraffic,
 }));
 
-vi.mock("../handlers/viewThumbnails.js", () => ({
+vi.mock("../handlers/detail/viewThumbnails.js", () => ({
     handleViewThumbnails: mockHandleViewThumbnails,
 }));
 

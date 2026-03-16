@@ -16,7 +16,7 @@
 3. `docs/features/chat/tools/layer-4-competition/vertex-ai-setup.md` (Vertex AI setup для visual embeddings)
 4. `functions/src/services/tools/definitions.ts` (существующие tool definitions — паттерн)
 5. `functions/src/services/tools/executor.ts` (как регистрируются handlers)
-6. `functions/src/services/tools/handlers/browseTrendVideos.ts` (ближайший паттерн — Layer 4 handler с view deltas)
+6. `functions/src/services/tools/handlers/competition/browseTrendVideos.ts` (ближайший паттерн — Layer 4 handler с view deltas)
 7. `functions/src/services/trendSnapshotService.ts` (getViewDeltas — переиспользуем для delta enrichment)
 
 ### Key Decisions (carry forward)
@@ -682,7 +682,7 @@ gcloud firestore indexes composite create \
   - ⚠️ Null embeddings: videos без embedding (null) не участвуют в `findNearest` — Firestore пропускает их автоматически
 
 - [x] **T5.2** — findSimilarVideos handler (mode: packaging)
-  - Create: `functions/src/services/tools/handlers/findSimilarVideos.ts`
+  - Create: `functions/src/services/tools/handlers/competition/findSimilarVideos.ts`
   - Input: `{ videoId: string, mode?: 'packaging', limit?: number }`
   - ⚠️ mode default = `'packaging'` (Этап 2). `'visual'` и `'both'` добавляются в Phase 7
   - Logic:
@@ -747,7 +747,7 @@ gcloud firestore indexes composite create \
       - >30 channels → batched into 2 queries, merged correctly
       - Empty results → returns `[]`
       - 1 channel → single query (no batching)
-  - Create: `functions/src/services/tools/handlers/__tests__/findSimilarVideos.test.ts`
+  - Create: `functions/src/services/tools/handlers/competition/__tests__/findSimilarVideos.test.ts`
     - Mock: `db`, `findNearestVideos`, `generatePackagingEmbedding`, `getViewDeltas`, `getHiddenVideoIds`
     - Cases:
       - Competitor video (exists in globalVideoEmbeddings) → uses stored embedding
@@ -1092,7 +1092,7 @@ Index ID: `CICAgJim14AK` — created 2026-03-09.
 ### Tasks
 
 - [x] **T7.1** — mode: visual
-  - File: `functions/src/services/tools/handlers/findSimilarVideos.ts`
+  - File: `functions/src/services/tools/handlers/competition/findSimilarVideos.ts`
   - Добавить ветку `mode === 'visual'`:
     1. Resolve query vector:
        - Competitor video → read `visualEmbedding` from `globalVideoEmbeddings/{videoId}`
@@ -1105,7 +1105,7 @@ Index ID: `CICAgJim14AK` — created 2026-03-09.
   - ⚠️ `thumbnailDescription` может быть null для некоторых видео — включать `null` в ответ, LLM разберётся
 
 - [x] **T7.2** — mode: both (RRF merge)
-  - File: `functions/src/services/tools/handlers/findSimilarVideos.ts`
+  - File: `functions/src/services/tools/handlers/competition/findSimilarVideos.ts`
   - Create helper: `rrfMerge(packagingResults, visualResults, k, finalLimit)`
   - Добавить ветку `mode === 'both'`:
     1. Resolve BOTH query vectors (параллельно):
@@ -1156,7 +1156,7 @@ Index ID: `CICAgJim14AK` — created 2026-03-09.
     - Add guidance: "Use `packaging` for topic similarity, `visual` for thumbnail/visual style similarity, `both` for comprehensive match. `both` uses Reciprocal Rank Fusion to combine results."
 
 - [x] **T7.4** — Tests
-  - Update: `functions/src/services/tools/handlers/__tests__/findSimilarVideos.test.ts`
+  - Update: `functions/src/services/tools/handlers/competition/__tests__/findSimilarVideos.test.ts`
     - Cases for mode: visual:
       - Competitor video with visualEmbedding → visual search results
       - Competitor video without visualEmbedding → error

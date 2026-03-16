@@ -62,7 +62,7 @@
 
 | Файл | Назначение |
 |------|-----------|
-| `functions/src/services/tools/handlers/mentionVideo.ts` | Handler: video resolution via resolveVideosByIds |
+| `functions/src/services/tools/handlers/utility/mentionVideo.ts` | Handler: video resolution via resolveVideosByIds |
 | `functions/src/services/tools/utils/resolveVideos.ts` | Shared 3-step video resolution (direct + publishedVideoId + trendChannels) |
 | `functions/src/services/tools/definitions.ts` | Tool declaration |
 | `src/features/Chat/ChatMessageList.tsx` | Frontend: mention URL sanitization + badge rendering |

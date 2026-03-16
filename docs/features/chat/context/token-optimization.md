@@ -191,7 +191,7 @@ System prompt инструктирует AI, что description/tags досту�
 **Compact L1:** `src/core/ai/layers/persistentContextLayer.ts` — `formatSingleVideo()` формирует компактную строку.
 **Delta enrichment:** `src/core/ai/pipeline/enrichContextWithDeltas.ts` — middleware добавляет 24h/7d/30d delta views.
 **Delta computation:** `src/core/utils/computeVideoDeltas.ts` — вычисление дельт из trend snapshots.
-**Tool:** `functions/src/services/tools/handlers/getMultipleVideoDetails.ts` — batch fetch + YouTube API fallback.
+**Tool:** `functions/src/services/tools/handlers/detail/getMultipleVideoDetails.ts` — batch fetch + YouTube API fallback.
 **Prompts:** `src/core/config/prompts.ts` — `VIDEO_CONTEXT_PREAMBLE`, `TRAFFIC_SUGGESTED_HEADER`.
 **Traffic formatting:** `src/core/ai/utils/formatTrafficSources.ts` — pure formatter для traffic sources.
 

@@ -198,7 +198,7 @@ Percentile тиры вычисляются per-channel, не cross-channel:
 
 | Файл | Назначение |
 |------|-----------|
-| `functions/src/services/tools/handlers/browseTrendVideos.ts` | Handler: per-channel percentiles, filters, delta enrichment |
+| `functions/src/services/tools/handlers/competition/browseTrendVideos.ts` | Handler: per-channel percentiles, filters, delta enrichment |
 | `functions/src/services/tools/utils/getHiddenVideoIds.ts` | Hidden video filter |
 | `functions/src/services/trendSnapshotService.ts` | `getViewDeltas()` — view delta enrichment with `channelIdHints` |
 | `shared/percentiles.ts` | SSOT percentile algorithm (`assignPercentileGroups`) |
@@ -221,4 +221,4 @@ Firestore: users/{userId}/channels/{channelId}/
 
 | Файл | Кейсов |
 |------|--------|
-| `functions/src/services/tools/handlers/__tests__/browseTrendVideos.test.ts` | 14 (no channels error, default sort, channelIds filter, dateRange, performanceTier, invalid params, limit, hidden videos, totalMatched, dataFreshness, channels summary, delta sort fallback) |
+| `functions/src/services/tools/handlers/competition/__tests__/browseTrendVideos.test.ts` | 14 (no channels error, default sort, channelIds filter, dateRange, performanceTier, invalid params, limit, hidden videos, totalMatched, dataFreshness, channels summary, delta sort fallback) |

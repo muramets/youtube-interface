@@ -132,7 +132,7 @@ AI-ассистент анализирует traffic sources через dedicate
 ### Backend (Cloud Functions)
 | Файл | Назначение |
 |------|-----------|
-| `functions/src/services/tools/handlers/analyzeTrafficSources.ts` | Tool handler: Firestore → Cloud Storage → parse → timeline → JSON |
+| `functions/src/services/tools/handlers/analysis/analyzeTrafficSources.ts` | Tool handler: Firestore → Cloud Storage → parse → timeline → JSON |
 | `functions/src/services/tools/utils/trafficSourceCsvParser.ts` | Server-side CSV parser (Node.js, порт фронтенд-версии) |
 | `functions/src/services/tools/utils/trafficSourceTimeline.ts` | Timeline builder: per-source trajectories + deltas |
 | `functions/src/services/tools/definitions.ts` | Tool declaration (provider-agnostic) |
@@ -161,7 +161,7 @@ User asks about traffic → LLM calls analyzeTrafficSources(videoId)
 ### Tests
 | Файл | Кейсов |
 |------|--------|
-| `functions/src/services/tools/handlers/__tests__/analyzeTrafficSources.test.ts` | 7 (validation, empty data, full pipeline, broken CSV, download failures) |
+| `functions/src/services/tools/handlers/analysis/__tests__/analyzeTrafficSources.test.ts` | 7 (validation, empty data, full pipeline, broken CSV, download failures) |
 | `functions/src/services/tools/utils/__tests__/trafficSourceCsvParser.test.ts` | 10 (standard CSV, edge cases, RU headers, RFC 4180) |
 | `functions/src/services/tools/utils/__tests__/trafficSourceTimeline.test.ts` | Timeline builder (multi-snapshot, deltas, gaps) |
 | `src/core/utils/trafficSource/__tests__/delta.test.ts` | 5 (deltas, new sources, division by zero) |

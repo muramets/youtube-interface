@@ -13,7 +13,7 @@
 2. `docs/features/chat/tools/layer-2-detail/3-get-video-comments-tool.md` (архитектура, response schema, API details, field mapping)
 3. `functions/src/services/tools/definitions.ts` (существующие tool definitions — паттерн)
 4. `functions/src/services/tools/executor.ts` (как регистрируются handlers)
-5. `functions/src/services/tools/handlers/getChannelOverview.ts` (ближайший паттерн — простой handler с YouTube API + progress reporting)
+5. `functions/src/services/tools/handlers/discovery/getChannelOverview.ts` (ближайший паттерн — простой handler с YouTube API + progress reporting)
 6. `functions/src/services/youtube.ts` (YouTubeService — сюда добавляем `getCommentThreads`)
 
 ## Key Decisions (carry forward)
@@ -63,7 +63,7 @@ Phase 5: Integration test + Review Gate
 **Goal:** `formatVideoData` возвращает `commentCount` из YouTube API response.
 
 **Critical Context:**
-- `formatVideoData` в `functions/src/services/tools/handlers/getMultipleVideoDetails.ts` (строка 127)
+- `formatVideoData` в `functions/src/services/tools/handlers/detail/getMultipleVideoDetails.ts` (строка 127)
 - Поле `statistics.commentCount` уже в YouTube API response, но не маппится в `formatVideoData`
 - YouTube API fallback (строка 67-68) уже парсит `viewCount` и `likeCount` — добавить `commentCount` рядом
 - ✅ Own videos уже содержат `commentCount` в Firestore — `sync.ts:84` сохраняет `parseInt(v.statistics.commentCount)`. `formatVideoData` подхватит через `data.commentCount`
@@ -191,7 +191,7 @@ npm run lint
 **Goal:** Полное покрытие handler'а тестами + review.
 
 **Critical Context:**
-- Test pattern: `functions/src/services/tools/handlers/__tests__/getChannelOverview.test.ts`
+- Test pattern: `functions/src/services/tools/handlers/discovery/__tests__/getChannelOverview.test.ts`
 - Mock: `vi.mock("../../../youtube.js")` с class mock
 - CTX fixture: `{ userId: "user1", channelId: "ch1", youtubeApiKey: "test-key" }`
 
@@ -216,12 +216,12 @@ npx vitest run --project functions
 > 1. `docs/features/chat/tools/layer-2-detail/get-video-comments-tasks.md` (task doc)
 > 2. `docs/features/chat/tools/layer-2-detail/3-get-video-comments-tool.md` (feature doc)
 > 3. `functions/src/services/youtube.ts` (getCommentThreads method)
-> 4. `functions/src/services/tools/handlers/getVideoComments.ts` (handler)
+> 4. `functions/src/services/tools/handlers/detail/getVideoComments.ts` (handler)
 > 5. `functions/src/services/tools/definitions.ts` (tool definition)
 > 6. `functions/src/services/tools/executor.ts` (registration)
-> 7. `functions/src/services/tools/handlers/getMultipleVideoDetails.ts` (commentCount addition)
+> 7. `functions/src/services/tools/handlers/detail/getMultipleVideoDetails.ts` (commentCount addition)
 > 8. `src/features/Chat/utils/toolCallGrouping.ts` (UI labels)
-> 9. `functions/src/services/tools/handlers/__tests__/getVideoComments.test.ts` (tests)
+> 9. `functions/src/services/tools/handlers/detail/__tests__/getVideoComments.test.ts` (tests)
 >
 > Check these items:
 > 1. **textFormat=plainText** — present in API request? Without it, HTML noise in tokens.

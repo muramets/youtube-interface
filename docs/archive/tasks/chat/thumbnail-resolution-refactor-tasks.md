@@ -5,8 +5,8 @@
 1. **Этот файл** — task doc, execution plan
 2. `docs/features/chat/video-tooltip-refactor.md` — feature doc (Known Issue: Thumbnail Resolution Architecture)
 3. `functions/src/services/tools/utils/resolveThumbnailUrl.ts` — целевая утилита (создать)
-4. `functions/src/services/tools/handlers/mentionVideo.ts:29` — текущий inline thumbnail logic
-5. `functions/src/services/tools/handlers/getMultipleVideoDetails.ts:198` — текущий `data.thumbnail || undefined`
+4. `functions/src/services/tools/handlers/utility/mentionVideo.ts:29` — текущий inline thumbnail logic
+5. `functions/src/services/tools/handlers/detail/getMultipleVideoDetails.ts:198` — текущий `data.thumbnail || undefined`
 6. `src/features/Chat/utils/buildToolVideoMap.ts:275` — фронтенд `ytThumbnailUrl()` (удалить)
 
 ## Key Decisions (carry forward)

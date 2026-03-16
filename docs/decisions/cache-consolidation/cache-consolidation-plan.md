@@ -45,7 +45,7 @@ Admin SDK script:
 
 ## Phase 1: Backend — Unified Cache Reads + Remove Trend Fallback
 
-#### [MODIFY] `functions/src/services/tools/handlers/getMultipleVideoDetails.ts`
+#### [MODIFY] `functions/src/services/tools/handlers/detail/getMultipleVideoDetails.ts`
 
 **Было:** 3 parallel reads (`videos/` + `suggested_cache/` + `external_cache/`) → YouTube API
 **Станет:** 2 parallel reads (`videos/` + `external_cache/`) → YouTube API
@@ -54,7 +54,7 @@ Admin SDK script:
 - Удалить `"suggested_cache"` из `CollectionSource` type
 - Cascade: `own → external_cache → youtube_api` (true 3-level)
 
-#### [MODIFY] `functions/src/services/tools/handlers/browseChannelVideos.ts`
+#### [MODIFY] `functions/src/services/tools/handlers/discovery/browseChannelVideos.ts`
 
 **Удалить trend fallback** (строки 98-137, ~40 строк):
 - Весь блок "Trend channel cache check (level 2)"
@@ -63,18 +63,18 @@ Admin SDK script:
 
 Cascade: `own + external_cache → youtube_api` (true 2-level)
 
-#### [MODIFY] `functions/src/services/tools/handlers/analyzeSuggestedTraffic.ts`
+#### [MODIFY] `functions/src/services/tools/handlers/analysis/analyzeSuggestedTraffic.ts`
 
 Строки 217, 269: `cached_suggested_traffic_videos/` → `cached_external_videos/`
 
 > [!NOTE]
 > Это reads (`db.doc()` refs для `db.getAll()`), не writes. `enrichedData.set()` — `Map.set()` (in-memory). Source tagging не нужен.
 
-#### [MODIFY] `functions/src/services/tools/handlers/mentionVideo.ts`
+#### [MODIFY] `functions/src/services/tools/handlers/utility/mentionVideo.ts`
 
 Строка 23: `cached_suggested_traffic_videos/` → `cached_external_videos/`
 
-#### [MODIFY] `functions/src/services/tools/handlers/viewThumbnails.ts`
+#### [MODIFY] `functions/src/services/tools/handlers/detail/viewThumbnails.ts`
 
 Строки 31, 86: `cached_suggested_traffic_videos/` → `cached_external_videos/`
 
@@ -113,16 +113,16 @@ Update import: `getSuggestedVideosPath` → `getExternalVideosPath`
 
 ## Phase 3: Tests
 
-#### [MODIFY] `functions/src/services/tools/handlers/__tests__/getMultipleVideoDetails.bugfix.test.ts`
+#### [MODIFY] `functions/src/services/tools/handlers/detail/__tests__/getMultipleVideoDetails.bugfix.test.ts`
 
 - Убрать `cached_suggested_traffic_videos/` mock reads
 - Обновить cascade expectations (3-level вместо 4-level)
 
-#### [MODIFY] `functions/src/services/tools/handlers/__tests__/viewThumbnails.handler.test.ts`
+#### [MODIFY] `functions/src/services/tools/handlers/detail/__tests__/viewThumbnails.handler.test.ts`
 
 Path string: `cached_suggested_traffic_videos` → `cached_external_videos`
 
-#### [MODIFY] `functions/src/services/tools/handlers/__tests__/browseChannelVideos.test.ts`
+#### [MODIFY] `functions/src/services/tools/handlers/discovery/__tests__/browseChannelVideos.test.ts`
 
 - Удалить trendChannel-related test helpers (если есть)
 - Убрать `trendCacheHits` из expected responses

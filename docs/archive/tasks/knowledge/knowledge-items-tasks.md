@@ -478,7 +478,7 @@ Fix all findings before moving to Phase 4.
     - Pass as `channelMetadata` to `buildSystemPrompt()`
 
 - [x] **T4.4** — `getMultipleVideoDetails` handler KI extension
-  - Modify: `functions/src/services/tools/handlers/getMultipleVideoDetails.ts`
+  - Modify: `functions/src/services/tools/handlers/detail/getMultipleVideoDetails.ts`
     - After resolving video docs, query KI discovery flags for each video
     - Extend response per video: + `knowledgeItemCount?: number`, `knowledgeCategories?: string[]`, `lastAnalyzedAt?: string`
     - ⚠️ Batch read KI flags — don't N+1 query. Use `db.getAll()` or read from video doc if flags are denormalized there

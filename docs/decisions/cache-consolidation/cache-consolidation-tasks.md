@@ -46,7 +46,7 @@ Phase 0 (migration) ✅ → Phase 1 (backend) → Phase 2 (frontend) → Phase 3
 
 ### T1.1 — getMultipleVideoDetails: remove suggested_cache
 
-**File:** `functions/src/services/tools/handlers/getMultipleVideoDetails.ts`
+**File:** `functions/src/services/tools/handlers/detail/getMultipleVideoDetails.ts`
 
 **What to change:**
 1. Delete `suggestedRefs` definition (line 32): `const suggestedRefs = ids.map(id => db.doc(...))`
@@ -63,7 +63,7 @@ Phase 0 (migration) ✅ → Phase 1 (backend) → Phase 2 (frontend) → Phase 3
 
 ### T1.2 — browseChannelVideos: remove trend fallback
 
-**File:** `functions/src/services/tools/handlers/browseChannelVideos.ts`
+**File:** `functions/src/services/tools/handlers/discovery/browseChannelVideos.ts`
 
 **What to change:**
 1. Delete entire "Trend channel cache check" block (lines ~98-137, ~40 lines):
@@ -83,7 +83,7 @@ Phase 0 (migration) ✅ → Phase 1 (backend) → Phase 2 (frontend) → Phase 3
 
 ### T1.3 — analyzeSuggestedTraffic: path rename (reads only)
 
-**File:** `functions/src/services/tools/handlers/analyzeSuggestedTraffic.ts`
+**File:** `functions/src/services/tools/handlers/analysis/analyzeSuggestedTraffic.ts`
 
 **What to change:** Two path strings, both are `db.doc()` refs for batch reads:
 1. Line 217: `cached_suggested_traffic_videos/${id}` → `cached_external_videos/${id}`
@@ -97,7 +97,7 @@ Phase 0 (migration) ✅ → Phase 1 (backend) → Phase 2 (frontend) → Phase 3
 
 ### T1.4 — mentionVideo: path rename
 
-**File:** `functions/src/services/tools/handlers/mentionVideo.ts`
+**File:** `functions/src/services/tools/handlers/utility/mentionVideo.ts`
 
 **What to change:**
 1. Line 19: update comment `cached_suggested_traffic_videos` → `cached_external_videos`
@@ -109,7 +109,7 @@ Phase 0 (migration) ✅ → Phase 1 (backend) → Phase 2 (frontend) → Phase 3
 
 ### T1.5 — viewThumbnails: path rename
 
-**File:** `functions/src/services/tools/handlers/viewThumbnails.ts`
+**File:** `functions/src/services/tools/handlers/detail/viewThumbnails.ts`
 
 **What to change:**
 1. Line 6: update comment
