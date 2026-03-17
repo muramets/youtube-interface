@@ -34,12 +34,13 @@ export const RichTextEditor = ({
     videoCatalog,
     expandedToolbarExtra,
     expandedSidePanel,
+    defaultCollapsedLevel,
 }: RichTextEditorProps) => {
     const [showDebug, setShowDebug] = useState(false)
     const [isExpanded, setIsExpanded] = useState(false)
 
     const turndownService = useTurndownService()
-    const extensions = useEditorExtensions(placeholder, videoCatalog)
+    const extensions = useEditorExtensions(placeholder, videoCatalog, defaultCollapsedLevel)
 
     const videoMap = useMemo(() => {
         if (!videoCatalog?.length) return EMPTY_MAP

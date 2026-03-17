@@ -20,4 +20,6 @@ export interface RichTextEditorProps {
     expandedToolbarExtra?: React.ReactNode
     /** Side panel rendered alongside editor in expanded mode (e.g. diff panel) */
     expandedSidePanel?: React.ReactNode
+    /** Headings at this level and above are collapsed by default (4 = h4+, 1 = all collapsed) */
+    defaultCollapsedLevel?: number
 }

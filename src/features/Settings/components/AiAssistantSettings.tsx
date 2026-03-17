@@ -3,19 +3,11 @@
 // =============================================================================
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { ChevronDown, Brain, Pencil, Trash2, Check, X, Plus } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import rehypeRaw from 'rehype-raw';
-import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
-import { buildBodyComponents } from '../../Knowledge/utils/bodyComponents';
+import { ChevronDown, Brain, Pencil, Check, X, Plus } from 'lucide-react';
+import { ConfirmDeleteButton } from '../../../components/ui/atoms/ConfirmDeleteButton';
+import { CollapsibleMarkdownSections } from '../../Knowledge/components/CollapsibleMarkdownSections';
 import { linkifyVideoRefs } from '../../Knowledge/utils/linkifyVideoRefs';
-
-const sanitizeSchema = {
-    ...defaultSchema,
-    protocols: { ...defaultSchema.protocols, href: [...(defaultSchema.protocols?.href ?? []), 'vid', 'mention'] },
-    attributes: { ...defaultSchema.attributes, a: [...(defaultSchema.attributes?.a ?? []), 'className', 'class'], span: [...(defaultSchema.attributes?.span ?? []), 'className', 'class'] },
-};
+import { RichTextEditor } from '../../../components/ui/organisms/RichTextEditor';
 import { Dropdown } from '../../../components/ui/molecules/Dropdown';
 import { SegmentedControl } from '../../../components/ui/molecules/SegmentedControl';
 import { useVideosCatalog } from '../../../core/hooks/useVideosCatalog';
@@ -240,20 +232,15 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
 
             {/* Global System Prompt */}
             <div className={`border ${theme.borderColor} rounded-md p-4 space-y-3`}>
-                <div
-                    className="relative flex flex-col bg-bg-secondary border border-border rounded-lg p-3 hover:border-text-primary focus-within:border-text-primary transition-colors"
-                    style={{ height: '180px' }}
-                >
-                    <label className="text-xs text-text-secondary font-medium tracking-wider uppercase mb-2">
-                        Base Instructions
-                    </label>
-                    <textarea
-                        value={settings.globalSystemPrompt}
-                        onChange={(e) => update({ globalSystemPrompt: e.target.value })}
-                        placeholder="e.g. You are a helpful assistant for YouTube content creation."
-                        className="flex-1 w-full bg-transparent text-sm text-text-primary outline-none resize-none placeholder-modal-placeholder"
-                    />
-                </div>
+                <label className="block text-xs text-text-secondary font-medium tracking-wider uppercase mb-2">
+                    Base Instructions
+                </label>
+                <RichTextEditor
+                    value={settings.globalSystemPrompt}
+                    onChange={(v) => update({ globalSystemPrompt: v })}
+                    placeholder="e.g. You are a helpful assistant for YouTube content creation."
+                    defaultCollapsedLevel={1}
+                />
                 <p className={`text-xs ${theme.textSecondary}`}>
                     Sent with every message. Project-specific instructions are added after these.
                 </p>
@@ -350,39 +337,41 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
                                     style={{ backgroundColor: 'var(--settings-menu-active)' }}
                                 >
                                     <div className="flex items-center justify-between mb-1.5">
-                                        <span className="text-sm font-medium text-text-primary truncate">
-                                            {mem.conversationTitle}
-                                        </span>
-                                        <span className={`text-[10px] ${theme.textSecondary} ml-2 shrink-0`}>
-                                            {date}
-                                        </span>
+                                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                                            <span className="text-sm font-medium text-text-primary truncate">
+                                                {mem.conversationTitle}
+                                            </span>
+                                            <span className={`text-[10px] ${theme.textSecondary} shrink-0`}>
+                                                {date}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-0.5 shrink-0 ml-2">
+                                            <button
+                                                className={`p-1.5 rounded-md transition-colors ${isEditing ? 'text-accent bg-accent/10' : 'text-text-tertiary hover:text-text-primary hover:bg-white/[0.05]'}`}
+                                                onClick={() => isEditing ? setEditingMemoryId(null) : handleEditStart(mem)}
+                                                disabled={isSaving}
+                                                title={isEditing ? 'Cancel editing' : 'Edit'}
+                                            >
+                                                <Pencil size={12} />
+                                            </button>
+                                            <ConfirmDeleteButton
+                                                onConfirm={() => handleDelete(mem.id)}
+                                                size={12}
+                                                title="Delete memory"
+                                            />
+                                        </div>
                                     </div>
 
                                     {isEditing ? (
                                         <>
-                                            <textarea
-                                                ref={(el) => {
-                                                    if (el) {
-                                                        el.style.height = 'auto';
-                                                        el.style.height = el.scrollHeight + 'px';
-                                                        el.focus();
-                                                    }
-                                                }}
-                                                value={editText}
-                                                onChange={(e) => {
-                                                    setEditText(e.target.value);
-                                                    e.target.style.height = 'auto';
-                                                    e.target.style.height = e.target.scrollHeight + 'px';
-                                                }}
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Escape') {
-                                                        e.stopPropagation();
-                                                        setEditingMemoryId(null);
-                                                    }
-                                                }}
-                                                className="w-full bg-transparent text-sm text-text-primary outline-none resize-none border border-border rounded-md p-2 max-h-[300px] overflow-y-auto"
-                                                disabled={isSaving}
-                                            />
+                                            <div className="max-h-[400px] overflow-y-auto">
+                                                <RichTextEditor
+                                                    value={editText}
+                                                    onChange={setEditText}
+                                                    placeholder="Write your memory..."
+                                                    videoCatalog={videoCatalog}
+                                                />
+                                            </div>
                                             <div className="flex items-center justify-end gap-1.5 mt-2">
                                                 <button
                                                     className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] text-text-tertiary bg-transparent border-none cursor-pointer hover:text-text-secondary hover:bg-white/[0.05] transition-colors"
@@ -403,46 +392,13 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
                                         </>
                                     ) : (
                                         <>
-                                            <div className="prose prose-sm prose-invert max-w-none text-text-secondary max-h-[300px] overflow-y-auto
-                                                [&_h1]:text-sm [&_h1]:font-semibold [&_h1]:text-text-primary [&_h1]:mt-0 [&_h1]:mb-2
-                                                [&_h2]:text-[13px] [&_h2]:font-semibold [&_h2]:text-text-primary [&_h2]:mt-3 [&_h2]:mb-1.5
-                                                [&_h3]:text-xs [&_h3]:font-semibold [&_h3]:text-text-primary [&_h3]:mt-2 [&_h3]:mb-1
-                                                [&_p]:text-sm [&_p]:leading-relaxed [&_p]:my-1.5
-                                                [&_ul]:text-sm [&_ul]:my-1.5 [&_ul]:pl-4
-                                                [&_ol]:text-sm [&_ol]:my-1.5 [&_ol]:pl-4
-                                                [&_li]:my-0.5
-                                                [&_strong]:text-text-primary [&_strong]:font-semibold
-                                                [&_a]:underline
-                                            ">
-                                                {(() => {
-                                                    const content = videoMap ? linkifyVideoRefs(mem.content, videoMap) : mem.content
-                                                    return (
-                                                        <ReactMarkdown
-                                                            remarkPlugins={[remarkGfm]}
-                                                            rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
-                                                            urlTransform={url => url}
-                                                            components={buildBodyComponents(videoMap)}
-                                                        >
-                                                            {content}
-                                                        </ReactMarkdown>
-                                                    )
-                                                })()}
-                                            </div>
-                                            <div className="flex items-center justify-end gap-1 mt-2">
-                                                <button
-                                                    className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] text-text-tertiary bg-transparent border-none cursor-pointer hover:text-text-secondary hover:bg-white/[0.05] transition-colors"
-                                                    onClick={() => handleEditStart(mem)}
-                                                    disabled={isSaving}
-                                                >
-                                                    <Pencil size={11} /> Edit
-                                                </button>
-                                                <button
-                                                    className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] text-text-tertiary bg-transparent border-none cursor-pointer hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                                                    onClick={() => handleDelete(mem.id)}
-                                                    disabled={isSaving}
-                                                >
-                                                    <Trash2 size={11} /> Delete
-                                                </button>
+                                            <div className="max-h-[300px] overflow-y-auto">
+                                                <CollapsibleMarkdownSections
+                                                    content={videoMap ? linkifyVideoRefs(mem.content, videoMap) : mem.content}
+                                                    videoMap={videoMap}
+                                                    defaultOpenLevel={0}
+                                                    variant="zen"
+                                                />
                                             </div>
                                         </>
                                     )}

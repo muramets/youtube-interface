@@ -33,7 +33,7 @@ import type { VideoPreviewData } from '../../../../../features/Video/types'
  * @param placeholder - Placeholder text for empty editor
  * @returns Array of configured Tiptap extensions
  */
-export function useEditorExtensions(placeholder?: string, videoCatalog?: VideoPreviewData[]) {
+export function useEditorExtensions(placeholder?: string, videoCatalog?: VideoPreviewData[], defaultCollapsedLevel = 4) {
     /**
      * Custom Code Mark Extension
      *
@@ -102,7 +102,7 @@ export function useEditorExtensions(placeholder?: string, videoCatalog?: VideoPr
         TableCell,
 
         // Collapsable headings (IDE-like)
-        CollapsableHeadings,
+        CollapsableHeadings.configure({ defaultCollapsedLevel }),
 
         // VideoRefMark: semantic vid:// links with React MarkView + tooltip
         VideoRefMark,
@@ -111,5 +111,5 @@ export function useEditorExtensions(placeholder?: string, videoCatalog?: VideoPr
         VideoMention.configure({
             videoCatalog: videoCatalog ?? [],
         }),
-    ], [placeholder, videoCatalog, CustomCodeMark, CustomCodeBlockNode])
+    ], [placeholder, videoCatalog, defaultCollapsedLevel, CustomCodeMark, CustomCodeBlockNode])
 }

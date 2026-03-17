@@ -10,6 +10,8 @@ export const CollapsableHeadings = Extension.create({
     addOptions() {
         return {
             levels: [1, 2, 3, 4, 5, 6],
+            /** Headings at this level and above are collapsed by default (4 = h4+ collapsed) */
+            defaultCollapsedLevel: 4,
         }
     },
 
@@ -54,7 +56,7 @@ export const CollapsableHeadings = Extension.create({
 
                 // 1. Check for "Collapsed Header Entrapment"
                 // Determine if this header IS collapsed (explicit or implicit)
-                const isCollapsed = node.attrs.collapsed === true || (node.attrs.collapsed === null && node.attrs.level >= 4)
+                const isCollapsed = node.attrs.collapsed === true || (node.attrs.collapsed === null && node.attrs.level >= this.options.defaultCollapsedLevel)
 
                 if (node.type.name === 'heading' && isCollapsed && $from.parentOffset === node.content.size) {
                     const currentLevel = node.attrs.level
@@ -129,6 +131,7 @@ export const CollapsableHeadings = Extension.create({
     },
 
     addProseMirrorPlugins() {
+        const defaultCollapsedLevel = this.options.defaultCollapsedLevel
         return [
             new Plugin({
                 key: new PluginKey('collapsableHeadings'),
@@ -162,7 +165,7 @@ export const CollapsableHeadings = Extension.create({
                                     )
                                 } else {
                                     // Determine if this header IS collapsed
-                                    const isCollapsed = node.attrs.collapsed === true || (node.attrs.collapsed === null && level >= 4)
+                                    const isCollapsed = node.attrs.collapsed === true || (node.attrs.collapsed === null && level >= defaultCollapsedLevel)
 
                                     if (isCollapsed) {
                                         collapsedLevel = level
@@ -200,7 +203,7 @@ export const CollapsableHeadings = Extension.create({
                                                 e.stopPropagation()
                                                 const { tr } = view.state
                                                 // Toggle logic: If currently technically collapsed (explicit or implicit), set explicit false. Else explicit true.
-                                                const currentlyCollapsed = node.attrs.collapsed === true || (node.attrs.collapsed === null && level >= 4)
+                                                const currentlyCollapsed = node.attrs.collapsed === true || (node.attrs.collapsed === null && level >= defaultCollapsedLevel)
 
                                                 tr.setNodeMarkup(pos, undefined, {
                                                     ...node.attrs,

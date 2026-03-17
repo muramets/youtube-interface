@@ -66,9 +66,9 @@ export const EDITOR_PROSE_CLASSES = clsx(
     // 1. Remove backticks (apostrophes) added by typography plugin
     'prose-code:before:content-none prose-code:after:content-none',
     // 2. Inline code: high contrast background and inherited color
-    'prose-code:bg-black prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-text-primary prose-code:font-mono prose-code:tracking-wide [&_code]:text-inherit',
+    'prose-code:bg-bg-primary prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-text-primary prose-code:font-mono prose-code:tracking-wide [&_code]:text-inherit',
     // 3. Code blocks (pre): high contrast black background
-    'prose-pre:bg-black prose-pre:text-text-primary prose-pre:font-mono prose-pre:tracking-wide [&_pre_code]:text-inherit',
+    'prose-pre:bg-bg-primary prose-pre:text-text-primary prose-pre:font-mono prose-pre:tracking-wide [&_pre_code]:text-inherit',
 
     // Blockquote styles
     // Default: border-l-4, theme-border, padding, rounded, background.
