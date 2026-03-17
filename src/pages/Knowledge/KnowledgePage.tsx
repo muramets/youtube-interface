@@ -101,7 +101,7 @@ export const KnowledgePage: React.FC = () => {
 
     if (isLoading) {
         return (
-            <div className="flex flex-col h-full">
+            <div className="flex flex-col min-h-[calc(100vh-56px)]">
                 <div className="px-6 pt-6 pb-4">
                     <div className="h-8 w-48 bg-bg-secondary animate-pulse rounded-lg" />
                     <div className="flex gap-2 mt-4">
@@ -121,7 +121,7 @@ export const KnowledgePage: React.FC = () => {
 
     if (error) {
         return (
-            <div className="flex flex-col items-center justify-center h-full px-6">
+            <div className="flex flex-col items-center justify-center min-h-[calc(100vh-56px)] px-6">
                 <p className="text-sm text-text-secondary">
                     Failed to load Knowledge Items. Try refreshing the page.
                 </p>
@@ -130,7 +130,7 @@ export const KnowledgePage: React.FC = () => {
     }
 
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col min-h-[calc(100vh-56px)]">
             {/* Header */}
             <div className="flex-shrink-0 px-6 pt-6 pb-4">
                 <div className="flex items-center justify-between mb-5">

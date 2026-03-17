@@ -222,7 +222,7 @@ export const TrendsPage: React.FC = () => {
     };
 
     return (
-        <div className="flex flex-col h-full bg-bg-primary relative">
+        <div className="flex flex-col h-[calc(100vh-56px)] bg-bg-primary relative">
             <TrendsHeader
                 title={selectedChannelId ? channels.find(c => c.id === selectedChannelId)?.title || 'Unknown Channel' : 'All Channels'}
                 videoCount={filteredVideos.length}

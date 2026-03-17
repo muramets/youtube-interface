@@ -428,7 +428,7 @@ export const PlaylistDetailPage: React.FC = () => {
 
     if (isPlaylistsLoading) {
         return (
-            <div className="animate-fade-in flex flex-col h-full relative">
+            <div className="animate-fade-in flex flex-col min-h-[calc(100vh-56px)] relative">
                 <div className="pt-6 px-6 flex items-center gap-4 mb-0">
                     <div className="w-20 h-[45px] bg-bg-secondary rounded-lg animate-pulse" />
                     <div className="flex flex-col gap-2">
@@ -498,7 +498,7 @@ export const PlaylistDetailPage: React.FC = () => {
 
     return (
         <>
-            <div className="animate-fade-in flex flex-col h-full relative pl-2">
+            <div className="animate-fade-in flex flex-col min-h-[calc(100vh-56px)] relative pl-2">
                 {/* Pick the Winner Bar */}
                 {picker.isActive && (
                     <PickTheWinnerBar
@@ -511,7 +511,7 @@ export const PlaylistDetailPage: React.FC = () => {
                 )}
 
                 {/* Header */}
-                <div className={`pt-6 px-6 flex items-center gap-4 mb-3 ${picker.isActive ? 'pt-3' : ''}`}>
+                <div className={`pt-6 px-6 flex items-center gap-4 mb-3 sticky top-14 bg-bg-primary z-10 pb-3 ${picker.isActive ? 'pt-3' : ''}`}>
                     <button
                         onClick={() => navigate('/playlists')}
                         className="bg-transparent border-none text-text-primary cursor-pointer flex items-center hover:text-text-secondary transition-colors"

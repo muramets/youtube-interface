@@ -60,10 +60,7 @@ export const WatchPage: React.FC = () => {
     const video = videos.find(v => v.id === id);
 
     useEffect(() => {
-        const mainContainer = document.querySelector('main');
-        if (mainContainer) {
-            mainContainer.scrollTo(0, 0);
-        }
+        window.scrollTo(0, 0);
     }, [id]);
 
     useEffect(() => {

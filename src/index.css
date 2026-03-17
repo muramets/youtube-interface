@@ -70,6 +70,13 @@
 
 @layer utilities {
 
+   /* Semi-transparent bg-primary for ambient bleed-through (header on Watch page).
+      Tailwind /opacity modifiers don't work with hex CSS variables,
+      so we use color-mix() to achieve true alpha transparency. */
+   .bg-bg-primary-ambient {
+      background-color: color-mix(in srgb, var(--bg-primary) 92%, transparent);
+   }
+
    /* Premium shimmer text effect — gradient sweep across transparent text.
        Usage: <span class="text-shimmer">Loading...</span>
        Uses the 'shimmer' keyframe from tailwind.config.js (animate-shimmer). */
@@ -398,20 +405,34 @@ body {
    ============================================================================= */
 
 ::-webkit-scrollbar {
-   width: 8px;
+   width: 6px;
 }
 
 ::-webkit-scrollbar-track {
-   background: var(--bg-primary);
+   background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-   background: var(--text-secondary);
+   background: transparent;
    border-radius: 4px;
+   transition: background 0.3s ease;
+}
+
+html:hover::-webkit-scrollbar-thumb {
+   background: var(--text-tertiary);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-   background: var(--text-primary);
+   background: var(--text-secondary);
+}
+
+html {
+   scrollbar-width: thin;
+   scrollbar-color: transparent transparent;
+}
+
+html:hover {
+   scrollbar-color: var(--text-tertiary) transparent;
 }
 
 .scrollbar-hide::-webkit-scrollbar {

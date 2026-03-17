@@ -14,8 +14,19 @@ export const WatchPageVideoPlayer: React.FC<WatchPageVideoPlayerProps> = ({ vide
         minimize(video.id, video.title);
     };
 
+    const ambientSrc = video.thumbnail || video.customImage;
+
     return (
-        <div className="w-full aspect-video bg-black rounded-xl overflow-hidden shadow-lg mb-4 relative group">
+        <div className="relative mb-4">
+            {/* Ambient Mode — blurred thumbnail bleeds beyond the player */}
+            {ambientSrc && (
+                <img
+                    src={ambientSrc}
+                    alt=""
+                    className="absolute inset-0 w-full h-full object-cover blur-[60px] scale-[2] opacity-15 pointer-events-none z-0"
+                />
+            )}
+            <div className="w-full aspect-video bg-black rounded-xl overflow-hidden shadow-lg relative z-10 group">
             {video.isCustom ? (
                 <div className="w-full h-full relative group cursor-default">
                     <img
@@ -61,6 +72,7 @@ export const WatchPageVideoPlayer: React.FC<WatchPageVideoPlayerProps> = ({ vide
                     </button>
                 </>
             )}
+            </div>
         </div>
     );
 };

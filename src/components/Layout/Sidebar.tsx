@@ -313,9 +313,14 @@ export const Sidebar: React.FC = () => {
 
   return (
     <>
+      {/* Placeholder to reserve space in flex layout for fixed sidebar */}
+      <div
+        style={{ width: isSidebarExpanded ? `${sidebarWidth}px` : undefined }}
+        className={`hidden sm:block flex-shrink-0 ${isSidebarExpanded ? '' : 'w-[72px]'}`}
+      />
       <aside
         style={{ width: isSidebarExpanded ? `${sidebarWidth}px` : undefined }}
-        className={`h-[calc(100vh-56px)] sticky top-14 flex hidden sm:flex flex-shrink-0 relative
+        className={`h-[calc(100vh-56px)] fixed top-14 left-0 flex hidden sm:flex flex-shrink-0 z-sticky
           ${isSidebarExpanded ? 'px-0' : 'w-[72px] px-1 py-1 flex-col'}`}
       >
         <div

@@ -37,10 +37,6 @@ export const WatchPageFilterBar: React.FC<WatchPageFilterBarProps> = ({
     const [showLeftArrow, setShowLeftArrow] = useState(false);
     const [showRightArrow, setShowRightArrow] = useState(false);
 
-    // ... (checkScroll and scroll functions remain same, omitted for brevity in replacement if possible, but I must provide full context for contiguous block)
-    // Actually, I can just target the top part and the bottom part separately or use a larger block.
-    // I'll use a larger block to be safe.
-
     const scrollCheckRaf = useRef<number | null>(null);
 
     const checkScroll = () => {
@@ -111,22 +107,27 @@ export const WatchPageFilterBar: React.FC<WatchPageFilterBarProps> = ({
     ];
 
     return (
-        <div className="relative flex items-start w-full mb-4">
+        <div className="relative flex items-center w-full mb-4">
+            {/* Left arrow */}
             {showLeftArrow && (
-                <div className="absolute left-0 top-0 z-10 flex items-center bg-gradient-to-r from-bg-primary via-bg-primary to-transparent pr-12 pl-2 h-full pointer-events-none">
-                    <button
-                        className="w-8 h-8 rounded-full bg-bg-secondary hover:bg-hover-bg flex items-center justify-center border-none cursor-pointer text-text-primary shadow-sm pointer-events-auto transition-colors"
-                        onClick={() => scroll('left')}
-                    >
-                        <ChevronLeft size={20} />
-                    </button>
-                </div>
+                <button
+                    className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-bg-secondary hover:bg-hover-bg flex items-center justify-center border-none cursor-pointer text-text-primary shadow-sm transition-colors"
+                    onClick={() => scroll('left')}
+                >
+                    <ChevronLeft size={20} />
+                </button>
             )}
 
+            {/* Scrollable filter buttons — mask-image fades edges to transparent */}
             <div
-                className="flex gap-3 overflow-x-auto scrollbar-hide px-3 pr-6 w-full items-center"
+                className="flex gap-3 overflow-x-auto scrollbar-hide px-3 w-full items-center"
                 ref={scrollContainerRef}
-                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                style={{
+                    scrollbarWidth: 'none',
+                    msOverflowStyle: 'none',
+                    maskImage: (showLeftArrow || showRightArrow) ? `linear-gradient(to right, ${showLeftArrow ? 'transparent 48px, black 96px,' : ''} ${showRightArrow ? 'black calc(100% - 96px), transparent calc(100% - 48px), transparent' : 'black'})` : undefined,
+                    WebkitMaskImage: (showLeftArrow || showRightArrow) ? `linear-gradient(to right, ${showLeftArrow ? 'transparent 48px, black 96px,' : ''} ${showRightArrow ? 'black calc(100% - 96px), transparent calc(100% - 48px), transparent' : 'black'})` : undefined,
+                }}
             >
                 <button
                     className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap cursor-pointer transition-colors border-none ${selectedFilter === FilterType.ALL ? 'bg-text-primary text-bg-primary' : 'bg-bg-secondary text-text-primary hover:bg-hover-bg'}`}
@@ -150,39 +151,37 @@ export const WatchPageFilterBar: React.FC<WatchPageFilterBarProps> = ({
                         From {playlist.name}
                     </button>
                 ))}
-
-                <div className="ml-auto flex items-center pl-2 sticky right-0 bg-gradient-to-l from-bg-primary via-bg-primary to-transparent gap-1">
-                    <FilterSortDropdown
-                        sortOptions={sortOptions}
-                        activeSort={sortBy}
-                        onSortChange={(val) => onSortChange(val as SortOption)}
-                        showPlaylistFilter={true}
-                    />
-
-                    {hasCustomOrder && (
-                        <div className="relative group flex items-center h-[34px]">
-                            <PortalTooltip content={revertTooltip || "Revert order"} align="right">
-                                <button
-                                    className="w-[34px] h-[34px] rounded-full bg-transparent hover:bg-bg-secondary flex items-center justify-center border-none cursor-pointer text-text-primary transition-colors"
-                                    onClick={onRevert}
-                                >
-                                    <RotateCcw size={18} />
-                                </button>
-                            </PortalTooltip>
-                        </div>
-                    )}
-                </div>
             </div>
 
+            {/* Sort & revert — outside scroll container */}
+            <div className="flex items-center gap-1 flex-shrink-0 ml-1">
+                <FilterSortDropdown
+                    sortOptions={sortOptions}
+                    activeSort={sortBy}
+                    onSortChange={(val) => onSortChange(val as SortOption)}
+                    showPlaylistFilter={true}
+                />
+
+                {hasCustomOrder && (
+                    <PortalTooltip content={revertTooltip || "Revert order"} align="right">
+                        <button
+                            className="w-[34px] h-[34px] rounded-full bg-transparent hover:bg-bg-secondary flex items-center justify-center border-none cursor-pointer text-text-primary transition-colors"
+                            onClick={onRevert}
+                        >
+                            <RotateCcw size={18} />
+                        </button>
+                    </PortalTooltip>
+                )}
+            </div>
+
+            {/* Right arrow */}
             {showRightArrow && (
-                <div className="absolute right-0 top-0 z-10 flex items-center bg-gradient-to-l from-bg-primary via-bg-primary to-transparent pl-12 pr-2 h-full pointer-events-none">
-                    <button
-                        className="w-8 h-8 rounded-full bg-bg-secondary hover:bg-hover-bg flex items-center justify-center border-none cursor-pointer text-text-primary shadow-sm pointer-events-auto transition-colors"
-                        onClick={() => scroll('right')}
-                    >
-                        <ChevronRight size={20} />
-                    </button>
-                </div>
+                <button
+                    className="absolute right-12 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-bg-secondary hover:bg-hover-bg flex items-center justify-center border-none cursor-pointer text-text-primary shadow-sm transition-colors"
+                    onClick={() => scroll('right')}
+                >
+                    <ChevronRight size={20} />
+                </button>
             )}
         </div>
     );

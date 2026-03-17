@@ -158,7 +158,7 @@ export const MusicPage: React.FC = () => {
     // ── Render ───────────────────────────────────────────────────────────────
     return (
         <SharedLibraryContext.Provider value={sharedLibCtx}>
-            <div className="flex flex-col h-full">
+            <div className="flex flex-col h-[calc(100vh-56px)]">
                 {/* Header */}
                 <div className="flex-shrink-0 px-6 pt-6 pb-4">
                     <MusicLibrarySwitcher

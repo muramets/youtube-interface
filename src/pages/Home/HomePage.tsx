@@ -82,7 +82,7 @@ export const HomePage: React.FC = () => {
     }, [videos, currentChannel?.name, addNodeToPage, showToast, clearSelection]);
 
     return (
-        <div className="h-full flex flex-col">
+        <div className="min-h-[calc(100vh-56px)] flex flex-col">
             <CategoryBar />
             <div className="flex-1 min-h-0 relative">
                 <VideoGrid

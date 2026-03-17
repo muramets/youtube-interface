@@ -286,8 +286,8 @@ export const PlaylistsPage: React.FC = () => {
     const activePlaylist = active.playlist;
 
     return (
-        <div className="animate-fade-in pl-2">
-            <div className="flex items-center justify-between pr-6 py-3 sticky top-0 bg-bg-primary z-10">
+        <div className="animate-fade-in pl-2 min-h-[calc(100vh-56px)]">
+            <div className="flex items-center justify-between pr-6 py-3 sticky top-14 bg-bg-primary z-10">
                 <h1 className="text-xl font-medium m-0">Your Playlists</h1>
                 <div className="flex items-center gap-1">
                     <button

@@ -73,7 +73,7 @@ export const CategoryBar: React.FC = () => {
     ];
 
     return (
-        <div className="flex flex-col sticky top-0 bg-bg-primary z-10 transition-all">
+        <div className="flex flex-col sticky top-14 bg-bg-primary z-10 transition-all">
             {/* Row 1: Controls & Categories */}
             <div className="flex items-center pl-0 pr-6 pt-3 pb-[11px] overflow-hidden">
                 <div className="flex gap-3 overflow-x-auto scrollbar-hide flex-1 items-center pr-2">

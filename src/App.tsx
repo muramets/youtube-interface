@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import { useEffect, Suspense, lazy } from 'react';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { LoginPage } from './pages/LoginPage';
@@ -64,6 +64,9 @@ const KnowledgePage = lazyWithRetry(() => import('./pages/Knowledge/KnowledgePag
 const DetailsPage = lazyWithRetry(() => import('./pages/Details').then(m => ({ default: m.DetailsPage as React.ComponentType<unknown> })));
 
 function AppContent() {
+  const location = useLocation();
+  const isWatchPage = location.pathname.startsWith('/watch/');
+
   useCheckinScheduler();
   useVideoFetchRetry();
   useAutoCleanup();
@@ -83,7 +86,7 @@ function AppContent() {
   }, [user, currentChannel, subscribeToNotifications]);
 
   return (
-    <div className="h-screen flex flex-col bg-bg-primary text-text-primary overflow-hidden">
+    <div className="min-h-screen flex flex-col bg-bg-primary text-text-primary overflow-x-hidden">
       <Suspense fallback={null}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
@@ -99,12 +102,13 @@ function AppContent() {
           <Route path="/*" element={
             <ProtectedRoute>
               <>
-                <Header />
+                <Header className={isWatchPage ? 'bg-bg-primary-ambient backdrop-blur-xl' : undefined} />
+                <div className="h-14 flex-shrink-0" /> {/* Spacer for fixed header */}
                 {/* Global DnD Context: Trends video drag + Music track drag */}
                 <AppDndProvider>
-                  <div className="flex flex-1 overflow-hidden relative">
+                  <div className="flex flex-1 relative">
                     <Sidebar />
-                    <main className="flex-1 flex flex-col overflow-y-auto relative">
+                    <main className="flex-1 flex flex-col relative">
                       <Routes>
                         <Route path="/" element={<HomePage />} />
                         <Route path="/watch/:id" element={<WatchPage />} />
