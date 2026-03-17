@@ -55,8 +55,8 @@ function makeNormalizedUsage(inputTokens: number): NormalizedTokenUsage {
             inputTokens,
             outputTokens: 500,
             thinkingTokens: 0,
-            limit: 200_000,
-            percent: (inputTokens / 200_000) * 100,
+            limit: 1_000_000,
+            percent: (inputTokens / 1_000_000) * 100,
         },
         billing: {
             input: { total: inputTokens, fresh: inputTokens, cached: 0, cacheWrite: 0 },
@@ -106,12 +106,12 @@ describe('useChatDerivedState — context tracking', () => {
             }),
         ];
 
-        // Claude: contextLimit = 200_000 * 0.75 = 150_000
+        // Claude: contextLimit = 1_000_000 * 0.85 = 850_000
         const { result: claudeResult } = renderHook(() =>
             useChatDerivedState(makeOpts({ messages, defaultModel: 'claude-sonnet-4-6' })),
         );
-        expect(claudeResult.current.contextLimit).toBe(200_000 * 0.75);
-        expect(claudeResult.current.modelContextLimit).toBe(200_000);
+        expect(claudeResult.current.contextLimit).toBe(1_000_000 * 0.85);
+        expect(claudeResult.current.modelContextLimit).toBe(1_000_000);
 
         // Gemini: contextLimit = 1_000_000 * 0.85 = 850_000
         const { result: geminiResult } = renderHook(() =>
@@ -137,15 +137,15 @@ describe('useChatDerivedState — context tracking', () => {
             ),
         ];
 
-        // Use Claude model (contextLimit = 200_000 * 0.75 = 150_000)
+        // Use Claude model (contextLimit = 1_000_000 * 0.85 = 850_000)
         const { result } = renderHook(() =>
             useChatDerivedState(makeOpts({ messages, defaultModel: 'claude-sonnet-4-6' })),
         );
 
         // contextUsed = 100_000 + 50_000 + 10_000 = 160_000
-        // contextPercent = Math.min(100, Math.round(160_000 / 150_000 * 100)) = 100 (capped)
+        // contextPercent = Math.round(160_000 / 850_000 * 100) = 19
         expect(result.current.contextUsed).toBe(160_000);
-        expect(result.current.contextPercent).toBe(100);
+        expect(result.current.contextPercent).toBe(19);
     });
 
     it('uses contextLimit from the active model in MODEL_REGISTRY (scaled by per-model historyBudgetRatio)', () => {
@@ -162,7 +162,7 @@ describe('useChatDerivedState — context tracking', () => {
             makeMessage('model', tokenUsage),
         ];
 
-        // With Claude model (contextLimit = 200_000 * 0.75 = 150_000)
+        // With Claude model (contextLimit = 1_000_000 * 0.85 = 850_000)
         const { result: claudeResult } = renderHook(() =>
             useChatDerivedState(makeOpts({ messages, defaultModel: 'claude-sonnet-4-6' })),
         );
@@ -172,12 +172,12 @@ describe('useChatDerivedState — context tracking', () => {
             useChatDerivedState(makeOpts({ messages, defaultModel: 'gemini-2.5-pro' })),
         );
 
-        // Same contextUsed (100_000) but different contextPercent
+        // Same contextUsed (100_000) and same contextPercent (both 1M * 0.85 = 850K)
         expect(claudeResult.current.contextUsed).toBe(100_000);
         expect(geminiResult.current.contextUsed).toBe(100_000);
 
-        // Claude: Math.round(100_000 / 150_000 * 100) = 67
-        expect(claudeResult.current.contextPercent).toBe(67);
+        // Claude: Math.round(100_000 / 850_000 * 100) = 12
+        expect(claudeResult.current.contextPercent).toBe(12);
 
         // Gemini: Math.round(100_000 / 850_000 * 100) = 12
         expect(geminiResult.current.contextPercent).toBe(12);
@@ -235,7 +235,7 @@ describe('useChatDerivedState — context tracking', () => {
             totalTokens: 12_000,
         }, 'gemini-2.5-pro');
         const normalizedMsg = makeMessage('model', undefined, 'claude-sonnet-4-6', {
-            contextWindow: { inputTokens: 50_000, outputTokens: 3_000, thinkingTokens: 0, limit: 200_000, percent: 25 },
+            contextWindow: { inputTokens: 50_000, outputTokens: 3_000, thinkingTokens: 0, limit: 1_000_000, percent: 5 },
             billing: {
                 input: { total: 50_000, fresh: 40_000, cached: 10_000, cacheWrite: 0 },
                 output: { total: 3_000, thinking: 0 },

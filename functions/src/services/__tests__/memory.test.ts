@@ -22,13 +22,13 @@ vi.mock('../../config/models.js', () => ({
     MODEL_CONTEXT_LIMITS: {
         'test-model': 1_000,         // tiny: 1000 tokens total → 600 budget
         'test-model-large': 100_000, // large enough that short convos fit
-        'claude-opus-4-6': 200_000,  // Claude context for Task B tests
+        'claude-opus-4-6': 1_000_000,  // Claude context for Task B tests
         'gemini-2.5-pro': 1_000_000, // Gemini context for Task B tests
     } as Record<string, number>,
     MODEL_HISTORY_RATIOS: {
         'test-model': 0.6,
         'test-model-large': 0.6,
-        'claude-opus-4-6': 0.75,
+        'claude-opus-4-6': 0.85,
         'gemini-2.5-pro': 0.85,
     } as Record<string, number>,
     HISTORY_BUDGET_RATIO: 0.6,
@@ -820,11 +820,8 @@ describe('buildMemory', () => {
         expect(largeResult.usedSummary).toBe(false);
     });
 
-    it('Claude budget = 200K × 0.75 = 150K, Gemini budget = 1M × 0.85 = 850K', async () => {
-        setupMockGenerateContent('Claude budget test');
-
-        // 620K chars → ~155K tokens > Claude budget 150K → summarizes
-        // But 155K < Gemini budget 850K → fits
+    it('Claude and Gemini both use 1M × 0.85 = 850K budget', async () => {
+        // 620K chars → ~155K tokens < 850K budget → fits for both
         const longMessages = makeConversation(20, 31_000); // 20 × 31K = 620K chars → ~155K tokens
 
         const claudeResult = await buildMemory({
@@ -833,7 +830,7 @@ describe('buildMemory', () => {
             summaryModel: 'test-summary-model',
             allMessages: longMessages,
         });
-        expect(claudeResult.usedSummary).toBe(true);
+        expect(claudeResult.usedSummary).toBe(false);
 
         // Same messages with Gemini: 155K < 850K → fits
         const geminiResult = await buildMemory({

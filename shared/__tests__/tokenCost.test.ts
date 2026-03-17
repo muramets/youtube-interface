@@ -176,7 +176,7 @@ describe('computeIterationCost', () => {
 // =============================================================================
 
 describe('aggregateIterations', () => {
-    const claudeModel = { id: 'claude-opus-4-6', provider: 'anthropic' as const, contextLimit: 200_000 };
+    const claudeModel = { id: 'claude-opus-4-6', provider: 'anthropic' as const, contextLimit: 1_000_000 };
     const geminiModel = { id: 'gemini-2.5-pro', provider: 'gemini' as const, contextLimit: 1_000_000 };
 
     it('handles single iteration', () => {
@@ -191,7 +191,7 @@ describe('aggregateIterations', () => {
         expect(result.billing.input.total).toBe(10_000);
         expect(result.billing.output.thinking).toBe(500);
         expect(result.contextWindow.inputTokens).toBe(10_000);
-        expect(result.contextWindow.limit).toBe(200_000);
+        expect(result.contextWindow.limit).toBe(1_000_000);
         expect(result.iterationDetails).toBeUndefined(); // single iteration → no details
         expect(result.provider).toBe('anthropic');
         expect(result.model).toBe('claude-opus-4-6');
@@ -257,8 +257,8 @@ describe('aggregateIterations', () => {
         );
         const result = aggregateIterations([snapshot], claudeModel);
 
-        // 99750 / 200000 * 100 = 49.875
-        expect(result.contextWindow.percent).toBe(49.875);
+        // 99750 / 1000000 * 100 ≈ 9.975
+        expect(result.contextWindow.percent).toBeCloseTo(9.975, 10);
         expect(Number.isInteger(result.contextWindow.percent)).toBe(false);
     });
 
@@ -268,7 +268,7 @@ describe('aggregateIterations', () => {
         expect(result.contextWindow.inputTokens).toBe(0);
         expect(result.contextWindow.outputTokens).toBe(0);
         expect(result.contextWindow.thinkingTokens).toBe(0);
-        expect(result.contextWindow.limit).toBe(200_000);
+        expect(result.contextWindow.limit).toBe(1_000_000);
         expect(result.contextWindow.percent).toBe(0);
         expect(result.billing.iterations).toBe(0);
         expect(result.billing.input.total).toBe(0);

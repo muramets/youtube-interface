@@ -6,7 +6,7 @@ export interface ModelPricing {
     /** USD per 1M tokens for prompts ≤ 200K tokens */
     inputPerMillion: number;
     outputPerMillion: number;
-    /** USD per 1M tokens for prompts > 200K tokens (Pro models only) */
+    /** USD per 1M tokens for prompts > 200K tokens (models with long-context pricing only) */
     inputPerMillionLong?: number;
     outputPerMillionLong?: number;
     /** Cache read cost as fraction of input price (e.g. 0.1 = 10% of input price) */
@@ -218,8 +218,8 @@ export const MODEL_REGISTRY: ModelConfig[] = [
         historyBudgetRatio: 0.85,
     },
     {
-        id: 'claude-opus-4-6', label: 'Claude Opus 4.6', provider: 'anthropic', contextLimit: 200_000,
-        pricing: { inputPerMillion: 5.00, outputPerMillion: 25.00, inputPerMillionLong: 10.00, outputPerMillionLong: 37.50, cacheReadMultiplier: 0.1, cacheWriteMultiplier: 2.0 },
+        id: 'claude-opus-4-6', label: 'Claude Opus 4.6', provider: 'anthropic', contextLimit: 1_000_000,
+        pricing: { inputPerMillion: 5.00, outputPerMillion: 25.00, cacheReadMultiplier: 0.1, cacheWriteMultiplier: 2.0 },
         maxOutputTokens: 128_000,
         thinkingOptions: [
             { id: 'off', label: 'Off', value: 'off' },
@@ -231,11 +231,11 @@ export const MODEL_REGISTRY: ModelConfig[] = [
         thinkingDefault: 'high',
         thinkingMode: 'adaptive',
         attachmentSupport: CLAUDE_ATTACHMENT_SUPPORT,
-        historyBudgetRatio: 0.75,
+        historyBudgetRatio: 0.85,
     },
     {
-        id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6', provider: 'anthropic', contextLimit: 200_000,
-        pricing: { inputPerMillion: 3.00, outputPerMillion: 15.00, inputPerMillionLong: 6.00, outputPerMillionLong: 22.50, cacheReadMultiplier: 0.1, cacheWriteMultiplier: 2.0 },
+        id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6', provider: 'anthropic', contextLimit: 1_000_000,
+        pricing: { inputPerMillion: 3.00, outputPerMillion: 15.00, cacheReadMultiplier: 0.1, cacheWriteMultiplier: 2.0 },
         maxOutputTokens: 64_000,
         thinkingOptions: [
             { id: 'off', label: 'Off', value: 'off' },
@@ -247,7 +247,7 @@ export const MODEL_REGISTRY: ModelConfig[] = [
         thinkingDefault: 'high',
         thinkingMode: 'adaptive',
         attachmentSupport: CLAUDE_ATTACHMENT_SUPPORT,
-        historyBudgetRatio: 0.75,
+        historyBudgetRatio: 0.85,
     },
     {
         id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5', provider: 'anthropic', contextLimit: 200_000,

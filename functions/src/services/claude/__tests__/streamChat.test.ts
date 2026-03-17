@@ -152,7 +152,7 @@ vi.mock("../../../config/models.js", () => ({
         {
             id: "test-claude-model",
             provider: "anthropic",
-            contextLimit: 200_000,
+            contextLimit: 1_000_000,
             maxOutputTokens: 64_000,
             thinkingMode: "budget",
             thinkingOptions: [
@@ -1387,9 +1387,9 @@ describe("Claude streamChat — normalizedUsage", () => {
             expect(nu.iterationDetails).toBeUndefined(); // single iteration
             expect(nu.provider).toBe("anthropic");
             expect(nu.model).toBe("test-claude-model");
-            expect(nu.contextWindow.limit).toBe(200_000);
+            expect(nu.contextWindow.limit).toBe(1_000_000);
             // percent is float
-            const expectedPercent = (8_500 / 200_000) * 100;
+            const expectedPercent = (8_500 / 1_000_000) * 100;
             expect(nu.contextWindow.percent).toBeCloseTo(expectedPercent, 6);
         });
     });
