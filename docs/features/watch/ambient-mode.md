@@ -56,8 +56,7 @@
 ### Stage 2 — Ambient Mode ✅
 
 - Ambient `<img>` в `WatchPageVideoPlayer.tsx`: `blur-[60px] scale-[2] opacity-15`
-- Header на `/watch/` routes: `bg-bg-primary-ambient backdrop-blur-xl`
-- `bg-bg-primary-ambient`: `color-mix(in srgb, var(--bg-primary) 92%, transparent)` — обходит ограничение Tailwind `/opacity` с hex CSS variables
+- Header на `/watch/` routes: `bg-bg-primary/92 backdrop-blur-xl` (Tailwind v4 нативно поддерживает opacity modifiers с hex CSS variables через `color-mix()`)
 - WatchPageFilterBar: `mask-image` fade (pills исчезают в прозрачность, не в цвет)
 
 ### Stage 3 — Market-ready (future)
@@ -82,7 +81,7 @@
 | `src/features/Watch/components/WatchPageVideoPlayer.tsx` | Ambient `<img>` element |
 | `src/features/Watch/components/WatchPageFilterBar.tsx` | `mask-image` fade для filter pills |
 | `src/features/Watch/WatchPage.tsx` | `window.scrollTo(0, 0)` при навигации |
-| `src/index.css` | `bg-bg-primary-ambient` utility, document scrollbar auto-hide |
+| `src/index.css` | Document scrollbar auto-hide |
 
 ### Layout Architecture (YouTube pattern)
 
@@ -110,6 +109,6 @@ WatchPageVideoPlayer
 
 Ambient source: `video.thumbnail || video.customImage` — YouTube CDN thumbnail для YT видео, Firebase Storage для custom видео.
 
-### CSS Gotcha: Tailwind opacity modifier + hex CSS variables
+### CSS: Tailwind v4 opacity modifier + hex CSS variables
 
-Tailwind `/80` modifier не работает с hex CSS variables (`--bg-primary: #0f0f0f`). Генерирует невалидный `rgb(#0f0f0f / 0.8)`. Решение: `color-mix(in srgb, var(--bg-primary) 92%, transparent)` в утилитарном классе `bg-bg-primary-ambient`.
+Tailwind v4 нативно поддерживает `/opacity` modifiers с hex CSS variables через `color-mix()`. Класс `bg-bg-primary/92` генерирует `background-color: color-mix(in srgb, var(--color-bg-primary) 92%, transparent)`. Workaround `bg-bg-primary-ambient` удалён.

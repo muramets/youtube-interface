@@ -8,13 +8,16 @@
 ## Архитектура
 
 ```
-src/index.css           → CSS Custom Properties (единственный источник правды о цветах)
-tailwind.config.js      → Токены Tailwind (цвета, z-index, анимации)
+src/index.css           → CSS Custom Properties + Tailwind @theme (единственный источник правды)
+                          `:root` / `.dark` — design tokens (цвета по темам)
+                          `@theme {}` — Tailwind-маппинг (цвета, z-index, анимации)
 src/components/ui/      → Компоненты системы
   atoms/                → Button, Badge, Toggle, Checkbox, SplitButton
   molecules/            → SegmentedControl, Dropdown, Toast, FilterChips, CustomSelect
   organisms/            → ConfirmationModal, FloatingBar, AddContentMenu
 ```
+
+> **Tailwind v4:** конфигурация живёт в CSS (`@theme`, `@variant`, `@plugin` в `index.css`), а не в отдельном `tailwind.config.js`. Сборка через `@tailwindcss/vite` (нативная Vite-интеграция, без PostCSS).
 
 ---
 
@@ -191,7 +194,7 @@ import { SegmentedControl } from '@/components/ui/molecules/SegmentedControl';
 
 ## Анимации
 
-Все анимации определены в `tailwind.config.js`.
+Все анимации определены в `@theme {}` блоке в `src/index.css` (Tailwind v4).
 Основная кривая: `cubic-bezier(0.16, 1, 0.3, 1)` — быстрый старт, плавный конец.
 
 | Класс | Использование |
@@ -217,7 +220,6 @@ import { SegmentedControl } from '@/components/ui/molecules/SegmentedControl';
 | `.scrollbar-hide` | Скрыть scrollbar |
 | `.scrollbar-compact` | Тонкий scrollbar (3px) |
 | `.scrollbar-auto-hide` | Overlay scrollbar (4px), появляется при скролле/hover, исчезает через 1с. Требует JS-класс `.is-scrolling` для анимации при скролле |
-| `.bg-bg-primary-ambient` | Semi-transparent `--bg-primary` (92% opacity) через `color-mix()`. Для header на Watch page (ambient bleed-through). Обходит ограничение Tailwind `/opacity` с hex CSS variables |
 | `.hover-trail` | Асимметричный hover: быстрый snap-in (75ms), медленный fade-out (350ms). Transition для `color`, `background-color`, `border-color`, `opacity` |
 | `.no-spinner` | Убрать стрелки у `<input type="number">` |
 
@@ -251,5 +253,7 @@ import { SegmentedControl } from '@/components/ui/molecules/SegmentedControl';
 
 Если нужен новый токен:
 1. Добавить CSS variable в `:root {}` и `.dark {}` в `src/index.css`
-2. Добавить Tailwind-маппинг в `tailwind.config.js` → `theme.extend.colors`
+2. Добавить Tailwind-маппинг в `@theme {}` блок в `src/index.css` (например: `--color-my-token: var(--my-token);`)
 3. Никогда не создавать токены только для одного компонента — только если используется 2+ раз
+
+> **Tailwind v4 бонус:** `/opacity` modifiers теперь работают с любыми CSS variables. `bg-my-token/50` автоматически генерирует `color-mix(in srgb, var(--color-my-token) 50%, transparent)`. Не нужно создавать отдельные утилитарные классы для semi-transparent вариантов.

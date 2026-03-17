@@ -1,5 +1,5 @@
 import { Routes, Route, useLocation } from 'react-router-dom';
-import { useEffect, Suspense, lazy } from 'react';
+import { useEffect, useState, Suspense, lazy } from 'react';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { LoginPage } from './pages/LoginPage';
 import { Header } from './components/Layout/Header';
@@ -102,7 +102,7 @@ function AppContent() {
           <Route path="/*" element={
             <ProtectedRoute>
               <>
-                <Header className={isWatchPage ? 'bg-bg-primary-ambient backdrop-blur-xl' : undefined} />
+                <Header className={isWatchPage ? 'bg-bg-primary/92 backdrop-blur-xl' : undefined} />
                 <div className="h-14 flex-shrink-0" /> {/* Spacer for fixed header */}
                 {/* Global DnD Context: Trends video drag + Music track drag */}
                 <AppDndProvider>

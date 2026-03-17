@@ -159,7 +159,7 @@ export const MemoryCheckpoint: React.FC<MemoryCheckpointProps> = ({ memory, onUp
                 className="w-full flex items-center gap-2 group cursor-pointer bg-transparent border-none p-0 hover-trail"
                 onClick={() => setIsExpanded(v => !v)}
             >
-                <div className="flex-1 h-px" style={{ backgroundColor: 'color-mix(in srgb, var(--accent) 25%, transparent)' }} />
+                <div className="flex-1 h-px bg-accent/25" />
                 <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] transition-colors group-hover:bg-white/[0.03]"
                     style={{ color: 'var(--accent)' }}
                 >
@@ -170,7 +170,7 @@ export const MemoryCheckpoint: React.FC<MemoryCheckpointProps> = ({ memory, onUp
                         className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
                     />
                 </div>
-                <div className="flex-1 h-px" style={{ backgroundColor: 'color-mix(in srgb, var(--accent) 25%, transparent)' }} />
+                <div className="flex-1 h-px bg-accent/25" />
             </button>
 
             {/* Expandable content */}
