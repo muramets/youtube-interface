@@ -78,7 +78,7 @@
 |------|------|
 | `src/App.tsx` | Root layout, header spacer, Watch route detection → header className |
 | `src/components/Layout/Header.tsx` | `position: fixed`, принимает `className` prop |
-| `src/components/Layout/Sidebar.tsx` | `position: fixed` + placeholder div в flex layout |
+| `src/components/Layout/Sidebar.tsx` | `position: fixed` + placeholder div в flex layout + audio player padding (`pb-14` when active) |
 | `src/features/Watch/components/WatchPageVideoPlayer.tsx` | Ambient `<img>` element |
 | `src/features/Watch/components/WatchPageFilterBar.tsx` | `mask-image` fade для filter pills |
 | `src/features/Watch/WatchPage.tsx` | `window.scrollTo(0, 0)` при навигации |

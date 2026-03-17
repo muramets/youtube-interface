@@ -42,6 +42,10 @@ src/components/ui/      → Компоненты системы
 | `--primary-button-bg` | #065fd4 | Primary кнопки |
 | `--danger-color` | #cc0000 | Деструктивные действия |
 | `--color-success` | #22c55e | Успешные состояния |
+| `--color-warning` | #f59e0b (light) / #fbbf24 (dark) | Предупреждения (amber) |
+| `--color-error` | #ef4444 (light) / #f87171 (dark) | Ошибки (red) |
+| `--surface-primary` | #f5f5f5 (light) / #1a1a1a (dark) | Панели, вложенные поверхности |
+| `--surface-secondary` | #ebebeb (light) / #2a2a2a (dark) | Вложенные блоки внутри панелей |
 | `--reference-highlight` | #818cf8 (light) / #a5b4fc (dark) | @mention в чате |
 
 ### Токены для модалок
@@ -213,8 +217,15 @@ import { SegmentedControl } from '@/components/ui/molecules/SegmentedControl';
 | `.scrollbar-hide` | Скрыть scrollbar |
 | `.scrollbar-compact` | Тонкий scrollbar (3px) |
 | `.scrollbar-auto-hide` | Overlay scrollbar (4px), появляется при скролле/hover, исчезает через 1с. Требует JS-класс `.is-scrolling` для анимации при скролле |
+| `.bg-bg-primary-ambient` | Semi-transparent `--bg-primary` (92% opacity) через `color-mix()`. Для header на Watch page (ambient bleed-through). Обходит ограничение Tailwind `/opacity` с hex CSS variables |
 | `.hover-trail` | Асимметричный hover: быстрый snap-in (75ms), медленный fade-out (350ms). Transition для `color`, `background-color`, `border-color`, `opacity` |
 | `.no-spinner` | Убрать стрелки у `<input type="number">` |
+
+### Scrollbar-поведение
+
+**Компоненты с `overflow-auto/y-auto/x-auto`** получают авто-скрытие scrollbar через `@layer base` — тонкая полоска (4px), прозрачная по умолчанию, появляется при hover/active.
+
+**Document scrollbar** (`html`) — тонкая полоска (6px), прозрачная по умолчанию, появляется при hover на `html`. Используется вместо app-shell scroll (document scroll по YouTube-паттерну).
 
 ---
 
