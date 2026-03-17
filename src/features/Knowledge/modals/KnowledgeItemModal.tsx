@@ -11,13 +11,20 @@ import { useAuth } from '../../../core/hooks/useAuth'
 import { useChannelStore } from '../../../core/stores/channelStore'
 import type { KnowledgeItem } from '../../../core/types/knowledge'
 import type { VideoPreviewData } from '../../Video/types'
+import { VideoLinkField } from '../components/VideoLinkField'
 import { formatKnowledgeDate, formatVersionLabel } from '../utils/formatDate'
 
 interface KnowledgeItemModalProps {
     /** The Knowledge Item to edit */
     item: KnowledgeItem
     /** Called with updated fields when user saves */
-    onSave: (updates: { title: string; summary: string; content: string }) => void
+    onSave: (updates: {
+        title: string;
+        summary: string;
+        content: string;
+        videoId?: string;
+        scope?: 'video' | 'channel';
+    }) => void
     /** Called when modal should close */
     onClose: () => void
     /** Video catalog for @-autocomplete and vid:// tooltips */
@@ -48,6 +55,7 @@ export const KnowledgeItemModal = React.memo(({
     const [title, setTitle] = useState(item.title)
     const [summary, setSummary] = useState(item.summary)
     const [content, setContent] = useState(item.content)
+    const [linkedVideoId, setLinkedVideoId] = useState<string | undefined>(item.videoId)
 
     const { versions, deleteVersion } = useKnowledgeVersions(userId, channelId, item.id)
     const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null)
@@ -79,11 +87,24 @@ export const KnowledgeItemModal = React.memo(({
     }, [onClose])
 
     const handleSave = useCallback(() => {
-        onSave({ title: title.trim(), summary: summary.trim(), content })
+        const videoChanged = linkedVideoId !== item.videoId
+        const updates: Parameters<typeof onSave>[0] = {
+            title: title.trim(),
+            summary: summary.trim(),
+            content,
+        }
+        if (videoChanged) {
+            updates.videoId = linkedVideoId
+            updates.scope = linkedVideoId ? 'video' : 'channel'
+        }
+        onSave(updates)
         onClose()
-    }, [title, summary, content, onSave, onClose])
+    }, [title, summary, content, linkedVideoId, item.videoId, onSave, onClose])
 
-    const hasChanges = title.trim() !== item.title || summary.trim() !== item.summary || content !== item.content
+    const hasChanges = title.trim() !== item.title
+        || summary.trim() !== item.summary
+        || content !== item.content
+        || linkedVideoId !== item.videoId
     const dateStr = formatKnowledgeDate(item.createdAt)
 
     // --- Expanded mode slots ---
@@ -170,6 +191,15 @@ export const KnowledgeItemModal = React.memo(({
                             placeholder="Knowledge Item title..."
                         />
                     </div>
+
+                    {/* Linked Video */}
+                    {videoCatalog && videoCatalog.length > 0 && (
+                        <VideoLinkField
+                            videoId={linkedVideoId}
+                            videoCatalog={videoCatalog}
+                            onChange={setLinkedVideoId}
+                        />
+                    )}
 
                     {/* Summary input */}
                     <div>

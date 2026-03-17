@@ -71,6 +71,39 @@ export const useChannelKnowledgeItems = (userId: string, channelId: string) => {
 };
 
 // =============================================================================
+// All Knowledge Items (both scopes)
+// =============================================================================
+
+export const useAllKnowledgeItems = (userId: string, channelId: string) => {
+    const queryClient = useQueryClient();
+    const queryKey = useMemo(
+        () => ['knowledgeItems', userId, channelId, 'all'],
+        [userId, channelId]
+    );
+
+    const EMPTY: KnowledgeItem[] = useMemo(() => [], []);
+
+    const { data: rawItems, isLoading, error } = useQuery<KnowledgeItem[]>({
+        queryKey,
+        queryFn: () => KnowledgeService.getAllKnowledgeItems(userId, channelId),
+        staleTime: Infinity,
+        enabled: !!userId && !!channelId,
+    });
+
+    // Real-time subscription
+    useEffect(() => {
+        if (!userId || !channelId) return;
+        const unsubscribe = KnowledgeService.subscribeToAllKnowledgeItems(
+            userId, channelId,
+            (data) => queryClient.setQueryData(queryKey, data)
+        );
+        return () => unsubscribe();
+    }, [userId, channelId, queryClient, queryKey]);
+
+    return { items: rawItems || EMPTY, isLoading, error };
+};
+
+// =============================================================================
 // Knowledge Categories
 // =============================================================================
 
@@ -101,7 +134,7 @@ export const useUpdateKnowledgeItem = (userId: string, channelId: string) => {
             previousItem,
         }: {
             itemId: string;
-            updates: Partial<Pick<KnowledgeItem, 'title' | 'content' | 'summary'>>;
+            updates: Partial<Pick<KnowledgeItem, 'title' | 'content' | 'summary' | 'videoId' | 'scope'>>;
             previousItem?: KnowledgeItem;
         }) => {
             if (previousItem) {

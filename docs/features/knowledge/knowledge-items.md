@@ -4,7 +4,7 @@
 
 ## Текущее состояние
 
-Реализовано полностью. LLM создаёт Knowledge Items (KI) через tool calls (`saveKnowledge`), будущие LLM обнаруживают их через денормализованные флаги на документах видео/канала и запрашивают содержимое (`listKnowledge` / `getKnowledge`). Memorize работает как последний turn чата через `aiChat` endpoint с `isConclude: true` — AI создаёт KI, затем Memory со ссылками на KI. UI: Watch Page (video KI, таб "AI Research"), Knowledge Page (channel KI, route `/knowledge`). KnowledgeCard отображает content с collapsible sections и video reference tooltips. Video references используют `vid://` URI scheme: LLM пишет `[title](vid://ID)` ссылки, read-only рендерер показывает интерактивные mention-ы с tooltip, в edit mode — Tiptap Mark с `@` autocomplete для вставки ссылок на видео (свои + конкуренты). `onKnowledgeItemDeleted` Firestore trigger поддерживает целостность discovery flags.
+Реализовано полностью. LLM создаёт Knowledge Items (KI) через tool calls (`saveKnowledge`), будущие LLM обнаруживают их через денормализованные флаги на документах видео/канала и запрашивают содержимое (`listKnowledge` / `getKnowledge`). Memorize работает как последний turn чата через `aiChat` endpoint с `isConclude: true` — AI создаёт KI, затем Memory со ссылками на KI. UI: Knowledge Page — единый хаб всех KI (оба scope), multi-row фильтры (All/Channel/Videos + category chips per scope). Watch Page (video KI, таб "AI Research") — дублирует video-scoped KI в контексте конкретного видео. Edit Knowledge Item modal позволяет привязать/отвязать видео через VideoLinkField (поиск + compact preview); привязка меняет `scope` и `videoId`, discovery flags обновляются атомарно в batch. KnowledgeCard отображает content с collapsible sections и video reference tooltips. Video references используют `vid://` URI scheme: LLM пишет `[title](vid://ID)` ссылки, read-only рендерер показывает интерактивные mention-ы с tooltip, в edit mode — Tiptap Mark с `@` autocomplete для вставки ссылок на видео (свои + конкуренты). `onKnowledgeItemDeleted` Firestore trigger поддерживает целостность discovery flags.
 
 ---
 
@@ -106,6 +106,7 @@ Slug validation: `SLUG_PATTERN` (`/^[a-z0-9]+(-[a-z0-9]+)*$/`) — shared меж
 - [x] Phase 6: Video UI — Watch Page: tab bar My Notes / AI Research
 - [x] Phase 7: Channel UI — Knowledge Page, sidebar, chip-row filters, manual creation
 - [x] FINAL — Double review-fix cycle (R1: Architecture, R2: Production Readiness)
+- [x] Phase 8: Video Linking + Unified Knowledge Page — edit modal video link/unlink, Knowledge Page shows all scopes, multi-row scope+category filters, discovery flags batch update
 
 ← YOU ARE HERE
 
@@ -161,12 +162,13 @@ Composite indexes deployed: idempotency guard (`conversationId + category + vide
 | `src/core/types/knowledge.ts` | Types: `KnowledgeItem`, `KnowledgeCategoryEntry`, `KnowledgeFlags`, `SEED_CATEGORIES`, `SLUG_PATTERN` re-export |
 | `src/core/services/knowledge/knowledgeService.ts` | Firestore CRUD for KI |
 | `src/core/services/knowledge/knowledgeCategoryService.ts` | Category registry CRUD + seed creation |
-| `src/core/hooks/useKnowledgeItems.ts` | TanStack Query: `useVideoKnowledgeItems`, `useChannelKnowledgeItems`, mutations |
-| `src/core/stores/knowledgeStore.ts` | Zustand: `selectedCategory`, `sortOrder` (Knowledge Page UI state) |
+| `src/core/hooks/useKnowledgeItems.ts` | TanStack Query: `useVideoKnowledgeItems`, `useChannelKnowledgeItems`, `useAllKnowledgeItems`, mutations (accept `videoId`/`scope`) |
+| `src/core/stores/knowledgeStore.ts` | Zustand: `scopeFilter` (all/channel/video), `selectedCategory`, `sortOrder` (Knowledge Page UI state) |
 | `src/features/Knowledge/components/KnowledgeCard.tsx` | Collapsible card: hover-trail, collapsible sections, Badge for source, video ref highlighting via `vid://` links + `linkifyVideoRefs` fallback + `VideoReferenceTooltip` |
 | `src/features/Knowledge/components/KnowledgeList.tsx` | Shared list (Watch Page + Knowledge Page), passes `videoMap` |
 | `src/features/Knowledge/components/KnowledgeViewer.tsx` | Zen Mode: Portal + AnimatePresence + backdrop blur |
-| `src/features/Knowledge/modals/KnowledgeItemModal.tsx` | Edit modal: RichTextEditor, read-only provenance, Badge for source |
+| `src/features/Knowledge/components/VideoLinkField.tsx` | Video link/unlink form field: search dropdown + compact preview, used in Edit modal |
+| `src/features/Knowledge/modals/KnowledgeItemModal.tsx` | Edit modal: RichTextEditor, read-only provenance, Badge for source, VideoLinkField for video linking |
 | `src/features/Knowledge/modals/CreateKnowledgeItemModal.tsx` | Manual creation: Dropdown molecule for category, RichTextEditor |
 | `src/features/Knowledge/utils/linkifyVideoRefs.ts` | (deprecated) Converts raw video IDs → `[title](vid://ID)` links for legacy KI content |
 | `src/core/hooks/useVideosCatalog.ts` | Video catalog hook for `@` autocomplete: own + trend channel videos, TanStack Query, staleTime 5min |
@@ -178,7 +180,8 @@ Composite indexes deployed: idempotency guard (`conversationId + category + vide
 | `src/features/Knowledge/utils/markdownSections.ts` | `parseMarkdownSections` → hierarchical `HierarchicalSection[]` + preamble |
 | `src/features/Knowledge/utils/videoRefMap.ts` | `buildVideoRefMap`: channel videos → `Map<videoId, VideoPreviewData>` (indexed by id + publishedVideoId) |
 | `src/features/Watch/components/WatchPageKnowledge.tsx` | Video-level KI: AI Research tab on Watch Page |
-| `src/pages/Knowledge/KnowledgePage.tsx` | Channel-level KI: full page, chip-row filters, sort, manual creation |
+| `src/features/Knowledge/utils/knowledgeFilters.ts` | `deriveCategories` + `filterAndSortItems` — pure filter/sort logic extracted for testability |
+| `src/pages/Knowledge/KnowledgePage.tsx` | All-scope KI dashboard: multi-row filters (scope + category per scope), sort, manual creation |
 | `src/components/ui/organisms/RichTextEditor/` | Tiptap v3 WYSIWYG editor (self-contained organism with extensions inside) |
 | `src/core/config/concludePrompt.ts` | `CONCLUDE_INSTRUCTION` — synthetic user message for Memorize |
 | `src/core/stores/chat/slices/settingsSlice.ts` | `memorizeConversation()` → `sendMessage()` with `isConclude: true` + `backendText` |
@@ -229,3 +232,5 @@ Composite indexes deployed: idempotency guard (`conversationId + category + vide
 | 13 | Conclude context injection | Backend injects existing KI list into conclude message → AI skips duplicates → ~50 tokens vs ~6K wasted output |
 | 14 | Custom video ID resolution | `saveKnowledge` resolves YouTube ID → `custom-*` doc ID via `resolveVideosByIds` before batch. Graceful fallback to channel-level |
 | 15 | Knowledge/ as shared feature | Used by Watch Page + Knowledge Page (SRP) |
+| 16 | Video linking changes scope | Linking a video sets `scope: 'video'` + `videoId`; unlinking sets `scope: 'channel'` + `deleteField()` on `videoId`. Discovery flags updated atomically in same batch (decrement old entity, increment new). Knowledge Page shows all scopes — KI never "disappears" |
+| 17 | Knowledge Page = unified hub | `useAllKnowledgeItems` (no scope filter) + multi-row chip filters (scope row + category rows per scope). Category rows conditionally visible based on scope selection |

@@ -4,23 +4,30 @@ import { Button } from '../../components/ui/atoms/Button/Button'
 import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip'
 import { useAuth } from '../../core/hooks/useAuth'
 import { useChannelStore } from '../../core/stores/channelStore'
-import { useChannelKnowledgeItems, useUpdateKnowledgeItem, useCreateKnowledgeItem, useDeleteKnowledgeItem } from '../../core/hooks/useKnowledgeItems'
+import { useAllKnowledgeItems, useUpdateKnowledgeItem, useCreateKnowledgeItem, useDeleteKnowledgeItem } from '../../core/hooks/useKnowledgeItems'
 import { useVideos } from '../../core/hooks/useVideos'
 import { useVideosCatalog } from '../../core/hooks/useVideosCatalog'
-import { useKnowledgeStore } from '../../core/stores/knowledgeStore'
+import { useKnowledgeStore, type KnowledgeScopeFilter } from '../../core/stores/knowledgeStore'
 import { buildVideoRefMap } from '../../features/Knowledge/utils/videoRefMap'
 import { KnowledgeList } from '../../features/Knowledge/components/KnowledgeList'
 import { KnowledgeItemModal } from '../../features/Knowledge/modals/KnowledgeItemModal'
 import { CreateKnowledgeItemModal } from '../../features/Knowledge/modals/CreateKnowledgeItemModal'
+import { deriveCategories, filterAndSortItems } from '../../features/Knowledge/utils/knowledgeFilters'
 import type { KnowledgeItem } from '../../core/types/knowledge'
 
+const SCOPE_CHIPS: { value: KnowledgeScopeFilter; label: string }[] = [
+    { value: 'all', label: 'All' },
+    { value: 'channel', label: 'Channel' },
+    { value: 'video', label: 'Videos' },
+]
+
 /**
- * KnowledgePage — channel-level Knowledge Items dashboard.
+ * KnowledgePage — Knowledge Items dashboard (all scopes).
  *
  * Features:
- * - Category chip-row filter (derived from actual KI categories)
+ * - Multi-row filters: scope (All/Channel/Videos) + category chips per scope
  * - Sort: newest / oldest
- * - KI cards with expand, Zen Mode, edit
+ * - KI cards with expand, Zen Mode, edit, video linking
  * - [+ Add] button for manual KI creation
  */
 export const KnowledgePage: React.FC = () => {
@@ -30,7 +37,7 @@ export const KnowledgePage: React.FC = () => {
     const userId = user?.uid ?? ''
     const channelId = currentChannel?.id ?? ''
 
-    const { items, isLoading, error } = useChannelKnowledgeItems(userId, channelId)
+    const { items, isLoading, error } = useAllKnowledgeItems(userId, channelId)
     const { videos } = useVideos(userId, channelId)
     const updateMutation = useUpdateKnowledgeItem(userId, channelId)
     const createMutation = useCreateKnowledgeItem(userId, channelId)
@@ -39,40 +46,47 @@ export const KnowledgePage: React.FC = () => {
     const videoMap = useMemo(() => buildVideoRefMap(videos), [videos])
     const videoCatalog = useVideosCatalog()
 
-    const { selectedCategory, sortOrder, setCategory, setSortOrder } = useKnowledgeStore()
+    const { scopeFilter, selectedCategory, sortOrder, setScopeFilter, setCategory, setSortOrder } = useKnowledgeStore()
 
     const [editingItem, setEditingItem] = useState<KnowledgeItem | null>(null)
     const [isCreateOpen, setIsCreateOpen] = useState(false)
 
-    // Derive unique categories from actual items
-    const categories = useMemo(() => {
-        const catSet = new Map<string, number>()
+    // Scope counts for chip badges
+    const scopeCounts = useMemo(() => {
+        let channel = 0
+        let video = 0
         for (const item of items) {
-            catSet.set(item.category, (catSet.get(item.category) ?? 0) + 1)
+            if (item.scope === 'channel') channel++
+            else video++
         }
-        return Array.from(catSet.entries())
-            .sort((a, b) => b[1] - a[1])
-            .map(([slug, count]) => ({ slug, label: slug.replace(/-/g, ' '), count }))
+        return { all: items.length, channel, video }
     }, [items])
 
+    // Categories per scope (for conditional rows)
+    const channelCategories = useMemo(() => deriveCategories(items, 'channel'), [items])
+    const videoCategories = useMemo(() => deriveCategories(items, 'video'), [items])
+
+    // Show category rows based on scope filter
+    const showChannelCats = scopeFilter === 'all' || scopeFilter === 'channel'
+    const showVideoCats = scopeFilter === 'all' || scopeFilter === 'video'
+
     // Filter + sort
-    const displayItems = useMemo(() => {
-        let filtered = items
-        if (selectedCategory) {
-            filtered = filtered.filter(i => i.category === selectedCategory)
-        }
-        return [...filtered].sort((a, b) => {
-            const timeA = a.createdAt?.seconds ?? 0
-            const timeB = b.createdAt?.seconds ?? 0
-            return sortOrder === 'newest' ? timeB - timeA : timeA - timeB
-        })
-    }, [items, selectedCategory, sortOrder])
+    const displayItems = useMemo(
+        () => filterAndSortItems(items, scopeFilter, selectedCategory, sortOrder),
+        [items, scopeFilter, selectedCategory, sortOrder],
+    )
 
     const handleEdit = useCallback((item: KnowledgeItem) => {
         setEditingItem(item)
     }, [])
 
-    const handleSaveEdit = useCallback((updates: { title: string; summary: string; content: string }) => {
+    const handleSaveEdit = useCallback((updates: {
+        title: string;
+        summary: string;
+        content: string;
+        videoId?: string;
+        scope?: 'video' | 'channel';
+    }) => {
         if (!editingItem) return
         updateMutation.mutate({ itemId: editingItem.id, updates, previousItem: editingItem })
     }, [editingItem, updateMutation])
@@ -151,32 +165,61 @@ export const KnowledgePage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Filter bar: category chips */}
-                {categories.length > 0 && (
-                    <div className="flex items-center gap-2 flex-wrap">
+                {/* Row 1: Scope filter */}
+                <div className="flex items-center gap-2 flex-wrap">
+                    {SCOPE_CHIPS.map(chip => (
                         <button
-                            onClick={() => setCategory(null)}
+                            key={chip.value}
+                            onClick={() => setScopeFilter(chip.value)}
                             className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer border-none ${
-                                selectedCategory === null
+                                scopeFilter === chip.value
                                     ? 'bg-text-primary text-bg-primary'
                                     : 'bg-bg-secondary text-text-primary hover:bg-hover-bg'
                             }`}
                         >
-                            All
+                            {chip.label}
+                            <span className="ml-1.5 opacity-50">{scopeCounts[chip.value]}</span>
                         </button>
+                    ))}
+                </div>
 
-                        {categories.map(cat => (
+                {/* Row 2: Channel categories */}
+                {showChannelCats && channelCategories.length > 0 && (
+                    <div className="flex items-center gap-2 flex-wrap mt-2">
+                        <span className="text-[10px] text-text-tertiary uppercase tracking-wider font-medium w-14 flex-shrink-0">Channel</span>
+                        {channelCategories.map(cat => (
                             <button
-                                key={cat.slug}
+                                key={`ch-${cat.slug}`}
                                 onClick={() => setCategory(selectedCategory === cat.slug ? null : cat.slug)}
-                                className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer border-none capitalize ${
+                                className={`text-[11px] px-2.5 py-1 rounded-md font-medium transition-all cursor-pointer border-none capitalize ${
                                     selectedCategory === cat.slug
                                         ? 'bg-text-primary text-bg-primary'
                                         : 'bg-bg-secondary text-text-primary hover:bg-hover-bg'
                                 }`}
                             >
                                 {cat.label}
-                                <span className="ml-1.5 opacity-50">{cat.count}</span>
+                                <span className="ml-1 opacity-50">{cat.count}</span>
+                            </button>
+                        ))}
+                    </div>
+                )}
+
+                {/* Row 3: Video categories */}
+                {showVideoCats && videoCategories.length > 0 && (
+                    <div className="flex items-center gap-2 flex-wrap mt-2">
+                        <span className="text-[10px] text-text-tertiary uppercase tracking-wider font-medium w-14 flex-shrink-0">Video</span>
+                        {videoCategories.map(cat => (
+                            <button
+                                key={`vid-${cat.slug}`}
+                                onClick={() => setCategory(selectedCategory === cat.slug ? null : cat.slug)}
+                                className={`text-[11px] px-2.5 py-1 rounded-md font-medium transition-all cursor-pointer border-none capitalize ${
+                                    selectedCategory === cat.slug
+                                        ? 'bg-text-primary text-bg-primary'
+                                        : 'bg-bg-secondary text-text-primary hover:bg-hover-bg'
+                                }`}
+                            >
+                                {cat.label}
+                                <span className="ml-1 opacity-50">{cat.count}</span>
                             </button>
                         ))}
                     </div>
@@ -191,9 +234,9 @@ export const KnowledgePage: React.FC = () => {
                     onDelete={handleDelete}
                     videoMap={videoMap}
                     emptyMessage={
-                        selectedCategory
-                            ? 'No Knowledge Items in this category yet.'
-                            : 'No channel Knowledge Items yet. Use the chat to analyze your channel, or click "+ Add" to create one manually.'
+                        selectedCategory || scopeFilter !== 'all'
+                            ? 'No Knowledge Items match these filters.'
+                            : 'No Knowledge Items yet. Use the chat to analyze your channel, or click "+ Add" to create one manually.'
                     }
                 />
             </div>

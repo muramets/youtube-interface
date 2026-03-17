@@ -30,6 +30,9 @@ vi.mock('firebase/firestore', () => ({
     where: (...args: unknown[]) => ({ type: 'where', args }),
     orderBy: (...args: unknown[]) => ({ type: 'orderBy', args }),
     serverTimestamp: () => 'SERVER_TIMESTAMP',
+    deleteField: () => 'DELETE_FIELD',
+    increment: (n: number) => ({ type: 'increment', value: n }),
+    arrayUnion: (...args: unknown[]) => ({ type: 'arrayUnion', args }),
     writeBatch: () => ({
         set: mockBatchSet,
         update: mockBatchUpdate,
@@ -342,6 +345,196 @@ describe('KnowledgeService', () => {
             const versionData = mockBatchSet.mock.calls[0][1];
             expect(versionData.source).toBe('manual');
             expect(versionData.model).toBe('');
+        });
+    });
+
+    // =========================================================================
+    // Video linking — scope/videoId changes + discovery flags
+    // =========================================================================
+
+    describe('updateKnowledgeItem — video linking', () => {
+        it('includes deleteField() for videoId when scope changes to channel', async () => {
+            mockUpdateDocument.mockResolvedValue(undefined);
+
+            await KnowledgeService.updateKnowledgeItem(USER_ID, CHANNEL_ID, 'ki-1', {
+                scope: 'channel',
+            });
+
+            const payload = mockUpdateDocument.mock.calls[0][2];
+            expect(payload.scope).toBe('channel');
+            expect(payload.videoId).toBe('DELETE_FIELD');
+            expect(payload.updatedAt).toBe('SERVER_TIMESTAMP');
+        });
+
+        it('passes videoId when linking to a video', async () => {
+            mockUpdateDocument.mockResolvedValue(undefined);
+
+            await KnowledgeService.updateKnowledgeItem(USER_ID, CHANNEL_ID, 'ki-1', {
+                videoId: 'vid-new',
+                scope: 'video',
+            });
+
+            const payload = mockUpdateDocument.mock.calls[0][2];
+            expect(payload.scope).toBe('video');
+            expect(payload.videoId).toBe('vid-new');
+        });
+
+        it('does NOT add deleteField when scope is channel but videoId is explicitly set', async () => {
+            mockUpdateDocument.mockResolvedValue(undefined);
+
+            // Edge case: shouldn't happen in practice, but verifies guard logic
+            await KnowledgeService.updateKnowledgeItem(USER_ID, CHANNEL_ID, 'ki-1', {
+                scope: 'channel',
+                videoId: 'vid-abc',
+            });
+
+            const payload = mockUpdateDocument.mock.calls[0][2];
+            expect(payload.videoId).toBe('vid-abc');
+        });
+    });
+
+    describe('updateKnowledgeItemWithVersion — discovery flags', () => {
+        const BASE_PATH = `users/${USER_ID}/channels/${CHANNEL_ID}`;
+        const VIDEO_ITEM = {
+            id: 'ki-1',
+            title: 'Traffic Analysis',
+            content: 'Old content',
+            summary: 'Summary',
+            category: 'traffic-analysis',
+            scope: 'video' as const,
+            videoId: 'vid-A',
+            source: 'chat-tool' as const,
+            model: 'claude-sonnet-4-6',
+            conversationId: 'conv-1',
+            toolsUsed: ['analyzeTrafficSources'],
+            createdAt: { seconds: 1700000000 } as import('firebase/firestore').Timestamp,
+        };
+
+        const CHANNEL_ITEM = {
+            ...VIDEO_ITEM,
+            id: 'ki-2',
+            scope: 'channel' as const,
+            videoId: undefined,
+            category: 'niche-analysis',
+        };
+
+        beforeEach(() => {
+            mockBatchSet.mockClear();
+            mockBatchUpdate.mockClear();
+            mockBatchCommit.mockClear();
+            mockUpdateDocument.mockResolvedValue(undefined);
+        });
+
+        it('video→channel: decrements old video, increments channel', async () => {
+            await KnowledgeService.updateKnowledgeItemWithVersion(
+                USER_ID, CHANNEL_ID, 'ki-1',
+                { scope: 'channel' },
+                VIDEO_ITEM,
+            );
+
+            expect(mockBatchCommit).toHaveBeenCalledOnce();
+
+            // batch.update calls: 1 = KI doc, 2 = old video (decrement), 3 = channel (increment)
+            expect(mockBatchUpdate).toHaveBeenCalledTimes(3);
+
+            // KI doc update
+            const kiUpdate = mockBatchUpdate.mock.calls[0];
+            expect(kiUpdate[0].path).toContain('knowledgeItems');
+            expect(kiUpdate[1].scope).toBe('channel');
+            expect(kiUpdate[1].videoId).toBe('DELETE_FIELD');
+
+            // Old video: decrement
+            const oldVideoUpdate = mockBatchUpdate.mock.calls[1];
+            expect(oldVideoUpdate[0].path).toBe(`${BASE_PATH}/videos/vid-A`);
+            expect(oldVideoUpdate[1].knowledgeItemCount).toEqual({ type: 'increment', value: -1 });
+
+            // Channel: increment
+            const channelUpdate = mockBatchUpdate.mock.calls[2];
+            expect(channelUpdate[0].path).toBe(BASE_PATH);
+            expect(channelUpdate[1].knowledgeItemCount).toEqual({ type: 'increment', value: 1 });
+            expect(channelUpdate[1].knowledgeCategories).toEqual({ type: 'arrayUnion', args: ['traffic-analysis'] });
+        });
+
+        it('channel→video: decrements channel, increments new video', async () => {
+            await KnowledgeService.updateKnowledgeItemWithVersion(
+                USER_ID, CHANNEL_ID, 'ki-2',
+                { videoId: 'vid-B', scope: 'video' },
+                CHANNEL_ITEM,
+            );
+
+            expect(mockBatchCommit).toHaveBeenCalledOnce();
+            expect(mockBatchUpdate).toHaveBeenCalledTimes(3);
+
+            // Old channel: decrement
+            const channelUpdate = mockBatchUpdate.mock.calls[1];
+            expect(channelUpdate[0].path).toBe(BASE_PATH);
+            expect(channelUpdate[1].knowledgeItemCount).toEqual({ type: 'increment', value: -1 });
+
+            // New video: increment
+            const videoUpdate = mockBatchUpdate.mock.calls[2];
+            expect(videoUpdate[0].path).toBe(`${BASE_PATH}/videos/vid-B`);
+            expect(videoUpdate[1].knowledgeItemCount).toEqual({ type: 'increment', value: 1 });
+        });
+
+        it('video A → video B: decrements old video, increments new video', async () => {
+            await KnowledgeService.updateKnowledgeItemWithVersion(
+                USER_ID, CHANNEL_ID, 'ki-1',
+                { videoId: 'vid-B', scope: 'video' },
+                VIDEO_ITEM,
+            );
+
+            expect(mockBatchCommit).toHaveBeenCalledOnce();
+            expect(mockBatchUpdate).toHaveBeenCalledTimes(3);
+
+            // Old video A: decrement
+            const oldUpdate = mockBatchUpdate.mock.calls[1];
+            expect(oldUpdate[0].path).toBe(`${BASE_PATH}/videos/vid-A`);
+            expect(oldUpdate[1].knowledgeItemCount).toEqual({ type: 'increment', value: -1 });
+
+            // New video B: increment
+            const newUpdate = mockBatchUpdate.mock.calls[2];
+            expect(newUpdate[0].path).toBe(`${BASE_PATH}/videos/vid-B`);
+            expect(newUpdate[1].knowledgeItemCount).toEqual({ type: 'increment', value: 1 });
+        });
+
+        it('content + scope change: version snapshot + KI update + flags in one batch', async () => {
+            await KnowledgeService.updateKnowledgeItemWithVersion(
+                USER_ID, CHANNEL_ID, 'ki-1',
+                { content: 'Brand new content', scope: 'channel' },
+                VIDEO_ITEM,
+            );
+
+            expect(mockBatchCommit).toHaveBeenCalledOnce();
+            // batch.set = version snapshot, batch.update = KI + old entity + new entity
+            expect(mockBatchSet).toHaveBeenCalledOnce();
+            expect(mockBatchUpdate).toHaveBeenCalledTimes(3);
+
+            // Version snapshot has old content
+            expect(mockBatchSet.mock.calls[0][1].content).toBe('Old content');
+        });
+
+        it('no scope change: no discovery flag updates, uses simple updateDocument', async () => {
+            await KnowledgeService.updateKnowledgeItemWithVersion(
+                USER_ID, CHANNEL_ID, 'ki-1',
+                { title: 'Better Title' },
+                VIDEO_ITEM,
+            );
+
+            // No batch — simple update
+            expect(mockBatchCommit).not.toHaveBeenCalled();
+            expect(mockUpdateDocument).toHaveBeenCalledOnce();
+        });
+
+        it('same videoId in updates: no discovery flag updates', async () => {
+            await KnowledgeService.updateKnowledgeItemWithVersion(
+                USER_ID, CHANNEL_ID, 'ki-1',
+                { videoId: 'vid-A', scope: 'video' },
+                VIDEO_ITEM,
+            );
+
+            // Same entity — no flag changes needed, simple update
+            expect(mockBatchCommit).not.toHaveBeenCalled();
+            expect(mockUpdateDocument).toHaveBeenCalledOnce();
         });
     });
 });

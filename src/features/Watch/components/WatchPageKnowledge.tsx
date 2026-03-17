@@ -39,7 +39,13 @@ export const WatchPageKnowledge = React.memo(({ videoId }: WatchPageKnowledgePro
         setEditingItem(item)
     }, [])
 
-    const handleSave = useCallback((updates: { title: string; summary: string; content: string }) => {
+    const handleSave = useCallback((updates: {
+        title: string;
+        summary: string;
+        content: string;
+        videoId?: string;
+        scope?: 'video' | 'channel';
+    }) => {
         if (!editingItem) return
         updateMutation.mutate({ itemId: editingItem.id, updates, previousItem: editingItem })
     }, [editingItem, updateMutation])

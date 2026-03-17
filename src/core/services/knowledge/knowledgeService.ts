@@ -5,9 +5,12 @@ import {
     deleteDocument,
     setDocument,
 } from '../firestore';
-import { where, orderBy, serverTimestamp, writeBatch, doc } from 'firebase/firestore';
+import { where, orderBy, serverTimestamp, writeBatch, doc, deleteField, increment, arrayUnion, type FieldValue, type WriteBatch } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import type { KnowledgeItem } from '../../types/knowledge';
+
+/** Firestore update payload: values can be regular types or FieldValue sentinels (deleteField, serverTimestamp) */
+type FirestoreUpdatePayload = Record<string, string | string[] | number | FieldValue | undefined>;
 
 const getKnowledgeItemsPath = (userId: string, channelId: string) =>
     `users/${userId}/channels/${channelId}/knowledgeItems`;
@@ -24,6 +27,79 @@ function stripUndefined<T extends Record<string, unknown>>(obj: T): T {
         }
     }
     return result as T;
+}
+
+/**
+ * Build Firestore-safe update payload for KI.
+ * When scope changes to 'channel', videoId must be deleted via deleteField().
+ */
+function buildKiUpdatePayload(
+    updates: Partial<Pick<KnowledgeItem, 'title' | 'content' | 'summary' | 'videoId' | 'scope'>>
+): FirestoreUpdatePayload {
+    const payload: FirestoreUpdatePayload = stripUndefined({
+        ...updates,
+        updatedAt: serverTimestamp(),
+    });
+
+    // When unlinking: scope='channel' means videoId should be removed from Firestore doc
+    if (updates.scope === 'channel' && !updates.videoId) {
+        payload.videoId = deleteField();
+    }
+
+    return payload;
+}
+
+/**
+ * Get Firestore ref for the entity (video doc or channel doc) that owns discovery flags.
+ */
+function getEntityRef(basePath: string, scope: 'video' | 'channel', videoId?: string) {
+    return scope === 'video' && videoId
+        ? doc(db, `${basePath}/videos/${videoId}`)
+        : doc(db, basePath);
+}
+
+/**
+ * Add discovery flag updates to a batch when scope/videoId changes.
+ * Decrements knowledgeItemCount on old entity, increments on new entity.
+ */
+function addDiscoveryFlagUpdates(
+    batch: WriteBatch,
+    basePath: string,
+    previousItem: KnowledgeItem,
+    updates: Partial<Pick<KnowledgeItem, 'videoId' | 'scope'>>,
+): void {
+    const newScope = updates.scope ?? previousItem.scope;
+    const newVideoId = updates.videoId ?? previousItem.videoId;
+
+    const oldRef = getEntityRef(basePath, previousItem.scope, previousItem.videoId);
+    const newRef = getEntityRef(basePath, newScope, newVideoId);
+
+    // Only update if the owning entity actually changed
+    if (oldRef.path === newRef.path) return;
+
+    // Decrement old entity
+    batch.update(oldRef, {
+        knowledgeItemCount: increment(-1),
+    });
+
+    // Increment new entity
+    batch.update(newRef, {
+        knowledgeItemCount: increment(1),
+        knowledgeCategories: arrayUnion(previousItem.category),
+        lastAnalyzedAt: serverTimestamp(),
+    });
+}
+
+/**
+ * Check if updates contain a scope/videoId change.
+ */
+function hasScopeChange(
+    updates: Partial<Pick<KnowledgeItem, 'videoId' | 'scope'>>,
+    previousItem: KnowledgeItem,
+): boolean {
+    if (updates.scope !== undefined && updates.scope !== previousItem.scope) return true;
+    if (updates.videoId !== undefined && updates.videoId !== previousItem.videoId) return true;
+    return false;
 }
 
 export const KnowledgeService = {
@@ -111,6 +187,22 @@ export const KnowledgeService = {
     },
 
     /**
+     * Subscribe to ALL KI (both video + channel scoped) in real-time.
+     * Used by Knowledge Page which displays all KI with scope filters.
+     */
+    subscribeToAllKnowledgeItems: (
+        userId: string,
+        channelId: string,
+        callback: (items: KnowledgeItem[]) => void
+    ) => {
+        return subscribeToCollection<KnowledgeItem>(
+            getKnowledgeItemsPath(userId, channelId),
+            callback,
+            [orderBy('createdAt', 'desc')]
+        );
+    },
+
+    /**
      * Update a KI (user edits content/title via Edit Modal).
      * Sets updatedAt automatically.
      */
@@ -118,15 +210,12 @@ export const KnowledgeService = {
         userId: string,
         channelId: string,
         itemId: string,
-        updates: Partial<Pick<KnowledgeItem, 'title' | 'content' | 'summary'>>
+        updates: Partial<Pick<KnowledgeItem, 'title' | 'content' | 'summary' | 'videoId' | 'scope'>>
     ): Promise<void> => {
         await updateDocument(
             getKnowledgeItemsPath(userId, channelId),
             itemId,
-            stripUndefined({
-                ...updates,
-                updatedAt: serverTimestamp(),
-            })
+            buildKiUpdatePayload(updates),
         );
     },
 
@@ -139,43 +228,48 @@ export const KnowledgeService = {
         userId: string,
         channelId: string,
         itemId: string,
-        updates: Partial<Pick<KnowledgeItem, 'title' | 'content' | 'summary'>>,
+        updates: Partial<Pick<KnowledgeItem, 'title' | 'content' | 'summary' | 'videoId' | 'scope'>>,
         previousItem: KnowledgeItem,
     ): Promise<void> => {
         const contentChanged = updates.content !== undefined
             && updates.content.trim() !== previousItem.content.trim();
+        const scopeChanged = hasScopeChange(updates, previousItem);
+        const needsBatch = contentChanged || scopeChanged;
 
-        if (contentChanged) {
-            // Atomic batch: version snapshot + main doc update
+        if (needsBatch) {
             const batch = writeBatch(db);
 
-            const versionId = `v-${Date.now()}`;
-            const versionsPath = `${getKnowledgeItemsPath(userId, channelId)}/${itemId}/versions`;
-            const versionRef = doc(db, versionsPath, versionId);
-            batch.set(versionRef, stripUndefined({
-                content: previousItem.content,
-                title: previousItem.title || undefined,
-                createdAt: Date.now(),
-                source: 'manual',
-                model: '',
-            }));
+            // Version snapshot (only if content changed)
+            if (contentChanged) {
+                const versionId = `v-${Date.now()}`;
+                const versionsPath = `${getKnowledgeItemsPath(userId, channelId)}/${itemId}/versions`;
+                const versionRef = doc(db, versionsPath, versionId);
+                batch.set(versionRef, stripUndefined({
+                    content: previousItem.content,
+                    title: previousItem.title || undefined,
+                    createdAt: Date.now(),
+                    source: 'manual',
+                    model: '',
+                }));
+            }
 
+            // Main doc update
             const kiRef = doc(db, getKnowledgeItemsPath(userId, channelId), itemId);
-            batch.update(kiRef, stripUndefined({
-                ...updates,
-                updatedAt: serverTimestamp(),
-            }));
+            batch.update(kiRef, buildKiUpdatePayload(updates));
+
+            // Discovery flags update (only if scope/videoId changed)
+            if (scopeChanged) {
+                const basePath = `users/${userId}/channels/${channelId}`;
+                addDiscoveryFlagUpdates(batch, basePath, previousItem, updates);
+            }
 
             await batch.commit();
         } else {
-            // No content change — simple update without version
+            // No content or scope change — simple update without batch
             await updateDocument(
                 getKnowledgeItemsPath(userId, channelId),
                 itemId,
-                stripUndefined({
-                    ...updates,
-                    updatedAt: serverTimestamp(),
-                }),
+                buildKiUpdatePayload(updates),
             );
         }
     },
