@@ -105,7 +105,7 @@ export const ChatService = {
         userId: string,
         channelId: string,
         projectId: string,
-        updates: Partial<Pick<ChatProject, 'name' | 'systemPrompt' | 'model' | 'order'>>
+        updates: Record<string, unknown>
     ) {
         await updateDocument(projectsPath(userId, channelId), projectId, {
             ...updates,

@@ -99,7 +99,7 @@ export interface ChatState {
 
     // Actions — CRUD
     createProject: (name: string) => Promise<ChatProject>;
-    updateProject: (projectId: string, updates: Partial<Pick<ChatProject, 'name' | 'systemPrompt' | 'model' | 'order'>>) => Promise<void>;
+    updateProject: (projectId: string, updates: Record<string, unknown>) => Promise<void>;
     deleteProject: (projectId: string) => Promise<void>;
     startNewChat: () => void;
     createConversation: (projectId: string | null) => Promise<ChatConversation>;

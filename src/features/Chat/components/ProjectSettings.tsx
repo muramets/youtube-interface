@@ -1,12 +1,13 @@
 import React, { useState, useMemo, useEffect, useRef, Fragment } from 'react';
 import { ChevronDown } from 'lucide-react';
+import { deleteField, type FieldValue } from 'firebase/firestore';
 import { Button } from '../../../components/ui/atoms/Button/Button';
 import { MODEL_REGISTRY } from '../../../core/types/chat/chat';
 
 interface ProjectSettingsProps {
     project: { id: string; name: string; systemPrompt?: string; model?: string };
     onClose: () => void;
-    onUpdate?: (id: string, updates: Partial<{ name: string; systemPrompt: string; model: string }>) => void;
+    onUpdate?: (id: string, updates: Record<string, string | FieldValue>) => Promise<void>;
 }
 
 export const ProjectSettings: React.FC<ProjectSettingsProps> = ({ project, onClose, onUpdate }) => {
@@ -14,6 +15,7 @@ export const ProjectSettings: React.FC<ProjectSettingsProps> = ({ project, onClo
     const [prompt, setPrompt] = useState(project.systemPrompt || '');
     const [model, setModel] = useState(project.model || '');
     const [isModelOpen, setIsModelOpen] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
     const isDirty = useMemo(() => {
@@ -95,8 +97,11 @@ export const ProjectSettings: React.FC<ProjectSettingsProps> = ({ project, onClo
             </div>
             <div className="flex gap-2 justify-end px-3.5 pb-3.5 pt-2.5 border-t border-border shrink-0">
                 <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
-                <Button variant="primary" size="sm" disabled={!isDirty} onClick={() => {
-                    onUpdate?.(project.id, { name, systemPrompt: prompt, model: model || undefined });
+                <Button variant="primary" size="sm" disabled={!isDirty} isLoading={isSaving} onClick={async () => {
+                    setIsSaving(true);
+                    const updates: Record<string, string | FieldValue> = { name, systemPrompt: prompt, model: model || deleteField() };
+                    await onUpdate?.(project.id, updates);
+                    setIsSaving(false);
                     onClose();
                 }}>Save</Button>
             </div>
