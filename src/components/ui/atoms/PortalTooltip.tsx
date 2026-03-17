@@ -622,7 +622,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                             transition-all ease-out
                             ${sizeMode === 'fixed' ? (position.autoHeight ? 'w-full' : 'w-full h-full') : ''}
                             ${variant === 'glass'
-                                ? 'bg-bg-primary/90 backdrop-blur-xl rounded-xl shadow-2xl border border-border'
+                                ? 'bg-bg-primary/25 backdrop-blur-xl rounded-xl shadow-2xl border border-border'
                                 : 'bg-bg-secondary rounded-lg shadow-xl'
                             }
                             ${noAnimation ? 'duration-0' : 'duration-200'}
