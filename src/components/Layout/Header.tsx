@@ -15,7 +15,7 @@ import { useAuth } from '../../core/hooks/useAuth';
 import { useChannels } from '../../core/hooks/useChannels';
 import { usePlaylists } from '../../core/hooks/usePlaylists';
 
-export const Header: React.FC<{ className?: string }> = ({ className }) => {
+export const Header: React.FC<{ className?: string; style?: React.CSSProperties }> = ({ className, style }) => {
   const location = useLocation();
   const [isChannelDropdownOpen, setIsChannelDropdownOpen] = React.useState(false);
   const { currentChannel } = useChannelStore();
@@ -59,7 +59,7 @@ export const Header: React.FC<{ className?: string }> = ({ className }) => {
   }, [location.pathname, playlists]);
 
   return (
-    <header className={`flex justify-between items-center px-4 py-2 fixed top-0 left-0 right-0 z-sticky ${className || 'bg-bg-primary'}`}>
+    <header className={`flex justify-between items-center px-4 py-2 fixed top-0 left-0 right-0 z-sticky ${className || 'bg-bg-primary'}`} style={style}>
       <div className="flex items-center gap-4">
         <button
           onClick={toggleSidebar}

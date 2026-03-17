@@ -64,6 +64,11 @@ export const WatchPage: React.FC = () => {
     }, [id]);
 
     useEffect(() => {
+        document.documentElement.style.overscrollBehavior = 'none';
+        return () => { document.documentElement.style.overscrollBehavior = ''; };
+    }, []);
+
+    useEffect(() => {
         const timer = setTimeout(() => {
             if (playlistId) {
                 setSelectedFilter(FilterType.PLAYLISTS);

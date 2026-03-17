@@ -67,6 +67,18 @@ function AppContent() {
   const location = useLocation();
   const isWatchPage = location.pathname.startsWith('/watch/');
 
+  const [headerOpacity, setHeaderOpacity] = useState(0);
+  useEffect(() => {
+    if (!isWatchPage) return;
+    const onScroll = () => setHeaderOpacity(Math.min(window.scrollY / 70, 1));
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      setHeaderOpacity(0);
+    };
+  }, [isWatchPage]);
+
   useCheckinScheduler();
   useVideoFetchRetry();
   useAutoCleanup();
@@ -102,7 +114,10 @@ function AppContent() {
           <Route path="/*" element={
             <ProtectedRoute>
               <>
-                <Header className={isWatchPage ? 'bg-bg-primary/92 backdrop-blur-xl' : undefined} />
+                <Header
+                  className={isWatchPage ? 'backdrop-blur-xl' : undefined}
+                  style={isWatchPage ? { backgroundColor: `color-mix(in srgb, var(--bg-primary) ${Math.round(headerOpacity * 92)}%, transparent)` } : undefined}
+                />
                 <div className="h-14 flex-shrink-0" /> {/* Spacer for fixed header */}
                 {/* Global DnD Context: Trends video drag + Music track drag */}
                 <AppDndProvider>
