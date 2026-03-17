@@ -2,7 +2,7 @@ import React, { useState, useCallback, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown, Maximize, Pencil, Bot, Wrench } from 'lucide-react'
 import { Badge } from '../../../components/ui/atoms/Badge/Badge'
-import ReactMarkdown, { type Components } from 'react-markdown'
+import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
@@ -10,13 +10,12 @@ import clsx from 'clsx'
 import type { KnowledgeItem } from '../../../core/types/knowledge'
 import type { VideoPreviewData } from '../../Video/types'
 import { ConfirmDeleteButton } from '../../../components/ui/atoms/ConfirmDeleteButton'
-import { CollapsibleSection } from '../../../components/ui/molecules/CollapsibleSection'
 import { KnowledgeViewer } from './KnowledgeViewer'
+import { CollapsibleMarkdownSections } from './CollapsibleMarkdownSections'
 import { formatKnowledgeDate } from '../utils/formatDate'
 import { buildBodyComponents } from '../utils/bodyComponents'
 import { allowCustomUrls } from '../utils/diffUtils'
 import { linkifyVideoRefs } from '../utils/linkifyVideoRefs'
-import { parseMarkdownSections, type HierarchicalSection } from '../utils/markdownSections'
 
 interface KnowledgeCardProps {
     item: KnowledgeItem
@@ -25,42 +24,11 @@ interface KnowledgeCardProps {
     videoMap?: Map<string, VideoPreviewData>
 }
 
-/** Header size classes by level — used inside CollapsibleSection triggers. */
-const HEADER_SIZE: Record<number, string> = {
-    1: '[&_button]:text-sm',
-    2: '[&_button]:text-xs',
-    3: '[&_button]:text-[11px]',
-    4: '[&_button]:text-[10px]',
-    5: '[&_button]:text-[10px]',
-    6: '[&_button]:text-[9px]',
-}
-
-/** Indentation by level. */
-const INDENT: Record<number, string> = {
-    1: 'pl-0',
-    2: 'pl-5',
-    3: 'pl-5',
-    4: 'pl-5',
-    5: 'pl-5',
-    6: 'pl-5',
-}
-
-
 /** Sanitize schema: allow vid:// protocols + class attribute on links/spans */
 const sanitizeSchema = {
     ...defaultSchema,
     protocols: { ...defaultSchema.protocols, href: [...(defaultSchema.protocols?.href ?? []), 'vid', 'mention'] },
     attributes: { ...defaultSchema.attributes, a: [...(defaultSchema.attributes?.a ?? []), 'className', 'class'], span: [...(defaultSchema.attributes?.span ?? []), 'className', 'class'] },
-}
-
-/** Markdown components for section titles (inside CollapsibleSection trigger). */
-const headerComponents: Components = {
-    h1: ({ className, style, children }) => <h1 className={clsx('text-sm font-bold text-inherit', className)} style={style}>{children}</h1>,
-    h2: ({ className, style, children }) => <h2 className={clsx('text-xs font-bold text-inherit', className)} style={style}>{children}</h2>,
-    h3: ({ className, style, children }) => <h3 className={clsx('text-[11px] font-bold text-inherit', className)} style={style}>{children}</h3>,
-    h4: ({ className, style, children }) => <h4 className={clsx('text-[10px] font-bold text-inherit', className)} style={style}>{children}</h4>,
-    p: ({ children }) => <span className="inline">{children}</span>,
-    strong: ({ children }) => <strong className="font-bold text-inherit">{children}</strong>,
 }
 
 /**
@@ -123,40 +91,9 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
 
     const bodyComponents = useMemo(() => buildBodyComponents(videoMap), [videoMap])
 
-    const sections = useMemo(() => {
-        const content = videoMap ? linkifyVideoRefs(item.content, videoMap) : item.content
-        return parseMarkdownSections(content)
-    }, [item.content, videoMap])
-
-    const renderSection = (section: HierarchicalSection, idx: number) => (
-        <CollapsibleSection
-            key={idx}
-            defaultOpen={false}
-            variant="mini"
-            title={
-                <div className="inline-block pointer-events-none">
-                    <ReactMarkdown rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]} components={headerComponents}>
-                        {section.title}
-                    </ReactMarkdown>
-                </div>
-            }
-            className={clsx(
-                'mb-3',
-                '[&_button]:items-start [&_button]:text-left [&_button_div:first-child]:mt-[5px]',
-                '[&>div:first-child]:!mb-0',
-                INDENT[section.level] ?? 'pl-5',
-                HEADER_SIZE[section.level] ?? '[&_button]:text-xs',
-            )}
-        >
-            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]} urlTransform={allowCustomUrls} components={bodyComponents}>
-                {section.content.join('\n')}
-            </ReactMarkdown>
-            {section.children.length > 0 && (
-                <div className="mt-2">
-                    {section.children.map((child, i) => renderSection(child, i))}
-                </div>
-            )}
-        </CollapsibleSection>
+    const linkifiedContent = useMemo(() =>
+        videoMap ? linkifyVideoRefs(item.content, videoMap) : item.content,
+        [item.content, videoMap],
     )
 
     return (
@@ -252,14 +189,12 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
 
                                 {/* Collapsible sections */}
                                 <div className="text-left px-4">
-                                    {sections.preamble && (
-                                        <div className="mb-3">
-                                            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]} urlTransform={allowCustomUrls} components={bodyComponents}>
-                                                {sections.preamble}
-                                            </ReactMarkdown>
-                                        </div>
-                                    )}
-                                    {sections.sections.map((section, idx) => renderSection(section, idx))}
+                                    <CollapsibleMarkdownSections
+                                        content={linkifiedContent}
+                                        videoMap={videoMap}
+                                        defaultOpenLevel={0}
+                                        variant="zen"
+                                    />
                                 </div>
                             </div>
                         </motion.div>

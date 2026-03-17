@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Minimize, Bot, Calendar, Tag } from 'lucide-react'
-import { RichTextViewer } from '../../../components/ui/organisms/RichTextEditor'
-import { buildBodyComponents } from '../utils/bodyComponents'
+import { CollapsibleMarkdownSections } from './CollapsibleMarkdownSections'
 import { formatKnowledgeDate, formatVersionLabel } from '../utils/formatDate'
 import { VersionDropdown } from './VersionDropdown'
 import { RenderedDiffViewer } from './RenderedDiffViewer'
@@ -47,8 +46,6 @@ export const KnowledgeViewer = React.memo(({
 
     const { versions, deleteVersion } = useKnowledgeVersions(userId, channelId, item.id)
     const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null)
-
-    const zenComponents = useMemo(() => buildBodyComponents(videoMap), [videoMap])
 
     const selectedVersion = selectedVersionId
         ? versions.find(v => v.id === selectedVersionId)
@@ -145,7 +142,12 @@ export const KnowledgeViewer = React.memo(({
                         </div>
                     ) : (
                         <div className="flex-1 overflow-y-auto p-8">
-                            <RichTextViewer content={content} components={zenComponents} />
+                            <CollapsibleMarkdownSections
+                                content={content}
+                                videoMap={videoMap}
+                                defaultOpenLevel={3}
+                                variant="zen"
+                            />
                         </div>
                     )}
                 </motion.div>
