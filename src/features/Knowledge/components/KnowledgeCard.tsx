@@ -103,8 +103,8 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
                 className={clsx(
                     'group relative rounded-lg hover-trail cursor-pointer select-none',
                     isExpanded
-                        ? 'bg-white/[0.06]'
-                        : 'bg-white/[0.03] hover:bg-white/[0.06]'
+                        ? 'bg-black/[0.04] dark:bg-white/[0.06]'
+                        : 'bg-black/[0.02] hover:bg-black/[0.04] dark:bg-white/[0.03] dark:hover:bg-white/[0.06]'
                 )}
                 onClick={handleToggle}
             >
