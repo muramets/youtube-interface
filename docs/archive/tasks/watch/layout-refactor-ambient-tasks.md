@@ -76,8 +76,8 @@ Final verification — all test suites + lint + typecheck + docs
 |-------|------|--------|
 | 1 | Core layout change: app-shell → document scroll | DONE |
 | 2 | Sticky elements + full-viewport pages + fixed header/sidebar | DONE |
-| 3 | Ambient mode: header transparency + verification | TODO |
-| FINAL | Double review-fix cycle (R1: Architecture, R2: Production Readiness) | TODO |
+| 3 | Ambient mode: header transparency + verification | DONE |
+| FINAL | Double review-fix cycle (R1: Architecture, R2: Production Readiness) | DONE |
 
 ## Current Test Count
 
