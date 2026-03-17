@@ -40,6 +40,12 @@ vi.mock("../../../../trendSnapshotService.js", () => ({
     getViewDeltas: (...args: unknown[]) => mockGetViewDeltas(...args),
 }));
 
+// --- Mock fetchThumbnailDescriptions ---
+
+vi.mock("../../../utils/fetchThumbnailDescriptions.js", () => ({
+    fetchThumbnailDescriptions: vi.fn().mockResolvedValue(new Map()),
+}));
+
 const CTX: ToolContext = { userId: "user1", channelId: "ch1", channelName: "MyCh" };
 
 function makeSnap(exists: boolean, data?: Record<string, unknown>) {

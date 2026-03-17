@@ -299,6 +299,8 @@ src/
 
 - [Agentic Architecture](../../infrastructure/agentic-architecture.md) — общая архитектура agentic loop
 - [analyzeSuggestedTraffic](../layer-3-analysis/2-analyze-suggested-traffic-tool.md) — другой AI инструмент с визуальным UI
+- [getMultipleVideoDetails](./1-get-multiple-video-details-tool.md) — возвращает `thumbnailDescription` (surface-level visual context) как лёгкую альтернативу viewThumbnails
+- [browseTrendVideos](../layer-4-competition/2-browse-trend-videos-tool.md) — тоже возвращает `thumbnailDescription` для конкурентных видео
 
 ---
 

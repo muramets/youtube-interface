@@ -11,6 +11,7 @@
 
 import { db } from "../../../../shared/db.js";
 import { YouTubeService } from "../../../youtube.js";
+import { fetchThumbnailDescriptions } from "../../utils/fetchThumbnailDescriptions.js";
 import { resolveVideosByIds } from "../../utils/resolveVideos.js";
 import { resolveVideoIdsByTitle } from "../../utils/resolveVideosByTitle.js";
 import { resolveThumbnailUrl } from "../../utils/resolveThumbnailUrl.js";
@@ -149,6 +150,33 @@ export async function handleGetMultipleVideoDetails(
         }
     } catch (err) {
         console.warn("[getMultipleVideoDetails] View deltas enrichment failed:", err);
+    }
+
+    // --- Step 4: Enrich with thumbnail descriptions ---
+    try {
+        const ytIdMap = new Map<string, string>();
+        for (const v of videos) {
+            const vid = v.videoId as string;
+            const ytId = (v.youtubeVideoId as string | undefined) ?? vid;
+            if (!ytId.startsWith("custom-")) {
+                ytIdMap.set(vid, ytId);
+            }
+        }
+
+        const ytIds = [...new Set(ytIdMap.values())];
+        const descMap = await fetchThumbnailDescriptions(ytIds);
+
+        for (const v of videos) {
+            const ytId = ytIdMap.get(v.videoId as string);
+            if (ytId) {
+                const desc = descMap.get(ytId);
+                if (desc) {
+                    v.thumbnailDescription = desc;
+                }
+            }
+        }
+    } catch (err) {
+        console.warn("[getMultipleVideoDetails] Thumbnail descriptions enrichment failed:", err);
     }
 
     return {

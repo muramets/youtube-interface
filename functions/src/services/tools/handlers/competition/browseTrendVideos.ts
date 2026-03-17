@@ -10,6 +10,7 @@ import { db } from "../../../../shared/db.js";
 import { assignPercentileGroups } from "../../../../shared/percentiles.js";
 import type { PercentileGroup } from "../../../../shared/percentiles.js";
 import { getViewDeltas } from "../../../trendSnapshotService.js";
+import { fetchThumbnailDescriptions } from "../../utils/fetchThumbnailDescriptions.js";
 import { getHiddenVideoIds } from "../../utils/getHiddenVideoIds.js";
 import { normalizeLastUpdated } from "../../utils/normalizeLastUpdated.js";
 import { resolveThumbnailUrl } from "../../utils/resolveThumbnailUrl.js";
@@ -236,14 +237,16 @@ export async function handleBrowseTrendVideos(
         );
 
         const videosToEnrich = isDeltaSort ? filtered : truncated;
-        const videoIdsForDeltas = videosToEnrich.map((v) => v.videoId);
+        const videoIdsToEnrich = videosToEnrich.map((v) => v.videoId);
 
-        const deltasMap = await getViewDeltas(
-            ctx.userId,
-            ctx.channelId,
-            videoIdsForDeltas,
-            channelIdHints,
-        );
+        // Parallel enrichment: for non-delta sorts, fetch descriptions alongside deltas.
+        // For delta sorts, descriptions must wait for finalVideos (post-sort).
+        const [deltasMap, earlyDescriptions] = await Promise.all([
+            getViewDeltas(ctx.userId, ctx.channelId, videoIdsToEnrich, channelIdHints),
+            !isDeltaSort
+                ? fetchThumbnailDescriptions(videoIdsToEnrich).catch(() => new Map<string, string>())
+                : Promise.resolve(new Map<string, string>()),
+        ]);
 
         // --- Build enriched video list ---
         type EnrichedVideo = TrendVideo & {
@@ -296,6 +299,18 @@ export async function handleBrowseTrendVideos(
             finalVideos = enriched;
         }
 
+        // --- Thumbnail descriptions: use pre-fetched or fetch post-sort ---
+        let descriptionsMap = earlyDescriptions;
+        if (isDeltaSort) {
+            try {
+                descriptionsMap = await fetchThumbnailDescriptions(
+                    finalVideos.map(v => v.videoId),
+                );
+            } catch {
+                // Non-critical: descriptionsMap stays empty
+            }
+        }
+
         // --- Build channel summary ---
         const channelMatchCounts = new Map<string, number>();
         for (const v of filtered) {
@@ -330,6 +345,7 @@ export async function handleBrowseTrendVideos(
             viewDelta30d: v.viewDelta30d,
             tags: v.tags,
             thumbnailUrl: v.thumbnailUrl,
+            thumbnailDescription: descriptionsMap.get(v.videoId) ?? null,
             performanceTier: v.performanceTier,
         }));
 

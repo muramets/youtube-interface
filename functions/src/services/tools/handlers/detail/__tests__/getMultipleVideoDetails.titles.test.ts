@@ -42,6 +42,12 @@ vi.mock('../../../../../shared/db.js', () => ({
     },
 }));
 
+// --- Mock fetchThumbnailDescriptions ---
+
+vi.mock('../../../utils/fetchThumbnailDescriptions.js', () => ({
+    fetchThumbnailDescriptions: vi.fn().mockResolvedValue(new Map()),
+}));
+
 // --- Mock YouTubeService ---
 
 vi.mock('../../../../youtube.js', () => ({

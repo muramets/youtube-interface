@@ -35,6 +35,11 @@ vi.mock("../../../utils/getHiddenVideoIds.js", () => ({
     getHiddenVideoIds: (...args: unknown[]) => mockGetHiddenVideoIds(...args),
 }));
 
+const mockFetchThumbnailDescriptions = vi.fn();
+vi.mock("../../../utils/fetchThumbnailDescriptions.js", () => ({
+    fetchThumbnailDescriptions: (...args: unknown[]) => mockFetchThumbnailDescriptions(...args),
+}));
+
 import { handleBrowseTrendVideos } from "../browseTrendVideos.js";
 
 // --- Helpers ---
@@ -103,6 +108,7 @@ function setupDefaultMocks(options?: {
 
     mockGetViewDeltas.mockResolvedValue(new Map());
     mockGetHiddenVideoIds.mockResolvedValue(new Set());
+    mockFetchThumbnailDescriptions.mockResolvedValue(new Map());
 }
 
 describe("handleBrowseTrendVideos", () => {
@@ -402,6 +408,43 @@ describe("handleBrowseTrendVideos", () => {
         expect(result.error).toBeUndefined();
         expect(result.videos).toEqual([]);
         expect(result.totalMatched).toBe(0);
+    });
+
+    // 14. Includes thumbnailDescription when available
+    it("includes thumbnailDescription from embedding data", async () => {
+        const videos = [
+            makeVideoDoc("v1", { publishedAt: "2025-01-10" }),
+            makeVideoDoc("v2", { publishedAt: "2025-01-15" }),
+        ];
+        setupDefaultMocks({ videos: new Map([["tc1", videos]]) });
+
+        mockFetchThumbnailDescriptions.mockResolvedValue(
+            new Map([["v1", "A serene autumn landscape with warm golden tones"]]),
+        );
+
+        const result = await handleBrowseTrendVideos({}, CTX);
+
+        const resultVideos = result.videos as { videoId: string; thumbnailDescription: string | null }[];
+        expect(resultVideos).toHaveLength(2);
+
+        const v1 = resultVideos.find(v => v.videoId === "v1");
+        expect(v1?.thumbnailDescription).toBe("A serene autumn landscape with warm golden tones");
+
+        const v2 = resultVideos.find(v => v.videoId === "v2");
+        expect(v2?.thumbnailDescription).toBeNull();
+    });
+
+    // 15. Returns null thumbnailDescription when enrichment fails
+    it("returns null thumbnailDescription when enrichment fails gracefully", async () => {
+        setupDefaultMocks();
+        mockFetchThumbnailDescriptions.mockRejectedValue(new Error("Service unavailable"));
+
+        const result = await handleBrowseTrendVideos({}, CTX);
+
+        const resultVideos = result.videos as { videoId: string; thumbnailDescription: string | null }[];
+        expect(resultVideos).toHaveLength(2);
+        expect(resultVideos[0].thumbnailDescription).toBeNull();
+        expect(resultVideos[1].thumbnailDescription).toBeNull();
     });
 
     // 13e. Handles delta sort with all-null deltas (fallback to views + _note)

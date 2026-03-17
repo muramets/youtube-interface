@@ -31,6 +31,10 @@ vi.mock('../../../../youtube.js', () => ({
     },
 }));
 
+vi.mock('../../../utils/fetchThumbnailDescriptions.js', () => ({
+    fetchThumbnailDescriptions: vi.fn().mockResolvedValue(new Map()),
+}));
+
 const CTX: ToolContext = { userId: 'user1', channelId: 'ch1', channelName: 'My Channel' };
 const CTX_WITH_YT: ToolContext = { userId: 'user1', channelId: 'ch1', channelName: 'My Channel', youtubeApiKey: 'yt-key' };
 
