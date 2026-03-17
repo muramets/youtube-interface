@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { Trash2, Send, Pencil, Sparkles } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
 import type { VideoDetails, VideoNote } from '../../../core/utils/youtubeApi';
 import { useChannelStore } from '../../../core/stores/channelStore';
 import { useVideos } from '../../../core/hooks/useVideos';
-
 import { useAuth } from '../../../core/hooks/useAuth';
+import { RichTextEditor } from '../../../components/ui/organisms/RichTextEditor';
+import { CollapsibleMarkdownSections } from '../../Knowledge/components/CollapsibleMarkdownSections';
 
 interface WatchPageNotesProps {
     video: VideoDetails;
@@ -86,31 +86,23 @@ export const WatchPageNotes: React.FC<WatchPageNotesProps> = ({ video }) => {
                     )}
                 </div>
                 <div className="flex-1">
-                    <div className="relative group">
-                        <textarea
+                    <div className="bg-bg-secondary rounded-lg overflow-hidden border border-border">
+                        <RichTextEditor
                             value={noteText}
-                            onChange={(e) => {
-                                setNoteText(e.target.value);
-                                e.target.style.height = 'auto';
-                                e.target.style.height = e.target.value ? `${e.target.scrollHeight}px` : 'auto';
-                            }}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' && !e.shiftKey) {
-                                    e.preventDefault();
-                                    handleAddNote();
-                                }
-                            }}
-                            rows={1}
+                            onChange={setNoteText}
                             placeholder="Add a private note..."
-                            className="w-full bg-transparent border-0 border-b border-border focus:border-b-2 focus:border-text-primary py-2 pr-10 text-text-primary outline-none placeholder:text-text-secondary transition-all resize-none overflow-hidden min-h-[40px]"
+                            defaultCollapsedLevel={1}
+                            className="!rounded-none !border-0"
                         />
-                        <button
-                            onClick={handleAddNote}
-                            disabled={!noteText.trim()}
-                            className="absolute right-0 bottom-2 bg-transparent border-none text-text-primary cursor-pointer disabled:opacity-30 hover:text-blue-500 transition-colors p-2 flex items-center justify-center"
-                        >
-                            <Send size={18} />
-                        </button>
+                        <div className="flex justify-end px-3 py-2 border-t border-border">
+                            <button
+                                onClick={handleAddNote}
+                                disabled={!noteText.trim()}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-text-primary text-bg-primary rounded-md hover:opacity-90 transition-opacity border-none cursor-pointer disabled:opacity-30"
+                            >
+                                <Send size={14} /> Add Note
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -150,11 +142,11 @@ export const WatchPageNotes: React.FC<WatchPageNotesProps> = ({ video }) => {
 
                                 {editingNoteId === note.id ? (
                                     <div className="mt-2">
-                                        <textarea
+                                        <RichTextEditor
                                             value={editNoteText}
-                                            onChange={(e) => setEditNoteText(e.target.value)}
-                                            className="w-full bg-bg-secondary border border-border rounded-lg p-3 text-text-primary outline-none focus:border-text-primary transition-colors resize-y min-h-[60px] text-sm"
-                                            autoFocus
+                                            onChange={setEditNoteText}
+                                            placeholder="Edit your note..."
+                                            defaultCollapsedLevel={1}
                                         />
                                         <div className="flex gap-2 mt-2 justify-end">
                                             <button
@@ -173,15 +165,11 @@ export const WatchPageNotes: React.FC<WatchPageNotesProps> = ({ video }) => {
                                         </div>
                                     </div>
                                 ) : (
-                                    note.source === 'ai-chat' ? (
-                                        <div className="text-sm text-text-primary chat-message-bubble">
-                                            <ReactMarkdown>{note.text}</ReactMarkdown>
-                                        </div>
-                                    ) : (
-                                        <div className="text-sm text-text-primary whitespace-pre-wrap">
-                                            {note.text}
-                                        </div>
-                                    )
+                                    <CollapsibleMarkdownSections
+                                        content={note.text}
+                                        defaultOpenLevel={0}
+                                        variant="zen"
+                                    />
                                 )}
                             </div>
 
