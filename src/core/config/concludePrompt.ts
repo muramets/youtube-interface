@@ -14,6 +14,11 @@ RULES:
 - If a KI already exists for a category+video combination, skip it entirely
 - Always pass videoId when the analysis is about a specific video
 
+If you performed a NEW analysis on a topic where a Knowledge Item already exists (listed below),
+prefer editKnowledge over saveKnowledge: call getKnowledge to read the existing content,
+then call editKnowledge with integrated old + new findings.
+Only create a new KI (saveKnowledge) when the topic is fundamentally different from existing KI.
+
 For each qualifying analysis, call saveKnowledge with:
 - category: kebab-case slug from the Knowledge Categories in system prompt, or propose a new one
 - title: descriptive title

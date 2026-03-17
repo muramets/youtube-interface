@@ -74,7 +74,7 @@ export const KnowledgePage: React.FC = () => {
 
     const handleSaveEdit = useCallback((updates: { title: string; summary: string; content: string }) => {
         if (!editingItem) return
-        updateMutation.mutate({ itemId: editingItem.id, updates })
+        updateMutation.mutate({ itemId: editingItem.id, updates, previousItem: editingItem })
     }, [editingItem, updateMutation])
 
     const handleCreate = useCallback((item: { category: string; title: string; content: string; summary: string }) => {

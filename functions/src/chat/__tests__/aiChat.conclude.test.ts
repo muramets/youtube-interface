@@ -23,6 +23,7 @@ describe("Conclude tool injection", () => {
     it("TOOL_DECLARATIONS includes all KI tools", () => {
         const names = TOOL_DECLARATIONS.map(t => t.name);
         expect(names).toContain("saveKnowledge");
+        expect(names).toContain("editKnowledge");
         expect(names).toContain("listKnowledge");
         expect(names).toContain("getKnowledge");
     });
@@ -125,5 +126,48 @@ describe("Strip KI content before persist", () => {
         expect(persistToolCalls[0].args.content).toBe("[Saved as KI ki-1]");
         expect(persistToolCalls[1].args.content).toBe("[Saved as KI ki-2]");
         expect(persistToolCalls[2].args.content).toBe("Analysis 3 failed"); // not stripped
+    });
+
+    it("replaces editKnowledge args.content with reference pointer", () => {
+        const toolCalls = [
+            { name: "editKnowledge", args: { kiId: "ki-abc", content: "Updated 3000 word analysis..." }, result: { id: "ki-abc" } },
+            { name: "saveKnowledge", args: { category: "test", title: "T", content: "New analysis", summary: "S" }, result: { id: "ki-new" } },
+        ];
+
+        // Same logic as aiChat.ts
+        const persistToolCalls = toolCalls.map(tc => {
+            if (tc.name === 'saveKnowledge' && tc.args?.content && tc.result?.id) {
+                return { ...tc, args: { ...tc.args, content: `[Saved as KI ${tc.result.id}]` } };
+            }
+            if (tc.name === 'editKnowledge' && tc.args?.content && tc.result?.id) {
+                return { ...tc, args: { ...tc.args, content: `[Updated KI ${tc.result.id}]` } };
+            }
+            return tc;
+        });
+
+        // editKnowledge content replaced
+        expect(persistToolCalls[0].args.content).toBe("[Updated KI ki-abc]");
+        // kiId preserved
+        expect(persistToolCalls[0].args.kiId).toBe("ki-abc");
+        // saveKnowledge still works
+        expect(persistToolCalls[1].args.content).toBe("[Saved as KI ki-new]");
+    });
+
+    it("skips editKnowledge strip when result has no id (handler error)", () => {
+        const toolCalls = [
+            { name: "editKnowledge", args: { kiId: "ki-bad", content: "Updated content" }, result: { error: "Not found" } },
+        ];
+
+        const persistToolCalls = toolCalls.map(tc => {
+            if (tc.name === 'saveKnowledge' && tc.args?.content && tc.result?.id) {
+                return { ...tc, args: { ...tc.args, content: `[Saved as KI ${tc.result.id}]` } };
+            }
+            if (tc.name === 'editKnowledge' && tc.args?.content && tc.result?.id) {
+                return { ...tc, args: { ...tc.args, content: `[Updated KI ${tc.result.id}]` } };
+            }
+            return tc;
+        });
+
+        expect(persistToolCalls[0].args.content).toBe("Updated content"); // not stripped
     });
 });

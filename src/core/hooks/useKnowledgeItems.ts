@@ -98,16 +98,27 @@ export const useUpdateKnowledgeItem = (userId: string, channelId: string) => {
         mutationFn: async ({
             itemId,
             updates,
+            previousItem,
         }: {
             itemId: string;
             updates: Partial<Pick<KnowledgeItem, 'title' | 'content' | 'summary'>>;
+            previousItem?: KnowledgeItem;
         }) => {
-            await KnowledgeService.updateKnowledgeItem(userId, channelId, itemId, updates);
+            if (previousItem) {
+                await KnowledgeService.updateKnowledgeItemWithVersion(
+                    userId, channelId, itemId, updates, previousItem,
+                );
+            } else {
+                await KnowledgeService.updateKnowledgeItem(userId, channelId, itemId, updates);
+            }
         },
         onSuccess: () => {
-            // Invalidate all KI queries for this channel — both video and channel level
+            // Invalidate KI queries + version queries for this channel
             queryClient.invalidateQueries({
                 queryKey: ['knowledgeItems', userId, channelId],
+            });
+            queryClient.invalidateQueries({
+                queryKey: ['knowledgeVersions', userId, channelId],
             });
         },
     });

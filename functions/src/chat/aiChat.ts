@@ -390,6 +390,9 @@ export const aiChat = onRequest(
                 if (tc.name === 'saveKnowledge' && tc.args?.content && tc.result?.id) {
                     return { ...tc, args: { ...tc.args, content: `[Saved as KI ${tc.result.id}]` } };
                 }
+                if (tc.name === 'editKnowledge' && tc.args?.content && tc.result?.id) {
+                    return { ...tc, args: { ...tc.args, content: `[Updated KI ${tc.result.id}]` } };
+                }
                 return tc;
             });
 

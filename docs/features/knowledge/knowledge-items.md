@@ -110,8 +110,6 @@ Slug validation: `SLUG_PATTERN` (`/^[a-z0-9]+(-[a-z0-9]+)*$/`) — shared меж
 ← YOU ARE HERE
 
 ### Следующие шаги (не начаты)
-
-- [ ] KI versioning — diff между версиями одного KI
 - [ ] KI recommendations — LLM предлагает обновить устаревшие KI
 - [ ] Cross-channel KI — знания, применимые ко всем каналам
 - [ ] KI search — полнотекстовый поиск по всем KI канала

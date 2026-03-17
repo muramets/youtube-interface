@@ -8,6 +8,13 @@
 
 import type { Timestamp } from 'firebase/firestore';
 import type { MemoryVideoRef } from '../../../shared/memory';
+export type { KnowledgeVersion } from '../../../shared/knowledgeVersion';
+import type { KnowledgeVersion } from '../../../shared/knowledgeVersion';
+
+/** Version with Firestore document ID — for frontend consumption */
+export interface KnowledgeVersionWithId extends KnowledgeVersion {
+    id: string;
+}
 
 /**
  * A structured analysis result created by LLM or manually by the user.

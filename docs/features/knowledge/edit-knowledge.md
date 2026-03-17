@@ -4,7 +4,7 @@
 
 ## Текущее состояние
 
-Не начато. Сейчас LLM может только создавать новые KI (`saveKnowledge`). Для редактирования — только UI Edit модалка (ручное). LLM не может дополнить, обновить или исправить существующий KI.
+Реализовано полностью. LLM может редактировать существующие KI через `editKnowledge` tool call. Backend handler читает старый doc, создаёт version snapshot в `versions/` subcollection (атомарный batch), обновляет main doc, re-resolves video refs. UI Edit модалка тоже создаёт версию при изменении content. Zen Mode показывает dropdown с историей версий и premium split-view DiffViewer (npm `diff` + custom React, line numbers, green/red highlights, theme-aware CSS variables). Conclude prompt обновлён: LLM предпочитает editKnowledge над saveKnowledge когда KI уже существует.
 
 ---
 
@@ -52,10 +52,11 @@ Premium IDE-like diff viewer — **только в Zen Mode** (fullscreen). KI c
 
 ## Roadmap
 
-- [ ] Phase 1: Backend — `editKnowledge` handler + tool definition + shared video ref utility + version subcollection
-- [ ] Phase 2: Version history UI — `useKnowledgeVersions` hook + version dropdown в Zen Mode
-- [ ] Phase 3: DiffViewer — npm `diff` + custom premium component (split view, line numbers, green/red)
-- [ ] Phase 4: UI Edit → version — ручное редактирование тоже создаёт версию
+- [x] Phase 1: Backend — `editKnowledge` handler + tool definition + shared video ref utility + version subcollection
+- [x] Phase 2: Version history UI — `useKnowledgeVersions` hook + version dropdown в Zen Mode
+- [x] Phase 3: DiffViewer — npm `diff` + custom premium component (split view, line numbers, green/red)
+- [x] Phase 4: UI Edit → version — ручное редактирование тоже создаёт версию
+- [x] FINAL: Double review-fix cycle (R1 Architecture 9/9 PASS + R2 Production 10/10 PASS after fixes)
 
 ← YOU ARE HERE
 
@@ -76,14 +77,35 @@ Premium IDE-like diff viewer — **только в Zen Mode** (fullscreen). KI c
 |------|---------|
 | `users/{uid}/channels/{chId}/knowledgeItems/{kiId}/versions/{versionId}` | Version snapshots (content, title, createdAt, source, model) |
 
-### Planned Files
+### Backend
 
-- **Shared utility** (`tools/utils/resolveContentVideoRefs.ts`): extracted video ref resolution (regex + resolve + snapshot), shared by `saveKnowledge` and `editKnowledge`
-- **Backend handler** (`knowledge/editKnowledge.ts`): read existing KI, atomic batch (version snapshot + doc update), video ref re-resolution
-- **Shared type** (`knowledgeVersion.ts` in `shared/`): `KnowledgeVersion` interface (content, title?, createdAt, source, model?)
-- **Tool definition** (`definitions.ts`): `editKnowledge` tool with `kiId` + `content` params
-- **Diff component** (`Knowledge/components/DiffViewer.tsx`): premium line-level diff (line numbers, green/red)
-- **Versions hook** (`Knowledge/hooks/useKnowledgeVersions.ts`): TanStack Query for versions subcollection
+| File | Role |
+|------|------|
+| `shared/knowledgeVersion.ts` | `KnowledgeVersion` interface — SSOT, shared by frontend + backend |
+| `functions/src/services/tools/handlers/knowledge/editKnowledge.ts` | Handler: read existing KI, atomic batch (version snapshot + doc update), video ref re-resolution |
+| `functions/src/services/tools/utils/resolveContentVideoRefs.ts` | Shared utility: extract video IDs from content, resolve via 3-step resolver, write `resolvedVideoRefs` snapshot |
+| `functions/src/services/tools/definitions.ts` | `editKnowledge` tool definition (in `TOOL_DECLARATIONS`, available in chat + memorize) |
+| `functions/src/services/tools/executor.ts` | Handler registration |
+| `functions/src/chat/aiChat.ts` | Content stripping: `editKnowledge` args.content → `[Updated KI ${id}]` |
+
+### Frontend
+
+| File | Role |
+|------|------|
+| `src/core/types/knowledge.ts` | Re-exports `KnowledgeVersion`, adds `KnowledgeVersionWithId` |
+| `src/core/services/knowledge/knowledgeVersionService.ts` | Version CRUD: getVersions (limit 50, DESC), createVersion, deleteVersion |
+| `src/core/services/knowledge/knowledgeService.ts` | `updateKnowledgeItemWithVersion` — wrapper: if content changed → create version → update |
+| `src/core/hooks/useKnowledgeVersions.ts` | TanStack Query hook: versions subcollection, 30s staleTime, delete mutation |
+| `src/core/hooks/useKnowledgeItems.ts` | `useUpdateKnowledgeItem` — accepts optional `previousItem` for version creation |
+| `src/features/Knowledge/components/VersionDropdown.tsx` | Version history dropdown with ARIA, Escape key, delete per version |
+| `src/features/Knowledge/components/RenderedDiffViewer.tsx` | Read-only split-view diff: rendered markdown with vid:// tooltips in both columns |
+| `src/features/Knowledge/components/LiveDiffPanel.tsx` | Editor side panel: rendered markdown diff (old version), debounced 300ms |
+| `src/features/Knowledge/components/KnowledgeViewer.tsx` | Zen Mode: version dropdown, RenderedDiffViewer when version selected, near-fullscreen |
+| `src/features/Knowledge/utils/diffUtils.ts` | Shared: `computeDiffBlocks` (diffLines), `allowCustomUrls` |
+| `src/features/Knowledge/utils/bodyComponents.tsx` | ReactMarkdown overrides: h1-h6 sizing, vid:// link tooltips, `<ol start>` preservation |
+| `src/components/ui/organisms/RichTextEditor/types.ts` | Slot props: `expandedToolbarExtra`, `expandedSidePanel` |
+| `src/core/config/concludePrompt.ts` | Conclude instruction: prefer editKnowledge over saveKnowledge for existing KI |
+| `src/features/Chat/utils/toolRegistry.ts` | `editKnowledge` badge (BookOpen, emerald) |
 
 ### Dependencies
 

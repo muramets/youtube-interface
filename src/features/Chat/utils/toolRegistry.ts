@@ -123,6 +123,11 @@ const TOOL_REGISTRY: Record<string, ToolConfig> = {
         color: 'emerald',
         hasExpandableContent: true,
     },
+    editKnowledge: {
+        icon: BookOpen,
+        color: 'emerald',
+        hasExpandableContent: true,
+    },
     listKnowledge: {
         icon: BookOpen,
         color: 'emerald',

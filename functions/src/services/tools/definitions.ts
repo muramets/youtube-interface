@@ -32,6 +32,7 @@ export const TOOL_NAMES = {
     FIND_SIMILAR_VIDEOS: "findSimilarVideos",
     SEARCH_DATABASE: "searchDatabase",
     SAVE_KNOWLEDGE: "saveKnowledge",
+    EDIT_KNOWLEDGE: "editKnowledge",
     LIST_KNOWLEDGE: "listKnowledge",
     GET_KNOWLEDGE: "getKnowledge",
     SAVE_MEMORY: "saveMemory",
@@ -602,6 +603,37 @@ const getKnowledge: ToolDefinition = {
     },
 };
 
+const editKnowledge: ToolDefinition = {
+    name: TOOL_NAMES.EDIT_KNOWLEDGE,
+    description:
+        "Update the content of an existing Knowledge Item. Use when you have new data " +
+        "that complements or replaces the existing analysis. The old version is automatically " +
+        "preserved in version history. Call getKnowledge first to read the current content, " +
+        "then call editKnowledge with the updated content. Only the content field is editable " +
+        "— title and category remain unchanged. " +
+        "IMPORTANT: Preserve the existing structure and wording — do NOT rephrase or " +
+        "restructure existing analysis. Only modify specific sections that need updating " +
+        "with new data. Add new findings at the end or within the most relevant existing " +
+        "section. Minimal changes produce clean version diffs for the user.",
+    parametersJsonSchema: {
+        type: "object",
+        properties: {
+            kiId: {
+                type: "string",
+                description: "The ID of the Knowledge Item to update (from listKnowledge or getKnowledge results).",
+            },
+            content: {
+                type: "string",
+                description:
+                    "Updated markdown content. Preserve existing text as-is — only add, " +
+                    "modify, or remove specific parts. Do not rewrite unchanged sections. " +
+                    "When referencing videos, use [video title](vid://VIDEO_ID) links.",
+            },
+        },
+        required: ["kiId", "content"],
+    },
+};
+
 // --- Conclude-only tools (injected when isConclude = true) ---
 
 const saveMemory: ToolDefinition = {
@@ -650,6 +682,7 @@ export const TOOL_DECLARATIONS: ToolDefinition[] = [
     findSimilarVideos,
     searchDatabase,
     saveKnowledge,
+    editKnowledge,
     listKnowledge,
     getKnowledge,
 ];

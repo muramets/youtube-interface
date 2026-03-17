@@ -14,6 +14,7 @@ import { CollapsibleSection } from '../../../components/ui/molecules/Collapsible
 import { KnowledgeViewer } from './KnowledgeViewer'
 import { formatKnowledgeDate } from '../utils/formatDate'
 import { buildBodyComponents } from '../utils/bodyComponents'
+import { allowCustomUrls } from '../utils/diffUtils'
 import { linkifyVideoRefs } from '../utils/linkifyVideoRefs'
 import { parseMarkdownSections, type HierarchicalSection } from '../utils/markdownSections'
 
@@ -44,8 +45,6 @@ const INDENT: Record<number, string> = {
     6: 'pl-5',
 }
 
-/** Allow vid:// and mention:// URIs through ReactMarkdown's URL sanitizer. */
-const allowMentionUrls = (url: string) => url
 
 /** Sanitize schema: allow vid:// protocols + class attribute on links/spans */
 const sanitizeSchema = {
@@ -149,7 +148,7 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
                 HEADER_SIZE[section.level] ?? '[&_button]:text-xs',
             )}
         >
-            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]} urlTransform={allowMentionUrls} components={bodyComponents}>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]} urlTransform={allowCustomUrls} components={bodyComponents}>
                 {section.content.join('\n')}
             </ReactMarkdown>
             {section.children.length > 0 && (
@@ -203,7 +202,7 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
 
                     {/* Summary — always visible */}
                     <div className="mt-1.5 text-xs text-text-secondary line-clamp-2 leading-relaxed [&_p]:m-0 [&_p]:inline">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]} urlTransform={allowMentionUrls} components={bodyComponents}>
+                        <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]} urlTransform={allowCustomUrls} components={bodyComponents}>
                             {videoMap ? linkifyVideoRefs(item.summary, videoMap) : item.summary}
                         </ReactMarkdown>
                     </div>
@@ -255,7 +254,7 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
                                 <div className="text-left px-4">
                                     {sections.preamble && (
                                         <div className="mb-3">
-                                            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]} urlTransform={allowMentionUrls} components={bodyComponents}>
+                                            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]} urlTransform={allowCustomUrls} components={bodyComponents}>
                                                 {sections.preamble}
                                             </ReactMarkdown>
                                         </div>
@@ -287,13 +286,8 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
             {/* Zen Mode overlay */}
             {isZenMode && (
                 <KnowledgeViewer
+                    item={item}
                     content={videoMap ? linkifyVideoRefs(item.content, videoMap) : item.content}
-                    title={item.title}
-                    meta={{
-                        model: item.model,
-                        createdAt: dateStr,
-                        category: item.category.replace(/-/g, ' '),
-                    }}
                     onClose={() => setIsZenMode(false)}
                     videoMap={videoMap}
                 />

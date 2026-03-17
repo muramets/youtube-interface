@@ -2,6 +2,7 @@
  * Type definitions for RichTextEditor component
  */
 
+import type React from 'react'
 import type { VideoPreviewData } from '../../../../features/Video/types'
 
 export interface RichTextEditorProps {
@@ -15,4 +16,8 @@ export interface RichTextEditorProps {
     className?: string
     /** Video catalog for @-autocomplete and vid:// tooltips in edit mode */
     videoCatalog?: VideoPreviewData[]
+    /** Extra toolbar content rendered in expanded mode (e.g. version dropdown) */
+    expandedToolbarExtra?: React.ReactNode
+    /** Side panel rendered alongside editor in expanded mode (e.g. diff panel) */
+    expandedSidePanel?: React.ReactNode
 }

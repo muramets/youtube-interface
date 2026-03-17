@@ -30,6 +30,48 @@ export function useTurndownService(): TurndownService {
         service.keep(['table', 'thead', 'tbody', 'tr', 'th', 'td'])
 
         /**
+         * Rule: Compact list items
+         *
+         * Turndown default produces "1.  " (double space) and adds blank lines
+         * between items when <p> is inside <li> (which Tiptap always does).
+         * This rule matches LLM-style compact markdown: "1. " (single space),
+         * no blank lines between items.
+         */
+        service.addRule('compact-list-item', {
+            filter: function (node) {
+                // Match all <li> EXCEPT indented ones (those have their own rule)
+                return node.nodeName === 'LI' &&
+                    (!node.style.marginLeft || node.style.marginLeft === '0px')
+            },
+            replacement: function (content, node) {
+                const element = node as HTMLElement
+
+                // Clean content: strip leading/trailing newlines, normalize internal ones
+                const cleaned = content
+                    .replace(/^\n+/, '')
+                    .replace(/\n+$/, '')
+                    .replace(/\n/gm, '\n    ')  // indent continuation lines
+
+                // Determine prefix: numbered or bullet
+                const parent = element.parentNode as HTMLElement
+                const isOrdered = parent?.nodeName === 'OL'
+
+                let prefix: string
+                if (isOrdered) {
+                    const start = parseInt(parent.getAttribute('start') || '1', 10)
+                    const index = Array.from(parent.children).indexOf(element)
+                    prefix = `${start + index}. `  // single space after number
+                } else {
+                    prefix = '* '
+                }
+
+                // Single newline between items, not double
+                const suffix = element.nextElementSibling ? '\n' : ''
+                return prefix + cleaned + suffix
+            },
+        })
+
+        /**
          * Rule: Preserve indented list items
          *
          * Our IndentedListItem extension adds visual indentation via margin-left.

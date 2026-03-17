@@ -6,3 +6,24 @@ export function formatKnowledgeDate(timestamp: { toDate?: () => Date; seconds?: 
     const date = timestamp.toDate?.() ?? new Date((timestamp.seconds ?? 0) * 1000)
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
+
+/**
+ * Human-readable label for a KI source.
+ * Single source of truth — used by VersionDropdown, KnowledgeCard, KnowledgeViewer, etc.
+ */
+export function getSourceLabel(source: string): string {
+    if (source === 'conclude') return 'via Memorize'
+    if (source === 'manual') return 'Manual edit'
+    return 'LLM edit'
+}
+
+/**
+ * Format a version's createdAt + source into a human-readable label.
+ * e.g. "Mar 14, 2026 — LLM edit"
+ */
+export function formatVersionLabel(createdAt: number, source: string): string {
+    const date = new Date(createdAt).toLocaleDateString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric',
+    })
+    return `${date} — ${getSourceLabel(source)}`
+}

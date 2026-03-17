@@ -31,6 +31,7 @@ interface MenuBarProps {
     toggleExpand: () => void
     showDebug: boolean
     toggleDebug: () => void
+    expandedToolbarExtra?: React.ReactNode
 }
 
 export const MenuBar = ({
@@ -38,7 +39,8 @@ export const MenuBar = ({
     isExpanded,
     toggleExpand,
     showDebug,
-    toggleDebug
+    toggleDebug,
+    expandedToolbarExtra,
 }: MenuBarProps) => {
     // Force re-render on editor updates to ensure button states (active/disabled) are current
     const [, forceUpdate] = useState({})
@@ -231,6 +233,9 @@ export const MenuBar = ({
                     />
                 </>
             )}
+
+            {/* Extra toolbar content from parent (e.g. version dropdown) */}
+            {isExpanded && expandedToolbarExtra}
 
             {/* Right Aligned Spacer for Zen Mode */}
             {isExpanded && <div className="flex-1 min-w-4" />}

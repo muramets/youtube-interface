@@ -1,12 +1,17 @@
-import React, { useState, useCallback, useEffect } from 'react'
+import React, { useState, useCallback, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Bot, Calendar, Tag, Wrench } from 'lucide-react'
 import { Button } from '../../../components/ui/atoms/Button/Button'
 import { Badge } from '../../../components/ui/atoms/Badge/Badge'
 import { RichTextEditor } from '../../../components/ui/organisms/RichTextEditor'
+import { VersionDropdown } from '../components/VersionDropdown'
+import { LiveDiffPanel } from '../components/LiveDiffPanel'
+import { useKnowledgeVersions } from '../../../core/hooks/useKnowledgeVersions'
+import { useAuth } from '../../../core/hooks/useAuth'
+import { useChannelStore } from '../../../core/stores/channelStore'
 import type { KnowledgeItem } from '../../../core/types/knowledge'
 import type { VideoPreviewData } from '../../Video/types'
-import { formatKnowledgeDate } from '../utils/formatDate'
+import { formatKnowledgeDate, formatVersionLabel } from '../utils/formatDate'
 
 interface KnowledgeItemModalProps {
     /** The Knowledge Item to edit */
@@ -26,9 +31,8 @@ interface KnowledgeItemModalProps {
  * - Title editing (text input)
  * - Content editing (RichTextEditor — WYSIWYG with markdown storage)
  * - Provenance metadata displayed as read-only (model, toolsUsed, createdAt, source)
+ * - Expanded mode: version dropdown + live diff panel alongside editor
  * - Save / Cancel actions
- *
- * Modal pattern matches ConfirmationModal: Portal + backdrop + z-modal.
  */
 export const KnowledgeItemModal = React.memo(({
     item,
@@ -36,9 +40,34 @@ export const KnowledgeItemModal = React.memo(({
     onClose,
     videoCatalog,
 }: KnowledgeItemModalProps) => {
+    const { user } = useAuth()
+    const { currentChannel } = useChannelStore()
+    const userId = user?.uid ?? ''
+    const channelId = currentChannel?.id ?? ''
+
     const [title, setTitle] = useState(item.title)
     const [summary, setSummary] = useState(item.summary)
     const [content, setContent] = useState(item.content)
+
+    const { versions, deleteVersion } = useKnowledgeVersions(userId, channelId, item.id)
+    const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null)
+
+    // Build videoMap from videoCatalog for diff panel vid:// link rendering
+    const videoMap = useMemo(() => {
+        if (!videoCatalog?.length) return undefined
+        const map = new Map<string, VideoPreviewData>()
+        for (const v of videoCatalog) {
+            map.set(v.videoId, v)
+            if (v.youtubeVideoId && v.youtubeVideoId !== v.videoId) {
+                map.set(v.youtubeVideoId, v)
+            }
+        }
+        return map
+    }, [videoCatalog])
+
+    const selectedVersion = selectedVersionId
+        ? versions.find(v => v.id === selectedVersionId)
+        : null
 
     // ESC to close
     useEffect(() => {
@@ -56,6 +85,30 @@ export const KnowledgeItemModal = React.memo(({
 
     const hasChanges = title.trim() !== item.title || summary.trim() !== item.summary || content !== item.content
     const dateStr = formatKnowledgeDate(item.createdAt)
+
+    // --- Expanded mode slots ---
+
+    const expandedToolbarExtra = useMemo(() => (
+        <VersionDropdown
+            versions={versions}
+            selectedVersionId={selectedVersionId}
+            onSelect={setSelectedVersionId}
+            onDelete={deleteVersion}
+            currentSource={item.source}
+            currentModel={item.model}
+            currentDate={dateStr}
+        />
+    ), [versions, selectedVersionId, deleteVersion, item.source, item.model, dateStr])
+
+    const expandedSidePanel = selectedVersion ? (
+        <LiveDiffPanel
+            oldContent={selectedVersion.content}
+            newContent={content}
+            label={formatVersionLabel(selectedVersion.createdAt, selectedVersion.source)}
+            videoMap={videoMap}
+            onClose={() => setSelectedVersionId(null)}
+        />
+    ) : undefined
 
     return createPortal(
         <div
@@ -142,6 +195,8 @@ export const KnowledgeItemModal = React.memo(({
                             onChange={setContent}
                             placeholder="Write your analysis..."
                             videoCatalog={videoCatalog}
+                            expandedToolbarExtra={expandedToolbarExtra}
+                            expandedSidePanel={expandedSidePanel}
                         />
                     </div>
                 </div>

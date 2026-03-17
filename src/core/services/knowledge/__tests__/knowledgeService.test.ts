@@ -22,10 +22,20 @@ vi.mock('../../firestore', () => ({
     setDocument: (...args: unknown[]) => mockSetDocument(...args),
 }));
 
+const mockBatchSet = vi.fn();
+const mockBatchUpdate = vi.fn();
+const mockBatchCommit = vi.fn().mockResolvedValue(undefined);
+
 vi.mock('firebase/firestore', () => ({
     where: (...args: unknown[]) => ({ type: 'where', args }),
     orderBy: (...args: unknown[]) => ({ type: 'orderBy', args }),
     serverTimestamp: () => 'SERVER_TIMESTAMP',
+    writeBatch: () => ({
+        set: mockBatchSet,
+        update: mockBatchUpdate,
+        commit: mockBatchCommit,
+    }),
+    doc: (_db: unknown, path: string, id?: string) => ({ path: id ? `${path}/${id}` : path }),
 }));
 
 vi.mock('../../../../config/firebase', () => ({
@@ -236,6 +246,102 @@ describe('KnowledgeService', () => {
                     { type: 'orderBy', args: ['createdAt', 'desc'] },
                 ]
             );
+        });
+    });
+
+    describe('updateKnowledgeItemWithVersion', () => {
+        const PREVIOUS_ITEM = {
+            id: 'ki-1',
+            title: 'Traffic Analysis',
+            content: '## Old Content\nOriginal analysis',
+            summary: 'Old summary',
+            category: 'traffic-analysis',
+            scope: 'video' as const,
+            source: 'chat-tool' as const,
+            model: 'claude-sonnet-4-6',
+            conversationId: 'conv-1',
+            toolsUsed: ['analyzeTrafficSources'],
+            createdAt: { seconds: 1700000000 } as import('firebase/firestore').Timestamp,
+        };
+
+        beforeEach(() => {
+            mockBatchSet.mockClear();
+            mockBatchUpdate.mockClear();
+            mockBatchCommit.mockClear();
+        });
+
+        it('creates version + updates doc in atomic batch when content changes', async () => {
+            await KnowledgeService.updateKnowledgeItemWithVersion(
+                USER_ID, CHANNEL_ID, 'ki-1',
+                { content: '## New Content' },
+                PREVIOUS_ITEM,
+            );
+
+            // Batch should be used (not separate calls)
+            expect(mockBatchSet).toHaveBeenCalledOnce();
+            expect(mockBatchUpdate).toHaveBeenCalledOnce();
+            expect(mockBatchCommit).toHaveBeenCalledOnce();
+
+            // Version snapshot contains OLD content
+            const versionData = mockBatchSet.mock.calls[0][1];
+            expect(versionData.content).toBe('## Old Content\nOriginal analysis');
+            expect(versionData.source).toBe('manual');
+            expect(versionData.model).toBe('');
+            expect(typeof versionData.createdAt).toBe('number');
+
+            // Main doc update has new content
+            const updateData = mockBatchUpdate.mock.calls[0][1];
+            expect(updateData.content).toBe('## New Content');
+            expect(updateData.updatedAt).toBe('SERVER_TIMESTAMP');
+        });
+
+        it('does NOT create version when content unchanged — uses updateDocument', async () => {
+            mockUpdateDocument.mockResolvedValue(undefined);
+
+            await KnowledgeService.updateKnowledgeItemWithVersion(
+                USER_ID, CHANNEL_ID, 'ki-1',
+                { title: 'New Title' },
+                PREVIOUS_ITEM,
+            );
+
+            expect(mockBatchCommit).not.toHaveBeenCalled();
+            expect(mockUpdateDocument).toHaveBeenCalledOnce();
+        });
+
+        it('does NOT create version for whitespace-only change', async () => {
+            mockUpdateDocument.mockResolvedValue(undefined);
+
+            await KnowledgeService.updateKnowledgeItemWithVersion(
+                USER_ID, CHANNEL_ID, 'ki-1',
+                { content: '## Old Content\nOriginal analysis  ' },
+                PREVIOUS_ITEM,
+            );
+
+            expect(mockBatchCommit).not.toHaveBeenCalled();
+        });
+
+        it('version snapshot contains old content (not new)', async () => {
+            await KnowledgeService.updateKnowledgeItemWithVersion(
+                USER_ID, CHANNEL_ID, 'ki-1',
+                { content: 'Completely different' },
+                PREVIOUS_ITEM,
+            );
+
+            const versionData = mockBatchSet.mock.calls[0][1];
+            expect(versionData.content).toBe(PREVIOUS_ITEM.content);
+            expect(versionData.title).toBe(PREVIOUS_ITEM.title);
+        });
+
+        it('version source is manual for UI edits', async () => {
+            await KnowledgeService.updateKnowledgeItemWithVersion(
+                USER_ID, CHANNEL_ID, 'ki-1',
+                { content: 'New content' },
+                PREVIOUS_ITEM,
+            );
+
+            const versionData = mockBatchSet.mock.calls[0][1];
+            expect(versionData.source).toBe('manual');
+            expect(versionData.model).toBe('');
         });
     });
 });

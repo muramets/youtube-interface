@@ -45,17 +45,17 @@ Subagents для:
 
 | Phase | Goal | Status |
 |-------|------|--------|
-| 1 | Backend: `editKnowledge` handler + tool definition + version subcollection write | TODO |
-| 2 | Version history UI: `useKnowledgeVersions` hook + version dropdown в Zen Mode | TODO |
-| 3 | DiffViewer component: npm `diff` + custom premium React component с line numbers | TODO |
-| 4 | UI Edit creates version: `KnowledgeItemModal` + `knowledgeService` version snapshot | TODO |
-| FINAL | Double review-fix cycle (R1 Architecture + R2 Production Readiness) | TODO |
+| 1 | Backend: `editKnowledge` handler + tool definition + version subcollection write | DONE |
+| 2 | Version history UI: `useKnowledgeVersions` hook + version dropdown в Zen Mode | DONE |
+| 3 | DiffViewer component: npm `diff` + custom premium React component с line numbers | DONE |
+| 4 | UI Edit creates version: `KnowledgeItemModal` + `knowledgeService` version snapshot | DONE |
+| FINAL | Double review-fix cycle (R1 Architecture + R2 Production Readiness) | DONE |
 
 ## Current Test Count
 
-- **Frontend: 471 passing (1 pre-existing failure in chatService.test.ts), 36 files**
-- **Backend: 799 tests, 56 files**
-- **Total: 1270 tests (92 files)** — verified 2026-03-16 via `npx vitest run --project frontend` + `npx vitest run --project functions`
+- **Frontend: 489 passing (1 pre-existing failure in chatService.test.ts), 38 files**
+- **Backend: 812 tests, 57 files**
+- **Total: 1301 tests (95 files)** — verified 2026-03-16 via `npx vitest run --project frontend` + `npx vitest run --project functions`
 
 ---
 
@@ -76,7 +76,7 @@ Subagents для:
 
 ### Tasks
 
-- [ ] **T1.1** — Version type (shared)
+- [x] **T1.1** — Version type (shared)
   - Create: `shared/knowledgeVersion.ts`
   - Type `KnowledgeVersion`:
     ```ts
@@ -90,7 +90,7 @@ Subagents для:
     ```
   - Export also from frontend: `src/core/types/knowledge.ts` — add `import { KnowledgeVersion } from '../../../shared/knowledgeVersion'` + re-export
 
-- [ ] **T1.1b** — Extract shared video ref resolution utility
+- [x] **T1.1b** — Extract shared video ref resolution utility
   - Create: `functions/src/services/tools/utils/resolveContentVideoRefs.ts`
   - Extract regex + resolveVideosByIds + MemoryVideoRef mapping (~40 lines) from `saveKnowledge.ts` lines 166-207
   - Function: `resolveContentVideoRefs(content: string, basePath: string, docRef: DocumentReference): Promise<void>`
@@ -98,7 +98,7 @@ Subagents для:
   - Update `saveKnowledge.ts` to use the extracted utility (replace inline code)
   - Verify: `npx vitest run --project functions` — existing saveKnowledge tests must pass
 
-- [ ] **T1.2** — `editKnowledge` handler
+- [x] **T1.2** — `editKnowledge` handler
   - Create: `functions/src/services/tools/handlers/knowledge/editKnowledge.ts`
   - Interface `EditKnowledgeArgs`: `{ kiId: string; content: string }`
   - Function `handleEditKnowledge(args, ctx)`:
@@ -120,7 +120,7 @@ Subagents для:
   - Structured logging: `[editKnowledge] ── Validation failed ──`, `[editKnowledge] ── Not found ──`, `[editKnowledge] ── Updated ──`, `[editKnowledge] ── VideoRefs ──`
   - `stripUndefined` local copy (same as saveKnowledge)
 
-- [ ] **T1.3** — Tool definition + executor registration
+- [x] **T1.3** — Tool definition + executor registration
   - File: `functions/src/services/tools/definitions.ts`
     - Add `EDIT_KNOWLEDGE: "editKnowledge"` to `TOOL_NAMES`
     - Create `editKnowledge: ToolDefinition` object:
@@ -132,7 +132,7 @@ Subagents для:
     - Import `handleEditKnowledge` from `./handlers/knowledge/editKnowledge.js`
     - Add `[TOOL_NAMES.EDIT_KNOWLEDGE]: handleEditKnowledge` to HANDLERS map
 
-- [ ] **T1.4** — Content stripping in `aiChat.ts`
+- [x] **T1.4** — Content stripping in `aiChat.ts`
   - File: `functions/src/chat/aiChat.ts` (~line 390)
   - Extend `persistToolCalls` map: add `editKnowledge` to the strip condition
     ```ts
@@ -145,7 +145,7 @@ Subagents для:
     ```
   - Update existing test in `aiChat.conclude.test.ts`: add test case for `editKnowledge` content strip
 
-- [ ] **T1.5** — Conclude prompt update
+- [x] **T1.5** — Conclude prompt update
   - File: `src/core/config/concludePrompt.ts`
   - Add to `CONCLUDE_INSTRUCTION` after the saveKnowledge section:
     ```
@@ -155,7 +155,7 @@ Subagents для:
     Only create a new KI (saveKnowledge) when the topic is fundamentally different from existing KI.
     ```
 
-- [ ] **T1.6** — Chat UI: tool registry + badge
+- [x] **T1.6** — Chat UI: tool registry + badge
   - File: `src/features/Chat/utils/toolRegistry.ts`
   - Add `editKnowledge` entry:
     ```ts
@@ -166,7 +166,7 @@ Subagents для:
     },
     ```
 
-- [ ] **T1.7** — Tests for `editKnowledge` handler
+- [x] **T1.7** — Tests for `editKnowledge` handler
   - Create: `functions/src/services/tools/handlers/knowledge/__tests__/editKnowledge.test.ts`
   - Mock: `../../shared/db.js` (db.doc, db.collection), `../../utils/resolveVideos.js`, `../../shared/memory.js`
   - Test cases:
@@ -195,9 +195,11 @@ npm run check  # lint + typecheck + doc link checker
 ```
 
 ### MANDATORY: Update this file before proceeding
-- [ ] Mark completed tasks with [x]
-- [ ] Update Phase 1 status: TODO → DONE
-- [ ] Record updated test count
+- [x] Mark completed tasks with [x]
+- [x] Update Phase 1 status: TODO → DONE
+- [x] Record updated test count
+
+**Test count after Phase 1:** Frontend 471 (36 files) + Backend 812 (57 files) = 1283 total (93 files)
 
 ### Review Gate 1
 
@@ -242,7 +244,7 @@ Answer these questions:
 
 ### Tasks
 
-- [ ] **T2.1** — Frontend type for version
+- [x] **T2.1** — Frontend type for version
   - File: `src/core/types/knowledge.ts`
   - Re-export `KnowledgeVersion` from `shared/knowledgeVersion.ts` (already done in T1.1)
   - Add `KnowledgeVersionWithId`:
@@ -252,14 +254,14 @@ Answer these questions:
     }
     ```
 
-- [ ] **T2.2** — Knowledge version service
+- [x] **T2.2** — Knowledge version service
   - Create: `src/core/services/knowledge/knowledgeVersionService.ts`
   - Functions:
     - `getVersions(userId, channelId, kiId): Promise<KnowledgeVersionWithId[]>` — `fetchCollection` with `orderBy('createdAt', 'desc')`
     - `deleteVersion(userId, channelId, kiId, versionId): Promise<void>` — `deleteDocument`
   - Path: `users/${userId}/channels/${channelId}/knowledgeItems/${kiId}/versions`
 
-- [ ] **T2.3** — `useKnowledgeVersions` hook
+- [x] **T2.3** — `useKnowledgeVersions` hook
   - Create: `src/core/hooks/useKnowledgeVersions.ts`
   - TanStack Query:
     - queryKey: `['knowledgeVersions', userId, channelId, kiId]`
@@ -270,7 +272,7 @@ Answer these questions:
     - Invalidates `['knowledgeVersions', userId, channelId, kiId]`
   - Returns: `{ versions, isLoading, deleteVersion }`
 
-- [ ] **T2.4** — Version dropdown component
+- [x] **T2.4** — Version dropdown component
   - Create: `src/features/Knowledge/components/VersionDropdown.tsx`
   - Props: `{ versions: KnowledgeVersionWithId[], selectedVersionId: string | null, onSelect: (versionId: string | null) => void, onDelete: (versionId: string) => void, currentSource: string, currentModel: string, currentDate: string }`
   - UI:
@@ -291,7 +293,7 @@ Answer these questions:
     }
     ```
 
-- [ ] **T2.5** — Integrate dropdown into KnowledgeViewer (Zen Mode)
+- [x] **T2.5** — Integrate dropdown into KnowledgeViewer (Zen Mode)
   - File: `src/features/Knowledge/components/KnowledgeViewer.tsx`
   - Expand props: add `item: KnowledgeItem` (full object, replaces separate `content`/`title`/`meta`)
   - Add state: `selectedVersionId: string | null` (null = current)
@@ -303,7 +305,7 @@ Answer these questions:
     - `src/features/Knowledge/components/KnowledgeCard.tsx` (~line 289): pass `item` prop
     - `src/pages/Knowledge/KnowledgePage.tsx`: if KnowledgeViewer is used directly, update there too
 
-- [ ] **T2.6** — Tests for `useKnowledgeVersions` hook
+- [x] **T2.6** — Tests for `useKnowledgeVersions` hook
   - Create: `src/core/hooks/__tests__/useKnowledgeVersions.test.ts`
   - Mock: `../services/knowledge/knowledgeVersionService.ts`
   - Test cases:
@@ -329,9 +331,11 @@ npm run check
 ```
 
 ### MANDATORY: Update this file before proceeding
-- [ ] Mark completed tasks with [x]
-- [ ] Update Phase 2 status: TODO → DONE
-- [ ] Record updated test count
+- [x] Mark completed tasks with [x]
+- [x] Update Phase 2 status: TODO → DONE
+- [x] Record updated test count
+
+**Test count after Phase 2:** Frontend 475 (37 files) + Backend 812 (57 files) = 1287 total (94 files)
 
 ### Review Gate 2
 
@@ -376,12 +380,12 @@ Answer these questions:
 
 ### Tasks
 
-- [ ] **T3.1** — Install `diff` package
+- [x] **T3.1** — Install `diff` package
   - `npm install diff && npm install -D @types/diff`
   - Verify `package.json` has `"diff": "^7.x"` in dependencies and `"@types/diff": "^7.x"` in devDependencies
   - Run `npm run check` to ensure no type conflicts
 
-- [ ] **T3.2** — Diff CSS variables
+- [x] **T3.2** — Diff CSS variables
   - File: `src/index.css`
   - Add diff-specific CSS variables in both `:root` (light) and `.dark` sections:
     ```css
@@ -396,7 +400,7 @@ Answer these questions:
   - Dark theme overrides (adjust for dark background readability)
   - Add Tailwind mappings in `tailwind.config.js` if needed, or use inline `var()` references
 
-- [ ] **T3.3** — `DiffViewer` component
+- [x] **T3.3** — `DiffViewer` component
   - Create: `src/features/Knowledge/components/DiffViewer.tsx`
   - Props: `{ oldContent: string, newContent: string, oldLabel?: string, newLabel?: string }`
   - Implementation:
@@ -413,7 +417,7 @@ Answer these questions:
   - Design tokens: all colors via CSS variables (theme-aware)
   - Font: `font-mono text-xs` for code-like appearance
 
-- [ ] **T3.4** — Integrate DiffViewer into KnowledgeViewer
+- [x] **T3.4** — Integrate DiffViewer into KnowledgeViewer
   - File: `src/features/Knowledge/components/KnowledgeViewer.tsx`
   - When `selectedVersionId` is set:
     - Find version content from `versions` array
@@ -423,7 +427,7 @@ Answer these questions:
   - When `selectedVersionId` is null: show normal `RichTextViewer` (no diff)
   - Animation: `AnimatePresence` for smooth transition between normal view and diff view
 
-- [ ] **T3.5** — Tests for DiffViewer
+- [x] **T3.5** — Tests for DiffViewer
   - Create: `src/features/Knowledge/components/__tests__/DiffViewer.test.tsx`
   - Test cases:
     - Renders added lines with green background class
@@ -450,9 +454,11 @@ npm run check
 ```
 
 ### MANDATORY: Update this file before proceeding
-- [ ] Mark completed tasks with [x]
-- [ ] Update Phase 3 status: TODO → DONE
-- [ ] Record updated test count
+- [x] Mark completed tasks with [x]
+- [x] Update Phase 3 status: TODO → DONE
+- [x] Record updated test count
+
+**Test count after Phase 3:** Frontend 484 (38 files) + Backend 812 (57 files) = 1296 total (95 files)
 
 ### Review Gate 3
 
@@ -496,7 +502,7 @@ Answer these questions:
 
 ### Tasks
 
-- [ ] **T4.1** — Extend `knowledgeVersionService` with `createVersion`
+- [x] **T4.1** — Extend `knowledgeVersionService` with `createVersion`
   - File: `src/core/services/knowledge/knowledgeVersionService.ts`
   - Add function:
     ```ts
@@ -505,20 +511,20 @@ Answer these questions:
   - Uses `addDocument` (auto-generated ID) to `users/${userId}/channels/${channelId}/knowledgeItems/${kiId}/versions`
   - Returns the new version doc ID
 
-- [ ] **T4.2** — Extend `KnowledgeService.updateKnowledgeItem` to snapshot version
+- [x] **T4.2** — Extend `KnowledgeService.updateKnowledgeItem` to snapshot version
   - File: `src/core/services/knowledge/knowledgeService.ts`
   - Modify `updateKnowledgeItem` signature: add `previousContent?: string` and `previousSource?: string` and `previousModel?: string` parameters
   - Before the `updateDocument` call: if `previousContent` is provided AND `updates.content?.trim()` differs from `previousContent.trim()`, call `knowledgeVersionService.createVersion` to snapshot the old state. ⚠️ Use `.trim()` to avoid phantom versions from whitespace-only changes
   - Alternative approach (cleaner): create a new wrapper function `updateKnowledgeItemWithVersion(userId, channelId, itemId, updates, previousItem)` that handles both the version snapshot and the update. Keep old `updateKnowledgeItem` for backward compatibility
   - Decision: **wrapper approach** — cleaner, no breaking changes
 
-- [ ] **T4.3** — Update `useUpdateKnowledgeItem` mutation
+- [x] **T4.3** — Update `useUpdateKnowledgeItem` mutation
   - File: `src/core/hooks/useKnowledgeItems.ts`
   - Modify mutation to accept `previousItem: KnowledgeItem` alongside `updates`
   - Call `KnowledgeService.updateKnowledgeItemWithVersion` instead of `updateKnowledgeItem`
   - Add `['knowledgeVersions']` to query invalidation on success (so version dropdown updates)
 
-- [ ] **T4.4** — Update `KnowledgeItemModal` + call sites
+- [x] **T4.4** — Update `KnowledgeItemModal` + call sites
   - File: `src/features/Knowledge/modals/KnowledgeItemModal.tsx`
   - `onSave` callback signature: add `previousItem` to what's passed to parent
   - Or: keep `onSave` signature, change parent to pass `item` context
@@ -527,7 +533,7 @@ Answer these questions:
     - `src/pages/Knowledge/KnowledgePage.tsx` (if it has handleSave)
   - Each `handleSave` must pass the original `editingItem` to the mutation
 
-- [ ] **T4.5** — Tests
+- [x] **T4.5** — Tests
   - File: `src/core/services/knowledge/__tests__/knowledgeVersionService.test.ts`
   - Or extend: `src/core/hooks/__tests__/useKnowledgeVersions.test.ts`
   - Test cases:
@@ -552,9 +558,11 @@ npm run check
 ```
 
 ### MANDATORY: Update this file before proceeding
-- [ ] Mark completed tasks with [x]
-- [ ] Update Phase 4 status: TODO → DONE
-- [ ] Record updated test count
+- [x] Mark completed tasks with [x]
+- [x] Update Phase 4 status: TODO → DONE
+- [x] Record updated test count
+
+**Test count after Phase 4:** Frontend 489 (38 files) + Backend 812 (57 files) = 1301 total (95 files)
 
 ### Review Gate 4
 

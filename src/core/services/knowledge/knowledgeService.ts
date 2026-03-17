@@ -5,7 +5,8 @@ import {
     deleteDocument,
     setDocument,
 } from '../firestore';
-import { where, orderBy, serverTimestamp } from 'firebase/firestore';
+import { where, orderBy, serverTimestamp, writeBatch, doc } from 'firebase/firestore';
+import { db } from '../../../config/firebase';
 import type { KnowledgeItem } from '../../types/knowledge';
 
 const getKnowledgeItemsPath = (userId: string, channelId: string) =>
@@ -127,6 +128,56 @@ export const KnowledgeService = {
                 updatedAt: serverTimestamp(),
             })
         );
+    },
+
+    /**
+     * Update a KI with version snapshot.
+     * If content changed, snapshots old content to versions/ before updating.
+     * Used by UI Edit flow — ensures every content change is versioned.
+     */
+    updateKnowledgeItemWithVersion: async (
+        userId: string,
+        channelId: string,
+        itemId: string,
+        updates: Partial<Pick<KnowledgeItem, 'title' | 'content' | 'summary'>>,
+        previousItem: KnowledgeItem,
+    ): Promise<void> => {
+        const contentChanged = updates.content !== undefined
+            && updates.content.trim() !== previousItem.content.trim();
+
+        if (contentChanged) {
+            // Atomic batch: version snapshot + main doc update
+            const batch = writeBatch(db);
+
+            const versionId = `v-${Date.now()}`;
+            const versionsPath = `${getKnowledgeItemsPath(userId, channelId)}/${itemId}/versions`;
+            const versionRef = doc(db, versionsPath, versionId);
+            batch.set(versionRef, stripUndefined({
+                content: previousItem.content,
+                title: previousItem.title || undefined,
+                createdAt: Date.now(),
+                source: 'manual',
+                model: '',
+            }));
+
+            const kiRef = doc(db, getKnowledgeItemsPath(userId, channelId), itemId);
+            batch.update(kiRef, stripUndefined({
+                ...updates,
+                updatedAt: serverTimestamp(),
+            }));
+
+            await batch.commit();
+        } else {
+            // No content change — simple update without version
+            await updateDocument(
+                getKnowledgeItemsPath(userId, channelId),
+                itemId,
+                stripUndefined({
+                    ...updates,
+                    updatedAt: serverTimestamp(),
+                }),
+            );
+        }
     },
 
     /**

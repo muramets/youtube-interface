@@ -23,7 +23,8 @@ import type { VideoPreviewData } from '../../../../features/Video/types'
 const EMPTY_MAP = new Map<string, VideoPreviewData>()
 
 const COMPACT_CLASSES = 'flex flex-col bg-bg-secondary rounded-lg p-3 transition-all duration-300'
-const EXPANDED_CLASSES = 'flex flex-col w-full bg-bg-secondary max-w-4xl mx-auto rounded-xl shadow-2xl p-6 h-[85vh] border border-border'
+const EXPANDED_CLASSES = 'flex flex-col w-full bg-bg-secondary max-w-6xl mx-auto rounded-xl shadow-2xl p-6 h-[85vh] border border-border'
+const EXPANDED_WIDE_CLASSES = 'flex flex-col w-full bg-bg-secondary mx-auto rounded-xl shadow-2xl p-6 h-[85vh] border border-border'
 
 export const RichTextEditor = ({
     value,
@@ -31,6 +32,8 @@ export const RichTextEditor = ({
     placeholder,
     className,
     videoCatalog,
+    expandedToolbarExtra,
+    expandedSidePanel,
 }: RichTextEditorProps) => {
     const [showDebug, setShowDebug] = useState(false)
     const [isExpanded, setIsExpanded] = useState(false)
@@ -75,6 +78,7 @@ export const RichTextEditor = ({
 
     // --- Zen mode: DOM-level move (no React re-mount) ---
 
+    const hasSidePanel = !!expandedSidePanel
     const editorCardRef = useRef<HTMLDivElement>(null)
     const placeholderRef = useRef<HTMLDivElement | null>(null)
     const overlayRef = useRef<HTMLDivElement | null>(null)
@@ -102,8 +106,8 @@ export const RichTextEditor = ({
             overlay.appendChild(card)
             document.body.appendChild(overlay)
 
-            // Apply expanded styles
-            card.className = EXPANDED_CLASSES
+            // Apply expanded styles — wider when side panel is present
+            card.className = hasSidePanel ? EXPANDED_WIDE_CLASSES : EXPANDED_CLASSES
 
             // ESC to close
             const handleEsc = (e: KeyboardEvent) => {
@@ -130,7 +134,7 @@ export const RichTextEditor = ({
                 card.className = clsx(COMPACT_CLASSES, className)
             }
         }
-    }, [isExpanded, className])
+    }, [isExpanded, className, hasSidePanel])
 
     // Cleanup on unmount
     useEffect(() => {
@@ -152,14 +156,27 @@ export const RichTextEditor = ({
                     toggleExpand={() => setIsExpanded(v => !v)}
                     showDebug={showDebug}
                     toggleDebug={() => setShowDebug(!showDebug)}
+                    expandedToolbarExtra={expandedToolbarExtra}
                 />
 
+                {/* Single React tree — EditorContent never unmounts when side panel toggles */}
                 <div className={clsx(
-                    'overflow-y-auto w-full',
-                    isExpanded ? 'flex-grow mt-4' : 'flex-1 min-h-[100px]'
+                    'overflow-y-auto w-full min-h-0',
+                    isExpanded && hasSidePanel
+                        ? 'flex-grow mt-4 flex gap-4 overflow-hidden'
+                        : isExpanded ? 'flex-grow mt-4' : 'flex-1 min-h-[100px]'
                 )}>
-                    <EditorContent editor={editor} className="text-text-primary" />
-                    {showDebug && editor && <DebugPanel editor={editor} />}
+                    {isExpanded && expandedSidePanel && (
+                        <div className="w-1/2 overflow-y-auto border border-border rounded-lg flex-shrink-0">
+                            {expandedSidePanel}
+                        </div>
+                    )}
+                    <div className={clsx(
+                        isExpanded && hasSidePanel ? 'w-1/2 overflow-y-auto' : 'w-full'
+                    )}>
+                        <EditorContent editor={editor} className="text-text-primary" />
+                        {showDebug && editor && <DebugPanel editor={editor} />}
+                    </div>
                 </div>
             </div>
         </VideoRefContext.Provider>
