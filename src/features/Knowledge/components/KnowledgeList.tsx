@@ -14,6 +14,8 @@ interface KnowledgeListProps {
     emptyMessage?: string
     /** Video reference map for highlighting video IDs in KI content */
     videoMap?: Map<string, VideoPreviewData>
+    /** Show linked video row on video-scoped cards (default: false) */
+    showLinkedVideo?: boolean
 }
 
 /**
@@ -29,6 +31,7 @@ export const KnowledgeList = React.memo(({
     onDelete,
     emptyMessage = 'No Knowledge Items yet. Start a chat conversation and analyze content to generate insights.',
     videoMap,
+    showLinkedVideo = false,
 }: KnowledgeListProps) => {
     if (items.length === 0) {
         return (
@@ -49,6 +52,7 @@ export const KnowledgeList = React.memo(({
                     onEdit={onEdit}
                     onDelete={onDelete}
                     videoMap={videoMap}
+                    showLinkedVideo={showLinkedVideo}
                 />
             ))}
         </div>

@@ -233,6 +233,7 @@ export const KnowledgePage: React.FC = () => {
                     onEdit={handleEdit}
                     onDelete={handleDelete}
                     videoMap={videoMap}
+                    showLinkedVideo
                     emptyMessage={
                         selectedCategory || scopeFilter !== 'all'
                             ? 'No Knowledge Items match these filters.'

@@ -22,6 +22,8 @@ interface KnowledgeCardProps {
     onEdit: (item: KnowledgeItem) => void
     onDelete?: (item: KnowledgeItem) => void
     videoMap?: Map<string, VideoPreviewData>
+    /** Show linked video row for video-scoped KI (default: false) */
+    showLinkedVideo?: boolean
 }
 
 /** Sanitize schema: allow vid:// protocols + class attribute on links/spans */
@@ -41,7 +43,7 @@ const sanitizeSchema = {
  *
  * Shared between Knowledge Page (channel KI) and Watch Page (video KI).
  */
-export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: externalVideoMap }: KnowledgeCardProps) => {
+export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: externalVideoMap, showLinkedVideo = false }: KnowledgeCardProps) => {
     const [isExpanded, setIsExpanded] = useState(false)
     const [isZenMode, setIsZenMode] = useState(false)
     const cardRef = useRef<HTMLDivElement>(null)
@@ -88,6 +90,12 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
 
 
     const dateStr = formatKnowledgeDate(item.createdAt)
+
+    // Resolve linked video for video-scoped KI
+    const linkedVideo = useMemo(() => {
+        if (item.scope !== 'video' || !item.videoId) return null
+        return videoMap?.get(item.videoId) ?? null
+    }, [item.scope, item.videoId, videoMap])
 
     const bodyComponents = useMemo(() => buildBodyComponents(videoMap), [videoMap])
 
@@ -136,6 +144,27 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
                             )}
                         </div>
                     </div>
+
+                    {/* Linked video — video-scoped KI only, hidden on Watch Page */}
+                    {showLinkedVideo && linkedVideo && (
+                        <div className="flex items-center gap-2 mt-1.5">
+                            {linkedVideo.thumbnailUrl && (
+                                <img
+                                    src={linkedVideo.thumbnailUrl}
+                                    alt=""
+                                    className="w-8 aspect-video object-cover rounded flex-shrink-0"
+                                />
+                            )}
+                            <span className="text-[10px] text-text-tertiary truncate">
+                                {linkedVideo.title}
+                            </span>
+                            {linkedVideo.channelTitle && (
+                                <span className="text-[10px] text-text-tertiary/50 truncate flex-shrink-0">
+                                    {linkedVideo.channelTitle}
+                                </span>
+                            )}
+                        </div>
+                    )}
 
                     {/* Summary — always visible */}
                     <div className="mt-1.5 text-xs text-text-secondary line-clamp-2 leading-relaxed [&_p]:m-0 [&_p]:inline">
