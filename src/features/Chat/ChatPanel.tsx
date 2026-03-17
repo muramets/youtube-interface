@@ -324,9 +324,7 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
                         onRename={(id, title) => renameConversation(id, title)}
                         onExport={userId && channelId ? handleExportConversation : undefined}
                         onDelete={userId && channelId
-                            ? (id) => {
-                                setPendingDelete({ type: 'conversation', id, name: conversations.find(c => c.id === id)?.title || 'this conversation' });
-                            }
+                            ? (id) => deleteConversation(id)
                             : undefined}
                         hasMore={hasMoreConversations}
                         onLoadMore={loadOlderConversations}
@@ -375,10 +373,9 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
                         onClose={() => setPendingDelete(null)}
                         onConfirm={() => {
                             if (!userId || !channelId) return;
-                            if (pendingDelete.type === 'project') deleteProject(pendingDelete.id);
-                            else deleteConversation(pendingDelete.id);
+                            deleteProject(pendingDelete.id);
                         }}
-                        title={`Delete ${pendingDelete.type === 'project' ? 'Project' : 'Conversation'}`}
+                        title="Delete Project"
                         message={<>Are you sure you want to delete <strong>{pendingDelete.name}</strong>? This cannot be undone.</>}
                         confirmLabel="Delete"
                         cancelLabel="Cancel"

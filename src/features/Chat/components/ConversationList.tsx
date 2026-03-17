@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { MessageSquare, Pencil, Trash2, ChevronDown, Download } from 'lucide-react';
+import { MessageSquare, Pencil, ChevronDown, Download } from 'lucide-react';
+import { ConfirmDeleteButton } from '../../../components/ui/atoms/ConfirmDeleteButton';
 import { formatRelativeTime } from '../formatRelativeTime';
 import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
 import type { ChatConversation } from '../../../core/types/chat/chat';
@@ -110,13 +111,12 @@ const ConversationItem: React.FC<{
                     </button>
                 )}
                 {onDelete && (
-                    <button
-                        className={`${actionBtnClass} hover:!text-red-400`}
-                        onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                    <ConfirmDeleteButton
+                        onConfirm={onDelete}
+                        size={14}
                         title="Delete chat"
-                    >
-                        <Trash2 size={14} />
-                    </button>
+                        className="opacity-0 group-hover:opacity-100"
+                    />
                 )}
             </div>
         </div>

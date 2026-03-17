@@ -189,14 +189,24 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   const isOrphanInPlaylist = !!(playlistId && video.isPlaylistOnly &&
     !playlists.some(p => p.id !== playlistId && p.videoIds?.includes(video.id)));
 
-  const handleRemoveFromPlaylist = async (e: React.MouseEvent) => {
+  const handleRemoveFromPlaylist = (e: React.MouseEvent) => {
     e.stopPropagation();
     handleMenuClose();
-    if (playlistId) {
-      await removeVideosFromPlaylist({ playlistId, videoIds: [video.id] });
-      if (isOrphanInPlaylist) {
-        onRemove(video.id);
-      }
+    if (!playlistId) return;
+
+    if (isOrphanInPlaylist) {
+      setConfirmation({
+        isOpen: true,
+        title: 'Delete Video',
+        message: 'This video only exists in this playlist. Removing it will permanently delete the video.',
+        onConfirm: async () => {
+          await removeVideosFromPlaylist({ playlistId, videoIds: [video.id] });
+          onRemove(video.id);
+          setConfirmation(prev => ({ ...prev, isOpen: false }));
+        },
+      });
+    } else {
+      removeVideosFromPlaylist({ playlistId, videoIds: [video.id] });
     }
   };
 
