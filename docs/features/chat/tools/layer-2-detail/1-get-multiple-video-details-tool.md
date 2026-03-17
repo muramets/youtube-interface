@@ -96,7 +96,7 @@ LLM использует дельты для оценки динамики: ви
 
 Graceful degradation: если `trendSnapshotService` недоступен — видео возвращаются без delta полей.
 
-Подробнее: [Video View Deltas](../../../video-view-deltas.md)
+Подробнее: [Video View Deltas](../../../trends/video-view-deltas.md)
 
 ### Thumbnail Descriptions (visual context)
 

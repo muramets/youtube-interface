@@ -161,7 +161,7 @@ AI-ассистент анализирует suggested traffic через dedica
 - [x] Content trajectory (per-snapshot keywords evolution)
 - [x] Depth enum: quick (top 20) / standard (top 50) / detailed (top 100) / deep (all)
 - [x] Enrichment из `cached_external_videos` (Firestore) — tags, description, channelTitle
-- [x] View delta enrichment: suggested видео обогащаются `viewDelta24h/7d/30d` из trend snapshots (через `trendSnapshotService`). `analysisGuidance` объясняет LLM семантику view deltas (положительные = рост, null = нет данных). Подробнее: [Video View Deltas](../../video-view-deltas.md)
+- [x] View delta enrichment: suggested видео обогащаются `viewDelta24h/7d/30d` из trend snapshots (через `trendSnapshotService`). `analysisGuidance` объясняет LLM семантику view deltas (положительные = рост, null = нет данных). Подробнее: [Video View Deltas](../../trends/video-view-deltas.md)
 
 ### Stage 7 — Lightweight Context ← YOU ARE HERE
 Bridge передаёт только IDs вместо полных данных. AI запрашивает details on-demand.

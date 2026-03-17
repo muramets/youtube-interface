@@ -127,7 +127,7 @@ Slug validation: `SLUG_PATTERN` (`/^[a-z0-9]+(-[a-z0-9]+)*$/`) — shared меж
 
 - [Memory System](../chat/context/memory-system.md) — L4 cross-conversation memory; Memorize создаёт KI перед Memory
 - [YouTube Research Tools](../chat/tools/README.md) — тулы, генерирующие данные для KI
-- [Video View Deltas](../video-view-deltas.md) — delta enrichment, потребитель KI при анализе
+- [Video View Deltas](../trends/video-view-deltas.md) — delta enrichment, потребитель KI при анализе
 - [Competitive Intelligence](../chat/tools/layer-4-competition/competitive-intelligence.md) — competitor analysis, источник channel-level KI
 
 ---

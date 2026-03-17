@@ -8,7 +8,8 @@ interface WatchPageVideoPlayerProps {
 }
 
 export const WatchPageVideoPlayer: React.FC<WatchPageVideoPlayerProps> = ({ video }) => {
-    const { minimize } = useVideoPlayer();
+    const { minimize, isMinimized, activeVideoId } = useVideoPlayer();
+    const isInMiniPlayer = isMinimized && activeVideoId === video.id;
 
     const handleMinimize = () => {
         minimize(video.id, video.title);
@@ -27,14 +28,22 @@ export const WatchPageVideoPlayer: React.FC<WatchPageVideoPlayerProps> = ({ vide
                 />
             )}
             <div className="w-full aspect-video bg-black rounded-xl overflow-hidden shadow-lg relative z-10 group">
-            {video.isCustom ? (
+            {video.isCustom || isInMiniPlayer ? (
                 <div className="w-full h-full relative group cursor-default">
                     <img
-                        src={video.customImage || video.thumbnail}
+                        src={video.thumbnail || video.customImage}
                         alt={video.title}
                         className="w-full h-full object-cover"
                     />
                     <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                    {isInMiniPlayer && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="flex items-center gap-2 px-3 py-1.5 bg-black/60 rounded-lg text-white/80 text-xs font-medium backdrop-blur-sm">
+                                <PictureInPicture2 size={14} />
+                                <span>Playing in Mini Player</span>
+                            </div>
+                        </div>
+                    )}
                 </div>
             ) : (
                 <>

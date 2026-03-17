@@ -16,13 +16,14 @@ export const SidebarVideoPreview: React.FC<SidebarVideoPreviewProps> = ({
     viewingVersion = 'draft',
     versions = []
 }) => {
-    const { minimize } = useVideoPlayer();
+    const { minimize, isMinimized, activeVideoId } = useVideoPlayer();
 
     // Resolve the YouTube video ID:
     // - Custom videos: use publishedVideoId (set when published to YouTube)
     // - Regular YouTube videos: video.id IS the YouTube ID
     const youtubeVideoId = video.isCustom ? video.publishedVideoId : video.id;
     const isPlayable = !!youtubeVideoId;
+    const isNowPlaying = isMinimized && !!youtubeVideoId && activeVideoId === youtubeVideoId;
 
     // Determine title and thumbnail based on the viewed version
     let title = 'Untitled';
@@ -57,8 +58,8 @@ export const SidebarVideoPreview: React.FC<SidebarVideoPreviewProps> = ({
     return (
         <div className="px-[15px] pb-4">
             {/* Thumbnail - full width with rounded corners */}
-            <div className="relative aspect-video rounded-xl overflow-hidden bg-bg-tertiary group cursor-pointer"
-                onClick={() => isPlayable && youtubeVideoId && minimize(youtubeVideoId, title)}
+            <div className={`relative aspect-video rounded-xl overflow-hidden bg-bg-tertiary group ${isPlayable && !isNowPlaying ? 'cursor-pointer' : 'cursor-default'}`}
+                onClick={() => isPlayable && !isNowPlaying && youtubeVideoId && minimize(youtubeVideoId, title)}
             >
                 {thumbnail ? (
                     <img
@@ -71,11 +72,21 @@ export const SidebarVideoPreview: React.FC<SidebarVideoPreviewProps> = ({
                         No thumbnail
                     </div>
                 )}
-                {/* Play button overlay — only for published videos */}
-                {isPlayable && (
+                {/* Play button overlay — only for published videos not already playing */}
+                {isPlayable && !isNowPlaying && (
                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
                         <div className="w-10 h-10 rounded-full bg-black/70 flex items-center justify-center shadow-lg transition-transform duration-150 ease-out group-hover:scale-110">
                             <Play size={20} className="text-white fill-white ml-[2px]" />
+                        </div>
+                    </div>
+                )}
+                {/* Now-playing indicator — bottom-left badge */}
+                {isNowPlaying && (
+                    <div className="absolute bottom-2 left-2 flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/80 z-20">
+                        <div className="flex items-end gap-px h-[8px]">
+                            <span className="w-[2px] bg-white rounded-full animate-[barBounce_0.8s_ease-in-out_infinite]" style={{ height: '4px' }} />
+                            <span className="w-[2px] bg-white rounded-full animate-[barBounce_0.8s_ease-in-out_0.2s_infinite]" style={{ height: '7px' }} />
+                            <span className="w-[2px] bg-white rounded-full animate-[barBounce_0.8s_ease-in-out_0.4s_infinite]" style={{ height: '5px' }} />
                         </div>
                     </div>
                 )}

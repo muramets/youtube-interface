@@ -98,7 +98,7 @@ timeline: [
 
 Graceful degradation: если `getViewDeltas()` падает — handler продолжает работу, все viewDelta остаются null.
 
-Подробнее: [Video View Deltas](../../../video-view-deltas.md)
+Подробнее: [Video View Deltas](../../../trends/video-view-deltas.md)
 
 ---
 

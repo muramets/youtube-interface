@@ -51,7 +51,7 @@
 
 Side effects:
 - Все fetched видео кэшируются в `cached_external_videos/` (включая `channelId` из YouTube API)
-- `channelId` persistence enables downstream view delta lookups в `getMultipleVideoDetails` и `analyzeSuggestedTraffic` ([подробнее](../../../video-view-deltas.md))
+- `channelId` persistence enables downstream view delta lookups в `getMultipleVideoDetails` и `analyzeSuggestedTraffic` ([подробнее](../../../trends/video-view-deltas.md))
 
 ---
 
