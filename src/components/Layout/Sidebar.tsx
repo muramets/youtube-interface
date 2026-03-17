@@ -10,6 +10,7 @@ import { TrendsSidebarSection } from '../../pages/Trends/Sidebar/TrendsSidebarSe
 import { MusicSidebarSection } from '../../pages/Music/Sidebar/MusicSidebarSection';
 import { AddChannelModal } from '../../pages/Trends/Sidebar/AddChannelModal';
 import { useTrendStore } from '../../core/stores/trends/trendStore';
+import { useMusicStore } from '../../core/stores/music/musicStore';
 import type { TrendChannel } from '../../core/types/trends';
 
 // Collapsed sidebar item - icon on top, text below
@@ -195,6 +196,7 @@ export const Sidebar: React.FC = () => {
   const { user } = useAuth();
   const { currentChannel, setCurrentChannel } = useChannelStore();
   const { channels: trendChannels, selectedChannelId, setSelectedChannelId } = useTrendStore();
+  const hasAudioPlayer = !!useMusicStore((s) => s.playingTrackId);
   const { data: channels, isLoading } = useChannels(user?.uid || '');
 
   const [isResizing, setIsResizing] = React.useState(false);
@@ -343,7 +345,7 @@ export const Sidebar: React.FC = () => {
                 <TrendsSidebarSection expanded={true} />
               </div>
 
-              <div className="border-t border-border pt-2">
+              <div className={`border-t border-border pt-2 transition-[padding] duration-300 ${hasAudioPlayer ? 'pb-14' : ''}`}>
                 <ExpandedSidebarItem
                   icon={knowledgeIcon}
                   activeIcon={knowledgeActiveIcon}
@@ -411,7 +413,7 @@ export const Sidebar: React.FC = () => {
                 />
               </div>
 
-              <div className="mt-auto">
+              <div className={`mt-auto transition-[padding] duration-300 ${hasAudioPlayer ? 'pb-14' : ''}`}>
                 <CollapsedSidebarItem
                   icon={knowledgeIcon}
                   activeIcon={knowledgeActiveIcon}

@@ -212,7 +212,7 @@ export const MusicPage: React.FC = () => {
                 {/* Track list */}
                 <div
                     ref={scrollContainerRef}
-                    className="flex-1 overflow-y-auto px-6 pt-0.5 pb-6"
+                    className={`flex-1 overflow-y-auto px-6 pt-0.5 ${playingTrackId ? 'pb-20' : 'pb-6'}`}
                     onClick={() => setSelectedTrackId(null)}
                 >
                     <MusicErrorBoundary>
@@ -287,8 +287,6 @@ export const MusicPage: React.FC = () => {
                         </div>
                     </MusicErrorBoundary>
                 </div>
-
-                {playingTrackId && <div className="h-[76px] flex-shrink-0" />}
 
                 {/* Modals */}
                 <UploadTrackModal
