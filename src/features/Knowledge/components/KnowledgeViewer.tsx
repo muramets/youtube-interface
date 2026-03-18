@@ -53,6 +53,9 @@ export const KnowledgeViewer = React.memo(({
 
     const isDiffActive = !!selectedVersion
     const dateStr = item.createdAt ? formatKnowledgeDate(item.createdAt) : ''
+    const currentDateStr = formatKnowledgeDate(item.updatedAt ?? item.createdAt)
+    const currentSource = item.lastEditSource ?? item.source
+    const currentModel = item.lastEditedBy ?? item.model
 
     // ESC to close
     useEffect(() => {
@@ -115,9 +118,9 @@ export const KnowledgeViewer = React.memo(({
                                 selectedVersionId={selectedVersionId}
                                 onSelect={setSelectedVersionId}
                                 onDelete={deleteVersion}
-                                currentSource={item.source}
-                                currentModel={item.model}
-                                currentDate={dateStr}
+                                currentSource={currentSource}
+                                currentModel={currentModel}
+                                currentDate={currentDateStr}
                             />
                             <button
                                 onClick={onClose}

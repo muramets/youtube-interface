@@ -248,14 +248,19 @@ export const KnowledgeService = {
                     content: previousItem.content,
                     title: previousItem.title || undefined,
                     createdAt: Date.now(),
-                    source: 'manual',
-                    model: '',
+                    source: previousItem.lastEditSource ?? previousItem.source,
+                    model: previousItem.lastEditedBy ?? previousItem.model,
                 }));
             }
 
             // Main doc update
             const kiRef = doc(db, getKnowledgeItemsPath(userId, channelId), itemId);
-            batch.update(kiRef, buildKiUpdatePayload(updates));
+            const kiPayload = buildKiUpdatePayload(updates);
+            if (contentChanged) {
+                kiPayload.lastEditSource = 'manual';
+                kiPayload.lastEditedBy = '';
+            }
+            batch.update(kiRef, kiPayload);
 
             // Discovery flags update (only if scope/videoId changed)
             if (scopeChanged) {

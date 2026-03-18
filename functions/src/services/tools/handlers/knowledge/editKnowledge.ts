@@ -61,8 +61,8 @@ export async function handleEditKnowledge(
     const kiData = kiSnap.data() as Record<string, unknown>;
     const oldContent = (kiData.content as string) || '';
     const oldTitle = (kiData.title as string) || '';
-    const oldSource = (kiData.source as string) || 'chat-tool';
-    const oldModel = (kiData.model as string) || '';
+    const oldSource = (kiData.lastEditSource as string) || (kiData.source as string) || 'chat-tool';
+    const oldModel = (kiData.lastEditedBy as string) ?? (kiData.model as string) ?? '';
     const title = oldTitle;
 
     // --- Atomic batch: version snapshot + main doc update ---

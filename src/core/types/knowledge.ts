@@ -71,6 +71,13 @@ export interface KnowledgeItem {
 
     /** How this KI was created */
     source: 'chat-tool' | 'conclude' | 'manual';
+
+    // — Last edit provenance (set by editKnowledge handler & frontend manual edits) —
+
+    /** Source of the most recent edit (overrides `source` for display) */
+    lastEditSource?: 'chat-tool' | 'conclude' | 'manual';
+    /** Model that performed the most recent edit (overrides `model` for display) */
+    lastEditedBy?: string;
 }
 
 /**

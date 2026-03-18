@@ -285,17 +285,19 @@ describe('KnowledgeService', () => {
             expect(mockBatchUpdate).toHaveBeenCalledOnce();
             expect(mockBatchCommit).toHaveBeenCalledOnce();
 
-            // Version snapshot contains OLD content
+            // Version snapshot contains OLD content with previous item's provenance
             const versionData = mockBatchSet.mock.calls[0][1];
             expect(versionData.content).toBe('## Old Content\nOriginal analysis');
-            expect(versionData.source).toBe('manual');
-            expect(versionData.model).toBe('');
+            expect(versionData.source).toBe('chat-tool');
+            expect(versionData.model).toBe('claude-sonnet-4-6');
             expect(typeof versionData.createdAt).toBe('number');
 
-            // Main doc update has new content
+            // Main doc update has new content + manual edit provenance
             const updateData = mockBatchUpdate.mock.calls[0][1];
             expect(updateData.content).toBe('## New Content');
             expect(updateData.updatedAt).toBe('SERVER_TIMESTAMP');
+            expect(updateData.lastEditSource).toBe('manual');
+            expect(updateData.lastEditedBy).toBe('');
         });
 
         it('does NOT create version when content unchanged — uses updateDocument', async () => {
@@ -335,11 +337,29 @@ describe('KnowledgeService', () => {
             expect(versionData.title).toBe(PREVIOUS_ITEM.title);
         });
 
-        it('version source is manual for UI edits', async () => {
+        it('version source captures previous item provenance', async () => {
             await KnowledgeService.updateKnowledgeItemWithVersion(
                 USER_ID, CHANNEL_ID, 'ki-1',
                 { content: 'New content' },
                 PREVIOUS_ITEM,
+            );
+
+            const versionData = mockBatchSet.mock.calls[0][1];
+            expect(versionData.source).toBe('chat-tool');
+            expect(versionData.model).toBe('claude-sonnet-4-6');
+        });
+
+        it('version source prefers lastEditSource over source', async () => {
+            const itemWithLastEdit = {
+                ...PREVIOUS_ITEM,
+                lastEditSource: 'manual' as const,
+                lastEditedBy: '',
+            };
+
+            await KnowledgeService.updateKnowledgeItemWithVersion(
+                USER_ID, CHANNEL_ID, 'ki-1',
+                { content: 'New content' },
+                itemWithLastEdit,
             );
 
             const versionData = mockBatchSet.mock.calls[0][1];

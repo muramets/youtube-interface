@@ -106,6 +106,9 @@ export const KnowledgeItemModal = React.memo(({
         || content !== item.content
         || linkedVideoId !== item.videoId
     const dateStr = formatKnowledgeDate(item.createdAt)
+    const currentDateStr = formatKnowledgeDate(item.updatedAt ?? item.createdAt)
+    const currentSource = item.lastEditSource ?? item.source
+    const currentModel = item.lastEditedBy ?? item.model
 
     // --- Expanded mode slots ---
 
@@ -115,11 +118,11 @@ export const KnowledgeItemModal = React.memo(({
             selectedVersionId={selectedVersionId}
             onSelect={setSelectedVersionId}
             onDelete={deleteVersion}
-            currentSource={item.source}
-            currentModel={item.model}
-            currentDate={dateStr}
+            currentSource={currentSource}
+            currentModel={currentModel}
+            currentDate={currentDateStr}
         />
-    ), [versions, selectedVersionId, deleteVersion, item.source, item.model, dateStr])
+    ), [versions, selectedVersionId, deleteVersion, currentSource, currentModel, currentDateStr])
 
     const expandedSidePanel = selectedVersion ? (
         <LiveDiffPanel
