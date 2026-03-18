@@ -9,3 +9,4 @@ export { NicheSnapshotStats } from './NicheSnapshotStats';
 export { FindSimilarStats } from './FindSimilarStats';
 export { QuotaBadge } from './QuotaBadge';
 export { SearchDatabaseStats } from './SearchDatabaseStats';
+export { EditKnowledgeStats } from './EditKnowledgeStats';
