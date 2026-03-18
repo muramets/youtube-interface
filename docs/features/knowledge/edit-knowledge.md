@@ -45,7 +45,8 @@ Premium IDE-like diff viewer — **только в Zen Mode** (fullscreen). KI c
 - Line numbers на обоих столбцах
 - Green highlight для добавленных строк
 - Red highlight для удалённых строк
-- Dropdown с версиями в header Zen Mode (timestamp + source label: "LLM edit", "Manual edit", "Original")
+- Dropdown с версиями в header Zen Mode (timestamp + source label: "LLM edit", "Manual edit", "via Memorize")
+- "Current" entry показывает `lastEditSource ?? source` и `lastEditedBy ?? model` — отражает последнее редактирование, не оригинальное создание. Дата: `updatedAt ?? createdAt`
 - Design tokens: CSS variables для цветов (theme-aware)
 
 ---
@@ -127,3 +128,4 @@ Premium IDE-like diff viewer — **только в Zen Mode** (fullscreen). KI c
 | 8 | Shared `resolveContentVideoRefs` utility | Extracts 40-line video ref resolution from `saveKnowledge`, shared by both handlers. Eliminates code duplication |
 | 9 | Version snapshot includes `title?` | Forward-proofing: title нужен для diff labels, добавить позже без миграции |
 | 10 | LLM prefers editKnowledge over saveKnowledge | При Memorize: если KI с тем же category+video уже есть — edit, не create |
+| 11 | Version provenance via `lastEditSource`/`lastEditedBy` | Main doc tracks who last edited (backend writes at LLM edit, frontend writes at manual edit). Version snapshot captures `lastEditSource ?? source` to correctly identify the OLD content's origin. `source`/`model` on main doc = original creation provenance (immutable) |

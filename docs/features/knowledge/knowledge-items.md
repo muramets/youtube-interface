@@ -159,7 +159,7 @@ Composite indexes deployed: idempotency guard (`conversationId + category + vide
 
 | File | Role |
 |------|------|
-| `src/core/types/knowledge.ts` | Types: `KnowledgeItem`, `KnowledgeCategoryEntry`, `KnowledgeFlags`, `SEED_CATEGORIES`, `SLUG_PATTERN` re-export |
+| `src/core/types/knowledge.ts` | Types: `KnowledgeItem` (includes `lastEditSource?`/`lastEditedBy?` for edit provenance tracking), `KnowledgeCategoryEntry`, `KnowledgeFlags`, `SEED_CATEGORIES`, `SLUG_PATTERN` re-export |
 | `src/core/services/knowledge/knowledgeService.ts` | Firestore CRUD for KI |
 | `src/core/services/knowledge/knowledgeCategoryService.ts` | Category registry CRUD + seed creation |
 | `src/core/hooks/useKnowledgeItems.ts` | TanStack Query: `useVideoKnowledgeItems`, `useChannelKnowledgeItems`, `useAllKnowledgeItems`, mutations (accept `videoId`/`scope`) |
