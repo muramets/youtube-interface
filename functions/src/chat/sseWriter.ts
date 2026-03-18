@@ -25,6 +25,7 @@ type SSEDoneEvent = {
     status?: 'complete' | 'stopped';
     partial?: boolean;
     contextBreakdown?: ContextBreakdown;
+    messageId?: string;
 };
 type SSEToolProgressEvent = { type: "toolProgress"; toolName: string; message: string; toolCallIndex: number };
 type SSEErrorEvent = { type: "error"; error: string };

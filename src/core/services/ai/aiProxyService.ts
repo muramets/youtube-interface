@@ -243,6 +243,7 @@ export async function streamChat(opts: StreamChatOpts): Promise<AiChatResult> {
                             contextBreakdown: sseEvent.contextBreakdown,
                             status: sseEvent.status,
                             partial: sseEvent.partial,
+                            messageId: sseEvent.messageId,
                         };
                         break;
                     case 'confirmLargePayload':

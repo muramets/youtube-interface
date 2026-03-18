@@ -414,6 +414,9 @@ export const aiChat = onRequest(
             });
 
 
+            // --- Server-only writer: pre-generate message ID (sync — no network call) ---
+            const msgRef = db.collection(messagesPath).doc();
+
             // Final event — best-effort SSE notification (client may have disconnected on abort)
             try {
                 writeSSE(res, {
@@ -427,67 +430,48 @@ export const aiChat = onRequest(
                     status: messageStatus,
                     partial,
                     contextBreakdown,
+                    messageId: msgRef.id,
                 });
             } catch {
                 // Expected on aborted connections — client gets data via Firestore onSnapshot
             }
 
 
-            // Cache summary + log usage + clear error BEFORE ending response
+            // Cache summary + log usage + persist message BEFORE ending response
             // (CF runtime may be deallocated after res.end())
             const afterTasks: Promise<unknown>[] = [];
 
-            // Persist stopped messages directly to Firestore (SSE may not reach client)
-            // Also persist when thinking was accumulated but no text (thinking timeout)
-            if (partial && (responseText || thinkingAccumulator)) {
-                const stoppedMsg: Record<string, unknown> = {
-                    role: 'model',
-                    text: responseText,
-                    model,
-                    status: 'stopped',
-                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                };
-                if (tokenUsage) stoppedMsg.tokenUsage = tokenUsage;
-                if (normalizedUsage) stoppedMsg.normalizedUsage = normalizedUsage;
-                if (persistToolCalls) stoppedMsg.toolCalls = persistToolCalls;
-                stoppedMsg.contextBreakdown = contextBreakdown;
-                if (thinkingAccumulator) {
-                    stoppedMsg.thinking = thinkingAccumulator;
-                    stoppedMsg.thinkingElapsedMs = firstThoughtTs ? Date.now() - firstThoughtTs : 0;
-                }
-                afterTasks.push(
-                    db.collection(messagesPath).add(stoppedMsg)
-                        .then(() => console.info(`[aiChat] Persisted stopped message for conv=${body.conversationId}`))
-                        .catch(err => console.warn(`[aiChat] Failed to persist stopped message`, err))
-                );
+            // --- Server-only writer: persist AI message for ALL cases (complete + stopped) ---
+            const msg: Record<string, unknown> = {
+                role: 'model',
+                text: responseText,
+                model,
+                status: messageStatus,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            };
+            if (tokenUsage) msg.tokenUsage = tokenUsage;
+            if (normalizedUsage) msg.normalizedUsage = normalizedUsage;
+            if (persistToolCalls) msg.toolCalls = persistToolCalls;
+            msg.contextBreakdown = contextBreakdown;
+            if (thinkingAccumulator) {
+                msg.thinking = thinkingAccumulator;
+                msg.thinkingElapsedMs = firstThoughtTs ? Date.now() - firstThoughtTs : 0;
             }
 
-            // Always clear lastError on success
-            const convUpdate: Record<string, unknown> = { lastError: admin.firestore.FieldValue.delete() };
+            // Conversation doc update — merge ALL fields into one batch.update()
+            const convUpdate: Record<string, unknown> = {
+                lastError: admin.firestore.FieldValue.delete(),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            };
             if (memory.newSummary && memory.summarizedUpTo) {
                 convUpdate.summary = memory.newSummary;
                 convUpdate.summarizedUpTo = memory.summarizedUpTo;
             }
-            // Persist updated thumbnail cache (fire-and-forget)
             if (updatedThumbnailCache) {
                 convUpdate.thumbnailCache = updatedThumbnailCache;
                 console.info(`[aiChat] Persisting thumbnail cache: ${Object.keys(updatedThumbnailCache).length} entries`);
             }
-            afterTasks.push(
-                db.doc(convPath).update(convUpdate)
-                    .catch(err => console.warn(`[aiChat] Failed to update conversation for ${convPath}`, err))
-            );
-
-            if (tokenUsage) {
-                afterTasks.push(
-                    logAiUsage(userId, body.channelId, body.conversationId, model, tokenUsage, "chat").catch(err => console.warn('[aiChat] Failed to log usage', err))
-                );
-            }
             if (memory.summaryTokenUsage) {
-                afterTasks.push(
-                    logAiUsage(userId, body.channelId, body.conversationId, model, memory.summaryTokenUsage, "summarize").catch(err => console.warn('[aiChat] Failed to log summary usage', err))
-                );
-                // Persist summary as AuxiliaryCost on conversation doc
                 const utilityConfig = MODEL_REGISTRY.find(m => m.id === UTILITY_MODEL_ID);
                 if (!utilityConfig?.pricing) {
                     console.error(`[aiChat] UTILITY_MODEL_ID="${UTILITY_MODEL_ID}" not found in MODEL_REGISTRY — summary cost will be $0`);
@@ -507,10 +491,41 @@ export const aiChat = onRequest(
                     },
                     createdAt: Date.now(),
                 };
+                convUpdate.auxiliaryCosts = admin.firestore.FieldValue.arrayUnion(summaryCost);
+            }
+
+            // Atomic batch: message persist + conversation update (single round-trip)
+            // Retry up to 2 times for transient Firestore failures (idempotent — same docRef)
+            const commitBatch = async () => {
+                const MAX_PERSIST_RETRIES = 2;
+                for (let attempt = 0; attempt <= MAX_PERSIST_RETRIES; attempt++) {
+                    try {
+                        const b = db.batch();
+                        b.set(msgRef, msg);
+                        b.update(convRef, convUpdate);
+                        await b.commit();
+                        console.info(`[aiChat] Persisted ${messageStatus} message ${msgRef.id} for conv=${body.conversationId}${attempt > 0 ? ` (retry ${attempt})` : ''}`);
+                        return;
+                    } catch (err) {
+                        if (attempt < MAX_PERSIST_RETRIES) {
+                            const delay = 500 * Math.pow(2, attempt); // 500ms → 1000ms
+                            await new Promise(r => setTimeout(r, delay));
+                        } else {
+                            console.warn(`[aiChat] Failed to persist message after ${MAX_PERSIST_RETRIES + 1} attempts`, err);
+                        }
+                    }
+                }
+            };
+            afterTasks.push(commitBatch());
+
+            if (tokenUsage) {
                 afterTasks.push(
-                    db.doc(convPath).update({
-                        auxiliaryCosts: admin.firestore.FieldValue.arrayUnion(summaryCost),
-                    }).catch(err => console.warn('[aiChat] Failed to persist summary auxiliary cost', err))
+                    logAiUsage(userId, body.channelId, body.conversationId, model, tokenUsage, "chat").catch(err => console.warn('[aiChat] Failed to log usage', err))
+                );
+            }
+            if (memory.summaryTokenUsage) {
+                afterTasks.push(
+                    logAiUsage(userId, body.channelId, body.conversationId, model, memory.summaryTokenUsage, "summarize").catch(err => console.warn('[aiChat] Failed to log summary usage', err))
                 );
             }
             await Promise.allSettled(afterTasks);
@@ -523,6 +538,7 @@ export const aiChat = onRequest(
             // This catches edge cases where the SDK throws on abort before streamChat can return.
             if (abortController.signal.aborted) {
                 console.info(`[aiChat] ── Aborted (safety net) ── conv=${body.conversationId} duration=${Date.now() - requestStart}ms`);
+                const abortMsgRef = db.collection(messagesPath).doc();
                 const stoppedMsg: Record<string, unknown> = {
                     role: 'model',
                     text: '',
@@ -535,11 +551,18 @@ export const aiChat = onRequest(
                     stoppedMsg.thinkingElapsedMs = firstThoughtTs ? Date.now() - firstThoughtTs : 0;
                 }
                 try {
-                    await db.collection(messagesPath).add(stoppedMsg);
+                    const abortBatch = db.batch();
+                    abortBatch.set(abortMsgRef, stoppedMsg);
+                    abortBatch.update(convRef, { updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+                    await abortBatch.commit();
                 } catch (persistErr) {
                     console.warn('[aiChat] Failed to persist abort stopped message', persistErr);
                 }
-                writeSSE(res, { type: "done", text: '', status: 'stopped', partial: true });
+                try {
+                    writeSSE(res, { type: "done", text: '', status: 'stopped', partial: true, messageId: abortMsgRef.id });
+                } catch {
+                    // Expected — client likely already disconnected during abort
+                }
                 res.end();
                 return;
             }
@@ -562,6 +585,7 @@ export const aiChat = onRequest(
                     };
                 }
 
+                const timeoutMsgRef = db.collection(messagesPath).doc();
                 try {
                     const stoppedMsg: Record<string, unknown> = {
                         role: 'model',
@@ -573,8 +597,11 @@ export const aiChat = onRequest(
                         createdAt: admin.firestore.FieldValue.serverTimestamp(),
                     };
                     if (partialTokenUsage) stoppedMsg.tokenUsage = partialTokenUsage;
-                    await db.collection(messagesPath).add(stoppedMsg);
-                    console.info(`[aiChat] Persisted thinking-timeout stopped message for conv=${body.conversationId}`);
+                    const timeoutBatch = db.batch();
+                    timeoutBatch.set(timeoutMsgRef, stoppedMsg);
+                    timeoutBatch.update(convRef, { updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+                    await timeoutBatch.commit();
+                    console.info(`[aiChat] Persisted thinking-timeout stopped message ${timeoutMsgRef.id} for conv=${body.conversationId}`);
                 } catch (persistErr) {
                     console.warn('[aiChat] Failed to persist thinking-timeout stopped message', persistErr);
                 }
@@ -585,6 +612,7 @@ export const aiChat = onRequest(
                     text: '',
                     status: 'stopped',
                     partial: true,
+                    messageId: timeoutMsgRef.id,
                     tokenUsage: partialTokenUsage as import("../services/ai/types.js").TokenUsage | undefined,
                 });
             }

@@ -99,6 +99,7 @@ export interface AiChatResult {
     contextBreakdown?: import('../../../../shared/models').ContextBreakdown;
     status?: 'complete' | 'stopped';
     partial?: boolean;
+    messageId?: string;
 }
 
 // Re-export shared type for consumers that import from chat types

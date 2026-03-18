@@ -17,7 +17,7 @@ vi.mock('../../../config/firebase', () => ({}));
 import { create } from 'zustand';
 import type { ChatState } from '../types';
 import { createSendSlice } from '../slices/sendSlice';
-import { session } from '../session';
+import { session, getSessionThinking } from '../session';
 
 // ---------------------------------------------------------------------------
 // Module mocks
@@ -188,15 +188,13 @@ describe('sendMessage — happy path', () => {
         vi.restoreAllMocks();
     });
 
-    it('adds AI response to messages after successful stream', async () => {
+    it('persists only user message — AI response is server-only (no client persist)', async () => {
         const USER_MSG_ID = 'msg-user-1';
         const AI_TEXT = 'Hello from AI';
 
         mockChatService.addMessage
-            // First call: persist user message
-            .mockResolvedValueOnce({ id: USER_MSG_ID, role: 'user', text: 'hi', createdAt: Timestamp.now() })
-            // Second call: persist AI response
-            .mockResolvedValueOnce({ id: 'msg-ai-1', role: 'model', text: AI_TEXT, createdAt: Timestamp.now() });
+            // Only user message is persisted client-side
+            .mockResolvedValueOnce({ id: USER_MSG_ID, role: 'user', text: 'hi', createdAt: Timestamp.now() });
 
         mockPrepareContext.mockResolvedValueOnce({
             appContext: [],
@@ -208,6 +206,7 @@ describe('sendMessage — happy path', () => {
             tokenUsage: undefined,
             toolCalls: undefined,
             usedSummary: false,
+            messageId: 'server-msg-1',
         });
 
         mockAiService.generateTitle.mockResolvedValueOnce('New Chat');
@@ -216,8 +215,16 @@ describe('sendMessage — happy path', () => {
         const store = buildStore();
         await store.getState().sendMessage('hi');
 
-        expect(mockChatService.addMessage).toHaveBeenCalledTimes(2);
+        // Only 1 addMessage call (user message) — NO model message persist
+        expect(mockChatService.addMessage).toHaveBeenCalledTimes(1);
+        expect(mockChatService.addMessage).toHaveBeenCalledWith(
+            'user-1', 'chan-1', 'conv-1',
+            expect.objectContaining({ role: 'user' }),
+        );
         expect(mockAiService.sendMessage).toHaveBeenCalledOnce();
+
+        // maybeAutoTitle still called (first exchange)
+        expect(mockAiService.generateTitle).toHaveBeenCalledWith('hi', expect.any(String), 'chan-1', 'conv-1');
 
         const state = store.getState();
         expect(state.isStreaming).toBe(false);
@@ -236,12 +243,11 @@ describe('sendMessage — thinking persistence', () => {
         vi.restoreAllMocks();
     });
 
-    it('includes thinking and thinkingElapsedMs when thinking text is present', async () => {
+    it('caches thinking via session when messageId is present', async () => {
         const THINKING_TEXT = 'Let me think about this...';
 
         mockChatService.addMessage
-            .mockResolvedValueOnce({ id: 'msg-user-1', role: 'user', text: 'hi', createdAt: Timestamp.now() })
-            .mockResolvedValueOnce({ id: 'msg-ai-1', role: 'model', text: 'Hello', createdAt: Timestamp.now() });
+            .mockResolvedValueOnce({ id: 'msg-user-1', role: 'user', text: 'hi', createdAt: Timestamp.now() });
 
         mockPrepareContext.mockResolvedValueOnce({ appContext: [], persistedContext: [] });
         mockAiService.generateTitle.mockResolvedValueOnce('New Chat');
@@ -250,24 +256,28 @@ describe('sendMessage — thinking persistence', () => {
         mockAiService.sendMessage.mockImplementationOnce(async (params: Record<string, unknown>) => {
             const onThought = params.onThought as ((t: string) => void) | undefined;
             onThought?.(THINKING_TEXT);
-            return { text: 'Hello', usedSummary: false };
+            return { text: 'Hello', usedSummary: false, messageId: 'server-msg-1' };
         });
 
         const store = buildStore();
         await store.getState().sendMessage('hi');
 
-        // Second addMessage call = AI response persist
-        const aiCall = (mockChatService.addMessage as ReturnType<typeof vi.fn>).mock.calls[1];
-        const aiMsg = aiCall[3]; // 4th argument = message object
-        expect(aiMsg.thinking).toBe(THINKING_TEXT);
-        expect(aiMsg.thinkingElapsedMs).toBeTypeOf('number');
-        expect(aiMsg.thinkingElapsedMs).toBeGreaterThanOrEqual(0);
+        // No model message persist — server handles it
+        const modelCalls = (mockChatService.addMessage as ReturnType<typeof vi.fn>).mock.calls.filter(
+            (call) => call[3]?.role === 'model'
+        );
+        expect(modelCalls).toHaveLength(0);
+
+        // Thinking is cached in session using messageId from SSE done
+        const cached = getSessionThinking('server-msg-1');
+        expect(cached).not.toBeNull();
+        expect(cached?.text).toBe(THINKING_TEXT);
+        expect(cached?.elapsedMs).toBeTypeOf('number');
     });
 
-    it('does NOT include thinking fields when thinking text is empty', async () => {
+    it('does NOT cache thinking when messageId is absent (graceful degradation)', async () => {
         mockChatService.addMessage
-            .mockResolvedValueOnce({ id: 'msg-user-1', role: 'user', text: 'hi', createdAt: Timestamp.now() })
-            .mockResolvedValueOnce({ id: 'msg-ai-1', role: 'model', text: 'Hello', createdAt: Timestamp.now() });
+            .mockResolvedValueOnce({ id: 'msg-user-1', role: 'user', text: 'hi', createdAt: Timestamp.now() });
 
         mockPrepareContext.mockResolvedValueOnce({ appContext: [], persistedContext: [] });
         mockAiService.generateTitle.mockResolvedValueOnce('New Chat');
@@ -278,10 +288,11 @@ describe('sendMessage — thinking persistence', () => {
         const store = buildStore();
         await store.getState().sendMessage('hi');
 
-        const aiCall = (mockChatService.addMessage as ReturnType<typeof vi.fn>).mock.calls[1];
-        const aiMsg = aiCall[3];
-        expect(aiMsg.thinking).toBeUndefined();
-        expect(aiMsg.thinkingElapsedMs).toBeUndefined();
+        // No model message persist
+        const modelCalls = (mockChatService.addMessage as ReturnType<typeof vi.fn>).mock.calls.filter(
+            (call) => call[3]?.role === 'model'
+        );
+        expect(modelCalls).toHaveLength(0);
     });
 });
 
@@ -292,19 +303,17 @@ describe('retryLastMessage', () => {
         session.activeAbortController = null;
     });
 
-    it('does NOT call persistUserMessage (addMessage for user role) on retry', async () => {
+    it('does NOT call addMessage at all on retry (no user persist, no AI persist)', async () => {
         const AI_TEXT = 'Retry response';
 
         mockChatService.clearLastError.mockResolvedValue(undefined);
-        mockChatService.addMessage
-            // Only the AI response persist should be called
-            .mockResolvedValueOnce({ id: 'msg-ai-retry', role: 'model', text: AI_TEXT, createdAt: Timestamp.now() });
 
         mockAiService.sendMessage.mockResolvedValueOnce({
             text: AI_TEXT,
             tokenUsage: undefined,
             toolCalls: undefined,
             usedSummary: false,
+            messageId: 'server-retry-1',
         });
 
         mockAiService.generateTitle.mockResolvedValueOnce('Chat');
@@ -324,12 +333,8 @@ describe('retryLastMessage', () => {
 
         await store.getState().retryLastMessage();
 
-        // addMessage should only be called once (AI response) — never with role: 'user'
-        const userMessageCalls = (mockChatService.addMessage as ReturnType<typeof vi.fn>).mock.calls.filter(
-            (call) => call[3]?.role === 'user'
-        );
-        expect(userMessageCalls).toHaveLength(0);
-
+        // Server persists AI response — client does NOT call addMessage at all during retry
+        expect(mockChatService.addMessage).not.toHaveBeenCalled();
         expect(mockAiService.sendMessage).toHaveBeenCalledOnce();
     });
 
@@ -359,5 +364,73 @@ describe('retryLastMessage', () => {
             attachments: undefined,
             messageId: undefined,
         });
+    });
+});
+
+describe('sendMessage — abort creates ghost (no client persist)', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        session.streamingNonce = 0;
+        session.activeAbortController = null;
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    it('sets stoppedResponse ghost on DOMException AbortError without persisting', async () => {
+        mockChatService.addMessage
+            .mockResolvedValueOnce({ id: 'msg-user-1', role: 'user', text: 'hi', createdAt: Timestamp.now() });
+
+        mockPrepareContext.mockResolvedValueOnce({ appContext: [], persistedContext: [] });
+
+        // Simulate abort: mock calls onStream with partial text, then throws AbortError
+        mockAiService.sendMessage.mockImplementationOnce(async (params: Record<string, unknown>) => {
+            const onStream = params.onStream as ((t: string) => void) | undefined;
+            onStream?.('Partial AI text');
+            throw new DOMException('The operation was aborted.', 'AbortError');
+        });
+
+        const store = buildStore();
+        await store.getState().sendMessage('hi');
+
+        const state = store.getState();
+        // Ghost should be created from streaming state (captured before throw)
+        expect(state.stoppedResponse).not.toBeNull();
+        expect(state.stoppedResponse?.text).toBe('Partial AI text');
+
+        // Only user message persisted — NO model message
+        const modelCalls = (mockChatService.addMessage as ReturnType<typeof vi.fn>).mock.calls.filter(
+            (call) => call[3]?.role === 'model'
+        );
+        expect(modelCalls).toHaveLength(0);
+    });
+
+    it('confirmLargePayload path: no ChatService.addMessage with role model', async () => {
+        mockAiService.sendMessage.mockResolvedValueOnce({
+            text: 'Confirmed response',
+            usedSummary: false,
+            messageId: 'server-msg-confirmed',
+        });
+        mockAiService.generateTitle.mockResolvedValueOnce('Chat');
+
+        const store = buildStore({
+            pendingLargePayloadConfirmation: {
+                count: 20,
+                text: 'test text',
+                attachments: undefined,
+                convId: 'conv-1',
+                appContext: undefined,
+                persistedContext: undefined,
+            },
+        });
+
+        await store.getState().confirmLargePayload();
+
+        // No addMessage calls at all (not even user — already persisted earlier)
+        const modelCalls = (mockChatService.addMessage as ReturnType<typeof vi.fn>).mock.calls.filter(
+            (call) => call[3]?.role === 'model'
+        );
+        expect(modelCalls).toHaveLength(0);
     });
 });

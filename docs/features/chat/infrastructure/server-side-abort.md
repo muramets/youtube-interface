@@ -2,17 +2,13 @@
 
 ## Текущее состояние
 
-← YOU ARE HERE
-
 Server-side abort позволяет реально остановить Cloud Function при нажатии Stop в UI. Без этого механизма функция продолжает работать до полного завершения, тратя API-токены впустую.
-
-**Проблема:** Cloud Functions v2 работает на Cloud Run с HTTP/1.1. Google Cloud Load Balancer не пробрасывает client disconnect events в контейнер — `res.on('close')` не срабатывает при отключении клиента.
 
 **Решение:** Firestore `onSnapshot` как side-channel abort signal. Клиент пишет `abortRequested: true` в документ конверсации, сервер получает realtime-уведомление и вызывает `abortController.abort()`.
 
 **Latency:** ~60-150ms от клика Stop до abort на сервере.
 
-**Known bug:** после abort tool calls пропадают из persisted message. Причина — dual-writer антипаттерн: клиент пишет happy-path, сервер пишет stopped-path. SSE `writeSSE` может бросить exception после abort → server-side persist не добирается → ghost message заменяется неполным server message. Фикс: server-only writer refactor (отдельная задача).
+**Server-only writer (Stage 2 — DONE):** Сервер — единственный writer для `role: 'model'` сообщений. Клиент пишет только user messages. AI-ответы персистятся сервером через atomic Firestore batch (message + conversation updatedAt). Dual-writer anti-pattern полностью устранён — tool calls после abort больше не пропадают.
 
 ---
 
@@ -31,12 +27,15 @@ Server-side abort позволяет реально остановить Cloud F
 - [x] Client: stopped tool calls show "Cancelled" icon instead of spinner
 - [x] Server: writeSSE wrapped in try/catch (best-effort notification)
 
-### Стадия 2 — Server-Only Writer Refactor (next)
-- [ ] Server persists AI response for ALL cases (not just stopped)
-- [ ] Client removes `persistAiResponse` — relies on onSnapshot
-- [ ] Eliminates dual-writer anti-pattern
-- [ ] Fixes tool calls disappearing after abort
-- [ ] Aligns with Vercel AI SDK / Firebase best practices
+### Стадия 2 — Server-Only Writer Refactor ✅ ← YOU ARE HERE
+- [x] Server persists AI response for ALL cases (not just stopped)
+- [x] Client removes `persistAiResponse` — relies on onSnapshot
+- [x] Eliminates dual-writer anti-pattern
+- [x] Fixes tool calls disappearing after abort
+- [x] Aligns with Vercel AI SDK / Firebase best practices
+- [x] Pre-generated messageId via `db.collection().doc()` — included in SSE done
+- [x] Atomic Firestore batch: message persist + conversation updatedAt + convUpdate
+- [x] Ghost clearing hardened: count-based (newModelCount > prevModelCount)
 
 ### Стадия 3 — Production Hardening (backlog)
 - [ ] Metric: how many requests actually aborted vs completed before abort
@@ -62,9 +61,13 @@ UI Stop → ChatService.requestAbort() → Firestore write {abortRequested: true
 - **Claude:** event-driven. SDK throws via `onSignalAbort` → caught in agentic loop catch → graceful partial return with accumulated toolCalls. Same pattern as thinking timeout handler.
 
 ### Key Files
-- `functions/src/chat/aiChat.ts` — onSnapshot setup, writeSSE try/catch, abort safety net in catch
+- `functions/src/chat/aiChat.ts` — onSnapshot setup, server-only writer (batch persist), abort safety net
+- `functions/src/chat/sseWriter.ts` — SSE types (messageId in SSEDoneEvent)
+- `src/core/types/sseEvents.ts` — client SSE parser (messageId in done case)
+- `src/core/services/ai/aiProxyService.ts` — SSE stream consumer (messageId threading)
+- `src/core/stores/chat/slices/sendSlice.ts` — client send flow (no model persist)
+- `src/core/stores/chat/slices/messageSlice.ts` — ghost clearing (count-based)
 - `src/core/stores/chat/slices/streamingSlice.ts` — stopGeneration with Firestore write
-- `src/core/stores/chat/slices/messageSlice.ts` — clear ghost on server message arrival
 - `src/core/services/ai/chatService.ts` — requestAbort method
 - `src/features/Chat/components/ToolCallSummary.tsx` — stopped prop for cancelled tool display
 - `functions/src/services/claude/streamChat.ts` — abort handler in agentic loop catch

@@ -1,9 +1,9 @@
 // =============================================================================
 // Send Slice — message sending, editing, retry, enrichment flow
 //
-// All send-flow helpers (persistUserMessage, streamAiResponse, persistAiResponse,
-// maybeAutoTitle, resumeSendFlow) live here as module-level functions — they are
-// not exported, keeping the internal complexity fully encapsulated.
+// All send-flow helpers (persistUserMessage, streamAiResponse, maybeAutoTitle,
+// resumeSendFlow) live here as module-level functions — they are not exported,
+// keeping the internal complexity fully encapsulated.
 // =============================================================================
 
 import { Timestamp } from 'firebase/firestore';
@@ -20,7 +20,7 @@ import { KnowledgeCategoryService } from '../../../services/knowledge/knowledgeC
 import type { ChannelMetadata } from '../../../types/appContext';
 import type { KnowledgeCategoryEntry } from '../../../types/knowledge';
 import { debug } from '../../../utils/debug';
-import type { ChatMessage, ToolCallRecord, TokenUsage, NormalizedTokenUsage, MessageStatus } from '../../../types/chat/chat';
+import type { ChatMessage, ToolCallRecord, TokenUsage, NormalizedTokenUsage } from '../../../types/chat/chat';
 import type { ReadyAttachment } from '../../../types/chat/chatAttachment';
 import type { AppContextItem } from '../../../types/appContext';
 import type { ChatState, ActiveToolCall } from '../types';
@@ -67,7 +67,7 @@ async function streamAiResponse(
     onRetry?: (attempt: number) => void,
     systemLayers?: { settings: number; persistentContext: number; crossMemory: number },
     isConclude?: boolean,
-): Promise<{ text: string; tokenUsage?: TokenUsage; normalizedUsage?: NormalizedTokenUsage; toolCalls?: ToolCallRecord[]; usedSummary?: boolean; contextBreakdown?: import('../../../../../shared/models').ContextBreakdown }> {
+): Promise<{ text: string; tokenUsage?: TokenUsage; normalizedUsage?: NormalizedTokenUsage; toolCalls?: ToolCallRecord[]; usedSummary?: boolean; contextBreakdown?: import('../../../../../shared/models').ContextBreakdown; messageId?: string }> {
     return AiService.sendMessage({
         channelId,
         conversationId: convId,
@@ -119,31 +119,6 @@ async function streamAiResponse(
         largePayloadApproved,
         signal,
         isConclude,
-    });
-}
-
-/** Params for persisting a model response to Firestore. */
-interface PersistAiResponseParams {
-    userId: string;
-    channelId: string;
-    convId: string;
-    responseText: string;
-    model: string;
-    tokenUsage?: TokenUsage;
-    normalizedUsage?: NormalizedTokenUsage;
-    toolCalls?: ToolCallRecord[];
-    status?: MessageStatus;
-    contextBreakdown?: import('../../../../../shared/models').ContextBreakdown;
-    thinking?: string;
-    thinkingElapsedMs?: number;
-}
-
-/** Persist model response to Firestore. */
-async function persistAiResponse(params: PersistAiResponseParams): Promise<void> {
-    const { userId, channelId, convId, responseText, model, tokenUsage, normalizedUsage, toolCalls, status, contextBreakdown, thinking, thinkingElapsedMs } = params;
-    await ChatService.addMessage(userId, channelId, convId, {
-        role: 'model', text: responseText, model, tokenUsage, normalizedUsage,
-        toolCalls, status: status ?? 'complete', contextBreakdown, thinking, thinkingElapsedMs,
     });
 }
 
@@ -219,7 +194,7 @@ async function resumeSendFlow(
         if (session.streamingNonce === nonce) set(partial);
     };
 
-    const { text: responseText, tokenUsage, normalizedUsage, toolCalls, usedSummary, contextBreakdown } = await streamAiResponse(
+    const { usedSummary, messageId } = await streamAiResponse(
         channelId, convId, model, systemPrompt,
         text, attachments, thumbnailUrls, contextMeta, scopedSet, get, abortController.signal,
         get().pendingThinkingOptionId,
@@ -235,28 +210,14 @@ async function resumeSendFlow(
     const finalThinkingText = get().thinkingText;
     if (session.streamingNonce === nonce) set({ isStreaming: false, streamingText: '' });
 
-    // Compute elapsed only when thinking exists — avoids non-null assertion downstream
-    const thinkingElapsedMs = finalThinkingText ? Date.now() - session.streamStartMs : undefined;
-
-    // Persist first — thinking is now in Firestore, so onSnapshot delivers
-    // the model message with msg.thinking already set. Session cache is a
-    // redundancy layer for the current session (fallback if onSnapshot is slow).
-    await persistAiResponse({
-        userId, channelId, convId, responseText, model,
-        tokenUsage, normalizedUsage, toolCalls, contextBreakdown,
-        thinking: finalThinkingText || undefined,
-        thinkingElapsedMs,
-    });
-
-    if (finalThinkingText && thinkingElapsedMs !== undefined) {
-        const msgs = get().messages;
-        const lastModel = [...msgs].reverse().find(m => m.role === 'model');
-        if (lastModel) {
-            cacheSessionThinking(lastModel.id, {
-                text: finalThinkingText,
-                elapsedMs: thinkingElapsedMs,
-            });
-        }
+    // Server persists the AI message — client relies on onSnapshot for delivery.
+    // Session thinking cache is a redundancy layer (fallback if onSnapshot is slow).
+    if (finalThinkingText && messageId) {
+        const thinkingElapsedMs = Date.now() - session.streamStartMs;
+        cacheSessionThinking(messageId, {
+            text: finalThinkingText,
+            elapsedMs: thinkingElapsedMs,
+        });
     }
 
     maybeAutoTitle(userId, channelId, convId, text, model, isFirstExchange ?? false);

@@ -60,9 +60,12 @@ export function createMessageSlice(
                         });
                     }
                 } else {
-                    // Clear client-side ghost when server-persisted stopped message arrives via onSnapshot
-                    const shouldClearGhost = get().stoppedResponse !== null
-                        && merged.some(m => m.role === 'model' && m.status === 'stopped');
+                    // Clear client-side ghost when a NEW model message arrives via onSnapshot.
+                    // Count-based check avoids false positives from old stopped messages
+                    // (previous abort'ed messages already in Firestore).
+                    const prevModelCount = get().messages.filter(m => m.role === 'model').length;
+                    const newModelCount = merged.filter(m => m.role === 'model').length;
+                    const shouldClearGhost = get().stoppedResponse !== null && newModelCount > prevModelCount;
                     set({
                         messages: merged,
                         isLoading: false,

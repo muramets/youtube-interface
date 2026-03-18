@@ -21,6 +21,10 @@ vi.mock("firebase-functions/params", () => ({
     defineSecret: () => ({ value: () => "fake-key" }),
 }));
 
+const mockBatchSet = vi.fn();
+const mockBatchUpdate = vi.fn();
+const mockBatchCommit = vi.fn().mockResolvedValue(undefined);
+
 vi.mock("../../shared/db.js", () => {
     const mockFieldValue = {
         serverTimestamp: () => "SERVER_TIMESTAMP",
@@ -32,6 +36,7 @@ vi.mock("../../shared/db.js", () => {
         db: {
             collection: vi.fn(),
             doc: vi.fn(),
+            batch: vi.fn(() => ({ set: mockBatchSet, update: mockBatchUpdate, commit: mockBatchCommit })),
         },
     };
 });
@@ -116,10 +121,13 @@ function setupFirestoreMocks(messageDocs: ReturnType<typeof mockDoc>[], convData
     const convDoc = { data: () => convData, exists: true };
     const settingsDoc = { data: () => ({}), exists: false };
 
+    const mockMsgDocRef = { id: "pre-generated-msg-id" };
+
     // db.collection(messagesPath).orderBy().get() → messages
+    // db.collection(messagesPath).doc() → pre-generated ref for server-only writer
     mockDb.collection.mockReturnValue({
         orderBy: () => ({ get: vi.fn().mockResolvedValue(messagesSnap) }),
-        add: vi.fn().mockResolvedValue({ id: "new-msg-id" }),
+        doc: vi.fn().mockReturnValue(mockMsgDocRef),
     });
 
     // db.doc(convPath).get() → conversation doc
@@ -171,6 +179,9 @@ function makeRes() {
 describe("aiChat — toolCalls in history mapper", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        mockBatchSet.mockClear();
+        mockBatchUpdate.mockClear();
+        mockBatchCommit.mockClear().mockResolvedValue(undefined);
         streamChatResult = {};
     });
 
@@ -248,6 +259,9 @@ describe("aiChat — toolCalls in history mapper", () => {
 describe("aiChat — contextBreakdown.toolResults", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        mockBatchSet.mockClear();
+        mockBatchUpdate.mockClear();
+        mockBatchCommit.mockClear().mockResolvedValue(undefined);
         streamChatResult = {};
     });
 
@@ -320,6 +334,9 @@ describe("aiChat — contextBreakdown.toolResults", () => {
 describe("aiChat — thinking persistence", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        mockBatchSet.mockClear();
+        mockBatchUpdate.mockClear();
+        mockBatchCommit.mockClear().mockResolvedValue(undefined);
         streamChatResult = {};
     });
 
@@ -356,16 +373,9 @@ describe("aiChat — thinking persistence", () => {
         const { aiChat } = await import("../aiChat.js");
         await (aiChat as unknown as (req: unknown, res: unknown) => Promise<void>)(req, res);
 
-        // Verify stopped message was written to Firestore with thinking
-        const addCalls = mockDb.collection.mock.results
-            .map((r: { value: { add?: ReturnType<typeof vi.fn> } }) => r.value?.add)
-            .filter(Boolean);
-
-        // Find the add() call (stopped message persistence)
-        const addMock = addCalls.find((fn: ReturnType<typeof vi.fn>) => fn?.mock?.calls?.length > 0);
-        expect(addMock).toBeDefined();
-
-        const stoppedMsg = addMock!.mock.calls[0][0] as Record<string, unknown>;
+        // Verify message was persisted via batch.set with thinking
+        expect(mockBatchSet).toHaveBeenCalledTimes(1);
+        const stoppedMsg = mockBatchSet.mock.calls[0][1] as Record<string, unknown>;
         expect(stoppedMsg.thinking).toBe(THINKING);
         expect(stoppedMsg.thinkingElapsedMs).toBeTypeOf("number");
         expect(stoppedMsg.thinkingElapsedMs).toBeGreaterThanOrEqual(0);
@@ -395,14 +405,9 @@ describe("aiChat — thinking persistence", () => {
         const { aiChat } = await import("../aiChat.js");
         await (aiChat as unknown as (req: unknown, res: unknown) => Promise<void>)(req, res);
 
-        const addCalls = mockDb.collection.mock.results
-            .map((r: { value: { add?: ReturnType<typeof vi.fn> } }) => r.value?.add)
-            .filter(Boolean);
-
-        const addMock = addCalls.find((fn: ReturnType<typeof vi.fn>) => fn?.mock?.calls?.length > 0);
-        expect(addMock).toBeDefined();
-
-        const stoppedMsg = addMock!.mock.calls[0][0] as Record<string, unknown>;
+        // Server-only writer: ALL responses are persisted via batch.set
+        expect(mockBatchSet).toHaveBeenCalledTimes(1);
+        const stoppedMsg = mockBatchSet.mock.calls[0][1] as Record<string, unknown>;
         expect(stoppedMsg.thinking).toBeUndefined();
         expect(stoppedMsg.thinkingElapsedMs).toBeUndefined();
     });
@@ -482,15 +487,9 @@ describe("aiChat — thinking persistence", () => {
             .filter((call: unknown[]) => (call[1] as Record<string, unknown>)?.type === "thought");
         expect(thoughtCalls).toHaveLength(0);
 
-        // Stopped message should NOT have thinking
-        const addCalls = mockDb.collection.mock.results
-            .map((r: { value: { add?: ReturnType<typeof vi.fn> } }) => r.value?.add)
-            .filter(Boolean);
-
-        const addMock = addCalls.find((fn: ReturnType<typeof vi.fn>) => fn?.mock?.calls?.length > 0);
-        expect(addMock).toBeDefined();
-
-        const stoppedMsg = addMock!.mock.calls[0][0] as Record<string, unknown>;
-        expect(stoppedMsg.thinking).toBeUndefined();
+        // Persisted message should NOT have thinking (empty text filtered)
+        expect(mockBatchSet).toHaveBeenCalledTimes(1);
+        const persistedMsg = mockBatchSet.mock.calls[0][1] as Record<string, unknown>;
+        expect(persistedMsg.thinking).toBeUndefined();
     });
 });
