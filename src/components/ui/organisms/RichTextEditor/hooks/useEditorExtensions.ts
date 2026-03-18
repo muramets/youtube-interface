@@ -16,6 +16,7 @@ import { TabIndentation } from '../extensions/TabIndentation'
 import { CustomBlockquote } from '../extensions/CustomBlockquote'
 import { VideoRefMark } from '../extensions/VideoRefMark'
 import { VideoMention } from '../extensions/VideoMention'
+import { Details, DetailsSummary, DetailsContent } from '../extensions/DetailsNode'
 import type { VideoPreviewData } from '../../../../../features/Video/types'
 
 /**
@@ -79,9 +80,18 @@ export function useEditorExtensions(placeholder?: string, videoCatalog?: VideoPr
         // Tab key indentation for lists
         TabIndentation,
 
-        // Placeholder text
+        // Details/Spoiler collapsible blocks
+        Details,
+        DetailsSummary,
+        DetailsContent,
+
+        // Placeholder text (with per-node support for details summary)
         Placeholder.configure({
-            placeholder: placeholder || 'Write something...',
+            placeholder: ({ node }) => {
+                if (node.type.name === 'detailsSummary') return 'Spoiler title...'
+                return placeholder || 'Write something...'
+            },
+            includeChildren: true,
         }),
 
         // Text styling extensions

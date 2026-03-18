@@ -30,11 +30,51 @@ function normalizeLine(line: string): string {
 }
 
 /**
+ * Collapse <details>...</details> blocks into single lines so they're
+ * treated as atomic units in the diff (not split across multiple blocks).
+ * HTML whitespace is insignificant, so replacing \n with spaces is safe.
+ * Handles nested details via depth tracking.
+ */
+function collapseDetailsBlocks(md: string): string {
+    const lines = md.split('\n')
+    const result: string[] = []
+    let depth = 0
+    let buffer: string[] = []
+
+    for (const line of lines) {
+        const opens = (line.match(/<details/gi) || []).length
+        const closes = (line.match(/<\/details>/gi) || []).length
+
+        if (depth > 0 || opens > 0) {
+            buffer.push(line)
+            depth += opens - closes
+
+            if (depth <= 0) {
+                // trim: indented <details> (inside lists) would otherwise
+                // start with 4+ spaces → treated as code block by CommonMark
+                result.push(buffer.join(' ').trimStart())
+                buffer = []
+                depth = 0
+            }
+        } else {
+            result.push(line)
+        }
+    }
+
+    // Unclosed details — push remaining lines as-is
+    if (buffer.length > 0) result.push(...buffer)
+
+    return result.join('\n')
+}
+
+/**
  * Split markdown into non-blank lines for comparison.
- * Filters out blank lines to ignore spacing differences between serializers.
+ * Collapses <details> blocks first, then filters blank lines
+ * to ignore spacing differences between serializers.
  */
 function splitContentLines(md: string): string[] {
-    return md.replace(/\r\n/g, '\n').split('\n').filter(line => line.trim() !== '')
+    const collapsed = collapseDetailsBlocks(md)
+    return collapsed.replace(/\r\n/g, '\n').split('\n').filter(line => line.trim() !== '')
 }
 
 /**

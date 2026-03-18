@@ -169,6 +169,59 @@ export function useTurndownService(): TurndownService {
             }
         })
 
+        /**
+         * Rule: Convert details-summary div to <summary> HTML tag
+         *
+         * Preserves inner HTML (may contain inline formatting).
+         */
+        service.addRule('details-summary', {
+            filter: function (node) {
+                return (
+                    node.nodeName === 'DIV' &&
+                    (node as HTMLElement).getAttribute('data-type') === 'details-summary'
+                )
+            },
+            replacement: function (_content, node) {
+                const el = node as HTMLElement
+                return `<summary>${el.innerHTML.trim()}</summary>\n`
+            }
+        })
+
+        /**
+         * Rule: Strip details-content wrapper, pass through children as markdown
+         */
+        service.addRule('details-content', {
+            filter: function (node) {
+                return (
+                    node.nodeName === 'DIV' &&
+                    (node as HTMLElement).getAttribute('data-type') === 'details-content'
+                )
+            },
+            replacement: function (_content, node) {
+                // Use innerHTML to preserve HTML structure inside the content
+                // (markdown won't be parsed inside HTML blocks by marked)
+                const el = node as HTMLElement
+                return el.innerHTML.trim()
+            }
+        })
+
+        /**
+         * Rule: Convert details div wrapper to <details> HTML tag
+         *
+         * No blank lines inside — keeps it as a single HTML block for marked.
+         */
+        service.addRule('details-block', {
+            filter: function (node) {
+                return (
+                    node.nodeName === 'DIV' &&
+                    (node as HTMLElement).getAttribute('data-type') === 'details'
+                )
+            },
+            replacement: function (content) {
+                return `\n<details>\n${content.trim()}\n</details>\n\n`
+            }
+        })
+
         return service
     }, [])
 }

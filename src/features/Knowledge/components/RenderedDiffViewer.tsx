@@ -1,9 +1,37 @@
 import { useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import rehypeRaw from 'rehype-raw'
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
 import { computeDiffBlocks, allowCustomUrls, type DiffBlock } from '../utils/diffUtils'
 import { buildBodyComponents } from '../utils/bodyComponents'
 import type { VideoPreviewData } from '../../Video/types'
+
+/** Sanitize schema: allow vid://, details/summary, class on links/spans */
+const diffSanitizeSchema = {
+    ...defaultSchema,
+    tagNames: [...(defaultSchema.tagNames ?? []), 'details', 'summary'],
+    protocols: { ...defaultSchema.protocols, href: [...(defaultSchema.protocols?.href ?? []), 'vid', 'mention'] },
+    attributes: {
+        ...defaultSchema.attributes,
+        a: [...(defaultSchema.attributes?.a ?? []), 'className', 'class'],
+        span: [...(defaultSchema.attributes?.span ?? []), 'className', 'class'],
+        details: ['open'],
+    },
+}
+
+/**
+ * Cap leading whitespace to 2 spaces per nesting level.
+ * Prevents CommonMark from treating 4+ space lines as code blocks
+ * while preserving list nesting for sub-bullets.
+ */
+function capIndentation(content: string): string {
+    return content.replace(/^[ ]{4,}/gm, match => {
+        // Cap at 3 spaces max (CommonMark code block threshold is 4)
+        const level = Math.min(Math.round(match.length / 4), 1)
+        return '  '.repeat(level)
+    })
+}
 
 interface RenderedDiffViewerProps {
     oldContent: string
@@ -126,10 +154,11 @@ export const DiffBlockView = ({
         >
             <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
+                rehypePlugins={[rehypeRaw, [rehypeSanitize, diffSanitizeSchema]]}
                 components={components}
                 urlTransform={allowCustomUrls}
             >
-                {block.content}
+                {capIndentation(block.content)}
             </ReactMarkdown>
         </div>
     )

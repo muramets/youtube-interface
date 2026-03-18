@@ -4,7 +4,8 @@ import clsx from 'clsx'
 import {
     Bold, Italic, Underline, List, ListOrdered, Heading1, Heading2, Heading3,
     Heading4, Heading5, Heading6, Maximize, Minimize,
-    AlignLeft, AlignCenter, AlignRight, Code, SquareCode, Minus, Table as TableIcon, Bug
+    AlignLeft, AlignCenter, AlignRight, Code, SquareCode, Minus, Table as TableIcon, Bug,
+    EyeOff
 } from 'lucide-react'
 import { MenuButton } from './MenuButton'
 import { ColorPicker } from './ColorPicker'
@@ -194,6 +195,23 @@ export const MenuBar = ({
                         tooltip="Code Block"
                     >
                         <SquareCode size={16} />
+                    </MenuButton>
+
+                    <div className="w-px h-4 bg-border mx-1 shrink-0" />
+
+                    {/* Spoiler/Details block */}
+                    <MenuButton
+                        onClick={() => {
+                            if (editor.isActive('detailsSummary')) {
+                                editor.chain().focus().unsetDetails().run()
+                            } else {
+                                editor.chain().focus().setDetails().run()
+                            }
+                        }}
+                        isActive={editor.isActive('details')}
+                        tooltip="Spoiler"
+                    >
+                        <EyeOff size={16} />
                     </MenuButton>
 
                     <div className="w-px h-4 bg-border mx-1 shrink-0" />

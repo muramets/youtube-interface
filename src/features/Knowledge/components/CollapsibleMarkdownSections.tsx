@@ -15,11 +15,17 @@ import { buildBodyComponents } from '../utils/bodyComponents'
 // Parses markdown into hierarchical sections, renders each as a CollapsibleSection.
 // =============================================================================
 
-/** Sanitize schema: allow vid:// protocols + class on links/spans */
+/** Sanitize schema: allow vid:// protocols + class on links/spans + details/summary */
 const sanitizeSchema = {
     ...defaultSchema,
+    tagNames: [...(defaultSchema.tagNames ?? []), 'details', 'summary'],
     protocols: { ...defaultSchema.protocols, href: [...(defaultSchema.protocols?.href ?? []), 'vid', 'mention'] },
-    attributes: { ...defaultSchema.attributes, a: [...(defaultSchema.attributes?.a ?? []), 'className', 'class'], span: [...(defaultSchema.attributes?.span ?? []), 'className', 'class'] },
+    attributes: {
+        ...defaultSchema.attributes,
+        a: [...(defaultSchema.attributes?.a ?? []), 'className', 'class'],
+        span: [...(defaultSchema.attributes?.span ?? []), 'className', 'class'],
+        details: ['open'],
+    },
 }
 
 /** Indentation by heading level. */

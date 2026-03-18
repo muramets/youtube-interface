@@ -24,6 +24,7 @@ interface SizePreset {
     h4: string
     h5: string
     h6: string
+    summary: string
 }
 
 /** Compact: for KnowledgeCard, MemoryCheckpoint, diff panels */
@@ -45,6 +46,7 @@ const COMPACT: SizePreset = {
     h4: 'text-[11px] font-semibold mb-1 mt-2 text-text-secondary',
     h5: 'text-[10px] font-semibold mb-1 mt-1.5 text-text-tertiary',
     h6: 'text-[10px] font-medium mb-1 mt-1.5 text-text-tertiary',
+    summary: 'text-xs text-text-secondary',
 }
 
 /** Zen: for Zen Mode reading — MonkeyLearn-inspired muted tones, generous spacing */
@@ -66,6 +68,7 @@ const ZEN: SizePreset = {
     h4: 'text-[11px] font-bold mb-1 mt-2 [color:var(--zen-heading)] hover:text-text-primary transition-colors duration-200 [&_strong]:![color:inherit]',
     h5: 'text-[10px] font-bold mb-1 mt-2 [color:var(--zen-heading)] hover:text-text-primary transition-colors duration-200 [&_strong]:![color:inherit]',
     h6: 'text-[10px] font-medium mb-1 mt-2 [color:var(--zen-heading)] hover:text-text-primary transition-colors duration-200 [&_strong]:![color:inherit]',
+    summary: 'text-xs font-mono [color:var(--zen-body)]',
 }
 
 const PRESETS = { compact: COMPACT, zen: ZEN }
@@ -101,6 +104,20 @@ export function buildBodyComponents(
         table: ({ className, style, children }) => <table className={clsx(s.table, className)} style={style}>{children}</table>,
         th: ({ className, style, children }) => <th className={clsx(s.th, className)} style={style}>{children}</th>,
         td: ({ className, style, children }) => <td className={clsx(s.td, className)} style={style}>{children}</td>,
+        // Details/Summary — custom chevron matching editor style, hide native marker
+        details: ({ children }: { children?: React.ReactNode }) => (
+            <details className="pl-3 py-1 my-1 [&:not([open])_.details-read-chevron]:-rotate-90">
+                {children}
+            </details>
+        ),
+        summary: ({ children }: { children?: React.ReactNode }) => (
+            <summary className={clsx('list-none relative pl-5 cursor-pointer [&::-webkit-details-marker]:!hidden', s.summary)}>
+                <span className="details-read-chevron absolute left-0 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center text-inherit transition-all duration-200">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+                </span>
+                {children}
+            </summary>
+        ),
         a({ href, children }) {
             if (href && videoMap) {
                 const vidMatch = VID_RE.exec(href)

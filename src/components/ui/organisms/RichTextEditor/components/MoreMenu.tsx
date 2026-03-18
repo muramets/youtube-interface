@@ -3,7 +3,8 @@ import * as Popover from '@radix-ui/react-popover'
 import clsx from 'clsx'
 import {
     MoreHorizontal, Bug, Code, Minus, AlignLeft, AlignCenter, AlignRight,
-    Pilcrow, Heading1, Heading2, Heading3, Heading4, Heading5, Heading6, Table as TableIcon
+    Pilcrow, Heading1, Heading2, Heading3, Heading4, Heading5, Heading6, Table as TableIcon,
+    EyeOff
 } from 'lucide-react'
 
 /**
@@ -205,6 +206,23 @@ export const MoreMenu = ({ editor, showDebug, toggleDebug }: MoreMenuProps) => {
                         <div className="px-2 py-1 text-[10px] font-mono font-bold uppercase tracking-wider text-text-secondary opacity-50">
                             Insert
                         </div>
+
+                        <button
+                            onClick={() => {
+                                if (editor.isActive('detailsSummary')) {
+                                    editor.chain().focus().unsetDetails().run()
+                                } else {
+                                    editor.chain().focus().setDetails().run()
+                                }
+                            }}
+                            className={clsx(
+                                "flex items-center gap-2 px-2 py-1.5 hover:bg-text-secondary/10 rounded text-xs text-left",
+                                editor.isActive('details') && "text-accent bg-text-secondary/5"
+                            )}
+                        >
+                            <EyeOff size={14} className="opacity-50" />
+                            Spoiler
+                        </button>
 
                         <button
                             onClick={() => editor.chain().focus().setHorizontalRule().run()}

@@ -87,5 +87,27 @@ export const EDITOR_PROSE_CLASSES = clsx(
     '[&_blockquote.depth-3]:pl-4 [&_blockquote.depth-3]:ml-[4.5rem]',
     '[&_blockquote.depth-4]:pl-4 [&_blockquote.depth-4]:ml-[6rem]',
     '[&_blockquote.depth-5]:pl-4 [&_blockquote.depth-5]:ml-[7.5rem]',
-    '[&_blockquote.depth-6]:pl-4 [&_blockquote.depth-6]:ml-[9rem]'
+    '[&_blockquote.depth-6]:pl-4 [&_blockquote.depth-6]:ml-[9rem]',
+
+    // Details/Spoiler block — collapsible section with left border
+    '[&_[data-type="details"]]:border-l-2 [&_[data-type="details"]]:border-text-secondary/30',
+    '[&_[data-type="details"]]:pl-3 [&_[data-type="details"]]:py-2 [&_[data-type="details"]]:my-4',
+    '[&_[data-type="details"]]:rounded-r-md [&_[data-type="details"]]:bg-text-secondary/5',
+
+    // Details summary — title line with room for toggle chevron
+    '[&_[data-type="details-summary"]]:relative [&_[data-type="details-summary"]]:pl-5',
+    '[&_[data-type="details-summary"]]:font-medium [&_[data-type="details-summary"]]:text-text-secondary',
+    '[&_[data-type="details-summary"]]:cursor-text',
+
+    // Details toggle chevron — inherits summary color, vertically centered on line
+    '[&_.details-toggle-icon]:absolute [&_.details-toggle-icon]:left-0',
+    '[&_.details-toggle-icon]:top-1/2 [&_.details-toggle-icon]:-translate-y-1/2',
+    '[&_.details-toggle-icon]:flex [&_.details-toggle-icon]:items-center [&_.details-toggle-icon]:justify-center',
+    '[&_.details-toggle-icon]:w-5 [&_.details-toggle-icon]:h-5',
+    '[&_.details-toggle-icon]:cursor-pointer [&_.details-toggle-icon]:transition-all [&_.details-toggle-icon]:duration-200',
+    '[&_.details-toggle-icon]:text-inherit [&_.details-toggle-icon]:z-modal',
+    '[&_.details-toggle-closed]:-rotate-90',
+
+    // Details content spacing
+    '[&_[data-type="details-content"]]:mt-2'
 )
