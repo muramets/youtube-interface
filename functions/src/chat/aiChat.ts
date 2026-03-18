@@ -20,6 +20,7 @@ import { TOOL_DECLARATIONS, CONCLUDE_TOOL_DECLARATIONS } from "../services/tools
 import type { StreamCallbacks, AttachmentRef, ToolCallRecord } from "../services/ai/types.js";
 import { AiStreamTimeoutError } from "../services/ai/retry.js";
 import { writeSSE } from "./sseWriter.js";
+import { deepStripUndefined } from "./helpers.js";
 import type { ContextBreakdown, AuxiliaryCost } from "../shared/models.js";
 import { estimateImageTokens } from "../shared/imageTokens.js";
 import { formatContextLabel } from "../services/memory.js";
@@ -442,21 +443,24 @@ export const aiChat = onRequest(
             const afterTasks: Promise<unknown>[] = [];
 
             // --- Server-only writer: persist AI message for ALL cases (complete + stopped) ---
-            const msg: Record<string, unknown> = {
+            // Build message object, then deepStripUndefined to remove nested undefined
+            // values that Firestore Admin SDK rejects (e.g. tool results, normalizedUsage).
+            const rawMsg: Record<string, unknown> = {
                 role: 'model',
                 text: responseText,
                 model,
                 status: messageStatus,
-                createdAt: admin.firestore.FieldValue.serverTimestamp(),
             };
-            if (tokenUsage) msg.tokenUsage = tokenUsage;
-            if (normalizedUsage) msg.normalizedUsage = normalizedUsage;
-            if (persistToolCalls) msg.toolCalls = persistToolCalls;
-            msg.contextBreakdown = contextBreakdown;
+            if (tokenUsage) rawMsg.tokenUsage = tokenUsage;
+            if (normalizedUsage) rawMsg.normalizedUsage = normalizedUsage;
+            if (persistToolCalls) rawMsg.toolCalls = persistToolCalls;
+            rawMsg.contextBreakdown = contextBreakdown;
             if (thinkingAccumulator) {
-                msg.thinking = thinkingAccumulator;
-                msg.thinkingElapsedMs = firstThoughtTs ? Date.now() - firstThoughtTs : 0;
+                rawMsg.thinking = thinkingAccumulator;
+                rawMsg.thinkingElapsedMs = firstThoughtTs ? Date.now() - firstThoughtTs : 0;
             }
+            const msg = deepStripUndefined(rawMsg) as Record<string, unknown>;
+            msg.createdAt = admin.firestore.FieldValue.serverTimestamp();
 
             // Conversation doc update — merge ALL fields into one batch.update()
             const convUpdate: Record<string, unknown> = {

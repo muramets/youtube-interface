@@ -638,7 +638,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                 <div className="chat-message flex flex-col max-w-[85%] self-start mb-2 opacity-60">
                     <div className={`${MSG_BUBBLE_MODEL} border border-border`}>
                         {stoppedResponse.thinking && (
-                            <ThinkingBubble text={stoppedResponse.thinking} isStreaming={false} />
+                            <ThinkingBubble text={stoppedResponse.thinking} isStreaming={false} initialElapsedMs={stoppedResponse.thinkingElapsedMs} />
                         )}
                         {stoppedResponse.toolCalls.length > 0 && (
                             <ToolCallSummary toolCalls={stoppedResponse.toolCalls} videoMap={referenceVideoMap} stopped />

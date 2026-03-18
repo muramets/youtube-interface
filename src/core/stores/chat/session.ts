@@ -45,6 +45,9 @@ export const session = {
 
     /** Timestamp when the current streaming response started (for thinking elapsed calc). */
     streamStartMs: 0,
+
+    /** Timestamp when the first thinking token arrived (0 = no thinking yet). */
+    thinkingStartMs: 0,
 };
 
 /**
@@ -60,5 +63,6 @@ export function startStreamingSession(
     const nonce = ++session.streamingNonce;
     set({ isStreaming: true, streamingText: '', retryAttempt: 0, activeToolCalls: [], thinkingText: '', stoppedResponse: null, error: null, lastFailedRequest: null });
     session.streamStartMs = Date.now();
+    session.thinkingStartMs = 0;
     return { nonce, controller };
 }

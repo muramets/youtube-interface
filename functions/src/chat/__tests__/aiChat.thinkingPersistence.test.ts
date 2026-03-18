@@ -46,10 +46,14 @@ vi.mock("../../shared/auth.js", () => ({
     verifyChannelAccess: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("../helpers.js", () => ({
-    logAiUsage: vi.fn().mockResolvedValue(undefined),
-    MAX_TEXT_LENGTH: 100_000,
-}));
+vi.mock("../helpers.js", async () => {
+    const actual = await vi.importActual<Record<string, unknown>>("../helpers.js");
+    return {
+        logAiUsage: vi.fn().mockResolvedValue(undefined),
+        MAX_TEXT_LENGTH: 100_000,
+        deepStripUndefined: actual.deepStripUndefined,
+    };
+});
 
 vi.mock("../../config/models.js", () => ({
     ALLOWED_MODEL_IDS: new Set(["gemini-2.0-flash"]),

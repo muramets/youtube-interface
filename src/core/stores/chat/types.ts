@@ -54,7 +54,7 @@ export interface ChatState {
     activeToolCalls: ActiveToolCall[]; // tool calls in current streaming response (transient)
     thinkingText: string; // thinking text in current streaming response (transient)
     /** Ghost message — partial AI response preserved after user clicks Stop. Session-only, never sent to API. */
-    stoppedResponse: { text: string; thinking: string; toolCalls: ActiveToolCall[]; model: string } | null;
+    stoppedResponse: { text: string; thinking: string; toolCalls: ActiveToolCall[]; model: string; thinkingElapsedMs?: number } | null;
     error: string | null;
     hasMoreMessages: boolean;
     hasMoreConversations: boolean;

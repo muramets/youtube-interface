@@ -111,6 +111,7 @@ async function streamAiResponse(
             });
         },
         onThought: (thought) => {
+            if (!session.thinkingStartMs) session.thinkingStartMs = Date.now();
             const prev = get().thinkingText;
             set({ thinkingText: prev + thought });
         },
@@ -213,7 +214,7 @@ async function resumeSendFlow(
     // Server persists the AI message — client relies on onSnapshot for delivery.
     // Session thinking cache is a redundancy layer (fallback if onSnapshot is slow).
     if (finalThinkingText && messageId) {
-        const thinkingElapsedMs = Date.now() - session.streamStartMs;
+        const thinkingElapsedMs = Date.now() - (session.thinkingStartMs || session.streamStartMs);
         cacheSessionThinking(messageId, {
             text: finalThinkingText,
             elapsedMs: thinkingElapsedMs,
@@ -307,12 +308,14 @@ export function createSendSlice(
                     // User stopped generation — preserve partial response as ghost message (session-only, never sent to API)
                     const { streamingText: partial, thinkingText: thinking, activeToolCalls: toolCalls } = get();
                     if (partial || thinking || toolCalls.length > 0) {
+                        const elapsed = thinking ? Date.now() - (session.thinkingStartMs || session.streamStartMs) : undefined;
                         set({
                             stoppedResponse: {
                                 text: partial,
                                 thinking,
                                 toolCalls,
                                 model: resolveModel(aiSettings, projects, activeProjectId, undefined, undefined),
+                                thinkingElapsedMs: elapsed,
                             },
                         });
                     }
@@ -392,7 +395,8 @@ export function createSendSlice(
                 if (err instanceof DOMException && err.name === 'AbortError') {
                     const { streamingText: partial, thinkingText: thinking, activeToolCalls: toolCalls, aiSettings, projects, activeProjectId } = get();
                     if (partial || thinking || toolCalls.length > 0) {
-                        set({ stoppedResponse: { text: partial, thinking, toolCalls, model: resolveModel(aiSettings, projects, activeProjectId, undefined, undefined) } });
+                        const elapsed = thinking ? Date.now() - (session.thinkingStartMs || session.streamStartMs) : undefined;
+                        set({ stoppedResponse: { text: partial, thinking, toolCalls, model: resolveModel(aiSettings, projects, activeProjectId, undefined, undefined), thinkingElapsedMs: elapsed } });
                     }
                 } else {
                     const errorMessage = err instanceof Error ? err.message : 'Failed to get AI response';
@@ -444,7 +448,8 @@ export function createSendSlice(
                 if (err instanceof DOMException && err.name === 'AbortError') {
                     const { streamingText: partial, thinkingText: thinking, activeToolCalls: toolCalls, aiSettings: s, projects: p, activeProjectId: pid } = get();
                     if (partial || thinking || toolCalls.length > 0) {
-                        set({ stoppedResponse: { text: partial, thinking, toolCalls, model: resolveModel(s, p, pid, undefined, undefined) } });
+                        const elapsed = thinking ? Date.now() - (session.thinkingStartMs || session.streamStartMs) : undefined;
+                        set({ stoppedResponse: { text: partial, thinking, toolCalls, model: resolveModel(s, p, pid, undefined, undefined), thinkingElapsedMs: elapsed } });
                     }
                 } else {
                     const errorMessage = err instanceof Error ? err.message : 'Failed to get AI response';
