@@ -17,6 +17,8 @@ import type { AppContextItem } from '../../types/appContext';
 /** Transient tool call entry tracked during streaming — extends ToolCallRecord with optional progress. */
 export interface ActiveToolCall extends ToolCallRecord {
     progressMessage?: string;
+    /** True while the model is generating tool call JSON — pill shown in "preparing" state. */
+    preparing?: boolean;
     /** Unique index assigned per tool call within a streaming response — used for precise matching. */
     _callIndex: number;
 }

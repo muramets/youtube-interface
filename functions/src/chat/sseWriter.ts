@@ -11,6 +11,7 @@ import type { NormalizedTokenUsage, ContextBreakdown } from "../shared/models.js
 // --- SSE event types (server-side mirror of client SSEEvent union) ---
 
 type SSEChunkEvent = { type: "chunk"; text: string };
+type SSEToolCallStartEvent = { type: "toolCallStart"; name: string; toolCallIndex: number };
 type SSEToolCallEvent = { type: "toolCall"; name: string; args: Record<string, unknown>; toolCallIndex: number };
 type SSEToolResultEvent = { type: "toolResult"; name: string; result: Record<string, unknown>; toolCallIndex: number };
 type SSEThoughtEvent = { type: "thought"; text: string };
@@ -35,6 +36,7 @@ type SSEHeartbeatEvent = { type: "heartbeat" };
 
 export type SSEEvent =
     | SSEChunkEvent
+    | SSEToolCallStartEvent
     | SSEToolCallEvent
     | SSEToolResultEvent
     | SSEThoughtEvent

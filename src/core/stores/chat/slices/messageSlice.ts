@@ -65,11 +65,17 @@ export function createMessageSlice(
                     // (previous abort'ed messages already in Firestore).
                     const prevModelCount = get().messages.filter(m => m.role === 'model').length;
                     const newModelCount = merged.filter(m => m.role === 'model').length;
-                    const shouldClearGhost = get().stoppedResponse !== null && newModelCount > prevModelCount;
+                    const hasNewModelMessage = newModelCount > prevModelCount;
+                    const shouldClearGhost = get().stoppedResponse !== null && hasNewModelMessage;
+                    // When onSnapshot delivers the persisted AI message while streaming is
+                    // still active, clear streaming state atomically — prevents a flash of
+                    // duplicate content (streaming bubble + persisted message both visible).
+                    const shouldClearStreaming = get().isStreaming && hasNewModelMessage;
                     set({
                         messages: merged,
                         isLoading: false,
                         ...(shouldClearGhost ? { stoppedResponse: null } : {}),
+                        ...(shouldClearStreaming ? { isStreaming: false, streamingText: '', activeToolCalls: [], thinkingText: '' } : {}),
                     });
                 }
             });

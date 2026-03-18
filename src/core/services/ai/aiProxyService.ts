@@ -20,6 +20,8 @@ interface StreamChatOpts {
     thumbnailUrls?: string[];
     contextMeta?: { videoCards?: number; trafficSources?: number; canvasNodes?: number; totalItems?: number };
     onStream: (fullText: string) => void;
+    /** Called as soon as the model starts generating a tool call (before JSON args are ready). */
+    onToolCallStart?: (name: string, toolCallIndex: number) => void;
     /** Called when the AI model initiates a tool call (before execution). */
     onToolCall?: (name: string, args: Record<string, unknown>, toolCallIndex: number) => void;
     /** Called after a tool finishes executing with its result. */
@@ -71,6 +73,7 @@ export async function streamChat(opts: StreamChatOpts): Promise<AiChatResult> {
         thumbnailUrls,
         contextMeta,
         onStream,
+        onToolCallStart,
         onToolCall,
         onToolResult,
         onToolProgress,
@@ -218,6 +221,9 @@ export async function streamChat(opts: StreamChatOpts): Promise<AiChatResult> {
                     case 'chunk':
                         currentStreamTimeout = STREAM_TIMEOUT_MS;
                         onStream(sseEvent.text);
+                        break;
+                    case 'toolCallStart':
+                        onToolCallStart?.(sseEvent.name, sseEvent.toolCallIndex);
                         break;
                     case 'toolCall':
                         onToolCall?.(sseEvent.name, sseEvent.args, sseEvent.toolCallIndex);

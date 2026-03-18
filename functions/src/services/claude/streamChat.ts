@@ -614,6 +614,7 @@ export async function streamChat(
                 callbacks,
                 signal,
                 fullTextBefore: fullText,
+                toolCallStartIndex: allToolCalls.length,
             }),
             {
                 maxRetries: MAX_STREAM_RETRIES,
@@ -931,6 +932,8 @@ interface StreamIterationOpts {
     callbacks: StreamCallbacks;
     signal?: AbortSignal;
     fullTextBefore: string;
+    /** Global tool call index offset — so toolCallStart indices match later toolCall/toolResult indices. */
+    toolCallStartIndex: number;
 }
 
 interface StreamIterationResult {
@@ -975,9 +978,11 @@ async function streamIteration(
         callbacks,
         signal,
         fullTextBefore,
+        toolCallStartIndex,
     } = opts;
 
     let iterationText = "";
+    let localToolCount = 0;
     let fullText = fullTextBefore;
     let tokenUsage: TokenUsage | undefined;
     let thinkingChars = 0;
@@ -1057,6 +1062,23 @@ async function streamIteration(
                     const usage = message.usage as unknown as Record<string, unknown>;
                     earlyCacheRead = usage.cache_read_input_tokens as number | undefined;
                     earlyCacheWrite = usage.cache_creation_input_tokens as number | undefined;
+                }
+            });
+
+            // "streamEvent" fires for every raw SSE event — we catch content_block_start
+            // for tool_use blocks to emit onToolCallStart BEFORE the JSON is generated.
+            // This eliminates the 2+ min UI gap between thinking and tool pill.
+            stream.on("streamEvent", (event) => {
+                if (
+                    event.type === "content_block_start" &&
+                    event.content_block.type === "tool_use"
+                ) {
+                    resetTimer();
+                    callbacks.onToolCallStart?.(
+                        event.content_block.name,
+                        toolCallStartIndex + localToolCount,
+                    );
+                    localToolCount++;
                 }
             });
 

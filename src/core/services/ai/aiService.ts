@@ -100,6 +100,7 @@ export const AiService = {
         thumbnailUrls?: string[];
         contextMeta?: { videoCards?: number; trafficSources?: number; canvasNodes?: number; totalItems?: number };
         onStream?: (chunk: string) => void;
+        onToolCallStart?: (name: string, toolCallIndex: number) => void;
         onToolCall?: (name: string, args: Record<string, unknown>, toolCallIndex: number) => void;
         onToolResult?: (name: string, result: Record<string, unknown>, toolCallIndex: number) => void;
         onToolProgress?: (toolName: string, message: string, toolCallIndex: number) => void;
@@ -122,6 +123,7 @@ export const AiService = {
             thumbnailUrls: opts.thumbnailUrls,
             contextMeta: opts.contextMeta,
             onStream: opts.onStream || (() => { }),
+            onToolCallStart: opts.onToolCallStart,
             onToolCall: opts.onToolCall,
             onToolResult: opts.onToolResult,
             onToolProgress: opts.onToolProgress,

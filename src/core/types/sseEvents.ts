@@ -23,6 +23,7 @@ export type SSETokenUsage = TokenUsage;
 
 export type SSEEvent =
     | SSEChunkEvent
+    | SSEToolCallStartEvent
     | SSEToolCallEvent
     | SSEToolResultEvent
     | SSEThoughtEvent
@@ -36,6 +37,12 @@ export type SSEEvent =
 export interface SSEChunkEvent {
     type: 'chunk';
     text: string;
+}
+
+export interface SSEToolCallStartEvent {
+    type: 'toolCallStart';
+    name: string;
+    toolCallIndex: number;
 }
 
 export interface SSEToolCallEvent {
@@ -111,6 +118,12 @@ export function parseSSEEvent(data: string): SSEEvent | null {
         switch (type) {
             case 'chunk':
                 return { type: 'chunk', text: parsed.text as string };
+            case 'toolCallStart':
+                return {
+                    type: 'toolCallStart',
+                    name: parsed.name as string,
+                    toolCallIndex: (parsed.toolCallIndex as number) ?? 0,
+                };
             case 'toolCall':
                 return {
                     type: 'toolCall',

@@ -16,6 +16,7 @@ function makeGroup(overrides: Partial<ToolCallGroup> & { toolName: string }): To
         videoIds: [],
         allResolved: true,
         hasErrors: false,
+        preparing: false,
         ...overrides,
     };
 }

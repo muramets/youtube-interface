@@ -88,9 +88,24 @@ async function streamAiResponse(
         contextMeta,
         thinkingOptionId: thinkingOptionId || undefined,
         onStream: (chunk) => set({ streamingText: chunk }),
+        onToolCallStart: (name, toolCallIndex) => {
+            const prev = get().activeToolCalls;
+            set({ activeToolCalls: [...prev, { name, args: {}, preparing: true, _callIndex: toolCallIndex }] });
+        },
         onToolCall: (name, args, toolCallIndex) => {
             const prev = get().activeToolCalls;
-            set({ activeToolCalls: [...prev, { name, args, _callIndex: toolCallIndex }] });
+            const existing = prev.find((tc: ActiveToolCall) => tc._callIndex === toolCallIndex);
+            if (existing) {
+                // Update the preparing entry with full args
+                set({
+                    activeToolCalls: prev.map((tc: ActiveToolCall) =>
+                        tc._callIndex === toolCallIndex ? { ...tc, name, args, preparing: false } : tc
+                    ),
+                });
+            } else {
+                // Fallback: no toolCallStart received (e.g. Gemini provider)
+                set({ activeToolCalls: [...prev, { name, args, _callIndex: toolCallIndex }] });
+            }
         },
         onToolResult: (_name, result, toolCallIndex) => {
             const prev = get().activeToolCalls;

@@ -16,12 +16,14 @@ export interface ToolCallGroup {
     videoIds: string[];
     allResolved: boolean;
     hasErrors: boolean;
+    /** True when any unresolved record is in "preparing" state (model generating tool JSON). */
+    preparing: boolean;
 }
 
 // --- Grouping ---
 
 /** Group tool call records by tool name and extract video IDs. */
-export function groupToolCalls(toolCalls: ToolCallRecord[]): ToolCallGroup[] {
+export function groupToolCalls(toolCalls: Array<ToolCallRecord & { preparing?: boolean }>): ToolCallGroup[] {
     const map = new Map<string, ToolCallRecord[]>();
 
     for (const tc of toolCalls) {
@@ -44,6 +46,7 @@ export function groupToolCalls(toolCalls: ToolCallRecord[]): ToolCallGroup[] {
             videoIds,
             allResolved: records.every(r => r.result !== undefined),
             hasErrors: records.some(r => r.result?.error != null),
+            preparing: records.some(r => !r.result && (r as ToolCallRecord & { preparing?: boolean }).preparing),
         });
     }
 
@@ -328,6 +331,17 @@ export function getGroupLabel(group: ToolCallGroup): string {
         return `Knowledge: ${parts.join(', ')}`;
     }
 
+    if (group.toolName === 'editKnowledge') {
+        if (group.hasErrors) return "Couldn't edit knowledge";
+        if (!group.allResolved) return group.preparing ? 'Editing knowledge...' : 'Editing knowledge...';
+        const result = group.records[0]?.result;
+        const content = result?.content as string | undefined;
+        // Result content is "Knowledge Item updated: {title} [id: ...]"
+        const titleMatch = content?.match(/^Knowledge Item updated:\s*(.+?)\s*\[id:/);
+        const title = titleMatch?.[1];
+        return title ? `Edited: "${title}"` : 'Knowledge updated';
+    }
+
     if (group.toolName === 'listKnowledge') {
         if (group.hasErrors) return "Couldn't load knowledge";
         if (!group.allResolved) return 'Loading knowledge...';
@@ -350,10 +364,14 @@ export function getGroupLabel(group: ToolCallGroup): string {
     return group.allResolved ? group.toolName : `Running ${group.toolName}...`;
 }
 
+/** Tools with inline expanded content (not driven by videoIds or StatsComponent). */
+const INLINE_EXPANDABLE_TOOLS = new Set(['saveKnowledge', 'editKnowledge', 'saveMemory']);
+
 /** Whether a group should be expandable (has video previews to show, or has result details). */
 export function isExpandable(group: ToolCallGroup): boolean {
     const config = getToolConfig(group.toolName);
     if (!config?.hasExpandableContent) return false;
+    if (INLINE_EXPANDABLE_TOOLS.has(group.toolName)) return group.allResolved;
     return group.allResolved && (group.videoIds.length > 0 || !!config.StatsComponent);
 }
 

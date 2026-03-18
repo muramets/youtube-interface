@@ -108,5 +108,8 @@ export async function handleEditKnowledge(
     return {
         content: `Knowledge Item updated: ${title} [id: ${kiId}]`,
         id: kiId,
+        title,
+        category: (kiData.category as string) || undefined,
+        contentLength: content.length,
     };
 }

@@ -121,6 +121,8 @@ export interface ToolDefinition {
 export interface StreamCallbacks {
     /** Called on each text chunk with the full accumulated text so far. */
     onChunk: (fullText: string) => void;
+    /** Called as soon as the model starts generating a tool call (before JSON args are ready). */
+    onToolCallStart?: (name: string, index: number) => void;
     /** Called when the model initiates a tool call (before execution). */
     onToolCall?: (name: string, args: Record<string, unknown>, index: number) => void;
     /** Called after a tool finishes executing with its result. */

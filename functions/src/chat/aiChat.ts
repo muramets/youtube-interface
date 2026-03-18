@@ -212,6 +212,9 @@ export const aiChat = onRequest(
                 onChunk: (fullText) => {
                     writeSSE(res, { type: "chunk", text: fullText });
                 },
+                onToolCallStart: (name, toolCallIndex) => {
+                    writeSSE(res, { type: "toolCallStart", name, toolCallIndex });
+                },
                 onToolCall: (name, args, toolCallIndex) => {
                     writeSSE(res, { type: "toolCall", name, args, toolCallIndex });
                 },

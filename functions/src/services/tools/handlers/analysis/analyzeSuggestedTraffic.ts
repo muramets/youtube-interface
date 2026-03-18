@@ -113,7 +113,7 @@ export async function handleAnalyzeSuggestedTraffic(
 
     // --- Step 2: Download all CSVs from Cloud Storage in parallel -----------
 
-    ctx.reportProgress?.("Загружаю CSV снапшоты...");
+    ctx.reportProgress?.("Loading CSV snapshots...");
 
     const bucket = admin.storage().bucket();
 
@@ -155,7 +155,7 @@ export async function handleAnalyzeSuggestedTraffic(
 
     // --- Step 4: Build per-video timelines ----------------------------------
 
-    ctx.reportProgress?.("Строю timeline по всем снапшотам...");
+    ctx.reportProgress?.("Building timeline across all snapshots...");
 
     const snapshotDates = snapshots.map(
         (snap) => new Date(snap.timestamp).toISOString().split("T")[0],
@@ -251,7 +251,7 @@ export async function handleAnalyzeSuggestedTraffic(
         undefined;
 
     if (includeContentAnalysis && topSources.length > 0) {
-        ctx.reportProgress?.("Анализирую теги и ключевые слова...");
+        ctx.reportProgress?.("Analyzing tags and keywords...");
 
         const topVideoIds = topSources.slice(0, 30).map((s) => s.videoId);
         const cachedRefs = topVideoIds.map((id) =>
