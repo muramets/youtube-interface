@@ -156,6 +156,8 @@ Server-side inactivity timeout + per-iteration retry loop + frontend progressive
 - [x] Provider-specific transient detection (Gemini: 503; Claude: 529/500/503)
 - [x] Unit tests для retry logic
 
+**Расширение:** [Thinking Timeout Resilience](./thinking-timeout-resilience.md) — dynamic timeout 90s→600s при extended thinking, SSE heartbeat, partial thinking persistence.
+
 ### Стадия 2 — Telemetry & Alerting
 
 **Бизнес-цель:** знать, как часто и какие модели зависают, до того как это заметит пользователь.

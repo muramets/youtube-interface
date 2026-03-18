@@ -12,7 +12,7 @@
 // All external dependencies are mocked — no live Anthropic API key needed.
 // =============================================================================
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { TokenUsage } from "../../ai/types.js";
 
 // ---------------------------------------------------------------------------
@@ -905,7 +905,7 @@ describe("Claude streamChat — retry logic", () => {
         expect(result.text).toBe("Recovered");
     });
 
-    it("retries on AiStreamTimeoutError", async () => {
+    it("retries on AiStreamTimeoutError with hadThinkingProgress=false (default)", async () => {
         const onRetry = vi.fn();
         const mockMessagesStream = vi.fn();
 
@@ -913,7 +913,7 @@ describe("Claude streamChat — retry logic", () => {
             messages: { stream: mockMessagesStream },
         } as never);
 
-        // First call: stream emits AiStreamTimeoutError
+        // First call: stream emits AiStreamTimeoutError (no thinking progress — retryable)
         mockMessagesStream.mockImplementationOnce(() => {
             const stream = buildMockStream([
                 { event: "error", data: new AiStreamTimeoutError("Timed out") },
@@ -938,6 +938,33 @@ describe("Claude streamChat — retry logic", () => {
 
         expect(onRetry).toHaveBeenCalledTimes(1);
         expect(result.text).toBe("After timeout");
+    });
+
+    it("does NOT retry AiStreamTimeoutError when hadThinkingProgress=true — returns partial", async () => {
+        const onRetry = vi.fn();
+        const mockMessagesStream = vi.fn();
+
+        mockGetClaudeClient.mockResolvedValue({
+            messages: { stream: mockMessagesStream },
+        } as never);
+
+        // Stream emits thinking timeout — hadThinkingProgress=true → NOT transient → NOT retried
+        // streamChat catches it and returns partial result
+        mockMessagesStream.mockImplementationOnce(() => {
+            const stream = buildMockStream([
+                { event: "error", data: new AiStreamTimeoutError("Thinking timeout", { hadThinkingProgress: true }) },
+            ]);
+            stream._run();
+            return stream;
+        });
+
+        const result = await streamChat(makeOptsWithCallbacks({ onRetry }));
+
+        // Should NOT retry
+        expect(onRetry).not.toHaveBeenCalled();
+        expect(mockMessagesStream).toHaveBeenCalledTimes(1);
+        // Returns partial result instead of throwing
+        expect(result.partial).toBe(true);
     });
 });
 
@@ -1881,5 +1908,286 @@ describe("Claude streamChat — buildHistory tool reconstruction", () => {
                 }
             }
         }
+    });
+});
+
+// ===========================================================================
+// Suite H: Dynamic timeout + heartbeat during thinking
+// ===========================================================================
+
+describe("Claude streamChat — thinking timeout resilience", () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    it("escalates timeout to 600s after first thinking event — no timeout at 90s", async () => {
+        const mockMessagesStream = vi.fn();
+        mockGetClaudeClient.mockResolvedValue({
+            messages: { stream: mockMessagesStream },
+        } as never);
+
+        // Stream: message → thinking → (100s gap) → text → finalMessage → end
+        // Without escalation, 100s gap would exceed 90s default timeout
+        mockMessagesStream.mockImplementationOnce(() => {
+            const handlers: Record<string, EventHandler[]> = {};
+            const stream = {
+                on(event: string, handler: EventHandler) {
+                    if (!handlers[event]) handlers[event] = [];
+                    handlers[event].push(handler);
+                    return stream;
+                },
+            };
+            setTimeout(() => {
+                handlers["message"]?.forEach(h => h({ usage: { input_tokens: 100 } }));
+            }, 100);
+            setTimeout(() => {
+                handlers["thinking"]?.forEach(h => h("Let me think deeply..."));
+            }, 200);
+            setTimeout(() => {
+                handlers["contentBlock"]?.forEach(h => h({ type: "thinking", thinking: "Let me think deeply...", signature: "sig" }));
+            }, 200);
+            // 100s gap — exceeds 90s default, within 600s escalated
+            setTimeout(() => {
+                handlers["text"]?.forEach(h => h("Answer"));
+            }, 100_200);
+            setTimeout(() => {
+                handlers["contentBlock"]?.forEach(h => h({ type: "text", text: "Answer" }));
+            }, 100_200);
+            setTimeout(() => {
+                handlers["finalMessage"]?.forEach(h => h({ usage: { input_tokens: 100, output_tokens: 20 } }));
+            }, 100_300);
+            setTimeout(() => {
+                handlers["end"]?.forEach(h => h(undefined));
+            }, 100_400);
+            return stream;
+        });
+
+        const resultPromise = streamChat(makeOpts());
+        await vi.advanceTimersByTimeAsync(110_000);
+        const result = await resultPromise;
+        expect(result.text).toBe("Answer");
+    });
+
+    it("de-escalates timeout to 90s after text event follows thinking", async () => {
+        const mockMessagesStream = vi.fn();
+        mockGetClaudeClient.mockResolvedValue({
+            messages: { stream: mockMessagesStream },
+        } as never);
+
+        // Stream: thinking → text (quickly) → then 95s silence → timeout at de-escalated 90s
+        // Since hadThinkingEvents is still true, streamChat returns partial (not throws)
+        mockMessagesStream.mockImplementationOnce(() => {
+            const handlers: Record<string, EventHandler[]> = {};
+            const stream = {
+                on(event: string, handler: EventHandler) {
+                    if (!handlers[event]) handlers[event] = [];
+                    handlers[event].push(handler);
+                    return stream;
+                },
+            };
+            setTimeout(() => {
+                handlers["message"]?.forEach(h => h({ usage: { input_tokens: 100 } }));
+            }, 100);
+            setTimeout(() => {
+                handlers["thinking"]?.forEach(h => h("Quick thought"));
+            }, 200);
+            setTimeout(() => {
+                handlers["text"]?.forEach(h => h("Start"));
+            }, 1200);
+            // No 'end' event — stream will timeout after 90s from last text event
+            return stream;
+        });
+
+        const resultPromise = streamChat(makeOpts());
+        await vi.advanceTimersByTimeAsync(97_000);
+
+        // Returns partial (thinking was active earlier) — de-escalated timeout fires at 90s
+        const result = await resultPromise;
+        expect(result.partial).toBe(true);
+        // Text "Start" was inside streamIteration (which threw), not propagated to outer scope
+        expect(result.text).toBe("");
+    });
+
+    it("returns partial result with earlyInputTokens on thinking timeout", async () => {
+        const mockMessagesStream = vi.fn();
+        mockGetClaudeClient.mockResolvedValue({
+            messages: { stream: mockMessagesStream },
+        } as never);
+
+        // Stream: thinking event, then silence → 600s timeout → partial result (not throw)
+        mockMessagesStream.mockImplementationOnce(() => {
+            const handlers: Record<string, EventHandler[]> = {};
+            const stream = {
+                on(event: string, handler: EventHandler) {
+                    if (!handlers[event]) handlers[event] = [];
+                    handlers[event].push(handler);
+                    return stream;
+                },
+            };
+            setTimeout(() => {
+                handlers["message"]?.forEach(h => h({ usage: { input_tokens: 500, cache_read_input_tokens: 200 } }));
+            }, 100);
+            setTimeout(() => {
+                handlers["thinking"]?.forEach(h => h("Deep thinking..."));
+            }, 200);
+            // No end — will timeout at 600s
+            return stream;
+        });
+
+        const resultPromise = streamChat(makeOpts());
+        await vi.advanceTimersByTimeAsync(700_000);
+
+        const result = await resultPromise;
+        expect(result.partial).toBe(true);
+        expect(result.text).toBe("");
+        // tokenUsage built from earlyInputTokens
+        expect(result.tokenUsage?.promptTokens).toBe(500);
+        expect(result.tokenUsage?.cachedTokens).toBe(200);
+    });
+
+    it("calls onHeartbeat during thinking silence", async () => {
+        const onHeartbeat = vi.fn();
+        const mockMessagesStream = vi.fn();
+        mockGetClaudeClient.mockResolvedValue({
+            messages: { stream: mockMessagesStream },
+        } as never);
+
+        // Stream: thinking → 120s silence → text → end
+        mockMessagesStream.mockImplementationOnce(() => {
+            const handlers: Record<string, EventHandler[]> = {};
+            const stream = {
+                on(event: string, handler: EventHandler) {
+                    if (!handlers[event]) handlers[event] = [];
+                    handlers[event].push(handler);
+                    return stream;
+                },
+            };
+            setTimeout(() => {
+                handlers["message"]?.forEach(h => h({ usage: { input_tokens: 100 } }));
+            }, 100);
+            setTimeout(() => {
+                handlers["thinking"]?.forEach(h => h("Thinking..."));
+            }, 200);
+            // Text at 120s
+            setTimeout(() => {
+                handlers["text"]?.forEach(h => h("Answer"));
+            }, 120_000);
+            setTimeout(() => {
+                handlers["contentBlock"]?.forEach(h => h({ type: "text", text: "Answer" }));
+            }, 120_000);
+            setTimeout(() => {
+                handlers["finalMessage"]?.forEach(h => h({ usage: { input_tokens: 100, output_tokens: 20 } }));
+            }, 120_100);
+            setTimeout(() => {
+                handlers["end"]?.forEach(h => h(undefined));
+            }, 120_200);
+            return stream;
+        });
+
+        const resultPromise = streamChat(
+            makeOptsWithCallbacks({ onHeartbeat }),
+        );
+
+        await vi.advanceTimersByTimeAsync(130_000);
+        await resultPromise;
+
+        // Heartbeat every 30s: at ~30.2s, ~60.2s, ~90.2s = 3 heartbeats before text at 120s
+        expect(onHeartbeat).toHaveBeenCalled();
+        expect(onHeartbeat.mock.calls.length).toBeGreaterThanOrEqual(3);
+    });
+
+    it("returns partial result (not throws) on thinking timeout", async () => {
+        const mockMessagesStream = vi.fn();
+        mockGetClaudeClient.mockResolvedValue({
+            messages: { stream: mockMessagesStream },
+        } as never);
+
+        // Stream: message → thinking → silence → 600s timeout
+        // streamChat should catch the thinking timeout and return partial result
+        mockMessagesStream.mockImplementationOnce(() => {
+            const handlers: Record<string, EventHandler[]> = {};
+            const stream = {
+                on(event: string, handler: EventHandler) {
+                    if (!handlers[event]) handlers[event] = [];
+                    handlers[event].push(handler);
+                    return stream;
+                },
+            };
+            setTimeout(() => {
+                handlers["message"]?.forEach(h => h({ usage: { input_tokens: 1000, cache_read_input_tokens: 500 } }));
+            }, 100);
+            setTimeout(() => {
+                handlers["thinking"]?.forEach(h => h("Deep analysis in progress..."));
+            }, 200);
+            // No end — will timeout at 600s
+            return stream;
+        });
+
+        const resultPromise = streamChat(makeOpts());
+        // Attach handler before advancing timers
+        const resultOrError = resultPromise.catch((err: unknown) => err);
+        await vi.advanceTimersByTimeAsync(700_000);
+
+        const result = await resultOrError;
+        // Should be a partial result, NOT an error
+        expect(result).not.toBeInstanceOf(Error);
+        expect((result as { partial: boolean }).partial).toBe(true);
+        expect((result as { text: string }).text).toBe("");
+        // tokenUsage built from earlyInputTokens
+        expect((result as { tokenUsage: { promptTokens: number } }).tokenUsage?.promptTokens).toBe(1000);
+    });
+
+    it("stops heartbeat after text event arrives", async () => {
+        const onHeartbeat = vi.fn();
+        const mockMessagesStream = vi.fn();
+        mockGetClaudeClient.mockResolvedValue({
+            messages: { stream: mockMessagesStream },
+        } as never);
+
+        // Stream: thinking → text (at 5s) → end (at 6s)
+        mockMessagesStream.mockImplementationOnce(() => {
+            const handlers: Record<string, EventHandler[]> = {};
+            const stream = {
+                on(event: string, handler: EventHandler) {
+                    if (!handlers[event]) handlers[event] = [];
+                    handlers[event].push(handler);
+                    return stream;
+                },
+            };
+            setTimeout(() => {
+                handlers["message"]?.forEach(h => h({ usage: { input_tokens: 100 } }));
+            }, 100);
+            setTimeout(() => {
+                handlers["thinking"]?.forEach(h => h("Quick"));
+            }, 200);
+            setTimeout(() => {
+                handlers["text"]?.forEach(h => h("Done"));
+            }, 5_000);
+            setTimeout(() => {
+                handlers["contentBlock"]?.forEach(h => h({ type: "text", text: "Done" }));
+            }, 5_000);
+            setTimeout(() => {
+                handlers["finalMessage"]?.forEach(h => h({ usage: { input_tokens: 100, output_tokens: 10 } }));
+            }, 5_100);
+            setTimeout(() => {
+                handlers["end"]?.forEach(h => h(undefined));
+            }, 5_200);
+            return stream;
+        });
+
+        const resultPromise = streamChat(
+            makeOptsWithCallbacks({ onHeartbeat }),
+        );
+
+        await vi.advanceTimersByTimeAsync(100_000);
+        await resultPromise;
+
+        // Text at 5s, heartbeat interval = 30s → first heartbeat would be at ~30.2s
+        // But text arrives at 5s, clearing heartbeat interval. No heartbeats fired.
+        expect(onHeartbeat).not.toHaveBeenCalled();
     });
 });

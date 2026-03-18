@@ -505,6 +505,19 @@ describe('parseSSEEvent — retry', () => {
 });
 
 // ===========================================================================
+// 10. heartbeat event
+// ===========================================================================
+describe('parseSSEEvent — heartbeat', () => {
+    it('parses a heartbeat event', () => {
+        const data = JSON.stringify({ type: 'heartbeat' });
+        const result = parseSSEEvent(data);
+
+        expect(result).not.toBeNull();
+        expect(result).toEqual({ type: 'heartbeat' });
+    });
+});
+
+// ===========================================================================
 // Edge cases and error handling
 // ===========================================================================
 describe('parseSSEEvent — error handling', () => {
@@ -584,6 +597,7 @@ describe('parseSSEEvent — type discrimination', () => {
             { input: { type: 'error', error: 'e' }, expectedType: 'error' },
             { input: { type: 'confirmLargePayload', count: 1 }, expectedType: 'confirmLargePayload' },
             { input: { type: 'retry', attempt: 1 }, expectedType: 'retry' },
+            { input: { type: 'heartbeat' }, expectedType: 'heartbeat' },
         ] as const;
 
         for (const { input, expectedType } of eventTypes) {

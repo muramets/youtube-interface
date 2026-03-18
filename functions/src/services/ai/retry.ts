@@ -12,9 +12,30 @@
  * Providers should use this as a standard timeout signal.
  */
 export class AiStreamTimeoutError extends Error {
-    constructor(message = "AI model did not respond within the timeout window. Please try again.") {
+    /** True when thinking events were received before the timeout — retry is pointless. */
+    readonly hadThinkingProgress: boolean;
+    /** Input tokens captured from the "message" event (available even on timeout). */
+    readonly earlyInputTokens?: number;
+    /** Cache read tokens captured from the "message" event. */
+    readonly earlyCacheRead?: number;
+    /** Cache write tokens captured from the "message" event. */
+    readonly earlyCacheWrite?: number;
+
+    constructor(
+        message = "AI model did not respond within the timeout window. Please try again.",
+        opts?: {
+            hadThinkingProgress?: boolean;
+            earlyInputTokens?: number;
+            earlyCacheRead?: number;
+            earlyCacheWrite?: number;
+        },
+    ) {
         super(message);
         this.name = "AiStreamTimeoutError";
+        this.hadThinkingProgress = opts?.hadThinkingProgress ?? false;
+        this.earlyInputTokens = opts?.earlyInputTokens;
+        this.earlyCacheRead = opts?.earlyCacheRead;
+        this.earlyCacheWrite = opts?.earlyCacheWrite;
     }
 }
 

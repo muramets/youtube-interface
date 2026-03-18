@@ -30,6 +30,7 @@ type SSEToolProgressEvent = { type: "toolProgress"; toolName: string; message: s
 type SSEErrorEvent = { type: "error"; error: string };
 type SSEConfirmLargePayloadEvent = { type: "confirmLargePayload"; count: number };
 type SSERetryEvent = { type: "retry"; attempt: number };
+type SSEHeartbeatEvent = { type: "heartbeat" };
 
 export type SSEEvent =
     | SSEChunkEvent
@@ -40,7 +41,8 @@ export type SSEEvent =
     | SSEToolProgressEvent
     | SSEErrorEvent
     | SSEConfirmLargePayloadEvent
-    | SSERetryEvent;
+    | SSERetryEvent
+    | SSEHeartbeatEvent;
 
 // --- Writer ---
 

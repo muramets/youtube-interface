@@ -94,6 +94,12 @@ export interface ClaudeStreamChatResult {
 /** Inactivity timeout: abort if no event arrives within this window. */
 const STREAM_INACTIVITY_TIMEOUT_MS = 90_000;
 
+/** Escalated inactivity timeout during extended thinking (10 minutes). */
+const THINKING_INACTIVITY_TIMEOUT_MS = 600_000;
+
+/** Heartbeat interval during thinking silence — prevents browser/LB timeout. */
+const HEARTBEAT_INTERVAL_MS = 30_000;
+
 /** Maximum agentic loop iterations to prevent infinite tool-calling loops. */
 const MAX_AGENTIC_ITERATIONS = 10;
 
@@ -438,7 +444,7 @@ function applyCacheBreakpoints(messages: MessageParam[]): MessageParam[] {
  * Passed to withStreamRetry() as the `isTransient` predicate.
  */
 function isClaudeTransient(err: unknown): boolean {
-    if (err instanceof AiStreamTimeoutError) return true;
+    if (err instanceof AiStreamTimeoutError) return !err.hadThinkingProgress;
     if (err instanceof APIError) {
         return err.status === 429 || err.status === 529 || err.status === 500 || err.status === 503;
     }
@@ -582,6 +588,9 @@ export async function streamChat(
 
     // Mutable messages list — we append tool results within the loop
     const agenticMessages = [...messages];
+
+    // Wrap agentic loop in try/catch for thinking timeout → return partial result
+    try {
 
     while (iteration < MAX_AGENTIC_ITERATIONS) {
         iteration++;
@@ -780,6 +789,49 @@ export async function streamChat(
         });
     }
 
+    } catch (loopErr) {
+        // Thinking timeout: return partial result instead of throwing.
+        // Prior iterations' text, tokenUsage, and toolCalls are preserved.
+        if (loopErr instanceof AiStreamTimeoutError && loopErr.hadThinkingProgress) {
+            console.warn(
+                `[claude:streamChat] Thinking timeout in iteration ${iteration} — ` +
+                `returning partial result (${fullText.length} chars, ${allToolCalls.length} tool calls)`,
+            );
+
+            // Build partial tokenUsage from earlyInputTokens if current iteration had no usage
+            if (!tokenUsage && loopErr.earlyInputTokens != null) {
+                const cached = loopErr.earlyCacheRead ?? 0;
+                const cacheWrite = loopErr.earlyCacheWrite ?? 0;
+                tokenUsage = {
+                    promptTokens: loopErr.earlyInputTokens,
+                    completionTokens: 0,
+                    totalTokens: loopErr.earlyInputTokens + cached + cacheWrite,
+                    cachedTokens: cached > 0 ? cached : undefined,
+                    cacheWriteTokens: cacheWrite > 0 ? cacheWrite : undefined,
+                };
+            }
+
+            // Aggregate whatever iteration snapshots we have
+            let normalizedUsage: NormalizedTokenUsage | undefined;
+            if (iterationSnapshots.length > 0 && modelConfig) {
+                normalizedUsage = aggregateIterations(iterationSnapshots, modelConfig);
+                normalizedUsage.partial = true;
+            }
+
+            return {
+                text: fullText,
+                tokenUsage,
+                normalizedUsage,
+                toolCalls: allToolCalls.length > 0 ? allToolCalls : undefined,
+                agenticImages: agenticImageCount > 0
+                    ? { count: agenticImageCount, tokens: agenticImageTokens }
+                    : undefined,
+                partial: true,
+            };
+        }
+        throw loopErr; // Non-thinking errors propagate as before
+    }
+
     if (iteration >= MAX_AGENTIC_ITERATIONS) {
         console.warn(
             `[claude:streamChat] Reached max iterations (${MAX_AGENTIC_ITERATIONS}) — ` +
@@ -901,23 +953,34 @@ async function streamIteration(
     let earlyCacheRead: number | undefined;
     let earlyCacheWrite: number | undefined;
 
-    // Inactivity timeout
+    // Inactivity timeout — dynamic: 90s default, 600s during thinking
     let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
     let timeoutReject: ((err: Error) => void) | null = null;
+    let hadThinkingEvents = false;
+    let currentTimeoutMs = STREAM_INACTIVITY_TIMEOUT_MS;
+    let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 
     const resetTimer = () => {
         if (inactivityTimer) clearTimeout(inactivityTimer);
         inactivityTimer = setTimeout(() => {
             console.error(
                 `[claude:streamChat] Inactivity timeout — no events for ` +
-                `${STREAM_INACTIVITY_TIMEOUT_MS / 1000}s`,
+                `${currentTimeoutMs / 1000}s (thinking=${hadThinkingEvents})`,
             );
             timeoutReject?.(
                 new AiStreamTimeoutError(
-                    "Claude did not respond within 90 seconds. Please try again.",
+                    hadThinkingEvents
+                        ? `Claude thinking timed out after ${currentTimeoutMs / 1000} seconds.`
+                        : "Claude did not respond within 90 seconds. Please try again.",
+                    {
+                        hadThinkingProgress: hadThinkingEvents,
+                        earlyInputTokens,
+                        earlyCacheRead,
+                        earlyCacheWrite,
+                    },
                 ),
             );
-        }, STREAM_INACTIVITY_TIMEOUT_MS);
+        }, currentTimeoutMs);
     };
 
     try {
@@ -960,6 +1023,14 @@ async function streamIteration(
             });
 
             stream.on("text", (textDelta) => {
+                // De-escalate timeout after thinking → text transition
+                if (hadThinkingEvents) {
+                    currentTimeoutMs = STREAM_INACTIVITY_TIMEOUT_MS;
+                    if (heartbeatInterval) {
+                        clearInterval(heartbeatInterval);
+                        heartbeatInterval = null;
+                    }
+                }
                 resetTimer();
                 iterationText += textDelta;
                 fullText += textDelta;
@@ -967,6 +1038,15 @@ async function streamIteration(
             });
 
             stream.on("thinking", (thinkingDelta) => {
+                // Escalate timeout on first thinking event
+                if (!hadThinkingEvents) {
+                    hadThinkingEvents = true;
+                    currentTimeoutMs = THINKING_INACTIVITY_TIMEOUT_MS;
+                }
+                // Start heartbeat if not already running
+                if (!heartbeatInterval) {
+                    heartbeatInterval = setInterval(() => callbacks.onHeartbeat?.(), HEARTBEAT_INTERVAL_MS);
+                }
                 resetTimer();
                 // Count thinking chars for approximate token estimation (chars / 4, ~±15%)
                 thinkingChars += (thinkingDelta as string).length;
@@ -1066,6 +1146,7 @@ async function streamIteration(
         }
     } finally {
         if (inactivityTimer) clearTimeout(inactivityTimer);
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
         timeoutReject = null;
     }
 

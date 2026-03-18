@@ -192,7 +192,7 @@ For multi-phase features requiring coordinated agent execution across sessions, 
   T3.6 — SEQUENTIAL LAST
   ```
 - **Verification**: exact shell commands to run
-- **MANDATORY: Update this file before proceeding** — checklist: mark tasks, update status table, record test count
+- **MANDATORY: Update this file immediately after completing each phase** — mark individual task checkboxes (`[x]`), update phase status table, record test count. Do this right after verification passes, BEFORE launching the review gate or moving to the next phase. Never batch-update at the end — task docs must reflect real-time progress so context can be recovered mid-execution.
 
 **7. Review Gates** — after each phase:
 - Full **prompt** for review agent (specific questions, not just a checklist)

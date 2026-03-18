@@ -162,7 +162,9 @@ export async function streamChat(opts: StreamChatOpts): Promise<AiChatResult> {
     // before the client gives up. Server timeout is 90s — the extra 30s covers network lag
     // between server iterationAbort → SSE write → client receive. ---
     const STREAM_TIMEOUT_MS = 120_000;
+    const THINKING_STREAM_TIMEOUT_MS = 660_000; // 600s thinking + 60s buffer
     let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
+    let currentStreamTimeout = STREAM_TIMEOUT_MS;
     const inactivityController = new AbortController();
 
     const resetInactivityTimer = () => {
@@ -171,7 +173,7 @@ export async function streamChat(opts: StreamChatOpts): Promise<AiChatResult> {
             console.warn('[chat] Stream inactivity timeout — aborting reader');
             inactivityController.abort();
             reader.cancel().catch(() => { /* ignore */ });
-        }, STREAM_TIMEOUT_MS);
+        }, currentStreamTimeout);
     };
 
     const clearInactivityTimer = () => {
@@ -214,6 +216,7 @@ export async function streamChat(opts: StreamChatOpts): Promise<AiChatResult> {
 
                 switch (sseEvent.type) {
                     case 'chunk':
+                        currentStreamTimeout = STREAM_TIMEOUT_MS;
                         onStream(sseEvent.text);
                         break;
                     case 'toolCall':
@@ -226,6 +229,7 @@ export async function streamChat(opts: StreamChatOpts): Promise<AiChatResult> {
                         onToolProgress?.(sseEvent.toolName, sseEvent.message, sseEvent.toolCallIndex);
                         break;
                     case 'thought':
+                        currentStreamTimeout = THINKING_STREAM_TIMEOUT_MS;
                         onThought?.(sseEvent.text);
                         break;
                     case 'done':
@@ -246,6 +250,9 @@ export async function streamChat(opts: StreamChatOpts): Promise<AiChatResult> {
                         break;
                     case 'retry':
                         onRetry?.(sseEvent.attempt);
+                        break;
+                    case 'heartbeat':
+                        // Heartbeat keeps connection alive — no UI effect, just reset timer
                         break;
                     case 'error':
                         throw new SSEDataError(sseEvent.error);

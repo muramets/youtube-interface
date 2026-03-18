@@ -131,6 +131,8 @@ export interface StreamCallbacks {
     onThought?: (text: string) => void;
     /** Called when a transient error triggers automatic retry. */
     onRetry?: (attempt: number) => void;
+    /** Called periodically during thinking silence to keep the connection alive. */
+    onHeartbeat?: () => void;
 }
 
 // --- Result ---

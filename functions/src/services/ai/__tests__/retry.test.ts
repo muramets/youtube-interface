@@ -75,6 +75,42 @@ describe("AiStreamTimeoutError", () => {
         const err = new AiStreamTimeoutError("custom timeout");
         expect(err.message).toBe("custom timeout");
     });
+
+    it("hadThinkingProgress defaults to false", () => {
+        const err = new AiStreamTimeoutError();
+        expect(err.hadThinkingProgress).toBe(false);
+    });
+
+    it("hadThinkingProgress can be set to true via opts", () => {
+        const err = new AiStreamTimeoutError("timeout", { hadThinkingProgress: true });
+        expect(err.hadThinkingProgress).toBe(true);
+    });
+
+    it("stores earlyInputTokens/earlyCacheRead/earlyCacheWrite from opts", () => {
+        const err = new AiStreamTimeoutError("timeout", {
+            hadThinkingProgress: true,
+            earlyInputTokens: 5000,
+            earlyCacheRead: 3000,
+            earlyCacheWrite: 1000,
+        });
+        expect(err.earlyInputTokens).toBe(5000);
+        expect(err.earlyCacheRead).toBe(3000);
+        expect(err.earlyCacheWrite).toBe(1000);
+    });
+
+    it("backward compat: new AiStreamTimeoutError() works without opts", () => {
+        const err = new AiStreamTimeoutError();
+        expect(err.hadThinkingProgress).toBe(false);
+        expect(err.earlyInputTokens).toBeUndefined();
+        expect(err.earlyCacheRead).toBeUndefined();
+        expect(err.earlyCacheWrite).toBeUndefined();
+    });
+
+    it("backward compat: new AiStreamTimeoutError('msg') works without opts", () => {
+        const err = new AiStreamTimeoutError("custom msg");
+        expect(err.message).toBe("custom msg");
+        expect(err.hadThinkingProgress).toBe(false);
+    });
 });
 
 describe("withStreamRetry", () => {

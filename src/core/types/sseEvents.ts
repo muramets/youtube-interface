@@ -30,7 +30,8 @@ export type SSEEvent =
     | SSEToolProgressEvent
     | SSEErrorEvent
     | SSEConfirmLargePayloadEvent
-    | SSERetryEvent;
+    | SSERetryEvent
+    | SSEHeartbeatEvent;
 
 export interface SSEChunkEvent {
     type: 'chunk';
@@ -91,6 +92,10 @@ export interface SSERetryEvent {
     attempt: number; // 1-based retry attempt number
 }
 
+export interface SSEHeartbeatEvent {
+    type: 'heartbeat';
+}
+
 // --- Parser ---
 
 /**
@@ -147,6 +152,8 @@ export function parseSSEEvent(data: string): SSEEvent | null {
                 return { type: 'confirmLargePayload', count: parsed.count as number };
             case 'retry':
                 return { type: 'retry', attempt: parsed.attempt as number };
+            case 'heartbeat':
+                return { type: 'heartbeat' };
             default:
                 console.warn(`[parseSSEEvent] Unknown event type: ${type}`);
                 return null;

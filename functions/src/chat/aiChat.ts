@@ -18,6 +18,7 @@ import { geminiContext } from "../services/gemini/context.js";
 import { claudeFactory } from "../services/claude/factory.js";
 import { TOOL_DECLARATIONS, CONCLUDE_TOOL_DECLARATIONS } from "../services/tools/definitions.js";
 import type { StreamCallbacks, AttachmentRef, ToolCallRecord } from "../services/ai/types.js";
+import { AiStreamTimeoutError } from "../services/ai/retry.js";
 import { writeSSE } from "./sseWriter.js";
 import type { ContextBreakdown, AuxiliaryCost } from "../shared/models.js";
 import { estimateImageTokens } from "../shared/imageTokens.js";
@@ -36,7 +37,7 @@ export const aiChat = onRequest(
     {
         secrets: [geminiApiKey, anthropicApiKey],
         maxInstances: 3,
-        timeoutSeconds: 540,
+        timeoutSeconds: 1200,
         memory: "1GiB",
         cors: true,
     },
@@ -126,9 +127,13 @@ export const aiChat = onRequest(
             ` attachments=${body.attachments?.length ?? 0} thumbnails=${body.thumbnailUrls?.length ?? 0}` +
             ` textLen=${body.text.length}`);
 
+        // Hoisted for catch block access (thinking timeout persistence)
+        const messagesPath = `${convPath}/messages`;
+        let thinkingAccumulator = '';
+        let firstThoughtTs = 0;
+
         try {
             // Read conversation history from Firestore
-            const messagesPath = `${convPath}/messages`;
             const [messagesSnap, convDoc] = await Promise.all([
                 db.collection(messagesPath).orderBy("createdAt", "asc").get(),
                 db.doc(convPath).get(),
@@ -189,10 +194,6 @@ export const aiChat = onRequest(
                 ),
             });
 
-            // --- Thinking accumulator for stopped-message persistence ---
-            let thinkingAccumulator = '';
-            let firstThoughtTs = 0; // 0 = no thinking yet
-
             // --- Callbacks: SSE streaming events ---
             const callbacks: StreamCallbacks = {
                 onChunk: (fullText) => {
@@ -216,6 +217,9 @@ export const aiChat = onRequest(
                 },
                 onRetry: (attempt) => {
                     writeSSE(res, { type: "retry", attempt });
+                },
+                onHeartbeat: () => {
+                    writeSSE(res, { type: "heartbeat" });
                 },
             };
 
@@ -415,7 +419,8 @@ export const aiChat = onRequest(
             const afterTasks: Promise<unknown>[] = [];
 
             // Persist stopped messages directly to Firestore (SSE may not reach client)
-            if (partial && responseText) {
+            // Also persist when thinking was accumulated but no text (thinking timeout)
+            if (partial && (responseText || thinkingAccumulator)) {
                 const stoppedMsg: Record<string, unknown> = {
                     role: 'model',
                     text: responseText,
@@ -494,6 +499,49 @@ export const aiChat = onRequest(
         } catch (err) {
             const message = err instanceof Error ? err.message : "AI generation failed";
             console.error('[aiChat] Generation error:', message);
+
+            // --- Thinking timeout: persist partial thinking as stopped message ---
+            if (err instanceof AiStreamTimeoutError && err.hadThinkingProgress && thinkingAccumulator) {
+                // Build partial tokenUsage from enriched error
+                let partialTokenUsage: Record<string, unknown> | undefined;
+                if (err.earlyInputTokens != null) {
+                    const cached = err.earlyCacheRead ?? 0;
+                    const cacheWrite = err.earlyCacheWrite ?? 0;
+                    partialTokenUsage = {
+                        promptTokens: err.earlyInputTokens,
+                        completionTokens: 0,
+                        totalTokens: err.earlyInputTokens + cached + cacheWrite,
+                        cachedTokens: cached > 0 ? cached : undefined,
+                        cacheWriteTokens: cacheWrite > 0 ? cacheWrite : undefined,
+                    };
+                }
+
+                try {
+                    const stoppedMsg: Record<string, unknown> = {
+                        role: 'model',
+                        text: '',
+                        model,
+                        status: 'stopped',
+                        thinking: thinkingAccumulator,
+                        thinkingElapsedMs: firstThoughtTs ? Date.now() - firstThoughtTs : 0,
+                        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                    };
+                    if (partialTokenUsage) stoppedMsg.tokenUsage = partialTokenUsage;
+                    await db.collection(messagesPath).add(stoppedMsg);
+                    console.info(`[aiChat] Persisted thinking-timeout stopped message for conv=${body.conversationId}`);
+                } catch (persistErr) {
+                    console.warn('[aiChat] Failed to persist thinking-timeout stopped message', persistErr);
+                }
+
+                // Send SSE done (stopped) BEFORE error — client can display partial thinking
+                writeSSE(res, {
+                    type: "done",
+                    text: '',
+                    status: 'stopped',
+                    partial: true,
+                    tokenUsage: partialTokenUsage as import("../services/ai/types.js").TokenUsage | undefined,
+                });
+            }
 
             // Best-effort: persist lastError so the client can recover on reload.
             // Wrapped in try/catch — must NEVER prevent the SSE error from being sent.
