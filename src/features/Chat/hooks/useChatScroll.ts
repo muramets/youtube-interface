@@ -11,8 +11,9 @@
 //   pinned → pinned — user scrolls up: spacer consumed; scrolls back down: spacer re-expands (elastic)
 //   pinned → idle   — spacer fully consumed (reaches 0)
 //   pinned → away   — user scrolls up past the pin point (leaves pinned area)
-//   away → idle     — streaming ends (P3)
-//   pinned → idle   — streaming ends (P3)
+//   pinned → pinned — streaming ends (P3): spacer shrinks, elastic continues unwinding residual
+//   pinned → idle   — spacer reaches 0 (after P3 or scroll consumption)
+//   away → idle     — user scrolls back near bottom
 // =============================================================================
 
 import { useEffect, useRef, useState, useCallback } from 'react';
@@ -167,7 +168,7 @@ export function useChatScroll({
             return;
         }
 
-        // --- Priority 3: Streaming just ended — shrink spacer, preserve scroll position ---
+        // --- Priority 3: Streaming just ended — shrink spacer, keep elastic scroll ---
         if (streamingJustEnded) {
             const currentScroll = container.scrollTop;
             const contentH = container.scrollHeight - (spacerRef.current?.offsetHeight ?? 0);
@@ -175,7 +176,14 @@ export function useChatScroll({
             const neededSpacer = Math.max(0, neededScrollH - contentH);
             debug.scroll(`P3: streaming ended, spacer ${spacerRef.current?.offsetHeight ?? 0}->${neededSpacer}, preserving scrollTop=${currentScroll}`);
             setSpacer(neededSpacer);
-            intentRef.current = 'idle';
+            // Stay 'pinned' so the elastic scroll-linked mechanism continues
+            // unwinding the residual spacer. When spacer reaches 0 → 'idle'.
+            // Update pinnedSpacerHeightRef so re-expansion is capped at the new (smaller) value.
+            pinnedSpacerHeightRef.current = neededSpacer;
+            if (neededSpacer <= 0) {
+                intentRef.current = 'idle';
+            }
+            // else: intentRef stays 'pinned' — elastic continues
             return;
         }
 
