@@ -24,3 +24,4 @@
 | 14 | Video | Custom video: YouTube ID дублируется в `id` и `publishedVideoId` при привязке Published URL | Low | [Known Issues](features/knowledge/knowledge-items.md#known-issues) |
 | 15 | Chat | MemoryCheckpoint: save/delete ошибки молча проглатываются (нет toast feedback) | Low | `src/features/Chat/components/MemoryCheckpoint.tsx` |
 | 16 | Knowledge | headerComponents / HEADER_SIZE / INDENT дублированы между KnowledgeCard и MemoryCheckpoint | Low | `src/features/Knowledge/components/KnowledgeCard.tsx`, `src/features/Chat/components/MemoryCheckpoint.tsx` |
+| 17 | Chat | Tool pill не появляется пока Claude генерирует tool_use JSON — при editKnowledge с большим KI (~50K chars) это 2+ мин паузы без UI feedback после thinking. SDK эмитит contentBlock только после полной генерации блока, промежуточных events нет | Medium | [thinking-timeout-resilience.md](features/chat/infrastructure/thinking-timeout-resilience.md) |

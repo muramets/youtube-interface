@@ -8,7 +8,7 @@
 //
 // Transitions:
 //   idle → pinned   — new user message sent (P1) or streaming starts (P2)
-//   pinned → pinned — user scrolls up: spacer consumed proportionally (scroll-linked)
+//   pinned → pinned — user scrolls up: spacer consumed; scrolls back down: spacer re-expands (elastic)
 //   pinned → idle   — spacer fully consumed (reaches 0)
 //   pinned → away   — user scrolls up past the pin point (leaves pinned area)
 //   away → idle     — streaming ends (P3)
@@ -67,9 +67,10 @@ export function useChatScroll({
     const prevMsgCountRef = useRef(messageCount);
     const prevStreamingRef = useRef(isStreaming);
 
-    // Scroll-linked spacer consumption: tracks scrollTop to detect user scroll deltas
-    // -1 = sentinel (not yet initialized after pin)
+    // Scroll-linked spacer: tracks scrollTop deltas + original height for elastic behavior
+    // prevScrollTopRef: -1 = sentinel (not yet initialized after pin)
     const prevScrollTopRef = useRef(-1);
+    const pinnedSpacerHeightRef = useRef(0);
 
     // Helper: set scrollTop without triggering handleScroll's away-detection
     // Uses scrollend event to keep guard up for entire smooth scroll duration
@@ -132,6 +133,7 @@ export function useChatScroll({
 
                 // Reset scroll-linked tracking (will be initialized on first user scroll)
                 prevScrollTopRef.current = -1;
+                pinnedSpacerHeightRef.current = spacerHeight;
 
                 if (anchor) {
                     if (lastMsgEl) {
@@ -231,19 +233,27 @@ export function useChatScroll({
                 const consumed = Math.min(Math.abs(delta), spacerH);
                 const newSpacerH = spacerH - consumed;
                 if (spacer) spacer.style.minHeight = `${newSpacerH}px`;
-                debug.scroll(`handleScroll[pinned]: scroll-linked consume ${consumed}px, spacer ${spacerH}->${newSpacerH}`);
+                debug.scroll(`handleScroll[pinned]: consume ${consumed}px, spacer ${spacerH}->${newSpacerH}`);
 
                 if (newSpacerH <= 0) {
                     debug.scroll('handleScroll[pinned]: spacer fully consumed → idle');
                     intentRef.current = 'idle';
                 }
+            } else if (delta > 0 && spacerH < pinnedSpacerHeightRef.current) {
+                // User scrolling DOWN (trackpad up) — returning toward pinned position.
+                // Re-expand spacer proportionally, up to the original P1 height.
+                // Math: scrollTop increases by delta, spacer increases by delta →
+                // distFromBottom stays constant → no clamping possible.
+                const maxExpand = pinnedSpacerHeightRef.current - spacerH;
+                const expanded = Math.min(delta, maxExpand);
+                const newSpacerH = spacerH + expanded;
+                if (spacer) spacer.style.minHeight = `${newSpacerH}px`;
+                debug.scroll(`handleScroll[pinned]: expand ${expanded}px, spacer ${spacerH}->${newSpacerH}`);
             } else if (delta < 0 && spacerH <= 0) {
                 // Spacer already gone, user still scrolling up — release to normal scroll
                 debug.scroll('handleScroll[pinned]: spacer already 0, scrolling up → away');
                 intentRef.current = 'away';
             }
-            // delta > 0 (scroll down while pinned): no action — user is at the pin,
-            // streaming content is below, nothing useful to consume.
 
             setShowScrollFab(distanceFromBottom > 200);
             return;
