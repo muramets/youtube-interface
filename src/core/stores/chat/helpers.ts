@@ -21,10 +21,14 @@ export function resolveModel(
     activeProjectId: string | null,
     conversationModel?: string,
     pendingModel?: string | null,
+    conversationProjectId?: string | null,
 ): string {
     if (pendingModel) return pendingModel;
     if (conversationModel) return conversationModel;
-    const project = projects.find(p => p.id === activeProjectId);
+    // Fallback: when entering via "All Chats", activeProjectId may be null
+    // but the conversation knows its projectId — use it to find the project.
+    const project = projects.find(p => p.id === activeProjectId)
+        ?? (conversationProjectId ? projects.find(p => p.id === conversationProjectId) : undefined);
     return project?.model || aiSettings.defaultModel;
 }
 

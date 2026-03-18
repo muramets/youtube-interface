@@ -44,8 +44,13 @@ export function useChatDerivedState(opts: UseChatDerivedStateOpts): UseChatDeriv
         ? conversations.filter(c => c.projectId === activeProjectId)
         : conversations;
 
-    const activeProject = projects.find(p => p.id === activeProjectId);
     const activeConversation = conversations.find(c => c.id === activeConversationId);
+    // Fallback: when entering via "All Chats", activeProjectId is null
+    // but the conversation knows its projectId — use it to find the project.
+    const activeProject = projects.find(p => p.id === activeProjectId)
+        ?? (activeConversation?.projectId
+            ? projects.find(p => p.id === activeConversation.projectId)
+            : undefined);
 
     // Header title resolution
     let headerTitle = 'AI Chat';

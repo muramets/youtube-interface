@@ -71,6 +71,9 @@ const getMultipleVideoDetails: ToolDefinition = {
     name: TOOL_NAMES.GET_MULTIPLE_VIDEO_DETAILS,
     description:
         "Fetch full metadata (description, tags, publishedAt, etc.) for one or more videos by their IDs or titles. " +
+        "Includes thumbnailDescription — an AI-generated visual summary of the thumbnail (~200 words) " +
+        "when available. Use thumbnailDescription for visual ecosystem analysis (style patterns, " +
+        "aesthetic drift); call viewThumbnails only when you need to see the actual image. " +
         "The context only contains compact info (title + key metrics). Use this tool when " +
         "you need description, tags, or other detailed fields to answer the user's question. " +
         "Response includes view growth data (viewDelta24h/7d/30d) when the video's channel " +

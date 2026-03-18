@@ -272,8 +272,8 @@ const MessageItem: React.FC<MessageItemProps> = React.memo(({ msg, modelPricing,
             // standard+: input/output/cache
             if (level !== 'minimal') {
                 lines.unshift(
-                    `Input: ${nu.contextWindow.inputTokens.toLocaleString()} tokens${cachedTokens ? ` (${cachedTokens.toLocaleString()} cached)` : ''}`,
-                    `Output: ${nu.contextWindow.outputTokens.toLocaleString()} tokens${nu.contextWindow.thinkingTokens > 0 && (level === 'detailed' || level === 'debug') ? ` (${nu.contextWindow.thinkingTokens.toLocaleString()} thinking)` : ''}`,
+                    `Input: ${totalInput.toLocaleString()} tokens${cachedTokens ? ` (${cachedTokens.toLocaleString()} cached)` : ''}`,
+                    `Output: ${nu.billing.output.total.toLocaleString()} tokens${nu.billing.output.thinking > 0 && (level === 'detailed' || level === 'debug') ? ` (${nu.billing.output.thinking.toLocaleString()} thinking)` : ''}`,
                 );
             }
 

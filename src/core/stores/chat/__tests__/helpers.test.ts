@@ -130,6 +130,35 @@ describe('resolveModel', () => {
         const result = resolveModel(DEFAULT_SETTINGS, [], null, undefined, null);
         expect(result).toBe('gemini-1.5-flash');
     });
+
+    it('falls back to conversationProjectId when activeProjectId is null (All Chats view)', () => {
+        const result = resolveModel(
+            DEFAULT_SETTINGS,
+            [PROJECT_WITH_MODEL],
+            null,          // activeProjectId — null in "All Chats"
+            undefined,     // conversationModel — not stored on conversation
+            null,          // pendingModel
+            'proj-1',      // conversationProjectId — from conversation.projectId
+        );
+        expect(result).toBe('gemini-1.5-pro');
+    });
+
+    it('prefers activeProjectId over conversationProjectId', () => {
+        const otherProject: ChatProject = {
+            ...PROJECT_WITH_MODEL,
+            id: 'proj-2',
+            model: 'gemini-2.0-flash',
+        };
+        const result = resolveModel(
+            DEFAULT_SETTINGS,
+            [PROJECT_WITH_MODEL, otherProject],
+            'proj-2',      // activeProjectId
+            undefined,
+            null,
+            'proj-1',      // conversationProjectId (different)
+        );
+        expect(result).toBe('gemini-2.0-flash');
+    });
 });
 
 // ---------------------------------------------------------------------------

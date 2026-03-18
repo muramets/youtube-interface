@@ -184,7 +184,7 @@ async function resumeSendFlow(
 
     const thumbnailUrls = extractThumbnails(persistedContext ?? appContext);
     const activeConv = get().conversations.find(c => c.id === convId);
-    const model = resolveModel(aiSettings, projects, activeProjectId, activeConv?.model, get().pendingModel);
+    const model = resolveModel(aiSettings, projects, activeProjectId, activeConv?.model, get().pendingModel, activeConv?.projectId);
 
     // Build channel metadata from channelStore (lightweight — no async)
     const currentChannel = useChannelStore.getState().currentChannel;

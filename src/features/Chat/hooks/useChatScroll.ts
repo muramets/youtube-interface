@@ -4,12 +4,14 @@
 // States:
 //   idle   — default, no special scroll behavior
 //   pinned — user message pinned to top, streaming below
-//   away   — user scrolled away from pinned position
+//   away   — user scrolled away from pinned position (up to see old messages)
 //
 // Transitions:
 //   idle → pinned   — new user message sent (P1) or streaming starts (P2)
-//   pinned → away   — user scrolls >80px from bottom
-//   away → idle     — user scrolls back near bottom
+//   pinned → pinned — user scrolls up: spacer consumed proportionally (scroll-linked)
+//   pinned → idle   — spacer fully consumed (reaches 0)
+//   pinned → away   — user scrolls up past the pin point (leaves pinned area)
+//   away → idle     — streaming ends (P3)
 //   pinned → idle   — streaming ends (P3)
 // =============================================================================
 
@@ -64,6 +66,10 @@ export function useChatScroll({
     const intentRef = useRef<ScrollIntent>('idle');
     const prevMsgCountRef = useRef(messageCount);
     const prevStreamingRef = useRef(isStreaming);
+
+    // Scroll-linked spacer consumption: tracks scrollTop to detect user scroll deltas
+    // -1 = sentinel (not yet initialized after pin)
+    const prevScrollTopRef = useRef(-1);
 
     // Helper: set scrollTop without triggering handleScroll's away-detection
     // Uses scrollend event to keep guard up for entire smooth scroll duration
@@ -123,6 +129,9 @@ export function useChatScroll({
                 const spacerHeight = Math.max(0, container.clientHeight - msgHeight - 24);
                 setSpacer(spacerHeight);
                 debug.scroll(`P1: spacer expanded to ${spacerHeight}px, scrollHeight now=${container.scrollHeight}`);
+
+                // Reset scroll-linked tracking (will be initialized on first user scroll)
+                prevScrollTopRef.current = -1;
 
                 if (anchor) {
                     if (lastMsgEl) {
@@ -189,7 +198,7 @@ export function useChatScroll({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [messageCount, streamingText, isStreaming]);
 
-    // Track scroll position for FAB + away detection (ignores programmatic scrolls)
+    // Track scroll position for FAB + scroll-linked spacer consumption
     const handleScroll = useCallback(() => {
         if (isProgrammaticRef.current) {
             debug.scroll('handleScroll: skipped (programmatic)');
@@ -199,15 +208,52 @@ export function useChatScroll({
         if (!el) return;
         const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
 
-        setShowScrollFab(distanceFromBottom > 200);
+        // --- Scroll-linked spacer consumption while pinned ---
+        if (intentRef.current === 'pinned') {
+            const spacer = spacerRef.current;
+            const spacerH = spacer?.offsetHeight ?? 0;
 
-        if (distanceFromBottom > 80 && intentRef.current === 'pinned') {
-            debug.scroll(`handleScroll: user scrolled away! distance=${distanceFromBottom} intent pinned -> away`);
-            intentRef.current = 'away';
+            // Initialize tracking on first user scroll after pin
+            if (prevScrollTopRef.current === -1) {
+                prevScrollTopRef.current = el.scrollTop;
+                debug.scroll(`handleScroll[pinned]: initialized prevScrollTop=${el.scrollTop}`);
+                return;
+            }
+
+            const delta = el.scrollTop - prevScrollTopRef.current;
+            prevScrollTopRef.current = el.scrollTop;
+
+            if (delta < 0 && spacerH > 0) {
+                // User scrolling UP (trackpad down) — leaving pinned area, seeing old messages.
+                // Consume spacer proportionally: spacer shrinks invisibly from below.
+                // Math: scrollTop decreases by |delta|, spacer decreases by |delta| →
+                // distFromBottom stays constant → no clamping possible.
+                const consumed = Math.min(Math.abs(delta), spacerH);
+                const newSpacerH = spacerH - consumed;
+                if (spacer) spacer.style.minHeight = `${newSpacerH}px`;
+                debug.scroll(`handleScroll[pinned]: scroll-linked consume ${consumed}px, spacer ${spacerH}->${newSpacerH}`);
+
+                if (newSpacerH <= 0) {
+                    debug.scroll('handleScroll[pinned]: spacer fully consumed → idle');
+                    intentRef.current = 'idle';
+                }
+            } else if (delta < 0 && spacerH <= 0) {
+                // Spacer already gone, user still scrolling up — release to normal scroll
+                debug.scroll('handleScroll[pinned]: spacer already 0, scrolling up → away');
+                intentRef.current = 'away';
+            }
+            // delta > 0 (scroll down while pinned): no action — user is at the pin,
+            // streaming content is below, nothing useful to consume.
+
+            setShowScrollFab(distanceFromBottom > 200);
+            return;
         }
 
+        // --- Normal scroll tracking (idle / away) ---
+        setShowScrollFab(distanceFromBottom > 200);
+
         if (distanceFromBottom <= 80 && intentRef.current === 'away') {
-            debug.scroll(`handleScroll: user scrolled back near bottom, intent away -> idle`);
+            debug.scroll('handleScroll: user scrolled back near bottom, intent away -> idle');
             intentRef.current = 'idle';
         }
 
@@ -242,6 +288,7 @@ export function useChatScroll({
     const scrollToBottom = useCallback(() => {
         debug.scroll('scrollToBottom clicked');
         intentRef.current = 'idle';
+        prevScrollTopRef.current = -1;
         setSpacer(0);
         programmaticScroll(() => {
             containerRef.current?.scrollTo({ top: containerRef.current.scrollHeight, behavior: 'smooth' });
