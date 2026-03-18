@@ -10,6 +10,7 @@
 // =============================================================================
 
 import { db } from "../../../../shared/db.js";
+import { hasRealVideoData } from "../../../../shared/memory.js";
 import { YouTubeService } from "../../../youtube.js";
 import { fetchThumbnailDescriptions } from "../../utils/fetchThumbnailDescriptions.js";
 import { resolveVideosByIds } from "../../utils/resolveVideos.js";
@@ -210,6 +211,10 @@ function formatVideoData(
         ? (data.publishedVideoId as string | undefined)
         : videoId;
 
+    // Custom videos without successful YouTube fetch have placeholder 1M viewCount.
+    // Strip fake metrics to avoid confusing the LLM (same guard used by KI mentions).
+    const hasTrueMetrics = hasRealVideoData(data as { isCustom?: boolean; fetchStatus?: string });
+
     return {
         videoId,
         ...(youtubeVideoId && youtubeVideoId !== videoId ? { youtubeVideoId } : {}),
@@ -219,10 +224,10 @@ function formatVideoData(
         ownership,
         channelId: data.channelId || undefined,
         channelTitle: data.channelTitle || undefined,
-        viewCount: data.viewCount != null ? Number(data.viewCount) || undefined : undefined,
-        likeCount: data.likeCount != null ? Number(data.likeCount) || undefined : undefined,
-        commentCount: data.commentCount != null ? Number(data.commentCount) || undefined : undefined,
-        publishedAt: data.publishedAt || undefined,
+        viewCount: hasTrueMetrics && data.viewCount != null ? Number(data.viewCount) || undefined : undefined,
+        likeCount: hasTrueMetrics && data.likeCount != null ? Number(data.likeCount) || undefined : undefined,
+        commentCount: hasTrueMetrics && data.commentCount != null ? Number(data.commentCount) || undefined : undefined,
+        publishedAt: hasTrueMetrics ? (data.publishedAt || undefined) : undefined,
         duration: data.duration || undefined,
         thumbnailUrl: resolveThumbnailUrl(videoId, data.thumbnail as string | undefined),
         // Traffic snapshot counts (denormalized from traffic/main and trafficSource/main)
