@@ -672,8 +672,8 @@ export async function streamChat(
                     promptTokens: tokenUsage.promptTokens + tu.promptTokens,
                     completionTokens: tokenUsage.completionTokens + tu.completionTokens,
                     totalTokens: tokenUsage.totalTokens + tu.totalTokens,
-                    cachedTokens: newCached > 0 ? newCached : undefined,
-                    cacheWriteTokens: newCacheWrite > 0 ? newCacheWrite : undefined,
+                    ...(newCached > 0 ? { cachedTokens: newCached } : {}),
+                    ...(newCacheWrite > 0 ? { cacheWriteTokens: newCacheWrite } : {}),
                 };
             } else {
                 tokenUsage = tu;
@@ -688,12 +688,17 @@ export async function streamChat(
         );
 
         // If aborted, stop the agentic loop — usage is partial
-        if (iterationResult.partial) {
+        if (iterationResult.partial || signal?.aborted) {
             break;
         }
 
         // If no tool_use blocks, we're done
         if (iterationResult.toolUseBlocks.length === 0) {
+            break;
+        }
+
+        // --- Check abort before executing tools (abort may have arrived during streaming) ---
+        if (signal?.aborted) {
             break;
         }
 
@@ -782,6 +787,12 @@ export async function streamChat(
             } as ToolResultBlockParam);
         }
 
+        // Check abort after tool execution — abort may have arrived while tools were running
+        if (signal?.aborted) {
+            console.log(`[claude:streamChat] Abort detected after tool execution — skipping next iteration`);
+            break;
+        }
+
         // Append user message with tool_result blocks
         agenticMessages.push({
             role: "user",
@@ -806,8 +817,8 @@ export async function streamChat(
                     promptTokens: loopErr.earlyInputTokens,
                     completionTokens: 0,
                     totalTokens: loopErr.earlyInputTokens + cached + cacheWrite,
-                    cachedTokens: cached > 0 ? cached : undefined,
-                    cacheWriteTokens: cacheWrite > 0 ? cacheWrite : undefined,
+                    ...(cached > 0 ? { cachedTokens: cached } : {}),
+                    ...(cacheWrite > 0 ? { cacheWriteTokens: cacheWrite } : {}),
                 };
             }
 
@@ -829,6 +840,31 @@ export async function streamChat(
                 partial: true,
             };
         }
+        // Abort: return partial result (same pattern as thinking timeout above)
+        if (signal?.aborted) {
+            console.info(
+                `[claude:streamChat] Aborted in iteration ${iteration} — ` +
+                `returning partial result (${fullText.length} chars, ${allToolCalls.length} tool calls)`,
+            );
+
+            let normalizedUsage: NormalizedTokenUsage | undefined;
+            if (iterationSnapshots.length > 0 && modelConfig) {
+                normalizedUsage = aggregateIterations(iterationSnapshots, modelConfig);
+                normalizedUsage.partial = true;
+            }
+
+            return {
+                text: fullText,
+                tokenUsage,
+                normalizedUsage,
+                toolCalls: allToolCalls.length > 0 ? allToolCalls : undefined,
+                agenticImages: agenticImageCount > 0
+                    ? { count: agenticImageCount, tokens: agenticImageTokens }
+                    : undefined,
+                partial: true,
+            };
+        }
+
         throw loopErr; // Non-thinking errors propagate as before
     }
 
@@ -959,6 +995,8 @@ async function streamIteration(
     let hadThinkingEvents = false;
     let currentTimeoutMs = STREAM_INACTIVITY_TIMEOUT_MS;
     let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+    // Belt-and-suspenders abort handler — declared here for cleanup in finally
+    let onSignalAbort: (() => void) | null = null;
 
     const resetTimer = () => {
         if (inactivityTimer) clearTimeout(inactivityTimer);
@@ -1102,8 +1140,8 @@ async function streamIteration(
                         promptTokens: message.usage.input_tokens,
                         completionTokens: message.usage.output_tokens,
                         totalTokens: message.usage.input_tokens + message.usage.output_tokens,
-                        cachedTokens: cacheRead > 0 ? cacheRead : undefined,
-                        cacheWriteTokens: cacheWrite > 0 ? cacheWrite : undefined,
+                        ...(cacheRead > 0 ? { cachedTokens: cacheRead } : {}),
+                        ...(cacheWrite > 0 ? { cacheWriteTokens: cacheWrite } : {}),
                     };
                 }
             });
@@ -1112,9 +1150,22 @@ async function streamIteration(
                 reject(error);
             });
 
+            // SDK emits 'abort' (not 'error') on AbortSignal — must reject explicitly,
+            // otherwise 'end' fires after 'abort' and resolves the promise (zombie).
+            stream.on("abort", (error) => {
+                reject(error);
+            });
+
             stream.on("end", () => {
                 resolve();
             });
+
+            // Belt-and-suspenders: direct signal listener for cases where SDK
+            // never emits 'abort' (e.g. for-await loop hangs on network I/O).
+            if (signal) {
+                onSignalAbort = () => reject(new Error("Request aborted"));
+                signal.addEventListener("abort", onSignalAbort, { once: true });
+            }
         });
 
         await streamPromise;
@@ -1133,8 +1184,8 @@ async function streamIteration(
                 promptTokens: earlyInputTokens,
                 completionTokens: approxOutput,
                 totalTokens: earlyInputTokens + cached + cacheWrite + approxOutput,
-                cachedTokens: cached > 0 ? cached : undefined,
-                cacheWriteTokens: cacheWrite > 0 ? cacheWrite : undefined,
+                ...(cached > 0 ? { cachedTokens: cached } : {}),
+                ...(cacheWrite > 0 ? { cacheWriteTokens: cacheWrite } : {}),
             };
             partial = true;
             console.log(
@@ -1147,6 +1198,7 @@ async function streamIteration(
     } finally {
         if (inactivityTimer) clearTimeout(inactivityTimer);
         if (heartbeatInterval) clearInterval(heartbeatInterval);
+        if (signal && onSignalAbort) signal.removeEventListener("abort", onSignalAbort);
         timeoutReject = null;
     }
 

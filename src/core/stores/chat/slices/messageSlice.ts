@@ -60,7 +60,14 @@ export function createMessageSlice(
                         });
                     }
                 } else {
-                    set({ messages: merged, isLoading: false });
+                    // Clear client-side ghost when server-persisted stopped message arrives via onSnapshot
+                    const shouldClearGhost = get().stoppedResponse !== null
+                        && merged.some(m => m.role === 'model' && m.status === 'stopped');
+                    set({
+                        messages: merged,
+                        isLoading: false,
+                        ...(shouldClearGhost ? { stoppedResponse: null } : {}),
+                    });
                 }
             });
         },

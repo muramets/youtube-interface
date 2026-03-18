@@ -6,7 +6,7 @@
 // =============================================================================
 
 import React, { useState } from 'react';
-import { Loader2, Check, AlertCircle, ChevronDown } from 'lucide-react';
+import { Loader2, Check, AlertCircle, ChevronDown, Square } from 'lucide-react';
 import type { ToolCallRecord } from '../../../core/types/chat/chat';
 import type { VideoPreviewData } from '../../Video/types';
 import { groupToolCalls, getGroupLabel, isExpandable, isThumbnailTool, getGroupQuota } from '../utils/toolCallGrouping';
@@ -44,6 +44,8 @@ interface ToolCallSummaryProps {
     toolCalls: ToolCallWithProgress[];
     videoMap?: Map<string, VideoPreviewData>;
     isStreaming?: boolean;
+    /** When true, unresolved tool calls show "Cancelled" instead of a loading spinner. */
+    stopped?: boolean;
 }
 
 // --- Color helpers ---
@@ -66,7 +68,9 @@ const GroupPill: React.FC<{
     videoMap?: Map<string, VideoPreviewData>;
     /** Real-time progress message for the first unresolved call in this group. */
     progressMessage?: string;
-}> = ({ group, videoMap, progressMessage }) => {
+    /** When true, unresolved calls show "Cancelled" instead of a loading spinner. */
+    stopped?: boolean;
+}> = ({ group, videoMap, progressMessage, stopped }) => {
     const [expanded, setExpanded] = useState(false);
 
     // Show progressMessage when the group is still pending (not all resolved) and one is available
@@ -80,12 +84,18 @@ const GroupPill: React.FC<{
         ? 'bg-red-500/[0.06] text-red-400'
         : group.allResolved
             ? colorClass
-            : 'bg-blue-400/[0.06] text-blue-400';
+            : stopped
+                ? 'bg-white/[0.04] text-text-tertiary'
+                : 'bg-blue-400/[0.06] text-blue-400';
 
     // Status icon — specialized icons per tool when resolved, fallback to status indicators
     const renderIcon = () => {
         if (group.hasErrors) return <AlertCircle size={12} className="shrink-0" />;
-        if (!group.allResolved) return <Loader2 size={12} className="shrink-0 animate-spin" />;
+        if (!group.allResolved) {
+            return stopped
+                ? <Square size={10} fill="currentColor" className="shrink-0 opacity-50" />
+                : <Loader2 size={12} className="shrink-0 animate-spin" />;
+        }
 
         // Resolved — use registry icon
         if (config) {
@@ -115,7 +125,7 @@ const GroupPill: React.FC<{
         <div className="flex flex-col items-start max-w-full">
             <button
                 type="button"
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] leading-tight max-w-full overflow-hidden transition-colors duration-200 ${stateClasses} ${expandable ? 'cursor-pointer hover:brightness-125' : 'cursor-default'} ${!group.allResolved ? 'animate-stream-pulse' : ''} ${config?.color === 'accent' && group.allResolved && !group.hasErrors ? ACCENT_BG_CLASS : ''}`}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] leading-tight max-w-full overflow-hidden transition-colors duration-200 ${stateClasses} ${expandable ? 'cursor-pointer hover:brightness-125' : 'cursor-default'} ${!group.allResolved && !stopped ? 'animate-stream-pulse' : ''} ${config?.color === 'accent' && group.allResolved && !group.hasErrors ? ACCENT_BG_CLASS : ''}`}
                 onClick={() => expandable && setExpanded(v => !v)}
                 disabled={!expandable}
             >
@@ -224,6 +234,7 @@ const GroupPill: React.FC<{
 export const ToolCallSummary: React.FC<ToolCallSummaryProps> = React.memo(({
     toolCalls,
     videoMap,
+    stopped,
 }) => {
     if (!toolCalls || toolCalls.length === 0) return null;
 
@@ -252,6 +263,7 @@ export const ToolCallSummary: React.FC<ToolCallSummaryProps> = React.memo(({
                     group={group}
                     videoMap={videoMap}
                     progressMessage={progressMap.get(group.toolName)}
+                    stopped={stopped}
                 />
             ))}
         </div>

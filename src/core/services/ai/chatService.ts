@@ -214,6 +214,13 @@ export const ChatService = {
         });
     },
 
+    /** Signal server to abort the current AI stream via Firestore side-channel. */
+    async requestAbort(userId: string, channelId: string, conversationId: string) {
+        await updateDocument(conversationsPath(userId, channelId), conversationId, {
+            abortRequested: true,
+        });
+    },
+
     async deleteConversation(userId: string, channelId: string, conversationId: string) {
         // Just delete the conversation document — cascading cleanup (messages + storage)
         // is handled server-side by the onConversationDeleted Firestore trigger

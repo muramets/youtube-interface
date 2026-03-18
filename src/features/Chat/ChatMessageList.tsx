@@ -358,7 +358,7 @@ const MessageItem: React.FC<MessageItemProps> = React.memo(({ msg, modelPricing,
                 )}
                 {/* Tool call summary for persisted model messages */}
                 {msg.role === 'model' && msg.toolCalls && msg.toolCalls.length > 0 && (
-                    <ToolCallSummary toolCalls={msg.toolCalls} videoMap={videoMap} />
+                    <ToolCallSummary toolCalls={msg.toolCalls} videoMap={videoMap} stopped={msg.status === 'stopped'} />
                 )}
                 {msg.role === 'model' ? <MarkdownMessage text={msg.text} videoMap={videoMap} /> : msg.text}
             </div>
@@ -641,7 +641,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                             <ThinkingBubble text={stoppedResponse.thinking} isStreaming={false} />
                         )}
                         {stoppedResponse.toolCalls.length > 0 && (
-                            <ToolCallSummary toolCalls={stoppedResponse.toolCalls} videoMap={referenceVideoMap} isStreaming={false} />
+                            <ToolCallSummary toolCalls={stoppedResponse.toolCalls} videoMap={referenceVideoMap} stopped />
                         )}
                         {stoppedResponse.text && (
                             <MarkdownMessage text={stoppedResponse.text} videoMap={referenceVideoMap} />

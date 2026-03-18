@@ -111,10 +111,22 @@ export const aiChat = onRequest(
         const convPath = `users/${userId}/channels/${body.channelId}/chatConversations/${body.conversationId}`;
         const requestStart = Date.now();
 
-        // --- Abort controller: fires when client disconnects (Stop button) ---
+        // --- Abort controller: fires when client requests abort via Firestore ---
+        // Cloud Run HTTP/1.1 does not propagate client disconnect events (res.on('close')
+        // only fires after the function ends, not on client disconnect). Instead, we use
+        // Firestore onSnapshot as a side-channel: client writes { abortRequested: true },
+        // server listener fires and calls abortController.abort().
         const abortController = new AbortController();
-        res.on('close', () => {
-            if (!abortController.signal.aborted) {
+        const convRef = db.doc(convPath);
+
+        // Clear stale abort flag from a previous Stop (fire-and-forget — non-blocking)
+        convRef.update({ abortRequested: admin.firestore.FieldValue.delete() })
+            .catch(() => { /* conv doc may not exist yet for first message edge case */ });
+
+        // Realtime listener: fires when client writes abortRequested=true
+        const unsubscribeAbort = convRef.onSnapshot(snap => {
+            if (snap.data()?.abortRequested && !abortController.signal.aborted) {
+                console.info(`[aiChat] ── Firestore abort ── conv=${body.conversationId}`);
                 abortController.abort();
             }
         });
@@ -384,6 +396,7 @@ export const aiChat = onRequest(
                 ` historyLen=${priorMessages.length} usedSummary=${memory.usedSummary} newSummary=${!!memory.newSummary}` +
                 ` duration=${durationMs}ms`);
 
+
             // Determine message status (immutable after write)
             const messageStatus = partial ? 'stopped' as const : 'complete' as const;
 
@@ -400,19 +413,25 @@ export const aiChat = onRequest(
                 return tc;
             });
 
-            // Final event with complete response + token usage + summary status
-            writeSSE(res, {
-                type: "done",
-                text: responseText,
-                tokenUsage,
-                normalizedUsage,
-                toolCalls: persistToolCalls,
-                usedSummary: memory.usedSummary,
-                summary: memory.newSummary,
-                status: messageStatus,
-                partial,
-                contextBreakdown,
-            });
+
+            // Final event — best-effort SSE notification (client may have disconnected on abort)
+            try {
+                writeSSE(res, {
+                    type: "done",
+                    text: responseText,
+                    tokenUsage,
+                    normalizedUsage,
+                    toolCalls: persistToolCalls,
+                    usedSummary: memory.usedSummary,
+                    summary: memory.newSummary,
+                    status: messageStatus,
+                    partial,
+                    contextBreakdown,
+                });
+            } catch {
+                // Expected on aborted connections — client gets data via Firestore onSnapshot
+            }
+
 
             // Cache summary + log usage + clear error BEFORE ending response
             // (CF runtime may be deallocated after res.end())
@@ -498,6 +517,33 @@ export const aiChat = onRequest(
             res.end();
         } catch (err) {
             const message = err instanceof Error ? err.message : "AI generation failed";
+
+            // --- Abort safety net: if streamChat threw instead of returning partial ---
+            // Primary path: streamChat returns { partial: true } → handled above in try block.
+            // This catches edge cases where the SDK throws on abort before streamChat can return.
+            if (abortController.signal.aborted) {
+                console.info(`[aiChat] ── Aborted (safety net) ── conv=${body.conversationId} duration=${Date.now() - requestStart}ms`);
+                const stoppedMsg: Record<string, unknown> = {
+                    role: 'model',
+                    text: '',
+                    model,
+                    status: 'stopped',
+                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                };
+                if (thinkingAccumulator) {
+                    stoppedMsg.thinking = thinkingAccumulator;
+                    stoppedMsg.thinkingElapsedMs = firstThoughtTs ? Date.now() - firstThoughtTs : 0;
+                }
+                try {
+                    await db.collection(messagesPath).add(stoppedMsg);
+                } catch (persistErr) {
+                    console.warn('[aiChat] Failed to persist abort stopped message', persistErr);
+                }
+                writeSSE(res, { type: "done", text: '', status: 'stopped', partial: true });
+                res.end();
+                return;
+            }
+
             console.error('[aiChat] Generation error:', message);
 
             // --- Thinking timeout: persist partial thinking as stopped message ---
@@ -511,8 +557,8 @@ export const aiChat = onRequest(
                         promptTokens: err.earlyInputTokens,
                         completionTokens: 0,
                         totalTokens: err.earlyInputTokens + cached + cacheWrite,
-                        cachedTokens: cached > 0 ? cached : undefined,
-                        cacheWriteTokens: cacheWrite > 0 ? cacheWrite : undefined,
+                        ...(cached > 0 ? { cachedTokens: cached } : {}),
+                        ...(cacheWrite > 0 ? { cacheWriteTokens: cacheWrite } : {}),
                     };
                 }
 
@@ -561,6 +607,8 @@ export const aiChat = onRequest(
 
             writeSSE(res, { type: "error", error: message });
             res.end();
+        } finally {
+            unsubscribeAbort();
         }
     }
 );

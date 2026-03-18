@@ -385,11 +385,12 @@ async function geminiStreamIteration(
             const usageMetadata = (chunk as Record<string, unknown>).usageMetadata as
                 Record<string, number | undefined> | undefined;
             if (usageMetadata) {
+                const cachedCount = usageMetadata.cachedContentTokenCount ?? 0;
                 tokenUsage = {
                     promptTokens: usageMetadata.promptTokenCount ?? 0,
                     completionTokens: usageMetadata.candidatesTokenCount ?? 0,
                     totalTokens: usageMetadata.totalTokenCount ?? 0,
-                    cachedTokens: usageMetadata.cachedContentTokenCount as number | undefined,
+                    ...(cachedCount > 0 ? { cachedTokens: cachedCount } : {}),
                 };
                 // Gemini reports thinking tokens separately (exact, not approximate)
                 thoughtsTokenCount = (usageMetadata.thoughtsTokenCount as number) ?? 0;
@@ -599,7 +600,7 @@ export async function streamChat(
                     promptTokens: tokenUsage.promptTokens + tu.promptTokens,
                     completionTokens: tokenUsage.completionTokens + tu.completionTokens,
                     totalTokens: tokenUsage.totalTokens + tu.totalTokens,
-                    cachedTokens: newCached > 0 ? newCached : undefined,
+                    ...(newCached > 0 ? { cachedTokens: newCached } : {}),
                 };
             } else {
                 tokenUsage = tu;
@@ -614,12 +615,17 @@ export async function streamChat(
         );
 
         // If aborted, stop the agentic loop — usage is partial
-        if (iterationResult.partial) {
+        if (iterationResult.partial || signal?.aborted) {
             break;
         }
 
         // If no function calls, we're done — Gemini returned a final text response
         if (iterationResult.functionCalls.length === 0) {
+            break;
+        }
+
+        // --- Check abort before executing tools (abort may have arrived during streaming) ---
+        if (signal?.aborted) {
             break;
         }
 
@@ -712,6 +718,12 @@ export async function streamChat(
                     geminiResp._failedThumbnails = failedCount;
                 }
             }
+        }
+
+        // Check abort after tool execution — abort may have arrived while tools were running
+        if (signal?.aborted) {
+            console.log(`[gemini:streamChat] Abort detected after tool execution — skipping next iteration`);
+            break;
         }
 
         // Append function responses for next iteration

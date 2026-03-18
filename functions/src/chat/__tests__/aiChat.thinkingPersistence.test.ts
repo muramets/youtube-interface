@@ -128,7 +128,11 @@ function setupFirestoreMocks(messageDocs: ReturnType<typeof mockDoc>[], convData
         if (path.includes("/settings/")) {
             return { get: vi.fn().mockResolvedValue(settingsDoc), update: vi.fn().mockResolvedValue(undefined) };
         }
-        return { get: vi.fn().mockResolvedValue(convDoc), update: vi.fn().mockResolvedValue(undefined) };
+        return {
+            get: vi.fn().mockResolvedValue(convDoc),
+            update: vi.fn().mockResolvedValue(undefined),
+            onSnapshot: vi.fn().mockReturnValue(vi.fn()), // returns unsubscribe no-op
+        };
     });
 }
 
