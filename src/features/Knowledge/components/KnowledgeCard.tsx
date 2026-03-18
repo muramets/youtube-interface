@@ -15,7 +15,7 @@ import { CollapsibleMarkdownSections } from './CollapsibleMarkdownSections'
 import { formatKnowledgeDate } from '../utils/formatDate'
 import { buildBodyComponents } from '../utils/bodyComponents'
 import { allowCustomUrls } from '../utils/diffUtils'
-import { linkifyVideoRefs } from '../utils/linkifyVideoRefs'
+import { linkifyVideoIds } from '../../../core/utils/linkifyVideoIds'
 
 interface KnowledgeCardProps {
     item: KnowledgeItem
@@ -100,7 +100,7 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
     const bodyComponents = useMemo(() => buildBodyComponents(videoMap), [videoMap])
 
     const linkifiedContent = useMemo(() =>
-        videoMap ? linkifyVideoRefs(item.content, videoMap) : item.content,
+        videoMap ? linkifyVideoIds(item.content, videoMap) : item.content,
         [item.content, videoMap],
     )
 
@@ -169,7 +169,7 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
                     {/* Summary — always visible */}
                     <div className="mt-1.5 text-xs text-text-secondary line-clamp-2 leading-relaxed [&_p]:m-0 [&_p]:inline">
                         <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]} urlTransform={allowCustomUrls} components={bodyComponents}>
-                            {videoMap ? linkifyVideoRefs(item.summary, videoMap) : item.summary}
+                            {videoMap ? linkifyVideoIds(item.summary, videoMap) : item.summary}
                         </ReactMarkdown>
                     </div>
                 </div>
@@ -251,7 +251,7 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
             {isZenMode && (
                 <KnowledgeViewer
                     item={item}
-                    content={videoMap ? linkifyVideoRefs(item.content, videoMap) : item.content}
+                    content={videoMap ? linkifyVideoIds(item.content, videoMap) : item.content}
                     onClose={() => setIsZenMode(false)}
                     videoMap={videoMap}
                 />

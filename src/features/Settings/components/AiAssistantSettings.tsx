@@ -6,7 +6,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { ChevronDown, Brain, Pencil, Check, X, Plus } from 'lucide-react';
 import { ConfirmDeleteButton } from '../../../components/ui/atoms/ConfirmDeleteButton';
 import { CollapsibleMarkdownSections } from '../../Knowledge/components/CollapsibleMarkdownSections';
-import { linkifyVideoRefs } from '../../Knowledge/utils/linkifyVideoRefs';
+import { linkifyVideoIds } from '../../../core/utils/linkifyVideoIds';
 import { RichTextEditor } from '../../../components/ui/organisms/RichTextEditor';
 import { Dropdown } from '../../../components/ui/molecules/Dropdown';
 import { SegmentedControl } from '../../../components/ui/molecules/SegmentedControl';
@@ -394,7 +394,7 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
                                         <>
                                             <div className="max-h-[300px] overflow-y-auto">
                                                 <CollapsibleMarkdownSections
-                                                    content={videoMap ? linkifyVideoRefs(mem.content, videoMap) : mem.content}
+                                                    content={videoMap ? linkifyVideoIds(mem.content, videoMap) : mem.content}
                                                     videoMap={videoMap}
                                                     defaultOpenLevel={0}
                                                     variant="zen"

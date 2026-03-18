@@ -47,7 +47,7 @@ Watch Page имеет два таба: **My Notes** (ручные заметки
 
 **Video reference highlighting (resolve at write, render from snapshot):**
 - При сохранении KI (`saveKnowledge` handler) код извлекает video-ID-like строки из content (regex), резолвит через 3-step resolver (`videos/` → `cached_external_videos/` → `trendChannels/`), сохраняет как `resolvedVideoRefs: MemoryVideoRef[]` snapshot на KI doc. Работает для своих видео и конкурентов.
-- LLM пишет `[title](vid://ID)` ссылки в content. `bodyComponents.a` рендерит их как `VideoReferenceTooltip` с hover tooltip. Для legacy KI с raw IDs `linkifyVideoRefs` конвертирует в `[title](vid://ID)` при рендере. Zero Firestore reads — данные уже на документе.
+- LLM пишет `[title](vid://ID)` ссылки в content. `bodyComponents.a` рендерит их как `VideoReferenceTooltip` с hover tooltip. Для legacy KI с raw IDs `linkifyVideoIds` конвертирует в `[title](vid://ID)` при рендере. Zero Firestore reads — данные уже на документе.
 - Fallback: для legacy KI без `resolvedVideoRefs` используется `buildVideoRefMap` из `useVideos` (только свои видео).
 
 **`knowledgeItemCount` badge:** на VideoCard (thumbnail overlay, иконка BookOpen) показывает количество KI для видео.
@@ -164,13 +164,13 @@ Composite indexes deployed: idempotency guard (`conversationId + category + vide
 | `src/core/services/knowledge/knowledgeCategoryService.ts` | Category registry CRUD + seed creation |
 | `src/core/hooks/useKnowledgeItems.ts` | TanStack Query: `useVideoKnowledgeItems`, `useChannelKnowledgeItems`, `useAllKnowledgeItems`, mutations (accept `videoId`/`scope`) |
 | `src/core/stores/knowledgeStore.ts` | Zustand: `scopeFilter` (all/channel/video), `selectedCategory`, `sortOrder` (Knowledge Page UI state) |
-| `src/features/Knowledge/components/KnowledgeCard.tsx` | Collapsible card: hover-trail, collapsible sections, Badge for source, video ref highlighting via `vid://` links + `linkifyVideoRefs` fallback + `VideoReferenceTooltip` |
+| `src/features/Knowledge/components/KnowledgeCard.tsx` | Collapsible card: hover-trail, collapsible sections, Badge for source, video ref highlighting via `vid://` links + `linkifyVideoIds` fallback + `VideoReferenceTooltip` |
 | `src/features/Knowledge/components/KnowledgeList.tsx` | Shared list (Watch Page + Knowledge Page), passes `videoMap` |
 | `src/features/Knowledge/components/KnowledgeViewer.tsx` | Zen Mode: Portal + AnimatePresence + backdrop blur |
 | `src/features/Knowledge/components/VideoLinkField.tsx` | Video link/unlink form field: search dropdown + compact preview, used in Edit modal |
 | `src/features/Knowledge/modals/KnowledgeItemModal.tsx` | Edit modal: RichTextEditor, read-only provenance, Badge for source, VideoLinkField for video linking |
 | `src/features/Knowledge/modals/CreateKnowledgeItemModal.tsx` | Manual creation: Dropdown molecule for category, RichTextEditor |
-| `src/features/Knowledge/utils/linkifyVideoRefs.ts` | (deprecated) Converts raw video IDs → `[title](vid://ID)` links for legacy KI content |
+| `src/core/utils/linkifyVideoIds.ts` | Enriches markdown with interactive video references — converts raw video IDs → `[title](vid://ID)` or `[title](mention://ID)` links. Used by Knowledge (vid://) and Chat (mention://) |
 | `src/core/hooks/useVideosCatalog.ts` | Video catalog hook for `@` autocomplete: own + trend channel videos, TanStack Query, staleTime 5min |
 | `src/components/ui/organisms/RichTextEditor/extensions/VideoRefMark.ts` | Tiptap Mark for `vid://` links: `addMarkView()` + `ReactMarkViewRenderer`, tooltip via Context |
 | `src/components/ui/organisms/RichTextEditor/extensions/VideoMention.ts` | `@` autocomplete extension: `@tiptap/suggestion`, 2+ char threshold, max 10 results |
@@ -194,7 +194,7 @@ Composite indexes deployed: idempotency guard (`conversationId + category + vide
 
 | File | Coverage |
 |------|----------|
-| `src/features/Knowledge/utils/__tests__/linkifyVideoRefs.test.ts` | `linkifyVideoRefs` output format (`vid://`), no matches, no double-wrap |
+| `src/core/utils/__tests__/linkifyVideoIds.test.ts` | `linkifyVideoIds` output format, code block protection, URL safety, boundary cases (28 tests) |
 | `src/components/ui/organisms/RichTextEditor/__tests__/vidRoundtrip.test.ts` | `vid://` link markdown roundtrip (turndown/marked) |
 | `src/components/ui/organisms/RichTextEditor/__tests__/videoRefMark.test.ts` | `VideoRefMark` parseHTML/renderHTML, `inclusive: false` |
 | `src/components/ui/organisms/RichTextEditor/__tests__/videoMentionFilter.test.ts` | `@` autocomplete items filter: threshold, spaces, max results |
@@ -228,7 +228,7 @@ Composite indexes deployed: idempotency guard (`conversationId + category + vide
 | 9 | `SLUG_PATTERN` via `shared/knowledge.ts` | SSOT for frontend + backend |
 | 10 | `onKnowledgeItemDeleted` trigger | Consistent flag decrements regardless of deletion source |
 | 11 | Resolve at write, render from snapshot | `saveKnowledge` extracts video IDs from content via regex → resolves via `resolveVideosByIds` (3-step: own/cached/trend) → stores `resolvedVideoRefs: MemoryVideoRef[]` on KI doc. Frontend renders from snapshot — zero Firestore reads. Works for own videos + competitors. Same `MemoryVideoRef` type as Memory system |
-| 12 | Video ref highlighting via `vid://` | LLM writes `[title](vid://ID)` links. `bodyComponents.a` renders as `VideoReferenceTooltip`. `linkifyVideoRefs` (deprecated) converts raw IDs → `vid://` for legacy KI. Edit mode: `VideoRefMark` Tiptap Mark with React MarkView + `@` autocomplete via `useVideosCatalog` |
+| 12 | Video ref highlighting via `vid://` | LLM writes `[title](vid://ID)` links. `bodyComponents.a` renders as `VideoReferenceTooltip`. `linkifyVideoIds` (deprecated) converts raw IDs → `vid://` for legacy KI. Edit mode: `VideoRefMark` Tiptap Mark with React MarkView + `@` autocomplete via `useVideosCatalog` |
 | 13 | Conclude context injection | Backend injects existing KI list into conclude message → AI skips duplicates → ~50 tokens vs ~6K wasted output |
 | 14 | Custom video ID resolution | `saveKnowledge` resolves YouTube ID → `custom-*` doc ID via `resolveVideosByIds` before batch. Graceful fallback to channel-level |
 | 15 | Knowledge/ as shared feature | Used by Watch Page + Knowledge Page (SRP) |

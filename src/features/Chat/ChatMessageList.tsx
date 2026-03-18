@@ -63,6 +63,7 @@ import { VideoReferenceTooltip } from './components/VideoReferenceTooltip';
 import { formatRelativeTime, STATIC_AGE } from './formatRelativeTime';
 import { normalizeMarkdown } from './utils/normalizeMarkdown';
 import { buildToolVideoMap } from './utils/buildToolVideoMap';
+import { linkifyVideoIds } from '../../core/utils/linkifyVideoIds';
 import { MessageErrorBoundary } from './components/ChatBoundaries';
 import { VideoCardChip } from './VideoCardChip';
 import { SuggestedTrafficChip } from './SuggestedTrafficChip';
@@ -135,6 +136,9 @@ const MarkdownMessage: React.FC<{ text: string; videoMap?: Map<string, VideoPrev
         .replace(MENTION_URL_FIX_RE, '](mention://')
         .replace(MENTION_SPACE_RE, '$1 [$2](mention://');
 
+    // Enrich known video IDs with interactive mention:// badges
+    const autoLinked = videoMap ? linkifyVideoIds(sanitized, videoMap, 'mention') : sanitized;
+
     return (
         <ReactMarkdown
             remarkPlugins={[remarkGfm]}
@@ -172,7 +176,7 @@ const MarkdownMessage: React.FC<{ text: string; videoMap?: Map<string, VideoPrev
                 },
             }}
         >
-            {normalizeMarkdown(sanitized)}
+            {normalizeMarkdown(autoLinked)}
         </ReactMarkdown>
     );
 });

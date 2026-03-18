@@ -18,7 +18,7 @@ import { CollapsibleSection } from '../../../components/ui/molecules/Collapsible
 import { ConfirmDeleteButton } from '../../../components/ui/atoms/ConfirmDeleteButton';
 import { parseMarkdownSections, type HierarchicalSection } from '../../Knowledge/utils/markdownSections';
 import { buildBodyComponents } from '../../Knowledge/utils/bodyComponents';
-import { linkifyVideoRefs } from '../../Knowledge/utils/linkifyVideoRefs';
+import { linkifyVideoIds } from '../../../core/utils/linkifyVideoIds';
 import { useVideosCatalog } from '../../../core/hooks/useVideosCatalog';
 import type { VideoPreviewData } from '../../Video/types';
 
@@ -80,7 +80,7 @@ export const MemoryCheckpoint: React.FC<MemoryCheckpointProps> = ({ memory, onUp
     const bodyComponents = useMemo(() => buildBodyComponents(videoMap), [videoMap]);
 
     const sections = useMemo(() => {
-        const content = videoMap ? linkifyVideoRefs(memory.content, videoMap) : memory.content
+        const content = videoMap ? linkifyVideoIds(memory.content, videoMap) : memory.content
         return parseMarkdownSections(content)
     }, [memory.content, videoMap]);
 
