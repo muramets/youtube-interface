@@ -4,16 +4,13 @@
 // States:
 //   idle   — default, no special scroll behavior
 //   pinned — user message pinned to top, streaming below
-//   away   — user scrolled away from pinned position (up to see old messages)
+//   away   — user scrolled away from pinned position
 //
 // Transitions:
 //   idle → pinned   — new user message sent (P1) or streaming starts (P2)
-//   pinned → pinned — user scrolls up: spacer consumed; scrolls back down: spacer re-expands (elastic)
-//   pinned → idle   — spacer fully consumed (reaches 0)
-//   pinned → away   — user scrolls up past the pin point (leaves pinned area)
-//   pinned → pinned — streaming ends (P3): spacer shrinks, elastic continues unwinding residual
-//   pinned → idle   — spacer reaches 0 (after P3 or scroll consumption)
+//   pinned → away   — user scrolls >80px from bottom
 //   away → idle     — user scrolls back near bottom
+//   pinned → idle   — streaming ends (P3)
 // =============================================================================
 
 import { useEffect, useRef, useState, useCallback } from 'react';
@@ -67,13 +64,6 @@ export function useChatScroll({
     const intentRef = useRef<ScrollIntent>('idle');
     const prevMsgCountRef = useRef(messageCount);
     const prevStreamingRef = useRef(isStreaming);
-
-    // Scroll-linked spacer: tracks scrollTop deltas + original height for elastic behavior
-    // prevScrollTopRef: -1 = sentinel (not yet initialized after pin)
-    const prevScrollTopRef = useRef(-1);
-    const pinnedSpacerHeightRef = useRef(0);
-    // Max scrollTop while pinned — user message must not scroll above viewport
-    const pinnedMaxScrollTopRef = useRef(0);
 
     // Helper: set scrollTop without triggering handleScroll's away-detection
     // Uses scrollend event to keep guard up for entire smooth scroll duration
@@ -134,10 +124,6 @@ export function useChatScroll({
                 setSpacer(spacerHeight);
                 debug.scroll(`P1: spacer expanded to ${spacerHeight}px, scrollHeight now=${container.scrollHeight}`);
 
-                // Reset scroll-linked tracking (will be initialized on first user scroll)
-                prevScrollTopRef.current = -1;
-                pinnedSpacerHeightRef.current = spacerHeight;
-
                 if (anchor) {
                     if (lastMsgEl) {
                         const cRect = container.getBoundingClientRect();
@@ -170,7 +156,7 @@ export function useChatScroll({
             return;
         }
 
-        // --- Priority 3: Streaming just ended — shrink spacer, keep elastic scroll ---
+        // --- Priority 3: Streaming just ended — shrink spacer, preserve scroll position ---
         if (streamingJustEnded) {
             const currentScroll = container.scrollTop;
             const contentH = container.scrollHeight - (spacerRef.current?.offsetHeight ?? 0);
@@ -178,14 +164,7 @@ export function useChatScroll({
             const neededSpacer = Math.max(0, neededScrollH - contentH);
             debug.scroll(`P3: streaming ended, spacer ${spacerRef.current?.offsetHeight ?? 0}->${neededSpacer}, preserving scrollTop=${currentScroll}`);
             setSpacer(neededSpacer);
-            // Stay 'pinned' so the elastic scroll-linked mechanism continues
-            // unwinding the residual spacer. When spacer reaches 0 → 'idle'.
-            // Update pinnedSpacerHeightRef so re-expansion is capped at the new (smaller) value.
-            pinnedSpacerHeightRef.current = neededSpacer;
-            if (neededSpacer <= 0) {
-                intentRef.current = 'idle';
-            }
-            // else: intentRef stays 'pinned' — elastic continues
+            intentRef.current = 'idle';
             return;
         }
 
@@ -210,7 +189,7 @@ export function useChatScroll({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [messageCount, streamingText, isStreaming]);
 
-    // Track scroll position for FAB + scroll-linked spacer consumption
+    // Track scroll position for FAB + away detection (ignores programmatic scrolls)
     const handleScroll = useCallback(() => {
         if (isProgrammaticRef.current) {
             debug.scroll('handleScroll: skipped (programmatic)');
@@ -220,67 +199,15 @@ export function useChatScroll({
         if (!el) return;
         const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
 
-        // --- Scroll-linked spacer consumption while pinned ---
-        if (intentRef.current === 'pinned') {
-            const spacer = spacerRef.current;
-            const spacerH = spacer?.offsetHeight ?? 0;
-
-            // Initialize tracking on first user scroll after pin
-            if (prevScrollTopRef.current === -1) {
-                prevScrollTopRef.current = el.scrollTop;
-                pinnedMaxScrollTopRef.current = el.scrollTop;
-                debug.scroll(`handleScroll[pinned]: initialized prevScrollTop=${el.scrollTop}, maxScrollTop=${el.scrollTop}`);
-                return;
-            }
-
-            const delta = el.scrollTop - prevScrollTopRef.current;
-            prevScrollTopRef.current = el.scrollTop;
-
-            if (delta < 0 && spacerH > 0) {
-                // User scrolling UP (trackpad down) — leaving pinned area, seeing old messages.
-                // Consume spacer proportionally: spacer shrinks invisibly from below.
-                // Math: scrollTop decreases by |delta|, spacer decreases by |delta| →
-                // distFromBottom stays constant → no clamping possible.
-                const consumed = Math.min(Math.abs(delta), spacerH);
-                const newSpacerH = spacerH - consumed;
-                if (spacer) spacer.style.minHeight = `${newSpacerH}px`;
-                debug.scroll(`handleScroll[pinned]: consume ${consumed}px, spacer ${spacerH}->${newSpacerH}`);
-
-                if (newSpacerH <= 0) {
-                    debug.scroll('handleScroll[pinned]: spacer fully consumed → idle');
-                    intentRef.current = 'idle';
-                }
-            } else if (delta > 0 && spacerH < pinnedSpacerHeightRef.current) {
-                // User scrolling DOWN (trackpad up) — returning toward pinned position.
-                // Re-expand spacer proportionally, up to the original P1 height.
-                // Math: scrollTop increases by delta, spacer increases by delta →
-                // distFromBottom stays constant → no clamping possible.
-                const maxExpand = pinnedSpacerHeightRef.current - spacerH;
-                const expanded = Math.min(delta, maxExpand);
-                const newSpacerH = spacerH + expanded;
-                if (spacer) spacer.style.minHeight = `${newSpacerH}px`;
-                debug.scroll(`handleScroll[pinned]: expand ${expanded}px, spacer ${spacerH}->${newSpacerH}`);
-            } else if (delta > 0 && spacerH >= pinnedSpacerHeightRef.current) {
-                // Spacer at max — user trying to scroll past the pin point.
-                // Clamp: user message must stay visible at top of viewport.
-                el.scrollTop = pinnedMaxScrollTopRef.current;
-                prevScrollTopRef.current = pinnedMaxScrollTopRef.current;
-                debug.scroll(`handleScroll[pinned]: clamped at pin point ${pinnedMaxScrollTopRef.current}`);
-            } else if (delta < 0 && spacerH <= 0) {
-                // Spacer already gone, user still scrolling up — release to normal scroll
-                debug.scroll('handleScroll[pinned]: spacer already 0, scrolling up → away');
-                intentRef.current = 'away';
-            }
-
-            setShowScrollFab(distanceFromBottom > 200);
-            return;
-        }
-
-        // --- Normal scroll tracking (idle / away) ---
         setShowScrollFab(distanceFromBottom > 200);
 
+        if (distanceFromBottom > 80 && intentRef.current === 'pinned') {
+            debug.scroll(`handleScroll: user scrolled away! distance=${distanceFromBottom} intent pinned -> away`);
+            intentRef.current = 'away';
+        }
+
         if (distanceFromBottom <= 80 && intentRef.current === 'away') {
-            debug.scroll('handleScroll: user scrolled back near bottom, intent away -> idle');
+            debug.scroll(`handleScroll: user scrolled back near bottom, intent away -> idle`);
             intentRef.current = 'idle';
         }
 
@@ -312,44 +239,9 @@ export function useChatScroll({
         return () => observer.disconnect();
     }, []);
 
-    // Spacer self-correction: when content height changes (message reconciliation,
-    // tool badges re-layout) while spacer > 0, recalculate to prevent empty space.
-    // Observes bottomRef — its position changes when content above it changes.
-    useEffect(() => {
-        const sentinel = bottomRef.current;
-        const container = containerRef.current;
-        if (!sentinel || !container) return;
-
-        const observer = new ResizeObserver(() => {
-            if (intentRef.current !== 'pinned') return;
-            const spacer = spacerRef.current;
-            const spacerH = spacer?.offsetHeight ?? 0;
-            if (spacerH <= 0) return;
-
-            const contentH = container.scrollHeight - spacerH;
-            const neededSpacer = Math.max(0, container.scrollTop + container.clientHeight - contentH);
-
-            if (neededSpacer < spacerH) {
-                debug.scroll(`spacer self-correct: ${spacerH}->${neededSpacer} (content changed)`);
-                if (spacer) spacer.style.minHeight = neededSpacer > 0 ? `${neededSpacer}px` : '0px';
-                pinnedSpacerHeightRef.current = Math.min(pinnedSpacerHeightRef.current, neededSpacer);
-                if (neededSpacer <= 0) {
-                    intentRef.current = 'idle';
-                }
-            }
-        });
-        // Observe the parent of bottomRef — catches all content height changes
-        // (message reconciliation, badge re-layout, thinking collapse)
-        if (sentinel.parentElement) {
-            observer.observe(sentinel.parentElement);
-        }
-        return () => observer.disconnect();
-    }, []);
-
     const scrollToBottom = useCallback(() => {
         debug.scroll('scrollToBottom clicked');
         intentRef.current = 'idle';
-        prevScrollTopRef.current = -1;
         setSpacer(0);
         programmaticScroll(() => {
             containerRef.current?.scrollTo({ top: containerRef.current.scrollHeight, behavior: 'smooth' });
