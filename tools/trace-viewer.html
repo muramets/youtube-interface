@@ -1479,10 +1479,10 @@
       var container = el('div');
 
       var classification, classColor;
-      if (stats.selfPercentage > 60) {
+      if (stats.selfPercentageTop > 60) {
         classification = 'Channel Ecosystem Boost';
         classColor = 'var(--warning)';
-      } else if (stats.selfPercentage > 30) {
+      } else if (stats.selfPercentageTop > 30) {
         classification = 'Hybrid Reach';
         classColor = 'var(--accent)';
       } else {
@@ -1491,7 +1491,7 @@
       }
 
       container.appendChild(el('div', { className: 'gauge' },
-        el('span', { className: 'gauge-value', style: { color: classColor } }, stats.selfPercentage + '%'),
+        el('span', { className: 'gauge-value', style: { color: classColor } }, stats.selfPercentageTop + '%'),
         el('div', {},
           el('div', { className: 'gauge-label' }, 'Self-channel: ' + (stats.channelTitle || '\u2014')),
           el('div', { className: 'gauge-classification', style: { background: classColor.replace(')', ',0.15)').replace('var(', ''), color: classColor } }, classification)
@@ -1509,9 +1509,9 @@
           bars.appendChild(el('div', { className: 'h-bar-row' },
             el('span', { className: 'h-bar-label' }, s.label),
             el('div', { className: 'h-bar-track' },
-              el('div', { className: 'h-bar-fill', style: { width: Math.min(s.selfPercentage, 100) + '%', background: classColor, opacity: '0.5' } })
+              el('div', { className: 'h-bar-fill', style: { width: Math.min(s.selfPercentageAll, 100) + '%', background: classColor, opacity: '0.5' } })
             ),
-            el('span', { className: 'h-bar-value' }, s.selfPercentage + '%')
+            el('span', { className: 'h-bar-value' }, s.selfPercentageAll + '%')
           ));
         });
         container.lastChild.appendChild(bars);

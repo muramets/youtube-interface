@@ -71,8 +71,8 @@ export interface SelfChannelStats {
     selfCount: number;
     /** Total number of enriched videos with known channel (latest snapshot) */
     totalEnriched: number;
-    /** Self-channel percentage (0–100, latest snapshot) */
-    selfPercentage: number;
+    /** Self-channel percentage among top-N returned sources (0–100, latest snapshot) */
+    selfPercentageTop: number;
     /** Total impressions from self-channel videos (latest snapshot) */
     selfImpressions: number;
     /** Total views from self-channel videos (latest snapshot) */
@@ -93,7 +93,8 @@ export interface SelfChannelTimelinePoint {
     label: string;
     selfCount: number;
     totalEnriched: number;
-    selfPercentage: number;
+    /** Self-channel percentage among ALL enriched sources in this snapshot (0–100) */
+    selfPercentageAll: number;
     selfImpressions: number;
 }
 
@@ -417,7 +418,7 @@ export function computeSelfChannelStats(
     }
 
     const selfCount = selfVideos.length;
-    const selfPercentage = totalEnriched > 0
+    const selfPercentageTop = totalEnriched > 0
         ? Math.round((selfCount / totalEnriched) * 100)
         : 0;
 
@@ -455,7 +456,7 @@ export function computeSelfChannelStats(
                 label: snapshotLabels?.[s] ?? `v${s + 1}`,
                 selfCount: snapSelf,
                 totalEnriched: snapEnriched,
-                selfPercentage: snapEnriched > 0
+                selfPercentageAll: snapEnriched > 0
                     ? Math.round((snapSelf / snapEnriched) * 100)
                     : 0,
                 selfImpressions: snapSelfImpressions,
@@ -467,7 +468,7 @@ export function computeSelfChannelStats(
         channelTitle: sourceChannelTitle,
         selfCount,
         totalEnriched,
-        selfPercentage,
+        selfPercentageTop,
         selfImpressions,
         selfViews,
         selfTopVideos,

@@ -139,7 +139,7 @@ transitions: [
 
 Определяет, сколько suggested traffic приходит от собственного канала пользователя:
 - Matching по `channelTitle` (case-insensitive)
-- selfPercentage + timeline по снапшотам
+- `selfPercentageTop` (top-N returned sources) + `selfPercentageAll` (all sources per snapshot) — два разных знаменателя
 - Interpretation guide в `analysisGuidance`: >60% = ecosystem boost, 30-60% = hybrid, <30% = external discovery
 
 #### 7d — computeContentTrajectory()
@@ -198,10 +198,10 @@ Per-snapshot эволюция контента:
         }
     },
     selfChannelStats?: {
-        channelTitle, selfCount, totalEnriched, selfPercentage,
+        channelTitle, selfCount, totalEnriched, selfPercentageTop,
         selfImpressions, selfViews,
         selfTopVideos: [{ videoId, sourceTitle, impressions, views }],
-        timeline: [{ date, label, selfCount, totalEnriched, selfPercentage, selfImpressions }]
+        timeline: [{ date, label, selfCount, totalEnriched, selfPercentageAll, selfImpressions }]
     },
     contentTrajectory?: [{
         date, label, totalSources, totalImpressions, isLatest,
@@ -227,8 +227,8 @@ Per-snapshot эволюция контента:
 | Какие каналы-конкуренты? | `contentAnalysis.channelDistribution` |
 | Тематика окружения? | `contentAnalysis.topKeywordsInSuggestedTitles` |
 | Как алгоритм пришёл сюда? | `contentTrajectory` — per-snapshot keywords + channels + top videos + deltas |
-| Сколько трафика от моего канала? | `selfChannelStats` — selfPercentage + timeline |
-| Когда начался ecosystem boost? | `selfChannelStats.timeline` — inflection point |
+| Сколько трафика от моего канала? | `selfChannelStats` — `selfPercentageTop` (top-N) + timeline `selfPercentageAll` (all) |
+| Когда начался ecosystem boost? | `selfChannelStats.timeline` — `selfPercentageAll` inflection point |
 | Растёт ли source видео на YouTube? | `topSources[].viewDelta24h/7d/30d` — YouTube-wide view growth |
 
 ---

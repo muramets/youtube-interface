@@ -379,12 +379,16 @@ CRITICAL RULES:
   6. topSharedTags shows tags that overlap with the source video per snapshot — if high overlap appears only in later snapshots, the algorithm found the topical match late.
   7. tailImpressions shows how much traffic is in the long tail. High tailImpressions vs low topVideos sum = highly fragmented pool.
   8. The latest snapshot has isLatest=true and empty topVideos — use topSources for the latest snapshot's per-video breakdown (it has more detail including full cross-snapshot timelines).
-- "selfChannelStats" (when present) = CRITICAL strategic signal. Shows how much of the suggested traffic comes from the user's OWN channel ("${sourceVideo.channelTitle}"). Interpret selfPercentage as follows:
+- "selfChannelStats" (when present) = CRITICAL strategic signal. Shows how much of the suggested traffic comes from the user's OWN channel ("${sourceVideo.channelTitle}"). IMPORTANT: selfChannelStats has TWO percentage fields with DIFFERENT denominators:
+  • "selfPercentageTop" (top-level) = self-channel share among the top-N returned sources (the topSources list). This number is higher because own-channel videos tend to rank near the top by impressions.
+  • "selfPercentageAll" (in timeline[]) = self-channel share among ALL enriched sources in each snapshot. This is the true proportion across the full suggested pool — typically much lower than selfPercentageTop.
+  When citing self-channel %, always specify WHICH metric you are using. Do not mix them in the same sentence.
+  Interpret selfPercentageTop as follows:
   • >60% = "Channel Ecosystem Boost" — YouTube's algorithm promotes this video primarily within the user's own channel ecosystem, showing it alongside their other hits. This means: (a) strong channel authority, (b) YouTube trusts this channel to retain viewers across videos, (c) growth was driven by existing audience, not new discovery. The video is a "catalog driver" — it pulls viewers deeper into the channel.
   • 30-60% = "Hybrid reach" — balanced between self-channel ecosystem and external discovery.
   • <30% = "External Discovery" — the video broke into external suggested pools, reaching new audiences beyond the subscriber base. This is a sign of broader algorithmic reach and topic authority.
-  selfChannelStats.timeline shows self-channel percentage PER SNAPSHOT — use it to identify the inflection point where self-channel traffic started growing. For example, if timeline shows [0%, 10%, 40%, 73%], explain WHEN the shift happened and correlate with topSources timelines to identify which specific video triggered the ecosystem boost.
-  Always call out selfPercentage explicitly when present. This is one of the most strategically important metrics in the analysis.
+  selfChannelStats.timeline shows selfPercentageAll PER SNAPSHOT — use it to identify the inflection point where self-channel traffic started growing. For example, if timeline shows [0%, 10%, 40%, 73%], explain WHEN the shift happened and correlate with topSources timelines to identify which specific video triggered the ecosystem boost.
+  Always call out both selfPercentageTop and the timeline trend explicitly when present. This is one of the most strategically important metrics in the analysis.
 - "viewDelta24h/7d/30d" on each topSource = YouTube-wide view growth of that source video over the last 24 hours / 7 days / 30 days. A source video that is itself growing rapidly (high viewDelta24h) means more viewers watch it → more viewers see the user's video as a suggestion next to it → higher potential for impressions. A stagnating source (viewDelta ≈ 0) means the placement is stable but not growing. Null = no trend data available for that video's channel.
 - DO NOT recalculate any numbers. Interpret and explain what the findings mean strategically.
 - If timelines have only 1 point (single snapshot), note that trend data requires at least 2 snapshots.

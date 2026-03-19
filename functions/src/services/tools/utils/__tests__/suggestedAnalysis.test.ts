@@ -383,7 +383,7 @@ describe('computeSelfChannelStats', () => {
         expect(result).not.toBeNull();
         expect(result!.selfCount).toBe(4);
         expect(result!.totalEnriched).toBe(5);
-        expect(result!.selfPercentage).toBe(80);
+        expect(result!.selfPercentageTop).toBe(80);
         expect(result!.selfImpressions).toBe(11000);
         expect(result!.selfViews).toBe(500);
         expect(result!.timeline).toEqual([]); // no snapshot rows → empty timeline
@@ -398,7 +398,7 @@ describe('computeSelfChannelStats', () => {
         const result = computeSelfChannelStats('MyChannel', topSources, enriched);
         expect(result).not.toBeNull();
         expect(result!.selfCount).toBe(0);
-        expect(result!.selfPercentage).toBe(0);
+        expect(result!.selfPercentageTop).toBe(0);
     });
 
     it('is case-insensitive for channel matching', () => {
@@ -450,7 +450,7 @@ describe('computeSelfChannelStats', () => {
         const result = computeSelfChannelStats('Mine', topSources, enriched);
         expect(result!.totalEnriched).toBe(1); // only v1 counted
         expect(result!.selfCount).toBe(1);
-        expect(result!.selfPercentage).toBe(100);
+        expect(result!.selfPercentageTop).toBe(100);
     });
 
     it('computes per-snapshot timeline with growing self-channel dominance', () => {
@@ -476,16 +476,16 @@ describe('computeSelfChannelStats', () => {
         expect(result!.timeline).toHaveLength(3);
 
         // Snapshot 1: v3=CompetitorA, v4=CompetitorB, unknown1=not enriched → 0/2 = 0%
-        expect(result!.timeline[0].selfPercentage).toBe(0);
+        expect(result!.timeline[0].selfPercentageAll).toBe(0);
         expect(result!.timeline[0].selfCount).toBe(0);
 
         // Snapshot 2: v1=Mine, v3=CompetitorA, v4=CompetitorB → 1/3 = 33%
-        expect(result!.timeline[1].selfPercentage).toBe(33);
+        expect(result!.timeline[1].selfPercentageAll).toBe(33);
         expect(result!.timeline[1].selfCount).toBe(1);
         expect(result!.timeline[1].selfImpressions).toBe(2000);
 
         // Snapshot 3: v1=Mine, v2=Mine, v3=CompetitorA → 2/3 = 67%
-        expect(result!.timeline[2].selfPercentage).toBe(67);
+        expect(result!.timeline[2].selfPercentageAll).toBe(67);
         expect(result!.timeline[2].selfCount).toBe(2);
         expect(result!.timeline[2].selfImpressions).toBe(14000); // 8000+6000
     });
