@@ -4,6 +4,7 @@ import { useChannelStore } from '../../../core/stores/channelStore'
 import { useVideoKnowledgeItems, useUpdateKnowledgeItem, useDeleteKnowledgeItem } from '../../../core/hooks/useKnowledgeItems'
 import { useVideos } from '../../../core/hooks/useVideos'
 import { useVideosCatalog } from '../../../core/hooks/useVideosCatalog'
+import { useKnowledgeCatalog } from '../../../core/hooks/useKnowledgeCatalog'
 import { buildVideoRefMap } from '../../Knowledge/utils/videoRefMap'
 import { KnowledgeList } from '../../Knowledge/components/KnowledgeList'
 import { KnowledgeItemModal } from '../../Knowledge/modals/KnowledgeItemModal'
@@ -32,6 +33,7 @@ export const WatchPageKnowledge = React.memo(({ videoId }: WatchPageKnowledgePro
     const deleteMutation = useDeleteKnowledgeItem(userId, channelId)
     const videoMap = useMemo(() => buildVideoRefMap(videos), [videos])
     const videoCatalog = useVideosCatalog()
+    const knowledgeCatalog = useKnowledgeCatalog()
 
     const [editingItem, setEditingItem] = useState<KnowledgeItem | null>(null)
 
@@ -90,6 +92,7 @@ export const WatchPageKnowledge = React.memo(({ videoId }: WatchPageKnowledgePro
                     onSave={handleSave}
                     onClose={() => setEditingItem(null)}
                     videoCatalog={videoCatalog}
+                    knowledgeCatalog={knowledgeCatalog}
                 />
             )}
         </>

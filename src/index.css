@@ -312,6 +312,8 @@
    --accent: #3b82f6;
    --reference-highlight: #818cf8;
    /* indigo-400 — inline @mention text */
+   --ki-reference-highlight: #f59e0b;
+   /* amber-500 — inline KI @mention text */
    --border: #e5e5e5;
    --border-rgb: 229, 229, 229;
    --hover: #f2f2f2;
@@ -352,7 +354,7 @@
    --settings-menu-hover: #f2f2f2;
    --settings-input-bg: #ffffff;
    --settings-dropdown-bg: #ffffff;
-   --settings-dropdown-hover: #f2f2f2;
+   --settings-dropdown-hover: #e8e8e8;
 
    /* ---------------------------------------------------------------------------
      Component: Sidebar
@@ -464,6 +466,8 @@
    --accent: #3b82f6;
    --reference-highlight: #a5b4fc;
    /* indigo-300 — inline @mention text */
+   --ki-reference-highlight: #fbbf24;
+   /* amber-400 — inline KI @mention text */
    --border: #3f3f3f;
    --border-rgb: 63, 63, 63;
    --hover: #3f3f3f;
@@ -495,7 +499,7 @@
    --settings-menu-hover: #161616;
    --settings-input-bg: #282828;
    --settings-dropdown-bg: #1F1F1F;
-   --settings-dropdown-hover: #161616;
+   --settings-dropdown-hover: #333333;
 
    /* ---------------------------------------------------------------------------
      Component: Sidebar
@@ -690,6 +694,25 @@ html:hover {
 }
 
 a:has(.video-reference-highlight) {
+   text-decoration: none !important;
+}
+
+/* =============================================================================
+   KNOWLEDGE ITEM REFERENCE HIGHLIGHT (global — used in RichTextEditor)
+   ============================================================================= */
+
+.ki-reference-highlight {
+   color: var(--ki-reference-highlight) !important;
+   text-decoration: none !important;
+   cursor: default;
+   transition: color 150ms ease;
+}
+
+.ki-reference-highlight:hover {
+   filter: brightness(1.2);
+}
+
+a:has(.ki-reference-highlight) {
    text-decoration: none !important;
 }
 

@@ -11,6 +11,7 @@ import { RichTextEditor } from '../../../components/ui/organisms/RichTextEditor'
 import { Dropdown } from '../../../components/ui/molecules/Dropdown';
 import { SegmentedControl } from '../../../components/ui/molecules/SegmentedControl';
 import { useVideosCatalog } from '../../../core/hooks/useVideosCatalog';
+import { useKnowledgeCatalog } from '../../../core/hooks/useKnowledgeCatalog';
 import type { VideoPreviewData } from '../../Video/types';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
@@ -47,6 +48,7 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
     }, [userId, channelId, setContext, subscribeToAiSettings, subscribeToMemories]);
 
     const videoCatalog = useVideosCatalog();
+    const knowledgeCatalog = useKnowledgeCatalog();
     const videoMap = useMemo(() => {
         if (!videoCatalog.length) return undefined;
         const map = new Map<string, VideoPreviewData>();
@@ -56,6 +58,13 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
         }
         return map;
     }, [videoCatalog]);
+
+    const kiMap = useMemo(() => {
+        if (!knowledgeCatalog.length) return undefined;
+        const map = new Map<string, (typeof knowledgeCatalog)[0]>();
+        for (const ki of knowledgeCatalog) map.set(ki.id, ki);
+        return map;
+    }, [knowledgeCatalog]);
 
     const memories = useChatStore(s => s.memories);
     const storeCreateMemory = useChatStore(s => s.createMemory);
@@ -286,6 +295,7 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
                                 onChange={setNewMemoryText}
                                 placeholder="Write your memory..."
                                 videoCatalog={videoCatalog}
+                                knowledgeCatalog={knowledgeCatalog}
                             />
                         </div>
                         <div className="flex items-center justify-end gap-1.5 mt-2">
@@ -370,6 +380,7 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
                                                     onChange={setEditText}
                                                     placeholder="Write your memory..."
                                                     videoCatalog={videoCatalog}
+                                knowledgeCatalog={knowledgeCatalog}
                                                 />
                                             </div>
                                             <div className="flex items-center justify-end gap-1.5 mt-2">
@@ -396,6 +407,7 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
                                                 <CollapsibleMarkdownSections
                                                     content={videoMap ? linkifyVideoIds(mem.content, videoMap) : mem.content}
                                                     videoMap={videoMap}
+                                                    kiMap={kiMap}
                                                     defaultOpenLevel={0}
                                                     variant="zen"
                                                 />

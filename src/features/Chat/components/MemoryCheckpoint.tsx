@@ -20,11 +20,12 @@ import { parseMarkdownSections, type HierarchicalSection } from '../../Knowledge
 import { buildBodyComponents } from '../../Knowledge/utils/bodyComponents';
 import { linkifyVideoIds } from '../../../core/utils/linkifyVideoIds';
 import { useVideosCatalog } from '../../../core/hooks/useVideosCatalog';
+import type { KiPreviewData } from '../../../components/ui/organisms/RichTextEditor/types';
 import type { VideoPreviewData } from '../../Video/types';
 
 const sanitizeSchema = {
     ...defaultSchema,
-    protocols: { ...defaultSchema.protocols, href: [...(defaultSchema.protocols?.href ?? []), 'vid', 'mention'] },
+    protocols: { ...defaultSchema.protocols, href: [...(defaultSchema.protocols?.href ?? []), 'vid', 'mention', 'ki'] },
     attributes: { ...defaultSchema.attributes, a: [...(defaultSchema.attributes?.a ?? []), 'className', 'class'], span: [...(defaultSchema.attributes?.span ?? []), 'className', 'class'] },
 };
 
@@ -57,9 +58,10 @@ interface MemoryCheckpointProps {
     memory: ConversationMemory;
     onUpdate: (memoryId: string, content: string, title?: string) => Promise<void>;
     onDelete: (memoryId: string) => Promise<void>;
+    knowledgeCatalog: KiPreviewData[];
 }
 
-export const MemoryCheckpoint: React.FC<MemoryCheckpointProps> = ({ memory, onUpdate, onDelete }) => {
+export const MemoryCheckpoint: React.FC<MemoryCheckpointProps> = ({ memory, onUpdate, onDelete, knowledgeCatalog }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [editText, setEditText] = useState(memory.content);
@@ -78,7 +80,14 @@ export const MemoryCheckpoint: React.FC<MemoryCheckpointProps> = ({ memory, onUp
         return map;
     }, [videoCatalog]);
 
-    const bodyComponents = useMemo(() => buildBodyComponents(videoMap), [videoMap]);
+    const kiMap = useMemo(() => {
+        if (!knowledgeCatalog.length) return undefined;
+        const map = new Map<string, (typeof knowledgeCatalog)[0]>();
+        for (const ki of knowledgeCatalog) map.set(ki.id, ki);
+        return map;
+    }, [knowledgeCatalog]);
+
+    const bodyComponents = useMemo(() => buildBodyComponents(videoMap, 'compact', kiMap), [videoMap, kiMap]);
 
     const sections = useMemo(() => {
         const content = videoMap ? linkifyVideoIds(memory.content, videoMap) : memory.content
@@ -198,6 +207,7 @@ export const MemoryCheckpoint: React.FC<MemoryCheckpointProps> = ({ memory, onUp
                                 value={editText}
                                 onChange={setEditText}
                                 placeholder="Edit memory..."
+                                knowledgeCatalog={knowledgeCatalog}
                             />
                             <div className="flex items-center justify-end gap-1.5 mt-2">
                                 <button

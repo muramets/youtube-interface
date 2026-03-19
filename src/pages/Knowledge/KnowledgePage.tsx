@@ -7,6 +7,7 @@ import { useChannelStore } from '../../core/stores/channelStore'
 import { useAllKnowledgeItems, useUpdateKnowledgeItem, useCreateKnowledgeItem, useDeleteKnowledgeItem } from '../../core/hooks/useKnowledgeItems'
 import { useVideos } from '../../core/hooks/useVideos'
 import { useVideosCatalog } from '../../core/hooks/useVideosCatalog'
+import { useKnowledgeCatalog } from '../../core/hooks/useKnowledgeCatalog'
 import { useKnowledgeStore, type KnowledgeScopeFilter } from '../../core/stores/knowledgeStore'
 import { buildVideoRefMap } from '../../features/Knowledge/utils/videoRefMap'
 import { KnowledgeList } from '../../features/Knowledge/components/KnowledgeList'
@@ -45,6 +46,7 @@ export const KnowledgePage: React.FC = () => {
 
     const videoMap = useMemo(() => buildVideoRefMap(videos), [videos])
     const videoCatalog = useVideosCatalog()
+    const knowledgeCatalog = useKnowledgeCatalog()
 
     const { scopeFilter, selectedCategory, sortOrder, setScopeFilter, setCategory, setSortOrder } = useKnowledgeStore()
 
@@ -249,6 +251,7 @@ export const KnowledgePage: React.FC = () => {
                     onSave={handleSaveEdit}
                     onClose={() => setEditingItem(null)}
                     videoCatalog={videoCatalog}
+                    knowledgeCatalog={knowledgeCatalog}
                 />
             )}
 
@@ -258,6 +261,7 @@ export const KnowledgePage: React.FC = () => {
                     onSave={handleCreate}
                     onClose={() => setIsCreateOpen(false)}
                     videoCatalog={videoCatalog}
+                    knowledgeCatalog={knowledgeCatalog}
                 />
             )}
         </div>

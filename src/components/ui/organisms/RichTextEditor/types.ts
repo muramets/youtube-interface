@@ -5,6 +5,15 @@
 import type React from 'react'
 import type { VideoPreviewData } from '../../../../features/Video/types'
 
+/** Lightweight KI data for @-autocomplete and ki:// tooltips */
+export interface KiPreviewData {
+    id: string
+    title: string
+    category: string
+    summary: string
+    scope: 'video' | 'channel'
+}
+
 export interface RichTextEditorProps {
     /** Markdown content value */
     value: string
@@ -16,6 +25,8 @@ export interface RichTextEditorProps {
     className?: string
     /** Video catalog for @-autocomplete and vid:// tooltips in edit mode */
     videoCatalog?: VideoPreviewData[]
+    /** Knowledge Item catalog for @-autocomplete and ki:// tooltips in edit mode */
+    knowledgeCatalog?: KiPreviewData[]
     /** Extra toolbar content rendered in expanded mode (e.g. version dropdown) */
     expandedToolbarExtra?: React.ReactNode
     /** Side panel rendered alongside editor in expanded mode (e.g. diff panel) */

@@ -6,6 +6,7 @@ import { Dropdown } from '../../../components/ui/molecules/Dropdown'
 import { RichTextEditor } from '../../../components/ui/organisms/RichTextEditor'
 import { SEED_CATEGORIES } from '../../../core/types/knowledge'
 import type { VideoPreviewData } from '../../Video/types'
+import type { KiPreviewData } from '../../../components/ui/organisms/RichTextEditor/types'
 
 interface CreateKnowledgeItemModalProps {
     /** Called with new item fields when user saves */
@@ -14,6 +15,8 @@ interface CreateKnowledgeItemModalProps {
     onClose: () => void
     /** Video catalog for @-autocomplete */
     videoCatalog?: VideoPreviewData[]
+    /** KI catalog for @-autocomplete */
+    knowledgeCatalog?: KiPreviewData[]
 }
 
 /** Channel-level seed categories for the dropdown */
@@ -31,6 +34,7 @@ export const CreateKnowledgeItemModal = React.memo(({
     onSave,
     onClose,
     videoCatalog,
+    knowledgeCatalog,
 }: CreateKnowledgeItemModalProps) => {
     const [title, setTitle] = useState('')
     const [summary, setSummary] = useState('')
@@ -157,6 +161,7 @@ export const CreateKnowledgeItemModal = React.memo(({
                             onChange={setContent}
                             placeholder="Write your analysis, observations, or insights..."
                             videoCatalog={videoCatalog}
+                            knowledgeCatalog={knowledgeCatalog}
                         />
                     </div>
                 </div>

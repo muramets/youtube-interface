@@ -173,10 +173,13 @@ Composite indexes deployed: idempotency guard (`conversationId + category + vide
 | `src/core/utils/linkifyVideoIds.ts` | Enriches markdown with interactive video references — converts raw video IDs → `[title](vid://ID)` or `[title](mention://ID)` links. Used by Knowledge (vid://) and Chat (mention://) |
 | `src/core/hooks/useVideosCatalog.ts` | Video catalog hook for `@` autocomplete: own + trend channel videos, TanStack Query, staleTime 5min |
 | `src/components/ui/organisms/RichTextEditor/extensions/VideoRefMark.ts` | Tiptap Mark for `vid://` links: `addMarkView()` + `ReactMarkViewRenderer`, tooltip via Context |
-| `src/components/ui/organisms/RichTextEditor/extensions/VideoMention.ts` | `@` autocomplete extension: `@tiptap/suggestion`, 2+ char threshold, max 10 results |
+| `src/components/ui/organisms/RichTextEditor/extensions/UnifiedMention.ts` | `@` autocomplete extension: tabbed (Videos/Knowledge), `@tiptap/suggestion`, 2+ char threshold, max 10 results |
 | `src/components/ui/organisms/RichTextEditor/extensions/VideoRefContext.ts` | React Context for passing video data to MarkView component |
+| `src/components/ui/organisms/RichTextEditor/extensions/KiRefMark.ts` | Tiptap Mark for `ki://` links: `addMarkView()` + `ReactMarkViewRenderer`, tooltip via Context |
+| `src/components/ui/organisms/RichTextEditor/extensions/KiRefContext.ts` | React Context for passing KI data to KiRefView MarkView component |
 | `src/components/ui/organisms/RichTextEditor/components/VideoRefView.tsx` | React MarkView: highlighted span + `PortalTooltip` + `VideoPreviewTooltip` |
-| `src/components/ui/organisms/RichTextEditor/components/VideoSuggestionList.tsx` | Dropdown UI for `@` autocomplete: thumbnail + title + channel + ownership badge |
+| `src/components/ui/organisms/RichTextEditor/components/KiRefView.tsx` | React MarkView for KI: highlighted span + `PortalTooltip` (title, category, summary) |
+| `src/components/ui/organisms/RichTextEditor/components/UnifiedSuggestionList.tsx` | Tabbed dropdown for `@` autocomplete: Videos tab + Knowledge tab, Tab key switches |
 | `src/features/Knowledge/utils/markdownSections.ts` | `parseMarkdownSections` → hierarchical `HierarchicalSection[]` + preamble |
 | `src/features/Knowledge/utils/videoRefMap.ts` | `buildVideoRefMap`: channel videos → `Map<videoId, VideoPreviewData>` (indexed by id + publishedVideoId) |
 | `src/features/Watch/components/WatchPageKnowledge.tsx` | Video-level KI: AI Research tab on Watch Page |

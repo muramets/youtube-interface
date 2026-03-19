@@ -64,6 +64,9 @@ export const VID_RE = /^vid:\/{2,}\s*(.+)$/
 /** Regex for mention:// URIs — legacy/chat video references (e.g. [title](mention://ID)) */
 export const MENTION_RE = /^mention:\/{2,}\s*(.+)$/
 
+/** Regex for ki:// URIs — Knowledge Item references (e.g. [title](ki://ID)) */
+export const KI_RE = /^ki:\/{2,}\s*(.+)$/
+
 /** Display labels per reference type — used by VideoReferenceTooltip for canonical @mention text.
  *  Derived from OWNERSHIP_CONFIG to stay DRY; only non-ownership types added manually. */
 export const REF_TYPE_LABELS: Record<string, string> = {

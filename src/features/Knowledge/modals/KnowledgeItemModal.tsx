@@ -11,6 +11,7 @@ import { useAuth } from '../../../core/hooks/useAuth'
 import { useChannelStore } from '../../../core/stores/channelStore'
 import type { KnowledgeItem } from '../../../core/types/knowledge'
 import type { VideoPreviewData } from '../../Video/types'
+import type { KiPreviewData } from '../../../components/ui/organisms/RichTextEditor/types'
 import { VideoLinkField } from '../components/VideoLinkField'
 import { formatKnowledgeDate, formatVersionLabel } from '../utils/formatDate'
 
@@ -29,6 +30,8 @@ interface KnowledgeItemModalProps {
     onClose: () => void
     /** Video catalog for @-autocomplete and vid:// tooltips */
     videoCatalog?: VideoPreviewData[]
+    /** KI catalog for @-autocomplete and ki:// tooltips */
+    knowledgeCatalog?: KiPreviewData[]
 }
 
 /**
@@ -46,6 +49,7 @@ export const KnowledgeItemModal = React.memo(({
     onSave,
     onClose,
     videoCatalog,
+    knowledgeCatalog,
 }: KnowledgeItemModalProps) => {
     const { user } = useAuth()
     const { currentChannel } = useChannelStore()
@@ -228,6 +232,7 @@ export const KnowledgeItemModal = React.memo(({
                             onChange={setContent}
                             placeholder="Write your analysis..."
                             videoCatalog={videoCatalog}
+                            knowledgeCatalog={knowledgeCatalog}
                             expandedToolbarExtra={expandedToolbarExtra}
                             expandedSidePanel={expandedSidePanel}
                         />

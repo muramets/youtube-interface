@@ -8,6 +8,7 @@ import { CollapsibleSection } from '../../../components/ui/molecules/Collapsible
 import { allowCustomUrls } from '../utils/diffUtils'
 import { parseMarkdownSections, type HierarchicalSection } from '../utils/markdownSections'
 import type { VideoPreviewData } from '../../Video/types'
+import type { KiPreviewData } from '../../../components/ui/organisms/RichTextEditor/types'
 import { buildBodyComponents } from '../utils/bodyComponents'
 
 // =============================================================================
@@ -15,11 +16,11 @@ import { buildBodyComponents } from '../utils/bodyComponents'
 // Parses markdown into hierarchical sections, renders each as a CollapsibleSection.
 // =============================================================================
 
-/** Sanitize schema: allow vid:// protocols + class on links/spans + details/summary */
+/** Sanitize schema: allow vid://, mention://, ki:// protocols + class on links/spans + details/summary */
 const sanitizeSchema = {
     ...defaultSchema,
     tagNames: [...(defaultSchema.tagNames ?? []), 'details', 'summary'],
-    protocols: { ...defaultSchema.protocols, href: [...(defaultSchema.protocols?.href ?? []), 'vid', 'mention'] },
+    protocols: { ...defaultSchema.protocols, href: [...(defaultSchema.protocols?.href ?? []), 'vid', 'mention', 'ki'] },
     attributes: {
         ...defaultSchema.attributes,
         a: [...(defaultSchema.attributes?.a ?? []), 'className', 'class'],
@@ -100,6 +101,8 @@ interface CollapsibleMarkdownSectionsProps {
     content: string
     /** Video data map for vid:// link tooltips */
     videoMap?: Map<string, VideoPreviewData>
+    /** KI data map for ki:// link tooltips */
+    kiMap?: Map<string, KiPreviewData>
     /** Sections at this level and below are collapsed by default (0 = all collapsed, 3 = h4+ collapsed) */
     defaultOpenLevel?: number
     /** Visual variant: compact (card) or zen (reading mode, more breathing room) */
@@ -116,11 +119,12 @@ interface CollapsibleMarkdownSectionsProps {
 export const CollapsibleMarkdownSections = React.memo(({
     content,
     videoMap,
+    kiMap,
     defaultOpenLevel = 3,
     variant = 'compact',
 }: CollapsibleMarkdownSectionsProps) => {
     const config = VARIANT_MAP[variant]
-    const bodyComponents = useMemo(() => buildBodyComponents(videoMap, variant), [videoMap, variant])
+    const bodyComponents = useMemo(() => buildBodyComponents(videoMap, variant, kiMap), [videoMap, variant, kiMap])
 
     const sections = useMemo(
         () => parseMarkdownSections(content),

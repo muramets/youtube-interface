@@ -55,6 +55,7 @@ import { getEffectiveDisplayLevel } from './utils/tokenDisplay';
 import { EXPENSIVE_MESSAGE_THRESHOLD } from './hooks/useCostAlerts';
 import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
 import { MemoryCheckpoint } from './components/MemoryCheckpoint';
+import { useKnowledgeCatalog } from '../../core/hooks/useKnowledgeCatalog';
 import { FileAudio, FileVideo, File, Copy, Check, ArrowDown, RotateCcw, MessageCircle, Pencil, Square } from 'lucide-react';
 import { CopyButton } from '../../components/ui/atoms/CopyButton';
 import { Timestamp } from 'firebase/firestore';
@@ -444,6 +445,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     const memories = useChatStore(s => s.memories);
     const updateMemory = useChatStore(s => s.updateMemory);
     const deleteMemory = useChatStore(s => s.deleteMemory);
+    const knowledgeCatalog = useKnowledgeCatalog();
     // Manual memories (conversationId undefined) are excluded by design — they appear only in Settings
     const conversationMemories = useMemo(() =>
         memories.filter(m => m.conversationId === activeConversationId),
@@ -545,6 +547,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                                 memory={mem}
                                 onUpdate={updateMemory}
                                 onDelete={deleteMemory}
+                                knowledgeCatalog={knowledgeCatalog}
                             />
                         ))}
                         <MessageErrorBoundary messageId={msg.id}>
@@ -580,6 +583,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                     memory={mem}
                     onUpdate={updateMemory}
                     onDelete={deleteMemory}
+                    knowledgeCatalog={knowledgeCatalog}
                 />
             ))}
 

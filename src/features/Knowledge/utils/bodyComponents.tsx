@@ -1,8 +1,12 @@
 import type { Components } from 'react-markdown'
 import clsx from 'clsx'
 import { VID_RE, MENTION_RE } from '../../../core/config/referencePatterns'
+import { KI_RE } from '../../../core/config/referencePatterns'
 import { VideoReferenceTooltip } from '../../Chat/components/VideoReferenceTooltip'
+import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip'
+import { KiPreviewTooltipContent } from '../../../components/ui/organisms/RichTextEditor/components/KiPreviewTooltipContent'
 import type { VideoPreviewData } from '../../Video/types'
+import type { KiPreviewData } from '../../../components/ui/organisms/RichTextEditor/types'
 
 // --- Size presets ---
 
@@ -75,14 +79,16 @@ const PRESETS = { compact: COMPACT, zen: ZEN }
 
 /**
  * Shared markdown body components for KnowledgeCard, Zen Mode, MemoryCheckpoint.
- * Handles vid:// (LLM-generated) and mention:// (legacy) video reference links.
+ * Handles vid:// (LLM-generated), mention:// (legacy), and ki:// (KI reference) links.
  *
  * @param videoMap - Video data for vid:// tooltip rendering
  * @param variant - Size variant: 'compact' (card/diff) or 'zen' (reading mode)
+ * @param kiMap - KI data for ki:// tooltip rendering
  */
 export function buildBodyComponents(
     videoMap?: Map<string, VideoPreviewData>,
     variant: 'compact' | 'zen' = 'compact',
+    kiMap?: Map<string, KiPreviewData>,
 ): Components {
     const s = PRESETS[variant]
 
@@ -129,6 +135,27 @@ export function buildBodyComponents(
                 if (mentionMatch) {
                     const video = videoMap.get(mentionMatch[1]) ?? null
                     return <VideoReferenceTooltip label={String(children)} video={video} />
+                }
+            }
+            if (href) {
+                const kiMatch = KI_RE.exec(href)
+                if (kiMatch) {
+                    const ki = kiMap?.get(kiMatch[1]) ?? null
+                    if (ki) {
+                        return (
+                            <PortalTooltip
+                                content={<KiPreviewTooltipContent ki={ki} />}
+                                side="top"
+                                align="center"
+                                variant="glass"
+                                enterDelay={200}
+                                inline
+                            >
+                                <span className="ki-reference-highlight cursor-pointer">{children}</span>
+                            </PortalTooltip>
+                        )
+                    }
+                    return <span className="ki-reference-highlight">{children}</span>
                 }
             }
             return <a href={href} target="_blank" rel="noreferrer">{children}</a>

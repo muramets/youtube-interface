@@ -15,10 +15,12 @@ import { IndentedListItem } from '../extensions/IndentedListItem'
 import { TabIndentation } from '../extensions/TabIndentation'
 import { CustomBlockquote } from '../extensions/CustomBlockquote'
 import { VideoRefMark } from '../extensions/VideoRefMark'
-import { VideoMention } from '../extensions/VideoMention'
+import { KiRefMark } from '../extensions/KiRefMark'
+import { UnifiedMention } from '../extensions/UnifiedMention'
 import { SlashCommand } from '../extensions/SlashCommand'
 import { Details, DetailsSummary, DetailsContent } from '../extensions/DetailsNode'
 import type { VideoPreviewData } from '../../../../../features/Video/types'
+import type { KiPreviewData } from '../types'
 
 /**
  * Custom hook for configuring Tiptap editor extensions.
@@ -35,7 +37,7 @@ import type { VideoPreviewData } from '../../../../../features/Video/types'
  * @param placeholder - Placeholder text for empty editor
  * @returns Array of configured Tiptap extensions
  */
-export function useEditorExtensions(placeholder?: string, videoCatalog?: VideoPreviewData[], defaultCollapsedLevel = 4) {
+export function useEditorExtensions(placeholder?: string, videoCatalog?: VideoPreviewData[], knowledgeCatalog?: KiPreviewData[], defaultCollapsedLevel = 4) {
     /**
      * Custom Code Mark Extension
      *
@@ -118,12 +120,16 @@ export function useEditorExtensions(placeholder?: string, videoCatalog?: VideoPr
         // VideoRefMark: semantic vid:// links with React MarkView + tooltip
         VideoRefMark,
 
-        // @-autocomplete for video references
-        VideoMention.configure({
+        // KiRefMark: semantic ki:// links with React MarkView + tooltip
+        KiRefMark,
+
+        // @-autocomplete for video and KI references (tabbed dropdown)
+        UnifiedMention.configure({
             videoCatalog: videoCatalog ?? [],
+            knowledgeCatalog: knowledgeCatalog ?? [],
         }),
 
         // /-slash command palette for block formatting
         SlashCommand,
-    ], [placeholder, videoCatalog, defaultCollapsedLevel, CustomCodeMark, CustomCodeBlockNode])
+    ], [placeholder, videoCatalog, knowledgeCatalog, defaultCollapsedLevel, CustomCodeMark, CustomCodeBlockNode])
 }
