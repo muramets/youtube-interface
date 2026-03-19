@@ -280,28 +280,14 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
                             className="w-full bg-transparent text-sm font-medium text-text-primary outline-none border border-border rounded-md px-2 py-1.5 mb-2 placeholder-modal-placeholder"
                             autoFocus
                         />
-                        <textarea
-                            ref={(el) => {
-                                if (el) {
-                                    el.style.height = 'auto';
-                                    el.style.height = el.scrollHeight + 'px';
-                                }
-                            }}
-                            value={newMemoryText}
-                            onChange={(e) => {
-                                setNewMemoryText(e.target.value);
-                                e.target.style.height = 'auto';
-                                e.target.style.height = e.target.scrollHeight + 'px';
-                            }}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Escape') {
-                                    e.stopPropagation();
-                                    setIsCreating(false);
-                                }
-                            }}
-                            placeholder={'## Decisions\n\n## Insights\n\n## Channel State\n\n## Action Items'}
-                            className="w-full bg-transparent text-sm text-text-primary outline-none resize-none border border-border rounded-md p-2 min-h-[120px] max-h-[300px] overflow-y-auto"
-                        />
+                        <div className="max-h-[400px] overflow-y-auto">
+                            <RichTextEditor
+                                value={newMemoryText}
+                                onChange={setNewMemoryText}
+                                placeholder="Write your memory..."
+                                videoCatalog={videoCatalog}
+                            />
+                        </div>
                         <div className="flex items-center justify-end gap-1.5 mt-2">
                             <button
                                 className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] text-text-tertiary bg-transparent border-none cursor-pointer hover:text-text-secondary hover:bg-white/[0.05] transition-colors"
