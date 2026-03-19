@@ -715,7 +715,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
     }, []);
 
     return (
-        <div className="flex-1 flex overflow-hidden bg-video-edit-bg">
+        <div className="flex-1 flex overflow-hidden bg-video-edit-bg relative z-0">
             <GalleryDndWrapper
                 isActive={activeTab === 'gallery'}
                 items={galleryItems}

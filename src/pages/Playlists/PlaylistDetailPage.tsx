@@ -498,7 +498,7 @@ export const PlaylistDetailPage: React.FC = () => {
 
     return (
         <>
-            <div className="animate-fade-in flex flex-col min-h-[calc(100vh-56px)] relative pl-2">
+            <div className="animate-fade-in flex flex-col h-[calc(100vh-56px)] relative pl-2">
                 {/* Pick the Winner Bar */}
                 {picker.isActive && (
                     <PickTheWinnerBar
@@ -511,7 +511,7 @@ export const PlaylistDetailPage: React.FC = () => {
                 )}
 
                 {/* Header */}
-                <div className={`pt-6 px-6 flex items-center gap-4 mb-3 sticky top-14 bg-bg-primary z-10 pb-3 ${picker.isActive ? 'pt-3' : ''}`}>
+                <div className={`pt-6 px-6 flex items-center gap-4 bg-bg-primary pb-3 shadow-bottom flex-shrink-0 ${picker.isActive ? 'pt-3' : ''}`}>
                     <button
                         onClick={() => navigate('/playlists')}
                         className="bg-transparent border-none text-text-primary cursor-pointer flex items-center hover:text-text-secondary transition-colors"
@@ -596,6 +596,8 @@ export const PlaylistDetailPage: React.FC = () => {
                     </div>
                 </div>
 
+                {/* Scrollable content area */}
+                <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
                 {/* Channel Category Pills + Filter Chips */}
                 {(uniqueChannels.length > 1 || activeFilters.length > 0) && (
                     <div className="flex flex-col px-6 pb-2 gap-2">
@@ -717,6 +719,7 @@ export const PlaylistDetailPage: React.FC = () => {
                         </button>
                     </div>
                 )}
+                </div> {/* end scrollable content */}
             </div>
 
             {/* Clean Up Losers Confirmation Modal */}

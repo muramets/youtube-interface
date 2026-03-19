@@ -98,7 +98,7 @@ function AppContent() {
   }, [user, currentChannel, subscribeToNotifications]);
 
   return (
-    <div className="min-h-screen flex flex-col bg-bg-primary text-text-primary overflow-x-hidden">
+    <div className="min-h-screen flex flex-col bg-bg-primary text-text-primary overflow-x-clip">
       <Suspense fallback={null}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
@@ -107,6 +107,7 @@ function AppContent() {
             <ProtectedRoute>
               <div className="h-screen flex flex-col" style={{ backgroundColor: 'var(--video-edit-bg)' }}>
                 <Header className="bg-video-edit-bg shadow-[0_4px_12px_rgba(0,0,0,0.2)] h-16" />
+                <div className="h-16 flex-shrink-0" /> {/* Spacer for fixed header */}
                 <DetailsPage />
               </div>
             </ProtectedRoute>
