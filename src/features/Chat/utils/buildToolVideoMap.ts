@@ -18,6 +18,7 @@
  *                               viewCount, publishedAt, deltas
  *   - searchDatabase:          videoId, title, channelTitle, viewCount,
  *                               publishedAt, deltas
+ *   - getKnowledge:            videoId, title (extracted from vid:// links in KI content)
  */
 
 import type { ChatMessage } from '../../../core/types/chat/chat';
@@ -52,6 +53,9 @@ export function buildToolVideoMap(messages: ChatMessage[]): Map<string, VideoPre
                     break;
                 case 'searchDatabase':
                     extractSearchDatabase(tc.result, map);
+                    break;
+                case 'getKnowledge':
+                    extractKnowledgeVideos(tc.result, map);
                     break;
             }
         }
@@ -214,6 +218,37 @@ function extractSearchDatabase(result: Record<string, unknown>, map: Map<string,
             delta7d: v.viewDelta7d as number | null | undefined,
             delta30d: v.viewDelta30d as number | null | undefined,
         });
+    }
+}
+
+/** Regex to match [title](vid://videoId) links in KI markdown content. */
+const VID_LINK_RE = /\[([^\]]+)\]\(vid:\/\/([^)]+)\)/g;
+
+function extractKnowledgeVideos(result: Record<string, unknown>, map: Map<string, VideoPreviewData>): void {
+    const raw = result.content as string | undefined;
+    if (!raw) return;
+
+    let items: Array<Record<string, unknown>>;
+    try {
+        items = JSON.parse(raw);
+    } catch {
+        return;
+    }
+    if (!Array.isArray(items)) return;
+
+    for (const item of items) {
+        const kiContent = item.content as string | undefined;
+        if (!kiContent) continue;
+
+        VID_LINK_RE.lastIndex = 0;
+        let match: RegExpExecArray | null;
+        while ((match = VID_LINK_RE.exec(kiContent)) !== null) {
+            const title = match[1];
+            const videoId = match[2];
+            if (!videoId) continue;
+
+            mergeInto(map, videoId, { title });
+        }
     }
 }
 

@@ -435,6 +435,74 @@ describe('buildToolVideoMap', () => {
     });
 
     // -----------------------------------------------------------------------
+    // getKnowledge
+    // -----------------------------------------------------------------------
+
+    it('extracts videos from getKnowledge vid:// links in KI content', () => {
+        const kiContent = [
+            'The hit [a playlist for a quiet morning 🍁 autumn version.](vid://A4SkhlJ2mK8) — 121K views.',
+            'Also [a piano playlist for quiet day 🍁](vid://custom-1770614181170) — 82K.',
+        ].join('\n');
+
+        const messages = [msg([{
+            name: 'getKnowledge',
+            args: { ids: ['ki1'] },
+            result: {
+                count: 1,
+                content: JSON.stringify([{ id: 'ki1', title: 'Channel Journey', content: kiContent }]),
+            },
+        }])];
+
+        const map = buildToolVideoMap(messages);
+
+        expect(map.size).toBe(2);
+        expect(map.get('A4SkhlJ2mK8')!.title).toBe('a playlist for a quiet morning 🍁 autumn version.');
+        expect(map.get('custom-1770614181170')!.title).toBe('a piano playlist for quiet day 🍁');
+    });
+
+    it('getKnowledge handles KI with no vid:// links', () => {
+        const messages = [msg([{
+            name: 'getKnowledge',
+            args: { ids: ['ki1'] },
+            result: {
+                count: 1,
+                content: JSON.stringify([{ id: 'ki1', title: 'Notes', content: 'No video links here.' }]),
+            },
+        }])];
+
+        expect(buildToolVideoMap(messages).size).toBe(0);
+    });
+
+    it('getKnowledge handles invalid JSON content gracefully', () => {
+        const messages = [msg([{
+            name: 'getKnowledge',
+            args: { ids: ['ki1'] },
+            result: { count: 0, content: 'not valid json' },
+        }])];
+
+        expect(buildToolVideoMap(messages).size).toBe(0);
+    });
+
+    it('getKnowledge handles multiple KIs in one result', () => {
+        const messages = [msg([{
+            name: 'getKnowledge',
+            args: { ids: ['ki1', 'ki2'] },
+            result: {
+                count: 2,
+                content: JSON.stringify([
+                    { id: 'ki1', content: 'See [Video A](vid://aaa) for details.' },
+                    { id: 'ki2', content: 'Compare with [Video B](vid://bbb).' },
+                ]),
+            },
+        }])];
+
+        const map = buildToolVideoMap(messages);
+        expect(map.size).toBe(2);
+        expect(map.get('aaa')!.title).toBe('Video A');
+        expect(map.get('bbb')!.title).toBe('Video B');
+    });
+
+    // -----------------------------------------------------------------------
     // Edge cases
     // -----------------------------------------------------------------------
 

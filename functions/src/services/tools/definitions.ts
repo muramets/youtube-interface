@@ -45,14 +45,10 @@ export type ToolName = (typeof TOOL_NAMES)[keyof typeof TOOL_NAMES];
 const mentionVideo: ToolDefinition = {
     name: TOOL_NAMES.MENTION_VIDEO,
     description:
-        "Reference a specific video in your response. Call this tool whenever you mention " +
-        "or discuss a video — the UI renders an interactive badge the user can click. " +
-        "Works for ANY video you know the ID of: from attached context, from previous tool " +
-        "results (e.g. analyzeSuggestedTraffic topSources), or from conversation history. " +
-        "Do NOT write plain text references like 'Video #3' — always use this tool instead. " +
-        "IMPORTANT: videoId must be the exact ID from the [id: ...] annotation in the context " +
-        "or from previous tool results. Never invent IDs. " +
-        "After calling this tool, write [Title](mention://videoId) in your response text.",
+        "Register a video for interactive display — enables thumbnail preview on hover " +
+        "and click navigation. Call this for every video you reference in your response. " +
+        "videoId must come from [id: ...] annotations, tool results, or conversation " +
+        "history — never invent IDs.",
     parametersJsonSchema: {
         type: "object",
         properties: {

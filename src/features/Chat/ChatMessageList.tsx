@@ -80,8 +80,9 @@ const MENTION_RE = /^mention:\/{2,}\s*(.+)$/;
 
 /** Pre-process: fix malformed mention URLs that CommonMark won't parse (spaces, extra slashes) */
 const MENTION_URL_FIX_RE = /\]\(mention:\/{2,}\s+/g;
-/** Ensure a space before mention links when LLM omits it (e.g. "растёт[title]" → "растёт [title]") */
-const MENTION_SPACE_RE = /(\S)\[([^\]]+)\]\(mention:\/\//g;
+/** Ensure a space before mention links when LLM omits it (e.g. "растёт[title]" → "растёт [title]").
+ *  Excludes * and _ so that **[title](mention://...)** bold/italic wrapping is preserved. */
+const MENTION_SPACE_RE = /([^\s*_])\[([^\]]+)\]\(mention:\/\//g;
 
 // --- Code Block with Copy + Language Label ---
 
