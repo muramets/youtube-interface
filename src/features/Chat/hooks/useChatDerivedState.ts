@@ -5,7 +5,6 @@
 import { useMemo } from 'react';
 import type { ChatProject, ChatConversation, ChatMessage } from '../../../core/types/chat/chat';
 import { MODEL_REGISTRY, DEFAULT_MODEL, DEFAULT_CONTEXT_LIMIT, HISTORY_BUDGET_RATIO, resolveModelId } from '../../../core/types/chat/chat';
-import { estimateCostUsd, estimateCacheSavingsUsd, type ModelPricing } from '../../../core/types/chat/chat';
 
 interface UseChatDerivedStateOpts {
     projects: ChatProject[];
@@ -27,7 +26,7 @@ interface UseChatDerivedStateReturn {
     totalTokens: number;
     totalCost: number;
     totalSavings: number;
-    modelPricing: ModelPricing;
+
     activeModel: string;
     modelLabel: string;
     contextUsed: number;
@@ -80,7 +79,6 @@ export function useChatDerivedState(opts: UseChatDerivedStateOpts): UseChatDeriv
 
     // Total cost (USD) — per-message model pricing, cache-aware
     const { totalCost, totalSavings } = useMemo(() => {
-        const fallbackConfig = MODEL_REGISTRY.find(m => m.id === activeModel) ?? MODEL_REGISTRY[0];
         return messages.reduce((acc, m) => {
             if (m.role !== 'model') return acc;
             // Prefer normalizedUsage (accurate, provider-agnostic)
@@ -92,16 +90,9 @@ export function useChatDerivedState(opts: UseChatDerivedStateOpts): UseChatDeriv
                     totalSavings: acc.totalSavings + savings,
                 };
             }
-            // Legacy fallback
-            if (!m.tokenUsage) return acc;
-            const msgModelConfig = (m.model && MODEL_REGISTRY.find(r => r.id === m.model)) || fallbackConfig;
-            const { promptTokens, completionTokens, cachedTokens, cacheWriteTokens } = m.tokenUsage;
-            return {
-                totalCost: acc.totalCost + estimateCostUsd(msgModelConfig.pricing, promptTokens, completionTokens, cachedTokens, cacheWriteTokens),
-                totalSavings: acc.totalSavings + estimateCacheSavingsUsd(msgModelConfig.pricing, promptTokens, completionTokens, cachedTokens, cacheWriteTokens),
-            };
+            return acc;
         }, { totalCost: 0, totalSavings: 0 });
-    }, [messages, activeModel]);
+    }, [messages]);
 
     // Context window tracking
     const contextUsed = useMemo(() => {
@@ -132,7 +123,6 @@ export function useChatDerivedState(opts: UseChatDerivedStateOpts): UseChatDeriv
         totalTokens,
         totalCost,
         totalSavings,
-        modelPricing: modelConfig.pricing,
         activeModel,
         modelLabel: modelConfig.label,
         contextUsed,

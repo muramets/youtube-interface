@@ -57,6 +57,9 @@ export const geminiFactory: ProviderFactory = (config: Record<string, unknown>):
                 largePayloadApproved: geminiCtx.largePayloadApproved,
                 onAttachmentUpdate: geminiCtx.onAttachmentUpdate,
                 onLargePayloadBlocked: geminiCtx.onLargePayloadBlocked,
+                // Cache state fields
+                cacheState: geminiCtx.cacheState,
+                onCacheUpdate: geminiCtx.onCacheUpdate,
             };
 
             // Current-message attachments: prefer pre-uploaded Gemini refs (fast),

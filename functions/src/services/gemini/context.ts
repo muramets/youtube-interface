@@ -17,6 +17,7 @@
 // =============================================================================
 
 import type { ThumbnailCache } from "./thumbnails.js";
+import type { CacheState } from "./cacheManager.js";
 
 /** Gemini-specific data passed via ProviderStreamOpts.providerContext. */
 export interface GeminiProviderContext {
@@ -46,6 +47,10 @@ export interface GeminiProviderContext {
      * on server, provider-agnostic) is planned for a later phase.
      */
     currentMessageGeminiRefs?: Array<{ geminiFileUri: string; mimeType: string }>;
+    /** Gemini CachedContent state from conversation doc (for cache reuse). */
+    cacheState?: CacheState;
+    /** Callback to persist updated cache state to Firestore conversation doc. */
+    onCacheUpdate?: (cacheState: CacheState | null) => Promise<void>;
 }
 
 /**

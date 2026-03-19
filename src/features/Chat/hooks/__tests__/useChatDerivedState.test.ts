@@ -228,7 +228,7 @@ describe('useChatDerivedState — context tracking', () => {
         expect(result.current.contextUsed).toBe(13_500);
     });
 
-    it('computes totalCost from mixed legacy + normalized messages', () => {
+    it('ignores messages without normalizedUsage (legacy-only tokenUsage)', () => {
         const legacyMsg = makeMessage('model', {
             promptTokens: 10_000,
             completionTokens: 2_000,
@@ -252,8 +252,8 @@ describe('useChatDerivedState — context tracking', () => {
             useChatDerivedState(makeOpts({ messages, defaultModel: 'claude-sonnet-4-6' })),
         );
 
-        // totalCost includes both: legacy cost + normalized $0.28
-        expect(result.current.totalCost).toBeGreaterThan(0.28);
+        // Legacy message (no normalizedUsage) is skipped — only normalized $0.28 counted
+        expect(result.current.totalCost).toBeCloseTo(0.28, 4);
         // contextUsed from last model message (normalizedMsg)
         expect(result.current.contextUsed).toBe(50_000);
     });

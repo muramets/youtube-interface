@@ -68,58 +68,6 @@ export interface ModelConfig {
 
 export const LONG_CONTEXT_THRESHOLD = 200_000;
 
-/**
- * Estimate cost in USD for a single API call.
- * Accounts for cache pricing when cache token counts are provided.
- * Backward-compatible: without cache params, works as before.
- */
-export function estimateCostUsd(
-    pricing: ModelPricing,
-    promptTokens: number,
-    completionTokens: number,
-    cachedTokens?: number,
-    cacheWriteTokens?: number,
-): number {
-    const totalInput = promptTokens + (cachedTokens ?? 0) + (cacheWriteTokens ?? 0);
-    const isLong = totalInput > LONG_CONTEXT_THRESHOLD;
-    const inputRate = (isLong && pricing.inputPerMillionLong != null)
-        ? pricing.inputPerMillionLong : pricing.inputPerMillion;
-    const outputRate = (isLong && pricing.outputPerMillionLong != null)
-        ? pricing.outputPerMillionLong : pricing.outputPerMillion;
-
-    const cacheReadRate = inputRate * (pricing.cacheReadMultiplier ?? 1);
-    const cacheWriteRate = inputRate * (pricing.cacheWriteMultiplier ?? 1);
-
-    const costUsd = (promptTokens / 1_000_000) * inputRate
-        + ((cachedTokens ?? 0) / 1_000_000) * cacheReadRate
-        + ((cacheWriteTokens ?? 0) / 1_000_000) * cacheWriteRate
-        + (completionTokens / 1_000_000) * outputRate;
-    return costUsd;
-}
-
-/**
- * Estimate how much USD was saved by caching for a single API call.
- * Returns 0 when no cache data is present or savings are negative.
- */
-export function estimateCacheSavingsUsd(
-    pricing: ModelPricing,
-    promptTokens: number,
-    completionTokens: number,
-    cachedTokens?: number,
-    cacheWriteTokens?: number,
-): number {
-    if (!cachedTokens && !cacheWriteTokens) return 0;
-    // Hypothetical: all input tokens at full price
-    const hypothetical = estimateCostUsd(
-        pricing,
-        promptTokens + (cachedTokens ?? 0) + (cacheWriteTokens ?? 0),
-        completionTokens,
-    );
-    // Actual: with cache pricing
-    const actual = estimateCostUsd(pricing, promptTokens, completionTokens, cachedTokens, cacheWriteTokens);
-    return Math.max(0, hypothetical - actual);
-}
-
 /** Map deprecated model IDs → their replacement. */
 export const DEPRECATED_MODEL_MAP: Record<string, string> = {
     'gemini-3-pro-preview': 'gemini-3.1-pro-preview',
@@ -159,7 +107,7 @@ export function getAcceptedMimeTypes(support: AttachmentSupport): string {
 export const MODEL_REGISTRY: ModelConfig[] = [
     {
         id: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro', provider: 'gemini', contextLimit: 1_000_000,
-        pricing: { inputPerMillion: 2.00, outputPerMillion: 12.00, inputPerMillionLong: 4.00, outputPerMillionLong: 18.00 },
+        pricing: { inputPerMillion: 2.00, outputPerMillion: 12.00, inputPerMillionLong: 4.00, outputPerMillionLong: 18.00, cacheReadMultiplier: 0.1 },
         thinkingOptions: [
             { id: 'low', label: 'Low', value: 'low' },
             { id: 'medium', label: 'Medium', value: 'medium' },
@@ -173,7 +121,7 @@ export const MODEL_REGISTRY: ModelConfig[] = [
     },
     {
         id: 'gemini-3-flash-preview', label: 'Gemini 3 Flash', provider: 'gemini', contextLimit: 1_000_000,
-        pricing: { inputPerMillion: 0.50, outputPerMillion: 3.00 },
+        pricing: { inputPerMillion: 0.50, outputPerMillion: 3.00, cacheReadMultiplier: 0.1 },
         thinkingOptions: [
             { id: 'minimal', label: 'Minimal', value: 'minimal' },
             { id: 'low', label: 'Low', value: 'low' },
@@ -188,7 +136,7 @@ export const MODEL_REGISTRY: ModelConfig[] = [
     },
     {
         id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', provider: 'gemini', contextLimit: 1_000_000, isDefault: true,
-        pricing: { inputPerMillion: 1.25, outputPerMillion: 10.00, inputPerMillionLong: 2.50, outputPerMillionLong: 15.00 },
+        pricing: { inputPerMillion: 1.25, outputPerMillion: 10.00, inputPerMillionLong: 2.50, outputPerMillionLong: 15.00, cacheReadMultiplier: 0.1 },
         thinkingOptions: [
             { id: 'auto', label: 'Auto', value: -1 },
             { id: 'low', label: 'Low', value: 1024 },
@@ -203,7 +151,7 @@ export const MODEL_REGISTRY: ModelConfig[] = [
     },
     {
         id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', provider: 'gemini', contextLimit: 1_000_000,
-        pricing: { inputPerMillion: 0.30, outputPerMillion: 2.50 },
+        pricing: { inputPerMillion: 0.30, outputPerMillion: 2.50, cacheReadMultiplier: 0.1 },
         thinkingOptions: [
             { id: 'off', label: 'Off', value: 0 },
             { id: 'auto', label: 'Auto', value: -1 },

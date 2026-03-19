@@ -50,7 +50,7 @@ import { getVideoCards, getTrafficContexts, getCanvasContexts } from '../../core
 import { buildVideoIdMap } from '../../core/utils/buildReferenceMap';
 import type { VideoPreviewData } from '../Video/types';
 import { toPreviewData } from './utils/toPreviewData';
-import { estimateCostUsd, estimateCacheSavingsUsd, type ModelPricing } from '../../core/types/chat/chat';
+
 import { getEffectiveDisplayLevel } from './utils/tokenDisplay';
 import { EXPENSIVE_MESSAGE_THRESHOLD } from './hooks/useCostAlerts';
 import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
@@ -96,8 +96,8 @@ const CodeBlock: React.FC<{ language?: string; children: string }> = React.memo(
     };
 
     return (
-        <div className="chat-code-block my-2.5 rounded-lg overflow-hidden border border-white/[0.06]">
-            <div className="chat-code-header flex items-center justify-between px-3 py-1.5 bg-white/[0.04] border-b border-white/[0.06]">
+        <div className="chat-code-block my-2.5 rounded-lg overflow-hidden border border-border">
+            <div className="chat-code-header flex items-center justify-between px-3 py-1.5 bg-surface-secondary border-b border-border">
                 <span className="text-[11px] font-medium text-text-tertiary lowercase tracking-wide font-mono">{language || 'code'}</span>
                 <button className={`bg-transparent border-none text-text-tertiary cursor-pointer p-0.5 flex opacity-0 transition-opacity duration-150 group-hover/code:opacity-100 hover:text-text-primary ${copied ? '!text-[#22c55e] !opacity-100' : ''}`} onClick={handleCopy} title="Copy code">
                     {copied ? <Check size={13} /> : <Copy size={13} />}
@@ -127,7 +127,6 @@ CodeBlock.displayName = 'CodeBlock';
 
 interface ChatMessageListProps {
     messages: ChatMessage[];
-    modelPricing?: ModelPricing;
 }
 
 const MarkdownMessage: React.FC<{ text: string; videoMap?: Map<string, VideoPreviewData> }> = React.memo(({ text, videoMap }) => {
@@ -194,8 +193,8 @@ function getTickInterval(createdAt: Timestamp): number | null {
 
 // --- Shared bubble class constants (DRY) ---
 const MSG_BUBBLE_BASE = 'chat-message-bubble py-2 px-3.5 rounded-xl text-[13px] leading-normal break-words';
-const MSG_BUBBLE_USER = `${MSG_BUBBLE_BASE} bg-[#2a2a2a] text-text-primary rounded-br-sm`;
-const MSG_BUBBLE_MODEL = `${MSG_BUBBLE_BASE} bg-bg-secondary text-text-primary rounded-bl-sm`;
+const MSG_BUBBLE_USER = `${MSG_BUBBLE_BASE} bg-surface-secondary text-text-primary rounded-br-sm`;
+const MSG_BUBBLE_MODEL = `${MSG_BUBBLE_BASE} bg-surface-secondary text-text-primary rounded-bl-sm`;
 
 // --- Debounced markdown for streaming ---
 function useDebouncedMarkdown(text: string | null, delay: number): string | null {
@@ -212,7 +211,6 @@ function useDebouncedMarkdown(text: string | null, delay: number): string | null
 
 interface MessageItemProps {
     msg: ChatMessage;
-    modelPricing?: ModelPricing;
     skipAnimation?: boolean;
     isFailed?: boolean;
     isStreaming?: boolean;
@@ -223,7 +221,7 @@ interface MessageItemProps {
     sessionThinking?: { text: string; elapsedMs: number } | null;
 }
 
-const MessageItem: React.FC<MessageItemProps> = React.memo(({ msg, modelPricing, skipAnimation, isFailed, isStreaming, onRetry, onEdit, videoMap, sessionThinking }) => {
+const MessageItem: React.FC<MessageItemProps> = React.memo(({ msg, skipAnimation, isFailed, isStreaming, onRetry, onEdit, videoMap, sessionThinking }) => {
     const itemRef = useRef<HTMLDivElement>(null);
     const isVisibleRef = useRef(false);
     const [timestamp, setTimestamp] = useState(() => formatRelativeTime(msg.createdAt));
@@ -290,20 +288,8 @@ const MessageItem: React.FC<MessageItemProps> = React.memo(({ msg, modelPricing,
             return { cost: costTotal, cachedPct, tooltip: lines.join('\n') };
         }
 
-        // --- Legacy fallback (pre-normalization messages) ---
-        if (!msg.tokenUsage || !modelPricing) return null;
-        const { promptTokens, completionTokens, cachedTokens, cacheWriteTokens } = msg.tokenUsage;
-        const totalInput = promptTokens + (cachedTokens ?? 0) + (cacheWriteTokens ?? 0);
-        const cost = estimateCostUsd(modelPricing, promptTokens, completionTokens, cachedTokens, cacheWriteTokens);
-        const savings = estimateCacheSavingsUsd(modelPricing, promptTokens, completionTokens, cachedTokens, cacheWriteTokens);
-        const cachedPct = cachedTokens ? Math.round((cachedTokens / totalInput) * 100) : 0;
-        const tooltip = [
-            `Input: ${totalInput.toLocaleString()} tokens${cachedTokens ? ` (${cachedTokens.toLocaleString()} cached)` : ''}`,
-            `Output: ${completionTokens.toLocaleString()} tokens`,
-            `Cost: $${cost.toFixed(4)}${savings > 0 ? ` (without cache: $${(cost + savings).toFixed(4)})` : ''}`,
-        ].join('\n');
-        return { cost, cachedPct, tooltip };
-    }, [msg.role, msg.tokenUsage, msg.normalizedUsage, msg.toolCalls, modelPricing]);
+        return null;
+    }, [msg.role, msg.normalizedUsage, msg.toolCalls]);
 
     return (
         <div ref={itemRef} data-message-id={msg.id} data-message-role={msg.role} className={`chat-message flex flex-col max-w-[85%] ${skipAnimation ? '' : 'animate-message-in'} ${msg.role === 'user' ? 'self-end' : 'self-start'}`}>
@@ -415,7 +401,6 @@ MessageItem.displayName = 'MessageItem';
 
 export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     messages,
-    modelPricing,
 }) => {
     const streamingText = useChatStore(s => s.streamingText);
     const isStreaming = useChatStore(s => s.isStreaming);
@@ -520,7 +505,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
 
     if (messages.length === 0 && !isStreaming) {
         return (
-            <div className="chat-messages flex-1 min-h-0 overflow-y-auto px-3.5 pt-3.5 pb-1 flex flex-col gap-3">
+            <div className="chat-messages flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-3.5 pt-3.5 pb-1 flex flex-col gap-3">
                 <div className="flex flex-col items-center justify-center h-full gap-2.5 text-text-tertiary text-[13px] text-center p-6 select-none cursor-default">
                     <MessageCircle size={48} strokeWidth={1.5} className="opacity-35" />
                     <span>Start a conversation.<br />You can send text, images, audio, or video.</span>
@@ -538,7 +523,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     const skipAnimateLastModel = (recentlyStreamed || isStreaming) && visibleMessages[lastMsgIndex]?.role === 'model';
 
     return (
-        <div className="chat-messages flex-1 min-h-0 overflow-y-auto px-3.5 pt-3.5 pb-1 flex flex-col gap-3" ref={containerRef} onScroll={handleScroll}>
+        <div className="chat-messages flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-3.5 pt-3.5 pb-1 flex flex-col gap-3" ref={containerRef} onScroll={handleScroll}>
             {visibleMessages.map((msg, idx) => {
                 // Render memory checkpoints between messages (by timestamp)
                 const checkpointsBefore = conversationMemories.filter(m => {
@@ -564,7 +549,6 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                         <MessageErrorBoundary messageId={msg.id}>
                             <MessageItem
                                 msg={msg}
-                                modelPricing={modelPricing}
                                 skipAnimation={skipAnimateReconciled || (idx === lastMsgIndex && skipAnimateLastModel)}
                                 isFailed={msg.role === 'user' && failedMessageId === msg.id}
                                 isStreaming={isStreaming}

@@ -28,6 +28,7 @@ async function getPartFactories(): Promise<{
 import { getClient, isGeminiUriValid } from "./client.js";
 import type { ChatAttachment } from "./client.js";
 import type { HistoryMessage, TokenUsage, ToolCallRecord } from "../ai/types.js";
+import type { CacheState, CacheableContent } from "./cacheManager.js";
 import { AiStreamTimeoutError, withStreamRetry } from "../ai/retry.js";
 import type { ThumbnailCache } from "./thumbnails.js";
 import { reuploadFromStorage } from "./fileUpload.js";
@@ -85,6 +86,10 @@ export interface StreamChatOpts {
     toolContext?: ToolContext;
     /** Thinking depth option id (must match an id in the model's thinkingOptions). */
     thinkingOptionId?: string;
+    /** Existing Gemini CachedContent state for this conversation. */
+    cacheState?: CacheState;
+    /** Callback to persist updated cache state after response. */
+    onCacheUpdate?: (state: CacheState | null) => Promise<void>;
 }
 
 // --- Build Gemini history ---
@@ -453,6 +458,8 @@ export async function streamChat(
         onAttachmentUpdate,
         toolContext,
         thinkingOptionId,
+        cacheState,
+        onCacheUpdate,
     } = opts;
 
     const t0 = Date.now();
@@ -532,38 +539,98 @@ export async function streamChat(
     // Mutable contents — we append function responses within the loop
     const agenticContents = [...contents];
 
+    // --- Cache resolution (optimistic — no ai.caches.get() call) ---
+    const cacheManager = await import("./cacheManager.js");
+    // Track history length for cross-provider gap detection.
+    // Cache stores historyLen at creation. If history grew by more than 2
+    // (one user + one model per Gemini turn), messages were added outside Gemini
+    // (e.g. Gemini→Claude→Gemini), and cache is stale.
+    const currentHistoryLen = history.length;
+    const resolvedCacheId = cacheState
+        ? await cacheManager.resolveCache(apiKey, cacheState, model, systemPrompt, currentHistoryLen)
+        : null;
+
+    console.log(`[gemini:streamChat] Cache: ${resolvedCacheId ? 'HIT' : cacheState ? 'MISS' : 'COLD'} cacheId=${resolvedCacheId ?? 'none'}`);
+
     while (iteration < MAX_AGENTIC_ITERATIONS) {
         iteration++;
         console.log(`[gemini:streamChat] Iteration ${iteration}/${MAX_AGENTIC_ITERATIONS} — calling generateContentStream...`);
 
+        // --- Cache-aware config and contents (iteration 1 only) ---
+        // When using cachedContent, OMIT systemInstruction and tools — they're inside the cache.
+        // thinkingConfig is runtime-only — always passed regardless of cache.
+        // Cache = PREFIX. Full agenticContents would DOUBLE the history.
+        // Cache hit: send ONLY new user message (cache has the rest).
+        // No cache / iteration 2+: send full agenticContents.
+        let useThisCache = !!(resolvedCacheId && iteration === 1);
+        if (useThisCache) {
+            const last = agenticContents[agenticContents.length - 1];
+            if (last.role !== 'user') {
+                console.warn('[gemini:streamChat] Cache hit but last content is not user role — disabling cache');
+                useThisCache = false;
+            }
+        }
+        const iterConfig = useThisCache
+            ? { cachedContent: resolvedCacheId, ...thinkingConfig }
+            : { systemInstruction: systemPrompt || undefined, ...toolConfig, ...thinkingConfig };
+        const iterContents = useThisCache
+            ? [agenticContents[agenticContents.length - 1]]
+            : agenticContents;
+
         // --- Stream with retry (matches Claude's pattern) ---
-        const iterationResult = await withStreamRetry(
-            () => geminiStreamIteration({
-                ai,
-                model,
-                contents: agenticContents,
-                config: {
-                    systemInstruction: systemPrompt || undefined,
-                    ...toolConfig,
-                    ...thinkingConfig,
+        let iterationResult: GeminiIterationResult;
+        try {
+            iterationResult = await withStreamRetry(
+                () => geminiStreamIteration({
+                    ai,
+                    model,
+                    contents: iterContents,
+                    config: iterConfig,
+                    callbacks: { onChunk, onThought },
+                    signal,
+                    fullTextBefore: fullText,
+                }),
+                {
+                    maxRetries: MAX_STREAM_RETRIES,
+                    isTransient: isGeminiTransient,
+                    delayMs: RETRY_503_DELAY_MS,
+                    onRetry: (attempt) => {
+                        console.log(
+                            `[gemini:streamChat] Retry attempt ${attempt}/${MAX_STREAM_RETRIES} — iteration ${iteration}`,
+                        );
+                        onRetry?.(attempt);
+                    },
+                    signal,
                 },
-                callbacks: { onChunk, onThought },
-                signal,
-                fullTextBefore: fullText,
-            }),
-            {
-                maxRetries: MAX_STREAM_RETRIES,
-                isTransient: isGeminiTransient,
-                delayMs: RETRY_503_DELAY_MS,
-                onRetry: (attempt) => {
-                    console.log(
-                        `[gemini:streamChat] Retry attempt ${attempt}/${MAX_STREAM_RETRIES} — iteration ${iteration}`,
-                    );
-                    onRetry?.(attempt);
-                },
-                signal,
-            },
-        );
+            );
+        } catch (cacheErr) {
+            // Cache eviction safety net: if iteration 1 failed WITH cache,
+            // retry WITHOUT cache (full contents + systemInstruction + tools).
+            // Covers NOT_FOUND when cached resource was evicted before expiry.
+            if (useThisCache && !signal?.aborted) {
+                console.warn(`[gemini:streamChat] Cache fallback — retrying without cache: ${cacheErr instanceof Error ? cacheErr.message : cacheErr}`);
+                iterationResult = await withStreamRetry(
+                    () => geminiStreamIteration({
+                        ai,
+                        model,
+                        contents: agenticContents,
+                        config: { systemInstruction: systemPrompt || undefined, ...toolConfig, ...thinkingConfig },
+                        callbacks: { onChunk, onThought },
+                        signal,
+                        fullTextBefore: fullText,
+                    }),
+                    {
+                        maxRetries: MAX_STREAM_RETRIES,
+                        isTransient: isGeminiTransient,
+                        delayMs: RETRY_503_DELAY_MS,
+                        onRetry: (attempt) => onRetry?.(attempt),
+                        signal,
+                    },
+                );
+            } else {
+                throw cacheErr;
+            }
+        }
 
         // Update accumulated state (sum tokens across iterations, not overwrite)
         fullText = iterationResult.fullText;
@@ -578,7 +645,7 @@ export async function streamChat(
                     total: tu.promptTokens,
                     fresh: tu.promptTokens - cached,
                     cached,
-                    cacheWrite: 0, // Gemini has no cache write concept
+                    cacheWrite: 0, // Gemini charges storage-per-hour, not per-token write cost
                 },
                 output: {
                     // Gemini: candidatesTokenCount EXCLUDES thinking, so total = candidates + thoughts
@@ -754,6 +821,37 @@ export async function streamChat(
     const agenticImages = agenticImageCount > 0
         ? { count: agenticImageCount, tokens: estimateImageTokens(model, Array.from({ length: agenticImageCount }, () => ({}))) }
         : undefined;
+
+    // --- Fire-and-forget cache recreation (after response, not in critical path) ---
+    if (onCacheUpdate) {
+        // Append final model response to agenticContents for caching.
+        // In the agentic loop, model responses are only appended when there are tool calls.
+        // For simple text responses (no tools), we must add it here so the cache
+        // contains the full exchange (history + user + model response).
+        if (fullText) {
+            agenticContents.push({ role: "model", parts: [{ text: fullText }] });
+        }
+        const cacheableContent: CacheableContent = {
+            systemPrompt,
+            tools: toolConfig.tools ?? [],
+            history: agenticContents,
+            displayName: `msg${agenticContents.length}`,
+        };
+        cacheManager.createCache(
+            apiKey,
+            model,
+            cacheableContent,
+            resolvedCacheId ?? cacheState?.cacheId,
+            currentHistoryLen,
+        )
+            .then(newState => {
+                if (newState) {
+                    console.log(`[gemini:streamChat] Cache recreated: ${newState.cacheId} expires=${new Date(newState.expiry).toISOString()}`);
+                }
+                return onCacheUpdate(newState);
+            })
+            .catch(() => {}); // swallow — cache update is best-effort
+    }
 
     return {
         text: fullText,

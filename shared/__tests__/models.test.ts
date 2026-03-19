@@ -1,7 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { estimateCostUsd, estimateCacheSavingsUsd } from '../models';
+import { computeIterationCost } from '../models';
 
-// Use a consistent test pricing fixture
+/** Gemini pricing WITH cacheReadMultiplier (Stage 3 — all Gemini models). */
+const GEMINI_PRICING = {
+    inputPerMillion: 1.25,
+    outputPerMillion: 10.00,
+    inputPerMillionLong: 2.50,
+    outputPerMillionLong: 15.00,
+    cacheReadMultiplier: 0.1,
+};
+
 const CLAUDE_SONNET_PRICING = {
     inputPerMillion: 3.00,
     outputPerMillion: 15.00,
@@ -9,122 +17,102 @@ const CLAUDE_SONNET_PRICING = {
     cacheWriteMultiplier: 2.0,
 };
 
-const GEMINI_PRICING = {
-    inputPerMillion: 1.25,
-    outputPerMillion: 10.00,
-    inputPerMillionLong: 2.50,
-    outputPerMillionLong: 15.00,
-};
-
-const SIMPLE_PRICING = {
-    inputPerMillion: 1.00,
-    outputPerMillion: 1.00,
-};
-
-describe('estimateCostUsd', () => {
-    it('calculates basic cost without cache (backward compatibility)', () => {
-        const cost = estimateCostUsd(SIMPLE_PRICING, 1_000_000, 1_000_000);
-        // 1M input * $1/M + 1M output * $1/M = $2
-        expect(cost).toBeCloseTo(2.0, 4);
+describe('computeIterationCost', () => {
+    it('Gemini: cached tokens at 0.1x input rate', () => {
+        const tokens = {
+            input: { total: 100_000, fresh: 20_000, cached: 80_000, cacheWrite: 0 },
+            output: { total: 5_000, thinking: 0 },
+        };
+        const cost = computeIterationCost(GEMINI_PRICING, tokens);
+        const freshCost = (20_000 / 1e6) * 1.25;
+        const cachedCost = (80_000 / 1e6) * 1.25 * 0.1;
+        const outputCost = (5_000 / 1e6) * 10.00;
+        expect(cost.input).toBeCloseTo(freshCost, 6);
+        expect(cost.cached).toBeCloseTo(cachedCost, 6);
+        expect(cost.output).toBeCloseTo(outputCost, 6);
+        expect(cost.total).toBeCloseTo(freshCost + cachedCost + outputCost, 6);
     });
 
-    it('returns 0 for zero tokens', () => {
-        expect(estimateCostUsd(SIMPLE_PRICING, 0, 0)).toBe(0);
+    it('Gemini: cacheWrite at 1.0x (no write multiplier)', () => {
+        const tokens = {
+            input: { total: 50_000, fresh: 0, cached: 0, cacheWrite: 50_000 },
+            output: { total: 1_000, thinking: 0 },
+        };
+        const cost = computeIterationCost(GEMINI_PRICING, tokens);
+        const writeCost = (50_000 / 1e6) * 1.25 * 1.0;
+        expect(cost.cacheWrite).toBeCloseTo(writeCost, 6);
     });
 
-    it('applies cache read multiplier (0.1x)', () => {
-        // 0 uncached + 1M cached at 0.1x + 0 output
-        const cost = estimateCostUsd(CLAUDE_SONNET_PRICING, 0, 0, 1_000_000, 0);
-        const expected = (1_000_000 / 1_000_000) * 3.00 * 0.1;
-        expect(cost).toBeCloseTo(expected, 6);
+    it('Gemini: withoutCache is full input at standard rate', () => {
+        const tokens = {
+            input: { total: 100_000, fresh: 10_000, cached: 90_000, cacheWrite: 0 },
+            output: { total: 5_000, thinking: 0 },
+        };
+        const cost = computeIterationCost(GEMINI_PRICING, tokens);
+        const withoutCache = (100_000 / 1e6) * 1.25 + (5_000 / 1e6) * 10.00;
+        expect(cost.withoutCache).toBeCloseTo(withoutCache, 6);
+        expect(cost.withoutCache - cost.total).toBeGreaterThan(0);
     });
 
-    it('applies cache write multiplier (2.0x)', () => {
-        // 0 uncached + 0 cached + 1M write at 2.0x + 0 output
-        const cost = estimateCostUsd(CLAUDE_SONNET_PRICING, 0, 0, 0, 1_000_000);
-        const expected = (1_000_000 / 1_000_000) * 3.00 * 2.0;
-        expect(cost).toBeCloseTo(expected, 6);
+    it('Gemini: long-context rates apply to both fresh AND cached', () => {
+        const tokens = {
+            input: { total: 250_000, fresh: 50_000, cached: 200_000, cacheWrite: 0 },
+            output: { total: 10_000, thinking: 0 },
+        };
+        const cost = computeIterationCost(GEMINI_PRICING, tokens);
+        const freshCost = (50_000 / 1e6) * 2.50;
+        const cachedCost = (200_000 / 1e6) * 2.50 * 0.1;
+        const outputCost = (10_000 / 1e6) * 15.00;
+        expect(cost.input).toBeCloseTo(freshCost, 6);
+        expect(cost.cached).toBeCloseTo(cachedCost, 6);
+        expect(cost.output).toBeCloseTo(outputCost, 6);
+        expect(cost.total).toBeCloseTo(freshCost + cachedCost + outputCost, 6);
     });
 
-    it('combines uncached, cached read, and cache write tokens', () => {
-        // 500K uncached + 300K cached + 200K write + 100K output
-        const cost = estimateCostUsd(CLAUDE_SONNET_PRICING, 500_000, 100_000, 300_000, 200_000);
-        const inputCost = (500_000 / 1e6) * 3.00;
-        const cacheCost = (300_000 / 1e6) * 3.00 * 0.1;
-        const writeCost = (200_000 / 1e6) * 3.00 * 2.0;
-        const outputCost = (100_000 / 1e6) * 15.00;
-        expect(cost).toBeCloseTo(inputCost + cacheCost + writeCost + outputCost, 6);
+    it('Claude: cache read 0.1x + cache write 2.0x', () => {
+        const tokens = {
+            input: { total: 100_000, fresh: 10_000, cached: 80_000, cacheWrite: 10_000 },
+            output: { total: 5_000, thinking: 0 },
+        };
+        const cost = computeIterationCost(CLAUDE_SONNET_PRICING, tokens);
+        const freshCost = (10_000 / 1e6) * 3.00;
+        const cachedCost = (80_000 / 1e6) * 3.00 * 0.1;
+        const writeCost = (10_000 / 1e6) * 3.00 * 2.0;
+        const outputCost = (5_000 / 1e6) * 15.00;
+        expect(cost.input).toBeCloseTo(freshCost, 6);
+        expect(cost.cached).toBeCloseTo(cachedCost, 6);
+        expect(cost.cacheWrite).toBeCloseTo(writeCost, 6);
+        expect(cost.total).toBeCloseTo(freshCost + cachedCost + writeCost + outputCost, 6);
     });
 
-    it('uses long-context pricing when total input > 200K', () => {
-        // 150K uncached + 100K cached = 250K total > 200K threshold
-        const cost = estimateCostUsd(GEMINI_PRICING, 150_000, 50_000, 100_000);
-        const inputCost = (150_000 / 1e6) * 2.50; // long rate
-        const cacheCost = (100_000 / 1e6) * 2.50 * 1; // no multiplier = 1x
-        const outputCost = (50_000 / 1e6) * 15.00; // long output rate
-        expect(cost).toBeCloseTo(inputCost + cacheCost + outputCost, 6);
-    });
-
-    it('uses standard pricing when total input <= 200K', () => {
-        const cost = estimateCostUsd(GEMINI_PRICING, 100_000, 50_000);
-        const inputCost = (100_000 / 1e6) * 1.25; // standard rate
-        const outputCost = (50_000 / 1e6) * 10.00; // standard output rate
-        expect(cost).toBeCloseTo(inputCost + outputCost, 6);
-    });
-
-    it('falls back to multiplier=1 when no cache multipliers defined', () => {
-        // Gemini pricing has no cacheReadMultiplier — cached tokens charged at full input price
-        const withCache = estimateCostUsd(GEMINI_PRICING, 50_000, 50_000, 50_000);
-        const withoutCache = estimateCostUsd(GEMINI_PRICING, 100_000, 50_000);
-        expect(withCache).toBeCloseTo(withoutCache, 6);
-    });
-
-    it('handles undefined cache params gracefully', () => {
-        const a = estimateCostUsd(SIMPLE_PRICING, 1000, 500);
-        const b = estimateCostUsd(SIMPLE_PRICING, 1000, 500, undefined, undefined);
-        expect(a).toBe(b);
-    });
-});
-
-describe('estimateCacheSavingsUsd', () => {
-    it('returns 0 when no cache data', () => {
-        expect(estimateCacheSavingsUsd(CLAUDE_SONNET_PRICING, 1000, 500)).toBe(0);
-        expect(estimateCacheSavingsUsd(CLAUDE_SONNET_PRICING, 1000, 500, undefined, undefined)).toBe(0);
-    });
-
-    it('returns positive savings with cache read hits', () => {
-        // 10K uncached + 90K cached = 100K total
-        // Hypothetical: 100K at full price
-        // Actual: 10K at full + 90K at 0.1x
-        const savings = estimateCacheSavingsUsd(CLAUDE_SONNET_PRICING, 10_000, 5_000, 90_000);
-        expect(savings).toBeGreaterThan(0);
-    });
-
-    it('returns 0 on first message (only cache write, no reads)', () => {
-        // First msg: 0 uncached (all goes to write), 100K write at 2.0x
-        // Hypothetical: 100K at 1.0x = $0.30
-        // Actual: 100K at 2.0x = $0.60 — MORE expensive
-        // Math.max(0, hypothetical - actual) = 0
-        const savings = estimateCacheSavingsUsd(CLAUDE_SONNET_PRICING, 0, 5_000, 0, 100_000);
-        expect(savings).toBe(0);
-    });
-
-    it('savings are positive when cache reads outweigh write cost', () => {
-        // Typical 2nd+ message: 10K new + 80K cached + 10K write
-        const savings = estimateCacheSavingsUsd(CLAUDE_SONNET_PRICING, 10_000, 5_000, 80_000, 10_000);
-        expect(savings).toBeGreaterThan(0);
-    });
-
-    it('savings equal zero for models without cache multipliers', () => {
-        // Gemini: no multipliers, so cached tokens = full price = hypothetical price
-        const savings = estimateCacheSavingsUsd(GEMINI_PRICING, 50_000, 50_000, 50_000);
-        expect(savings).toBe(0);
-    });
-
-    it('hypothetical matches actual when multiplier is 1x (no benefit)', () => {
-        // When cacheReadMultiplier = 1 (default), cache read = full price = no savings
+    it('no cache multipliers — defaults to 1.0x', () => {
         const pricing = { inputPerMillion: 1.00, outputPerMillion: 1.00 };
-        const savings = estimateCacheSavingsUsd(pricing, 50_000, 50_000, 50_000);
-        expect(savings).toBe(0);
+        const tokens = {
+            input: { total: 100_000, fresh: 50_000, cached: 50_000, cacheWrite: 0 },
+            output: { total: 10_000, thinking: 0 },
+        };
+        const cost = computeIterationCost(pricing, tokens);
+        // Both fresh and cached at 1.0x — same as full price
+        expect(cost.total).toBeCloseTo(cost.withoutCache, 6);
+    });
+
+    it('zero tokens — all costs are zero', () => {
+        const tokens = {
+            input: { total: 0, fresh: 0, cached: 0, cacheWrite: 0 },
+            output: { total: 0, thinking: 0 },
+        };
+        const cost = computeIterationCost(GEMINI_PRICING, tokens);
+        expect(cost.total).toBe(0);
+        expect(cost.withoutCache).toBe(0);
+    });
+
+    it('thinking tokens produce thinkingSubset cost', () => {
+        const tokens = {
+            input: { total: 10_000, fresh: 10_000, cached: 0, cacheWrite: 0 },
+            output: { total: 5_000, thinking: 3_000 },
+        };
+        const cost = computeIterationCost(GEMINI_PRICING, tokens);
+        const thinkingCost = (3_000 / 1e6) * 10.00;
+        expect(cost.thinkingSubset).toBeCloseTo(thinkingCost, 6);
     });
 });

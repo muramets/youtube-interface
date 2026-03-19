@@ -132,7 +132,7 @@ export type ChatView = 'projects' | 'conversations' | 'chat';
 // --- Model config (imported from shared SSOT) ---
 
 export type { ModelConfig, ModelPricing, AttachmentSupport, TokenUsage, NormalizedTokenUsage, ContextBreakdown } from '../../../../shared/models';
-export { MODEL_REGISTRY, HISTORY_BUDGET_RATIO, estimateCostUsd, estimateCacheSavingsUsd, resolveModelId, getAcceptedMimeTypes, type ThinkingOption } from '../../../../shared/models';
+export { MODEL_REGISTRY, HISTORY_BUDGET_RATIO, resolveModelId, getAcceptedMimeTypes, type ThinkingOption } from '../../../../shared/models';
 import { MODEL_REGISTRY, type TokenUsage, type NormalizedTokenUsage } from '../../../../shared/models';
 
 export const DEFAULT_MODEL = MODEL_REGISTRY.find(m => m.isDefault)?.id ?? MODEL_REGISTRY[0].id;

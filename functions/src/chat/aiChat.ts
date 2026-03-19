@@ -247,6 +247,28 @@ export const aiChat = onRequest(
                 name: a.name,
             }));
 
+            // --- Gemini cache state from conversation doc ---
+            const geminiCacheState = (!isAnthropicModel && convData?.geminiCacheId) ? {
+                cacheId: convData.geminiCacheId as string,
+                expiry: convData.geminiCacheExpiry as number,
+                model: convData.geminiCacheModel as string,
+                promptHash: (convData.geminiCachePromptHash as string) ?? '',
+                historyLen: (convData.geminiCacheHistoryLen as number) ?? 0,
+            } : undefined;
+
+            // When buildMemory used summarization, cache must NOT be used
+            // (cache has full history, summary compressed it — semantic divergence)
+            if (memory.usedSummary && geminiCacheState) {
+                // Clear stale Firestore cache fields (fire-and-forget)
+                convRef.update({
+                    geminiCacheId: admin.firestore.FieldValue.delete(),
+                    geminiCacheExpiry: admin.firestore.FieldValue.delete(),
+                    geminiCacheModel: admin.firestore.FieldValue.delete(),
+                    geminiCachePromptHash: admin.firestore.FieldValue.delete(),
+                    geminiCacheHistoryLen: admin.firestore.FieldValue.delete(),
+                }).catch(() => {}); // fire-and-forget
+            }
+
             // --- Provider context: only Gemini needs extra context ---
             const providerContext = isAnthropicModel
                 ? undefined
@@ -278,6 +300,32 @@ export const aiChat = onRequest(
                             }
                         } catch (err) {
                             console.warn(`[aiChat] Failed to update attachment URI for message ${messageId}`, err);
+                        }
+                    },
+                    // Cache: pass state only when not summarized
+                    cacheState: memory.usedSummary ? undefined : geminiCacheState,
+                    // SAFE: Firestore update() is field-level. If refactoring to batch, include cache fields IN the batch.
+                    onCacheUpdate: async (newState) => {
+                        try {
+                            if (newState) {
+                                await convRef.update({
+                                    geminiCacheId: newState.cacheId,
+                                    geminiCacheExpiry: newState.expiry,
+                                    geminiCacheModel: newState.model,
+                                    geminiCachePromptHash: newState.promptHash,
+                                    geminiCacheHistoryLen: newState.historyLen,
+                                });
+                            } else {
+                                await convRef.update({
+                                    geminiCacheId: admin.firestore.FieldValue.delete(),
+                                    geminiCacheExpiry: admin.firestore.FieldValue.delete(),
+                                    geminiCacheModel: admin.firestore.FieldValue.delete(),
+                                    geminiCachePromptHash: admin.firestore.FieldValue.delete(),
+                                    geminiCacheHistoryLen: admin.firestore.FieldValue.delete(),
+                                });
+                            }
+                        } catch (err) {
+                            console.warn('[aiChat] Failed to persist cache state', err);
                         }
                     },
                 });

@@ -13,7 +13,6 @@
 | 3 | Chat / YT Research | `lookupTrendVideos` — explicit tool для trend cache | Low | [Roadmap](features/chat/tools/layer-1-discovery/2-browse-channel-videos-tool.md#roadmap) |
 | 4 | UI | DropZone consolidation (Audio → shared base) | Low | [dropzone-consolidation.md](backlog/dropzone-consolidation.md) |
 | 5 | Infrastructure | Cache consolidation Phase 5 (cleanup old collection) | Low | [cache-consolidation-tasks.md](decisions/cache-consolidation/cache-consolidation-tasks.md#phase-5-cleanup-old-collection) |
-| 6 | Chat | Prompt Caching (Claude → Gemini) | High | [prompt-caching.md](features/chat/prompt-caching.md) |
 | 7 | Packaging | Primary language: не-ENG локализация по умолчанию | Medium | [packaging.md](features/video-details/packaging.md#stage-5--localization--ux-polish--you-are-here) |
 | 8 | Packaging | Shared tags across localizations | Medium | [packaging.md](features/video-details/packaging.md#stage-5--localization--ux-polish--you-are-here) |
 | 9 | Packaging | Draft warning (напоминание о Published URL) | Medium | [packaging.md](features/video-details/packaging.md#stage-5--localization--ux-polish--you-are-here) |
@@ -24,4 +23,3 @@
 | 14 | Video | Custom video: YouTube ID дублируется в `id` и `publishedVideoId` при привязке Published URL | Low | [Known Issues](features/knowledge/knowledge-items.md#known-issues) |
 | 15 | Chat | MemoryCheckpoint: save/delete ошибки молча проглатываются (нет toast feedback) | Low | `src/features/Chat/components/MemoryCheckpoint.tsx` |
 | 16 | Knowledge | headerComponents / HEADER_SIZE / INDENT дублированы между KnowledgeCard и MemoryCheckpoint | Low | `src/features/Knowledge/components/KnowledgeCard.tsx`, `src/features/Chat/components/MemoryCheckpoint.tsx` |
-| 17 | Chat | Tool pill не появляется пока Claude генерирует tool_use JSON — при editKnowledge с большим KI (~50K chars) это 2+ мин паузы без UI feedback после thinking. SDK эмитит contentBlock только после полной генерации блока, промежуточных events нет | Medium | [thinking-timeout-resilience.md](features/chat/infrastructure/thinking-timeout-resilience.md) |
