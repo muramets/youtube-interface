@@ -83,7 +83,7 @@
 | **CollapsibleMarkdownSections** (Zen mode) | ✅ | ✅* | Поддерживает kiMap prop, но не все callers передают |
 | **LiveDiffPanel** — версии KI | ✅ | — | `buildBodyComponents(videoMap)` — kiMap не прокинут |
 | **RenderedDiffViewer** — diff версий | ✅ | — | `buildBodyComponents(videoMap)` — kiMap не прокинут |
-| **RichTextViewer** — сообщения чата | ✅ | — | Свой markdown renderer, `ki://` в sanitize whitelist но нет handler |
+| **MarkdownMessage** — сообщения чата | ✅ | ✅ | `ChatMessageList` custom `a` handler: `mention://` + `vid://` + `ki://` |
 
 **Примечание:** KI mentions в read mode полностью работают в Memory (Settings + Chat). В KnowledgeCard, diff panels и chat messages — `ki://` ссылки пройдут sanitize, но без tooltip (kiMap не передан). Это приемлемо: KI внутри других KI — редкий кейс.
 

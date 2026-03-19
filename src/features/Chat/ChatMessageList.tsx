@@ -61,6 +61,10 @@ import { CopyButton } from '../../components/ui/atoms/CopyButton';
 import { Timestamp } from 'firebase/firestore';
 import { useChatStore } from '../../core/stores/chat/chatStore';
 import { VideoReferenceTooltip } from './components/VideoReferenceTooltip';
+import { VID_RE, KI_RE } from '../../core/config/referencePatterns';
+import { buildCatalogKiMap } from '../../components/ui/organisms/RichTextEditor/utils/catalogMaps';
+import { KiPreviewTooltipContent } from '../../components/ui/organisms/RichTextEditor/components/KiPreviewTooltipContent';
+import type { KiPreviewData } from '../../components/ui/organisms/RichTextEditor/types';
 import { formatRelativeTime, STATIC_AGE } from './formatRelativeTime';
 import { normalizeMarkdown } from './utils/normalizeMarkdown';
 import { buildToolVideoMap } from './utils/buildToolVideoMap';
@@ -131,7 +135,7 @@ interface ChatMessageListProps {
     messages: ChatMessage[];
 }
 
-const MarkdownMessage: React.FC<{ text: string; videoMap?: Map<string, VideoPreviewData> }> = React.memo(({ text, videoMap }) => {
+const MarkdownMessage: React.FC<{ text: string; videoMap?: Map<string, VideoPreviewData>; kiMap?: Map<string, KiPreviewData> }> = React.memo(({ text, videoMap, kiMap }) => {
     // Fix malformed mention:// URLs before markdown parsing (LLMs add spaces/extra slashes)
     const sanitized = text
         .replace(MENTION_URL_FIX_RE, '](mention://')
@@ -143,9 +147,9 @@ const MarkdownMessage: React.FC<{ text: string; videoMap?: Map<string, VideoPrev
     return (
         <ReactMarkdown
             remarkPlugins={[remarkGfm]}
-            // Allow mention:// URIs through the URL sanitizer
+            // Allow mention://, vid://, ki:// URIs through the URL sanitizer
             urlTransform={(url) => {
-                if (MENTION_RE.test(url)) return url;
+                if (MENTION_RE.test(url) || VID_RE.test(url) || KI_RE.test(url)) return url;
                 return url;
             }}
             components={{
@@ -160,16 +164,42 @@ const MarkdownMessage: React.FC<{ text: string; videoMap?: Map<string, VideoPrev
                 a({ href, children }) {
                     const childText = String(children);
 
-                    // Structured mention: mention://videoId
+                    // Video references: mention://ID (LLM-generated) or vid://ID (user @-mentions)
                     if (href && videoMap) {
                         const mentionMatch = MENTION_RE.exec(href);
                         if (mentionMatch) {
                             const videoId = mentionMatch[1];
                             const video = videoMap.get(videoId) ?? null;
-                            // Gemini sometimes writes [videoId](mention://videoId) instead of [Title](mention://videoId).
-                            // Prefer the real title from videoMap when the link text looks like a raw ID.
                             const label = (video?.title && childText === videoId) ? video.title : childText;
                             return <VideoReferenceTooltip label={label} video={video} refType="video" index={0} />;
+                        }
+                        const vidMatch = VID_RE.exec(href);
+                        if (vidMatch) {
+                            const video = videoMap.get(vidMatch[1]) ?? null;
+                            return <VideoReferenceTooltip label={childText} video={video} refType="video" index={0} />;
+                        }
+                    }
+
+                    // KI references: ki://ID (user @-mentions)
+                    if (href) {
+                        const kiMatch = KI_RE.exec(href);
+                        if (kiMatch) {
+                            const ki = kiMap?.get(kiMatch[1]) ?? null;
+                            if (ki) {
+                                return (
+                                    <PortalTooltip
+                                        content={<KiPreviewTooltipContent ki={ki} />}
+                                        side="top"
+                                        align="center"
+                                        variant="glass"
+                                        enterDelay={200}
+                                        inline
+                                    >
+                                        <span className="ki-reference-highlight cursor-pointer">{children}</span>
+                                    </PortalTooltip>
+                                );
+                            }
+                            return <span className="ki-reference-highlight">{children}</span>;
                         }
                     }
 
@@ -219,11 +249,12 @@ interface MessageItemProps {
     onRetry?: () => void;
     onEdit?: (msg: ChatMessage) => void;
     videoMap?: Map<string, VideoPreviewData>;
+    kiMap?: Map<string, KiPreviewData>;
     /** Session-only thinking data (not persisted, shown only for last model msg) */
     sessionThinking?: { text: string; elapsedMs: number } | null;
 }
 
-const MessageItem: React.FC<MessageItemProps> = React.memo(({ msg, skipAnimation, isFailed, isStreaming, onRetry, onEdit, videoMap, sessionThinking }) => {
+const MessageItem: React.FC<MessageItemProps> = React.memo(({ msg, skipAnimation, isFailed, isStreaming, onRetry, onEdit, videoMap, kiMap, sessionThinking }) => {
     const itemRef = useRef<HTMLDivElement>(null);
     const isVisibleRef = useRef(false);
     const [timestamp, setTimestamp] = useState(() => formatRelativeTime(msg.createdAt));
@@ -348,7 +379,7 @@ const MessageItem: React.FC<MessageItemProps> = React.memo(({ msg, skipAnimation
                 {msg.role === 'model' && msg.toolCalls && msg.toolCalls.length > 0 && (
                     <ToolCallSummary toolCalls={msg.toolCalls} videoMap={videoMap} stopped={msg.status === 'stopped'} />
                 )}
-                {msg.role === 'model' ? <MarkdownMessage text={msg.text} videoMap={videoMap} /> : msg.text}
+                <MarkdownMessage text={msg.text} videoMap={videoMap} kiMap={kiMap} />
             </div>
 
             {/* Failed message indicator */}
@@ -446,6 +477,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     const updateMemory = useChatStore(s => s.updateMemory);
     const deleteMemory = useChatStore(s => s.deleteMemory);
     const knowledgeCatalog = useKnowledgeCatalog();
+    const referenceKiMap = useMemo(() => buildCatalogKiMap(knowledgeCatalog), [knowledgeCatalog]);
     // Manual memories (conversationId undefined) are excluded by design — they appear only in Settings
     const conversationMemories = useMemo(() =>
         memories.filter(m => m.conversationId === activeConversationId),
@@ -559,6 +591,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                                 onRetry={retryLastMessage}
                                 onEdit={setEditingMessage}
                                 videoMap={referenceVideoMap}
+                                kiMap={referenceKiMap}
                                 sessionThinking={
                                     msg.role === 'model'
                                         ? (msg.thinking
@@ -609,7 +642,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
 
                         {streamingText ? (
                             <div className="animate-fade-in">
-                                {debouncedStreamingText ? <MarkdownMessage text={debouncedStreamingText} videoMap={referenceVideoMap} /> : <span className="whitespace-pre-wrap">{streamingText}</span>}
+                                {debouncedStreamingText ? <MarkdownMessage text={debouncedStreamingText} videoMap={referenceVideoMap} kiMap={referenceKiMap} /> : <span className="whitespace-pre-wrap">{streamingText}</span>}
                             </div>
                         ) : (
                             <span className="inline-flex items-center gap-[3px] align-middle">
@@ -633,7 +666,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                             <ToolCallSummary toolCalls={stoppedResponse.toolCalls} videoMap={referenceVideoMap} stopped />
                         )}
                         {stoppedResponse.text && (
-                            <MarkdownMessage text={stoppedResponse.text} videoMap={referenceVideoMap} />
+                            <MarkdownMessage text={stoppedResponse.text} videoMap={referenceVideoMap} kiMap={referenceKiMap} />
                         )}
                         <div className="flex items-center gap-1.5 mt-2 pt-1.5 border-t border-border text-text-tertiary text-[11px]">
                             <Square size={10} />
