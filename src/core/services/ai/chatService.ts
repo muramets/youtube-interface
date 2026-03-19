@@ -387,12 +387,15 @@ export const ChatService = {
         userId: string,
         channelId: string,
         memoryId: string,
-        content: string
+        content: string,
+        title?: string
     ) {
-        await updateDocument(memoriesPath(userId, channelId), memoryId, {
+        const updates = {
             content,
             updatedAt: Timestamp.now(),
-        });
+            ...(title !== undefined && { conversationTitle: title }),
+        };
+        await updateDocument(memoriesPath(userId, channelId), memoryId, updates);
     },
 
     async deleteMemory(userId: string, channelId: string, memoryId: string) {

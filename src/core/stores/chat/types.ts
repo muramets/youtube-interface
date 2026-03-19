@@ -123,7 +123,7 @@ export interface ChatState {
     saveAiSettings: (settings: Partial<AiAssistantSettings>) => Promise<void>;
     memorizeConversation: (guidance?: string) => Promise<void>;
     createMemory: (content: string, title?: string) => Promise<void>;
-    updateMemory: (memoryId: string, content: string) => Promise<void>;
+    updateMemory: (memoryId: string, content: string, title?: string) => Promise<void>;
     deleteMemory: (memoryId: string) => Promise<void>;
 
     // Actions — Edit

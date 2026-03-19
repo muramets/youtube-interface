@@ -63,26 +63,30 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
     const storeDeleteMemory = useChatStore(s => s.deleteMemory);
     const [editingMemoryId, setEditingMemoryId] = useState<string | null>(null);
     const [editText, setEditText] = useState('');
+    const [editTitle, setEditTitle] = useState('');
     const [savingMemoryId, setSavingMemoryId] = useState<string | null>(null);
     const [isCreating, setIsCreating] = useState(false);
     const [newMemoryTitle, setNewMemoryTitle] = useState('');
     const [newMemoryText, setNewMemoryText] = useState('');
 
-    const handleEditStart = useCallback((mem: { id: string; content: string }) => {
+    const handleEditStart = useCallback((mem: { id: string; content: string; conversationTitle: string }) => {
         setEditingMemoryId(mem.id);
         setEditText(mem.content);
+        setEditTitle(mem.conversationTitle);
     }, []);
 
-    const handleEditSave = useCallback(async (memoryId: string) => {
+    const handleEditSave = useCallback(async (memoryId: string, originalTitle: string) => {
         if (!editText.trim()) return;
+        const trimmedTitle = editTitle.trim() || 'Untitled';
+        const titleChanged = trimmedTitle !== originalTitle;
         setSavingMemoryId(memoryId);
         try {
-            await storeUpdateMemory(memoryId, editText.trim());
+            await storeUpdateMemory(memoryId, editText.trim(), titleChanged ? trimmedTitle : undefined);
             setEditingMemoryId(null);
         } finally {
             setSavingMemoryId(null);
         }
-    }, [editText, storeUpdateMemory]);
+    }, [editText, editTitle, storeUpdateMemory]);
 
     const handleCreateSave = useCallback(async () => {
         if (!newMemoryText.trim()) return;
@@ -338,9 +342,19 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
                                 >
                                     <div className="flex items-center justify-between mb-1.5">
                                         <div className="flex items-center gap-2 min-w-0 flex-1">
-                                            <span className="text-sm font-medium text-text-primary truncate">
-                                                {mem.conversationTitle}
-                                            </span>
+                                            {isEditing ? (
+                                                <input
+                                                    type="text"
+                                                    value={editTitle}
+                                                    onChange={(e) => setEditTitle(e.target.value)}
+                                                    placeholder="Memory title"
+                                                    className="flex-1 min-w-0 bg-transparent text-sm font-medium text-text-primary outline-none border-b border-border px-0 py-0.5 placeholder-modal-placeholder focus:border-accent transition-colors"
+                                                />
+                                            ) : (
+                                                <span className="text-sm font-medium text-text-primary truncate">
+                                                    {mem.conversationTitle}
+                                                </span>
+                                            )}
                                             <span className={`text-[10px] ${theme.textSecondary} shrink-0`}>
                                                 {date}
                                             </span>
@@ -383,7 +397,7 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
                                                 <button
                                                     className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] bg-transparent border-none cursor-pointer hover:bg-white/[0.05] transition-colors disabled:opacity-50"
                                                     style={{ color: 'var(--accent)' }}
-                                                    onClick={() => handleEditSave(mem.id)}
+                                                    onClick={() => handleEditSave(mem.id, mem.conversationTitle)}
                                                     disabled={isSaving}
                                                 >
                                                     <Check size={12} /> Save

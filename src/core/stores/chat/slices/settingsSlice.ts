@@ -74,9 +74,9 @@ export function createSettingsSlice(
             await ChatService.createMemory(userId, channelId, content, title);
         },
 
-        updateMemory: async (memoryId: string, content: string) => {
+        updateMemory: async (memoryId: string, content: string, title?: string) => {
             const { userId, channelId } = requireContext(get);
-            await ChatService.updateMemory(userId, channelId, memoryId, content);
+            await ChatService.updateMemory(userId, channelId, memoryId, content, title);
         },
 
         deleteMemory: async (memoryId: string) => {

@@ -55,7 +55,7 @@ const INDENT: Record<number, string> = {
 
 interface MemoryCheckpointProps {
     memory: ConversationMemory;
-    onUpdate: (memoryId: string, content: string) => Promise<void>;
+    onUpdate: (memoryId: string, content: string, title?: string) => Promise<void>;
     onDelete: (memoryId: string) => Promise<void>;
 }
 
@@ -63,6 +63,7 @@ export const MemoryCheckpoint: React.FC<MemoryCheckpointProps> = ({ memory, onUp
     const [isExpanded, setIsExpanded] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [editText, setEditText] = useState(memory.content);
+    const [editTitle, setEditTitle] = useState(memory.conversationTitle);
     const [isSaving, setIsSaving] = useState(false);
     const rootRef = useRef<HTMLDivElement>(null);
 
@@ -93,19 +94,23 @@ export const MemoryCheckpoint: React.FC<MemoryCheckpointProps> = ({ memory, onUp
     }, [isExpanded]);
 
     const handleSave = useCallback(async () => {
-        if (!editText.trim() || editText === memory.content) {
+        const trimmedTitle = editTitle.trim() || 'Untitled';
+        const contentChanged = editText.trim() !== memory.content;
+        const titleChanged = trimmedTitle !== memory.conversationTitle;
+        if (!editText.trim() || (!contentChanged && !titleChanged)) {
             setIsEditing(false);
             setEditText(memory.content);
+            setEditTitle(memory.conversationTitle);
             return;
         }
         setIsSaving(true);
         try {
-            await onUpdate(memory.id, editText.trim());
+            await onUpdate(memory.id, editText.trim(), titleChanged ? trimmedTitle : undefined);
             setIsEditing(false);
         } finally {
             setIsSaving(false);
         }
-    }, [editText, memory.content, memory.id, onUpdate]);
+    }, [editText, editTitle, memory.content, memory.conversationTitle, memory.id, onUpdate]);
 
     const handleDelete = useCallback(async () => {
         setIsSaving(true);
@@ -119,7 +124,8 @@ export const MemoryCheckpoint: React.FC<MemoryCheckpointProps> = ({ memory, onUp
     const handleCancel = useCallback(() => {
         setIsEditing(false);
         setEditText(memory.content);
-    }, [memory.content]);
+        setEditTitle(memory.conversationTitle);
+    }, [memory.content, memory.conversationTitle]);
 
     const renderSection = (section: HierarchicalSection, idx: number) => (
         <CollapsibleSection
@@ -180,6 +186,14 @@ export const MemoryCheckpoint: React.FC<MemoryCheckpointProps> = ({ memory, onUp
                 >
                     {isEditing ? (
                         <>
+                            <input
+                                type="text"
+                                value={editTitle}
+                                onChange={(e) => setEditTitle(e.target.value)}
+                                placeholder="Memory title"
+                                className="w-full bg-transparent text-sm font-medium text-text-primary outline-none border-b border-border px-0 py-1 mb-2 placeholder-text-text-tertiary focus:border-accent transition-colors"
+                                autoFocus
+                            />
                             <RichTextEditor
                                 value={editText}
                                 onChange={setEditText}
