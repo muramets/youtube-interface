@@ -44,7 +44,7 @@ export const ProjectSettings: React.FC<ProjectSettingsProps> = ({ project, onClo
     const inputClass = "py-[7px] px-2.5 rounded-md border border-border bg-input-bg text-text-primary text-[13px] font-[inherit] outline-none transition-colors duration-100 focus:border-text-tertiary";
 
     return (
-        <div className="flex flex-col overflow-y-auto flex-1">
+        <div className="flex flex-col overflow-y-auto overscroll-y-contain flex-1">
             <div className="p-3.5 flex flex-col gap-3 flex-1 overflow-visible">
                 <label className="flex flex-col gap-[5px] text-xs text-text-secondary">
                     Project Name

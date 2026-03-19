@@ -155,7 +155,7 @@ export const ConversationList: React.FC<ConversationListProps> = ({
     }, []);
 
     return (
-        <div className="flex-1 overflow-y-auto p-1.5 flex flex-col chat-list-container">
+        <div className="flex-1 overflow-y-auto overscroll-y-contain p-1.5 flex flex-col chat-list-container">
             {conversations.map((conv) => (
                 <ConversationItem
                     key={conv.id}

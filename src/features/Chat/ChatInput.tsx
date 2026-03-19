@@ -242,7 +242,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         }
     }, [onAddFiles]);
 
-    const actionBtnClass = "shrink-0 w-7 h-7 rounded-md flex items-center justify-center cursor-pointer transition-colors duration-100 text-text-tertiary bg-transparent border-none hover:bg-white/[0.06] hover:text-text-secondary disabled:opacity-30 disabled:cursor-not-allowed";
+    const actionBtnClass = "shrink-0 w-7 h-7 rounded-md flex items-center justify-center cursor-pointer transition-colors duration-100 text-text-tertiary bg-transparent border-none hover:bg-hover-bg hover:text-text-secondary disabled:opacity-30 disabled:cursor-not-allowed";
 
     return (
         <div className="px-2.5 pb-2.5 bg-card-bg shrink-0">
@@ -380,7 +380,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     {onModelChange && modelLabel && (
                         <div className="relative" ref={modelMenuRef}>
                             <button
-                                className="flex items-center gap-1 px-1.5 py-1 rounded-md text-[11px] text-text-tertiary bg-transparent border-none cursor-pointer transition-colors hover:text-text-secondary hover:bg-white/[0.05]"
+                                className="flex items-center gap-1 px-1.5 py-1 rounded-md text-[11px] text-text-tertiary bg-transparent border-none cursor-pointer transition-colors hover:text-text-secondary hover:bg-hover-bg"
                                 onClick={() => setIsModelMenuOpen(v => !v)}
                                 type="button"
                                 title={modelLabel}
@@ -392,7 +392,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                             {isModelMenuOpen && (
                                 <>
                                     <div className="fixed inset-0 z-[299]" onClick={() => setIsModelMenuOpen(false)} />
-                                    <div className="absolute bottom-full left-0 mb-1 z-popover min-w-[180px] bg-[#1F1F1F] border border-white/10 rounded-lg shadow-xl py-1 animate-in fade-in slide-in-from-bottom-1 duration-150">
+                                    <div className="absolute bottom-full left-0 mb-1 z-popover min-w-[180px] bg-card-bg border border-border rounded-lg shadow-xl py-1 animate-in fade-in slide-in-from-bottom-1 duration-150">
                                         {(['gemini', 'anthropic'] as const).map(provider => {
                                             const group = MODEL_REGISTRY.filter(m => m.provider === provider);
                                             if (group.length === 0) return null;
@@ -405,8 +405,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                                         <button
                                                             key={m.id}
                                                             className={`w-full text-left px-3 py-1.5 text-[12px] bg-transparent border-none cursor-pointer flex items-center gap-2 transition-colors ${m.id === activeModel
-                                                                ? 'text-text-primary bg-white/[0.08]'
-                                                                : 'text-text-secondary hover:text-text-primary hover:bg-white/[0.05]'
+                                                                ? 'text-text-primary bg-hover-bg'
+                                                                : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
                                                                 }`}
                                                             onClick={() => { onModelChange(m.id); setIsModelMenuOpen(false); }}
                                                         >
@@ -427,7 +427,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     {thinkingConfig && thinkingConfig.options.length > 1 && (
                         <div className="relative" ref={thinkingMenuRef}>
                             <button
-                                className="flex items-center gap-1 px-1.5 py-1 rounded-md text-[11px] text-text-tertiary bg-transparent border-none cursor-pointer transition-colors hover:text-text-secondary hover:bg-white/[0.05]"
+                                className="flex items-center gap-1 px-1.5 py-1 rounded-md text-[11px] text-text-tertiary bg-transparent border-none cursor-pointer transition-colors hover:text-text-secondary hover:bg-hover-bg"
                                 onClick={() => setIsThinkingMenuOpen(v => !v)}
                                 type="button"
                                 title={`Thinking: ${thinkingConfig.activeOption.label}`}
@@ -439,13 +439,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                             {isThinkingMenuOpen && (
                                 <>
                                     <div className="fixed inset-0 z-[299]" onClick={() => setIsThinkingMenuOpen(false)} />
-                                    <div className="absolute bottom-full left-0 mb-1 z-popover min-w-[140px] bg-[#1F1F1F] border border-white/10 rounded-lg shadow-xl py-1 animate-in fade-in slide-in-from-bottom-1 duration-150">
+                                    <div className="absolute bottom-full left-0 mb-1 z-popover min-w-[140px] bg-card-bg border border-border rounded-lg shadow-xl py-1 animate-in fade-in slide-in-from-bottom-1 duration-150">
                                         {thinkingConfig.options.map((opt: ThinkingOption) => (
                                             <button
                                                 key={opt.id}
                                                 className={`w-full text-left px-3 py-1.5 text-[12px] bg-transparent border-none cursor-pointer flex items-center gap-2 transition-colors ${opt.id === thinkingConfig.activeOption.id
-                                                    ? 'text-text-primary bg-white/[0.08]'
-                                                    : 'text-text-secondary hover:text-text-primary hover:bg-white/[0.05]'
+                                                    ? 'text-text-primary bg-hover-bg'
+                                                    : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
                                                     }`}
                                                 onClick={() => {
                                                     setPendingThinkingOptionId(opt.id === thinkingConfig.defaultId ? null : opt.id);
