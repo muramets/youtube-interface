@@ -55,6 +55,37 @@
 - [ ] @-mentions в Chat input (не только в RichTextEditor)
 - [ ] Третий тип ссылок (если появится новая сущность)
 
+## Где прокинуты mentions
+
+### Edit mode (RichTextEditor с @-autocomplete)
+
+Компоненты, передающие `videoCatalog` и/или `knowledgeCatalog` в `RichTextEditor`:
+
+| Место | videoCatalog | knowledgeCatalog | Контекст |
+|-------|:---:|:---:|----------|
+| **AiAssistantSettings** — новая memory | ✅ | ✅ | Settings → AI Memory → Add Memory |
+| **AiAssistantSettings** — редактирование memory | ✅ | ✅ | Settings → AI Memory → Edit |
+| **MemoryCheckpoint** — редактирование в чате | ✅ | ✅ | Chat timeline → memory → Edit |
+| **KnowledgeItemModal** — редактирование KI | ✅ | ✅ | Knowledge Page / Watch Page → Edit KI |
+| **CreateKnowledgeItemModal** — создание KI | ✅ | ✅ | Knowledge Page → Create KI |
+| **AiAssistantSettings** — Base Instructions | — | — | Settings → Base Instructions (нет каталогов) |
+
+### Read mode (markdown rendering с подсветкой + tooltip)
+
+Компоненты, использующие `bodyComponents` или `CollapsibleMarkdownSections` с поддержкой `vid://` и/или `ki://`:
+
+| Место | vid:// | ki:// | Механизм |
+|-------|:---:|:---:|----------|
+| **AiAssistantSettings** — просмотр memory | ✅ | ✅ | `CollapsibleMarkdownSections` + videoMap + kiMap |
+| **MemoryCheckpoint** — просмотр в чате | ✅ | ✅ | `buildBodyComponents(videoMap, 'compact', kiMap)` |
+| **KnowledgeCard** — карточка KI | ✅ | — | `buildBodyComponents(videoMap)` — kiMap не прокинут |
+| **CollapsibleMarkdownSections** (Zen mode) | ✅ | ✅* | Поддерживает kiMap prop, но не все callers передают |
+| **LiveDiffPanel** — версии KI | ✅ | — | `buildBodyComponents(videoMap)` — kiMap не прокинут |
+| **RenderedDiffViewer** — diff версий | ✅ | — | `buildBodyComponents(videoMap)` — kiMap не прокинут |
+| **RichTextViewer** — сообщения чата | ✅ | — | Свой markdown renderer, `ki://` в sanitize whitelist но нет handler |
+
+**Примечание:** KI mentions в read mode полностью работают в Memory (Settings + Chat). В KnowledgeCard, diff panels и chat messages — `ki://` ссылки пройдут sanitize, но без tooltip (kiMap не передан). Это приемлемо: KI внутри других KI — редкий кейс.
+
 ---
 
 ## Technical Implementation
