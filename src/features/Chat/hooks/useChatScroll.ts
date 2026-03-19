@@ -72,6 +72,8 @@ export function useChatScroll({
     // prevScrollTopRef: -1 = sentinel (not yet initialized after pin)
     const prevScrollTopRef = useRef(-1);
     const pinnedSpacerHeightRef = useRef(0);
+    // Max scrollTop while pinned — user message must not scroll above viewport
+    const pinnedMaxScrollTopRef = useRef(0);
 
     // Helper: set scrollTop without triggering handleScroll's away-detection
     // Uses scrollend event to keep guard up for entire smooth scroll duration
@@ -226,7 +228,8 @@ export function useChatScroll({
             // Initialize tracking on first user scroll after pin
             if (prevScrollTopRef.current === -1) {
                 prevScrollTopRef.current = el.scrollTop;
-                debug.scroll(`handleScroll[pinned]: initialized prevScrollTop=${el.scrollTop}`);
+                pinnedMaxScrollTopRef.current = el.scrollTop;
+                debug.scroll(`handleScroll[pinned]: initialized prevScrollTop=${el.scrollTop}, maxScrollTop=${el.scrollTop}`);
                 return;
             }
 
@@ -257,6 +260,12 @@ export function useChatScroll({
                 const newSpacerH = spacerH + expanded;
                 if (spacer) spacer.style.minHeight = `${newSpacerH}px`;
                 debug.scroll(`handleScroll[pinned]: expand ${expanded}px, spacer ${spacerH}->${newSpacerH}`);
+            } else if (delta > 0 && spacerH >= pinnedSpacerHeightRef.current) {
+                // Spacer at max — user trying to scroll past the pin point.
+                // Clamp: user message must stay visible at top of viewport.
+                el.scrollTop = pinnedMaxScrollTopRef.current;
+                prevScrollTopRef.current = pinnedMaxScrollTopRef.current;
+                debug.scroll(`handleScroll[pinned]: clamped at pin point ${pinnedMaxScrollTopRef.current}`);
             } else if (delta < 0 && spacerH <= 0) {
                 // Spacer already gone, user still scrolling up — release to normal scroll
                 debug.scroll('handleScroll[pinned]: spacer already 0, scrolling up → away');
@@ -300,6 +309,40 @@ export function useChatScroll({
             prevHeight = newHeight;
         });
         observer.observe(el);
+        return () => observer.disconnect();
+    }, []);
+
+    // Spacer self-correction: when content height changes (message reconciliation,
+    // tool badges re-layout) while spacer > 0, recalculate to prevent empty space.
+    // Observes bottomRef — its position changes when content above it changes.
+    useEffect(() => {
+        const sentinel = bottomRef.current;
+        const container = containerRef.current;
+        if (!sentinel || !container) return;
+
+        const observer = new ResizeObserver(() => {
+            if (intentRef.current !== 'pinned') return;
+            const spacer = spacerRef.current;
+            const spacerH = spacer?.offsetHeight ?? 0;
+            if (spacerH <= 0) return;
+
+            const contentH = container.scrollHeight - spacerH;
+            const neededSpacer = Math.max(0, container.scrollTop + container.clientHeight - contentH);
+
+            if (neededSpacer < spacerH) {
+                debug.scroll(`spacer self-correct: ${spacerH}->${neededSpacer} (content changed)`);
+                if (spacer) spacer.style.minHeight = neededSpacer > 0 ? `${neededSpacer}px` : '0px';
+                pinnedSpacerHeightRef.current = Math.min(pinnedSpacerHeightRef.current, neededSpacer);
+                if (neededSpacer <= 0) {
+                    intentRef.current = 'idle';
+                }
+            }
+        });
+        // Observe the parent of bottomRef — catches all content height changes
+        // (message reconciliation, badge re-layout, thinking collapse)
+        if (sentinel.parentElement) {
+            observer.observe(sentinel.parentElement);
+        }
         return () => observer.disconnect();
     }, []);
 
