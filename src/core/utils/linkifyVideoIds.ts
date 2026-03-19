@@ -11,18 +11,23 @@
 //
 // Protected zones (never replaced inside):
 //   - Fenced code blocks (```...```)
-//   - Inline code (`...`)
 //   - Existing markdown links [text](url)
 //   - URLs containing video IDs (e.g. ?v=ID)
+//
+// Inline code (`...`):
+//   - If entire content is a known video ID → replaced with link (backticks stripped)
+//   - Otherwise → protected (no replacement)
 // =============================================================================
 
 type VideoIdEntry = { title?: string };
 
 type LinkScheme = 'vid' | 'mention';
 
-// Regex to match fenced code blocks and inline code spans.
-// Group 1: fenced block content, Group 2: inline code content.
-const CODE_RE = /(```[\s\S]*?```|`[^`]+`)/g;
+// Regex to match fenced code blocks only
+const FENCED_CODE_RE = /(```[\s\S]*?```)/g;
+
+// Regex to match inline code spans (captures content without backticks)
+const INLINE_CODE_RE = /`([^`]+)`/g;
 
 // Placeholder prefix unlikely to appear in real text
 const PLACEHOLDER = '\x00CODE_BLOCK_';
@@ -41,15 +46,29 @@ export function linkifyVideoIds(
 ): string {
     if (videoMap.size === 0) return markdown;
 
-    // 1. Extract code blocks → replace with placeholders
+    // 1. Extract fenced code blocks → replace with placeholders
     const codeBlocks: string[] = [];
-    let protected_ = markdown.replace(CODE_RE, (match) => {
+    let protected_ = markdown.replace(FENCED_CODE_RE, (match) => {
         const index = codeBlocks.length;
         codeBlocks.push(match);
         return `${PLACEHOLDER}${index}\x00`;
     });
 
-    // 2. Build regex for known video IDs
+    // 2. Process inline code: video ID → link, everything else → placeholder
+    protected_ = protected_.replace(INLINE_CODE_RE, (match, content: string) => {
+        const trimmed = content.trim();
+        if (videoMap.has(trimmed)) {
+            const video = videoMap.get(trimmed);
+            const rawTitle = video?.title || trimmed;
+            const title = rawTitle.replace(/[[\]]/g, '\\$&');
+            return `[${title}](${scheme}://${trimmed})`;
+        }
+        const index = codeBlocks.length;
+        codeBlocks.push(match);
+        return `${PLACEHOLDER}${index}\x00`;
+    });
+
+    // 3. Build regex for known video IDs
     //    Sort by length descending so custom-1773061458547 matches before 1773061458547
     const ids = Array.from(videoMap.keys()).sort((a, b) => b.length - a.length);
     const escapedIds = ids.map(id => id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
@@ -65,7 +84,7 @@ export function linkifyVideoIds(
         'g',
     );
 
-    // 3. Replace bare IDs with scheme links
+    // 4. Replace bare IDs with scheme links
     protected_ = protected_.replace(pattern, (fullMatch, capturedId: string | undefined) => {
         if (!capturedId) return fullMatch; // existing markdown link — leave unchanged
         const video = videoMap.get(capturedId);
@@ -75,7 +94,7 @@ export function linkifyVideoIds(
         return `[${title}](${scheme}://${capturedId})`;
     });
 
-    // 4. Restore code blocks
+    // 5. Restore code blocks
     for (let i = 0; i < codeBlocks.length; i++) {
         protected_ = protected_.replace(`${PLACEHOLDER}${i}\x00`, codeBlocks[i]);
     }

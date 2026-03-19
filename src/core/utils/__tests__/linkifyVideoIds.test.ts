@@ -93,10 +93,41 @@ describe('linkifyVideoIds', () => {
         expect(linkifyVideoIds(md, map)).toBe(md);
     });
 
-    it('does not linkify inside inline code', () => {
+    it('linkifies video ID inside inline code (strips backticks)', () => {
         const map = makeMap([['GXA9nB0SBgE', 'Comfort Playlist']]);
         const md = 'The ID is `GXA9nB0SBgE` in the response';
+        expect(linkifyVideoIds(md, map))
+            .toBe('The ID is [Comfort Playlist](vid://GXA9nB0SBgE) in the response');
+    });
+
+    it('protects inline code containing non-ID content', () => {
+        const map = makeMap([['GXA9nB0SBgE', 'Comfort Playlist']]);
+        const md = 'Use `videoId: GXA9nB0SBgE` in config';
         expect(linkifyVideoIds(md, map)).toBe(md);
+    });
+
+    it('linkifies inline code ID with mention:// scheme', () => {
+        const map = makeMap([['GXA9nB0SBgE', 'Comfort Playlist']]);
+        const md = 'Check `GXA9nB0SBgE` for details';
+        expect(linkifyVideoIds(md, map, 'mention'))
+            .toBe('Check [Comfort Playlist](mention://GXA9nB0SBgE) for details');
+    });
+
+    it('linkifies inline code ID alongside bare ID', () => {
+        const map = makeMap([
+            ['GXA9nB0SBgE', 'Video One'],
+            ['B5TklM3nL9x', 'Video Two'],
+        ]);
+        const md = 'Compare `GXA9nB0SBgE` and B5TklM3nL9x';
+        expect(linkifyVideoIds(md, map))
+            .toBe('Compare [Video One](vid://GXA9nB0SBgE) and [Video Two](vid://B5TklM3nL9x)');
+    });
+
+    it('linkifies custom ID inside inline code', () => {
+        const map = makeMap([['custom-1773061458547', 'Draft Video']]);
+        const md = 'Check `custom-1773061458547` now';
+        expect(linkifyVideoIds(md, map))
+            .toBe('Check [Draft Video](vid://custom-1773061458547) now');
     });
 
     it('linkifies outside code block but not inside', () => {
