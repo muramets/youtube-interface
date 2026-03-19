@@ -54,7 +54,7 @@ export const ColorPicker = ({ editor }: ColorPickerProps) => {
 
             <Popover.Portal>
                 <Popover.Content
-                    className="z-modal p-2 bg-bg-secondary border border-border rounded-xl shadow-2xl flex flex-col gap-2 min-w-[140px] animate-in fade-in zoom-in-95 duration-200"
+                    className="z-tooltip p-2 bg-bg-secondary border border-border rounded-xl shadow-2xl flex flex-col gap-2 min-w-[140px] animate-in fade-in zoom-in-95 duration-200"
                     sideOffset={5}
                     onOpenAutoFocus={(e) => e.preventDefault()}
                 >

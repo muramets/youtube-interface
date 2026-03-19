@@ -41,7 +41,7 @@ export const MoreMenu = ({ editor, showDebug, toggleDebug }: MoreMenuProps) => {
 
             <Popover.Portal>
                 <Popover.Content
-                    className="z-modal p-1.5 bg-bg-secondary border border-border rounded-xl shadow-2xl flex flex-col gap-1 min-w-[180px] animate-in fade-in zoom-in-95 duration-200"
+                    className="z-tooltip p-1.5 bg-bg-secondary border border-border rounded-xl shadow-2xl flex flex-col gap-1 min-w-[180px] animate-in fade-in zoom-in-95 duration-200"
                     sideOffset={5}
                     onOpenAutoFocus={(e) => e.preventDefault()}
                 >
