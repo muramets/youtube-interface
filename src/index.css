@@ -717,6 +717,29 @@ a:has(.ki-reference-highlight) {
 }
 
 /* =============================================================================
+   CHAT TIPTAP EDITOR
+   Minimal Tiptap wrapper for chat input — compact, no prose, max-height scroll.
+   ============================================================================= */
+
+.chat-tiptap-editor .ProseMirror {
+   min-height: 20px;
+   max-height: 80px;
+   overflow-y: auto;
+   padding: 6px 14px;
+}
+
+.chat-tiptap-editor .ProseMirror p {
+   margin: 0;
+}
+
+.chat-tiptap-editor .ProseMirror .is-editor-empty:first-child::before {
+   color: var(--text-tertiary);
+   float: left;
+   height: 0;
+   pointer-events: none;
+}
+
+/* =============================================================================
    PROSEMIRROR TABLE (Tiptap RichTextEditor)
    Required for resizable tables, cell selection, and column resize handles.
    ============================================================================= */

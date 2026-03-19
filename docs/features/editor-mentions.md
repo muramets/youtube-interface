@@ -1,10 +1,10 @@
 # Editor Mentions & Reference System
 
-> Единая система @-mentions и интерактивных ссылок в RichTextEditor — позволяет упоминать видео и Knowledge Items в любом текстовом поле приложения.
+> Единая система @-mentions и интерактивных ссылок — позволяет упоминать видео и Knowledge Items в любом текстовом поле приложения (RichTextEditor + Chat Input).
 
 ## Текущее состояние
 
-Реализовано полностью. `@` + 2 символа открывает tabbed dropdown (SegmentedControl: Videos | Knowledge). Выбор видео вставляет `[title](vid://ID)` — indigo подсветка + tooltip с превью. Выбор KI вставляет `[title](ki://ID)` — amber подсветка + tooltip с category/summary. Tab-клавиша переключает между режимами, disabled state при отсутствии данных одного типа. Работает везде, где используется RichTextEditor: Memory (Settings + Chat timeline), KI modals (Edit/Create), Base Instructions, Project instructions. В read-only режиме (ReactMarkdown) — те же подсветки и tooltip через `bodyComponents`. `ki://` протокол добавлен в `rehype-sanitize` whitelist всех 5 markdown-рендереров.
+Реализовано полностью. `@` + 2 символа открывает tabbed dropdown (SegmentedControl: Videos | Knowledge). Выбор видео вставляет `[title](vid://ID)` — indigo подсветка + tooltip с превью. Выбор KI вставляет `[title](ki://ID)` — amber подсветка + tooltip с category/summary. Tab-клавиша переключает между режимами, disabled state при отсутствии данных одного типа. Работает в двух контекстах: (1) RichTextEditor — Memory (Settings + Chat timeline), KI modals (Edit/Create), Base Instructions, Project instructions; (2) Chat Input — тонкая Tiptap-обёртка (`ChatTiptapEditor`) с минимальным набором extensions, Enter=send, popup открывается вверх. В read-only режиме (ReactMarkdown) — те же подсветки и tooltip через `bodyComponents`. `ki://` протокол добавлен в `rehype-sanitize` whitelist всех 5 markdown-рендереров.
 
 ---
 
@@ -29,7 +29,7 @@
 
 ## User Flow
 
-1. Пользователь печатает `@` в любом RichTextEditor
+1. Пользователь печатает `@` в любом RichTextEditor или Chat Input
 2. После 2 символов появляется dropdown с SegmentedControl (Videos | Knowledge)
 3. По умолчанию активна вкладка Videos — фильтрация по title/videoId
 4. Tab-клавиша переключает на Knowledge — фильтрация по title/category
@@ -52,7 +52,7 @@
 
 ### Stage 3: Потенциальные улучшения
 - [ ] Linkify KI IDs в существующем тексте (аналог linkifyVideoIds для ki://)
-- [ ] @-mentions в Chat input (не только в RichTextEditor)
+- [x] @-mentions в Chat input (не только в RichTextEditor)
 - [ ] Третий тип ссылок (если появится новая сущность)
 
 ## Где прокинуты mentions
@@ -69,6 +69,7 @@
 | **KnowledgeItemModal** — редактирование KI | ✅ | ✅ | Knowledge Page / Watch Page → Edit KI |
 | **CreateKnowledgeItemModal** — создание KI | ✅ | ✅ | Knowledge Page → Create KI |
 | **AiAssistantSettings** — Base Instructions | — | — | Settings → Base Instructions (нет каталогов) |
+| **ChatInput** — сообщения чата | ✅ | ✅ | Chat → Input → @-autocomplete (Tiptap wrapper) |
 
 ### Read mode (markdown rendering с подсветкой + tooltip)
 
@@ -176,3 +177,8 @@ PortalTooltip + KiPreviewTooltipContent
 | `src/core/config/referencePatterns.ts` | `VID_RE`, `MENTION_RE`, `KI_RE` (SSOT) |
 | `src/features/Knowledge/utils/bodyComponents.tsx` | Read-mode markdown link handler (vid + ki) |
 | `src/components/ui/organisms/RichTextEditor/__tests__/kiRefMark.test.ts` | KiRefMark HTML roundtrip tests (11 tests) |
+| `src/components/ui/organisms/RichTextEditor/utils/catalogMaps.ts` | Shared `buildCatalogVideoMap` / `buildCatalogKiMap` |
+| `src/components/ui/organisms/RichTextEditor/utils/baseTurndownService.ts` | Shared Turndown factory (base rules for all editors) |
+| `src/features/Chat/components/ChatTiptapEditor.tsx` | Minimal Tiptap wrapper for Chat Input |
+| `src/features/Chat/hooks/useChatEditorExtensions.ts` | Chat-specific extensions (StarterKit minimal + mentions + Enter-to-send) |
+| `src/features/Chat/hooks/useChatTurndownService.ts` | Chat Turndown (base factory, no extra rules) |

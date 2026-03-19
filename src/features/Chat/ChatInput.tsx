@@ -2,7 +2,7 @@
 // AI CHAT: Chat Input Component
 // =============================================================================
 
-import React, { useState, useMemo, useRef, useCallback, useLayoutEffect } from 'react';
+import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { Plus, Send, X, FileAudio, FileVideo, File, Image, Square, Loader2, Check, AlertCircle, ChevronUp, Pencil, Link, Unlink, Brain } from 'lucide-react';
 import { MODEL_REGISTRY, getAcceptedMimeTypes, type ThinkingOption } from '../../core/types/chat/chat';
 import { getAttachmentType, isAllowedMimeTypeForModel } from '../../core/services/ai/aiService';
@@ -14,6 +14,10 @@ import { useShallow } from 'zustand/react/shallow';
 import { useAppContextStore, selectAllItems } from '../../core/stores/appContextStore';
 import { ContextAccordion } from './components/ContextAccordion';
 import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
+import { ChatTiptapEditor, type ChatTiptapEditorHandle } from './components/ChatTiptapEditor';
+import { logger } from '../../core/utils/logger';
+import type { VideoPreviewData } from '../Video/types';
+import type { KiPreviewData } from '../../components/ui/organisms/RichTextEditor/types';
 
 
 interface ChatInputProps {
@@ -33,6 +37,9 @@ interface ChatInputProps {
     editingMessage?: import('../../core/types/chat/chat').ChatMessage | null;
     onCancelEdit?: () => void;
     onEditSend?: (newText: string, attachments?: ReadyAttachment[]) => void;
+    // Mention catalogs
+    videoCatalog?: VideoPreviewData[];
+    knowledgeCatalog?: KiPreviewData[];
 }
 
 
@@ -63,19 +70,19 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     stagedFiles, onAddFiles, onRemoveFile, isAnyUploading,
     modelLabel, activeModel, onModelChange,
     editingMessage, onCancelEdit, onEditSend,
+    videoCatalog, knowledgeCatalog,
 }) => {
     const isStreaming = useChatStore(s => s.isStreaming);
     const contextItems = useAppContextStore(useShallow(selectAllItems));
     const removeContextItem = useAppContextStore(s => s.removeItem);
     const clearAllContext = useAppContextStore(s => s.clearAll);
 
-    const [text, setText] = useState('');
+    const [editorHasContent, setEditorHasContent] = useState(false);
     const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
-    const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const editorRef = useRef<ChatTiptapEditorHandle>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const modelMenuRef = useRef<HTMLDivElement>(null);
     const thinkingMenuRef = useRef<HTMLDivElement>(null);
-    const prevEditingRef = useRef(editingMessage);
 
     // Thinking level state from store
     const pendingThinkingOptionId = useChatStore(s => s.pendingThinkingOptionId);
@@ -127,35 +134,22 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const messages = useChatStore(s => s.messages);
     const showToast = useUIStore(s => s.showToast);
 
-    // Sync text with editingMessage changes synchronously during render
-    // (standard "store previous props" pattern — ref access during render is intentional)
-    if (editingMessage !== prevEditingRef.current) {
-        prevEditingRef.current = editingMessage;
+    // Sync editor content with editingMessage changes
+    useEffect(() => {
         if (editingMessage) {
-            setText(editingMessage.text);
-        }
-    }
-
-    const canSend = (text.trim() || stagedFiles.length > 0) && !isAnyUploading && !hasUnsupportedFiles;
-
-    // Auto-resize and focus textarea when editing starts
-    useLayoutEffect(() => {
-        if (editingMessage) {
-            requestAnimationFrame(() => {
-                const el = textareaRef.current;
-                if (el) {
-                    el.style.height = 'auto';
-                    el.style.height = Math.min(el.scrollHeight, 80) + 'px';
-                    el.focus();
-                }
-            });
+            editorRef.current?.setContent(editingMessage.text);
+            requestAnimationFrame(() => editorRef.current?.focus());
+        } else {
+            editorRef.current?.clearContent();
         }
     }, [editingMessage]);
 
+    const canSend = (editorHasContent || stagedFiles.length > 0) && !isAnyUploading && !hasUnsupportedFiles;
+
 
     const handleSend = useCallback(() => {
-        const trimmed = text.trim();
-        if (!trimmed && stagedFiles.length === 0) return;
+        const markdown = editorRef.current?.getMarkdown()?.trim() ?? '';
+        if (!markdown && stagedFiles.length === 0) return;
         if (isAnyUploading) return;
 
         const readyAttachments = stagedFiles
@@ -165,81 +159,45 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         const attachments = readyAttachments.length > 0 ? readyAttachments : undefined;
 
         if (editingMessage && onEditSend) {
-            onEditSend(trimmed, attachments);
+            onEditSend(markdown, attachments);
         } else {
-            onSend(trimmed, attachments);
+            onSend(markdown, attachments);
         }
-        setText('');
-        if (textareaRef.current) {
-            textareaRef.current.style.height = 'auto';
-        }
-    }, [text, stagedFiles, isAnyUploading, onSend, editingMessage, onEditSend]);
+        editorRef.current?.clearContent();
+    }, [stagedFiles, isAnyUploading, onSend, editingMessage, onEditSend]);
 
     const handleMemorizeSend = useCallback(async () => {
         setIsMemorizeSaving(true);
         try {
-            const guidance = text.trim() || undefined;
+            const guidance = editorRef.current?.getMarkdown()?.trim() || undefined;
             await memorizeConversation(guidance);
             setIsMemorizing(false);
-            setText('');
-            if (textareaRef.current) textareaRef.current.style.height = 'auto';
+            editorRef.current?.clearContent();
             // No toast — AI response in chat shows results (KI + Memory tool call badges)
-        } catch (err) {
+        } catch (err: unknown) {
             const message = err instanceof Error ? err.message : 'Unknown error';
-            console.error('[ChatInput] memorize failed:', message, { conversationId: activeConversationId });
+            logger.error('Memorize failed', { component: 'ChatInput', conversationId: activeConversationId, error: message });
             showToast('Failed to save memory', 'error');
             setIsMemorizing(false);
         } finally {
             setIsMemorizeSaving(false);
         }
-    }, [text, memorizeConversation, showToast, activeConversationId]);
+    }, [memorizeConversation, showToast, activeConversationId]);
 
     const handleCancelMemorize = useCallback(() => {
         setIsMemorizing(false);
-        setText('');
-        if (textareaRef.current) textareaRef.current.style.height = 'auto';
+        editorRef.current?.clearContent();
     }, []);
-
-    const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            handleSend();
-        }
-    }, [handleSend]);
 
     const handleCancel = useCallback(() => {
         if (onCancelEdit) onCancelEdit();
-        setText('');
-        if (textareaRef.current) textareaRef.current.style.height = 'auto';
+        editorRef.current?.clearContent();
     }, [onCancelEdit]);
-
-    const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        setText(e.target.value);
-        const el = e.target;
-        el.style.height = 'auto';
-        el.style.height = Math.min(el.scrollHeight, 80) + 'px';
-    }, []);
 
     const handleFileSelect = useCallback((selectedFiles: FileList | null) => {
         if (!selectedFiles) return;
         onAddFiles(Array.from(selectedFiles));
         if (fileInputRef.current) fileInputRef.current.value = '';
-    }, [onAddFiles]);
-
-    const handlePaste = useCallback((e: React.ClipboardEvent) => {
-        const items = e.clipboardData?.items;
-        if (!items) return;
-        const files: File[] = [];
-        for (const item of items) {
-            if (item.kind === 'file') {
-                const file = item.getAsFile();
-                if (file) files.push(file);
-            }
-        }
-        if (files.length > 0) {
-            e.preventDefault();
-            onAddFiles(files);
-        }
     }, [onAddFiles]);
 
     const actionBtnClass = "shrink-0 w-7 h-7 rounded-md flex items-center justify-center cursor-pointer transition-colors duration-100 text-text-tertiary bg-transparent border-none hover:bg-hover-bg hover:text-text-secondary disabled:opacity-30 disabled:cursor-not-allowed";
@@ -351,17 +309,16 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 className={`border rounded-xl transition-colors duration-200 ${isMemorizing ? 'border-accent' : 'border-border bg-input-bg focus-within:border-text-tertiary'}`}
                 style={isMemorizing ? { backgroundColor: 'color-mix(in srgb, var(--accent) 15%, var(--input-bg))' } : undefined}
             >
-                {/* Textarea — top part */}
-                <textarea
-                    ref={textareaRef}
-                    className="chat-input-textarea w-full resize-none border-none rounded-t-xl pt-1.5 pb-2 px-3.5 text-[13px] leading-snug max-h-[80px] overflow-y-auto bg-transparent text-text-primary outline-none font-[inherit] placeholder:text-text-tertiary caret-text-secondary"
-                    value={text}
-                    onChange={handleTextChange}
-                    onKeyDown={handleKeyDown}
-                    onPaste={handlePaste}
+                {/* Tiptap editor — top part */}
+                <ChatTiptapEditor
+                    ref={editorRef}
+                    onSend={isMemorizing ? handleMemorizeSend : handleSend}
+                    onAddFiles={onAddFiles}
+                    onContentChange={setEditorHasContent}
                     placeholder={isMemorizing ? 'Focus: e.g. "remember our thumbnail strategy"...' : 'Message…'}
-                    rows={1}
                     disabled={disabled || isMemorizeSaving}
+                    videoCatalog={videoCatalog}
+                    knowledgeCatalog={knowledgeCatalog}
                 />
 
                 {/* Action bar — bottom part */}

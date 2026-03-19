@@ -1,30 +1,16 @@
 import { useMemo } from 'react'
-import TurndownService from 'turndown'
+import type TurndownService from 'turndown'
+import { createBaseTurndownService } from '../utils/baseTurndownService'
 
 /**
- * Custom hook for configuring and memoizing the Turndown service.
+ * Full Turndown service for the RichTextEditor.
  *
- * Turndown converts HTML back to Markdown when the editor content changes.
- *
- * Business Logic:
- * - ATX heading style (# Heading) instead of Setext (underlined)
- * - Fenced code blocks (```) instead of indented
- * - Preserves HTML elements that don't have Markdown equivalents (span, br, tables)
- * - Custom rules for indented list items (visual indentation via margin-left)
- * - Custom rules for text-aligned paragraphs (center, right, justify)
- * - Custom rules for empty paragraphs (converts to &nbsp; for persistence)
- *
- * @returns Configured TurndownService instance
+ * Extends the shared base (ATX headings, fenced code, span/br, empty paragraphs)
+ * with rules for tables, lists, alignment, blockquotes, and details blocks.
  */
 export function useTurndownService(): TurndownService {
     return useMemo(() => {
-        const service = new TurndownService({
-            headingStyle: 'atx',
-            codeBlockStyle: 'fenced'
-        })
-
-        // Preserve HTML elements that don't map cleanly to Markdown
-        service.keep(['span', 'br'])
+        const service = createBaseTurndownService()
 
         // Preserve tables in HTML format (Markdown tables are limited)
         service.keep(['table', 'thead', 'tbody', 'tr', 'th', 'td'])
@@ -113,36 +99,6 @@ export function useTurndownService(): TurndownService {
                 const element = node as HTMLElement
                 const style = element.getAttribute('style')
                 return `<p style="${style}">${content}</p>`
-            }
-        })
-
-        /**
-         * Rule: Preserve empty paragraphs
-         *
-         * Empty lines are important for document structure.
-         * We convert them to &nbsp; which survives the Markdown roundtrip.
-         */
-        service.addRule('empty-paragraph', {
-            filter: function (node) {
-                // Detect empty paragraphs in various forms:
-                // - <p></p>
-                // - <p><br></p>
-                // - <p>&#8203;</p> (Zero-Width Space from our preprocessing)
-                return (
-                    node.nodeName === 'P' &&
-                    (
-                        node.innerHTML.trim() === '' ||
-                        node.innerHTML === '<br>' ||
-                        node.textContent?.trim() === '' ||
-                        node.textContent === '\u200B' || // Zero Width Space
-                        (node.childNodes.length === 1 && node.firstChild?.nodeName === 'BR')
-                    )
-                )
-            },
-            replacement: function () {
-                // Return &nbsp; to create a paragraph with content in Markdown
-                // This ensures 'marked' produces <p>&nbsp;</p> on load
-                return '&nbsp;\n\n'
             }
         })
 

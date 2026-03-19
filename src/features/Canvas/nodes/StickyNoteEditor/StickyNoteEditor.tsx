@@ -16,9 +16,9 @@ import { useState, useEffect } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
-import { parseMarkdownToHTML } from './markdownParser';
+import { parseMarkdownToHTML } from '../../../../components/ui/organisms/RichTextEditor/utils/markdownParser';
 import { useTurndownService } from './useTurndownService';
-import { useMarkdownSync } from './useMarkdownSync';
+import { useMarkdownSync } from '../../../../components/ui/organisms/RichTextEditor/hooks/useMarkdownSync';
 
 interface StickyNoteEditorProps {
     /** Markdown content */

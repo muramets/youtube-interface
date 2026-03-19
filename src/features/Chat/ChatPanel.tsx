@@ -31,6 +31,8 @@ import { ChatListErrorBoundary } from './components/ChatBoundaries';
 import { TokenBreakdown } from './components/TokenBreakdown';
 import { CostAlertBanner } from './components/CostAlertBanner';
 import { useCostAlerts } from './hooks/useCostAlerts';
+import { useVideosCatalog } from '../../core/hooks/useVideosCatalog';
+import { useKnowledgeCatalog } from '../../core/hooks/useKnowledgeCatalog';
 import type { ReadyAttachment } from '../../core/types/chat/chatAttachment';
 import { buildConversationTrace, downloadJson } from './utils/exportConversation';
 
@@ -133,6 +135,10 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
 
     // --- Cost alerts ---
     const costAlert = useCostAlerts(messages, activeModel);
+
+    // --- Mention catalogs (for @-mentions in chat input) ---
+    const videoCatalog = useVideosCatalog();
+    const knowledgeCatalog = useKnowledgeCatalog();
 
     // --- Set context once (userId + channelId) ---
 
@@ -363,6 +369,8 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
                             editingMessage={editingMessage}
                             onCancelEdit={() => setEditingMessage(null)}
                             onEditSend={(newText, attachments) => editMessage(newText, attachments)}
+                            videoCatalog={videoCatalog}
+                            knowledgeCatalog={knowledgeCatalog}
                         />
                     </>
                 )}

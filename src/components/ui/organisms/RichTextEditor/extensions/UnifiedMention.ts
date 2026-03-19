@@ -17,6 +17,7 @@ const POPUP_MAX_HEIGHT = 340 // slightly taller than before to accommodate tab b
 export interface UnifiedMentionOptions {
     videoCatalog: VideoPreviewData[]
     knowledgeCatalog: KiPreviewData[]
+    popupDirection?: 'up' | 'down'
 }
 
 /**
@@ -33,11 +34,11 @@ export const UnifiedMention = Extension.create<UnifiedMentionOptions>({
     name: 'unifiedMention',
 
     addOptions() {
-        return { videoCatalog: [], knowledgeCatalog: [] }
+        return { videoCatalog: [], knowledgeCatalog: [], popupDirection: 'down' as const }
     },
 
     addProseMirrorPlugins() {
-        const { videoCatalog, knowledgeCatalog } = this.options
+        const { videoCatalog, knowledgeCatalog, popupDirection } = this.options
 
         // Shared mode state — persists across filter calls within a single @-session
         let currentMode: MentionMode = 'videos'
@@ -143,13 +144,14 @@ export const UnifiedMention = Extension.create<UnifiedMentionOptions>({
                             })
 
                             popup = document.createElement('div')
+                            popup.dataset.suggestionPopup = ''
                             popup.style.position = 'absolute'
                             popup.style.zIndex = '700'
                             popup.appendChild(renderer.element)
                             document.body.appendChild(popup)
 
                             if (popup && renderer) {
-                                positionSuggestionPopup(popup, renderer.element, props.clientRect?.() ?? null, POPUP_MAX_HEIGHT)
+                                positionSuggestionPopup(popup, renderer.element, props.clientRect?.() ?? null, POPUP_MAX_HEIGHT, popupDirection ?? 'down')
                             }
                         },
 
@@ -158,7 +160,7 @@ export const UnifiedMention = Extension.create<UnifiedMentionOptions>({
                             renderer?.updateProps(buildListProps(props, filterItems(lastQuery)))
 
                             if (popup && renderer) {
-                                positionSuggestionPopup(popup, renderer.element, props.clientRect?.() ?? null, POPUP_MAX_HEIGHT)
+                                positionSuggestionPopup(popup, renderer.element, props.clientRect?.() ?? null, POPUP_MAX_HEIGHT, popupDirection ?? 'down')
                             }
                         },
 

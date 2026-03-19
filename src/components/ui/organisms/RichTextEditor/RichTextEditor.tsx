@@ -12,8 +12,7 @@ import { MenuBar } from './components/MenuBar'
 import { DebugPanel } from './components/DebugPanel'
 import { VideoRefContext } from './extensions/VideoRefContext'
 import { KiRefContext } from './extensions/KiRefContext'
-import type { VideoPreviewData } from '../../../../features/Video/types'
-import type { KiPreviewData } from './types'
+import { buildCatalogVideoMap, buildCatalogKiMap } from './utils/catalogMaps'
 
 /**
  * RichTextEditor Component
@@ -22,8 +21,6 @@ import type { KiPreviewData } from './types'
  * instances), we move the editor's DOM node into a fullscreen overlay via
  * appendChild. React tree stays intact — no unmount/mount, marks survive.
  */
-const EMPTY_VIDEO_MAP = new Map<string, VideoPreviewData>()
-const EMPTY_KI_MAP = new Map<string, KiPreviewData>()
 
 const COMPACT_CLASSES = 'flex flex-col bg-bg-secondary rounded-lg p-3 transition-all duration-300'
 const EXPANDED_CLASSES = 'flex flex-col w-full bg-bg-secondary max-w-6xl mx-auto rounded-xl shadow-2xl p-6 h-[85vh] border border-border'
@@ -46,26 +43,8 @@ export const RichTextEditor = ({
     const turndownService = useTurndownService()
     const extensions = useEditorExtensions(placeholder, videoCatalog, knowledgeCatalog, defaultCollapsedLevel)
 
-    const videoMap = useMemo(() => {
-        if (!videoCatalog?.length) return EMPTY_VIDEO_MAP
-        const map = new Map<string, VideoPreviewData>()
-        for (const v of videoCatalog) {
-            map.set(v.videoId, v)
-            if (v.youtubeVideoId && v.youtubeVideoId !== v.videoId) {
-                map.set(v.youtubeVideoId, v)
-            }
-        }
-        return map
-    }, [videoCatalog])
-
-    const kiMap = useMemo(() => {
-        if (!knowledgeCatalog?.length) return EMPTY_KI_MAP
-        const map = new Map<string, KiPreviewData>()
-        for (const ki of knowledgeCatalog) {
-            map.set(ki.id, ki)
-        }
-        return map
-    }, [knowledgeCatalog])
+    const videoMap = useMemo(() => buildCatalogVideoMap(videoCatalog), [videoCatalog])
+    const kiMap = useMemo(() => buildCatalogKiMap(knowledgeCatalog), [knowledgeCatalog])
 
     const [initialContent] = useState(() => parseMarkdownToHTML(value))
 
@@ -160,7 +139,7 @@ export const RichTextEditor = ({
 
     return (
         <KiRefContext.Provider value={kiMap}>
-        <VideoRefContext.Provider value={videoMap ?? EMPTY_VIDEO_MAP}>
+        <VideoRefContext.Provider value={videoMap}>
             <div
                 ref={editorCardRef}
                 className={clsx(COMPACT_CLASSES, className)}

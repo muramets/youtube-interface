@@ -10,6 +10,7 @@ export function positionSuggestionPopup(
     rendererElement: HTMLElement,
     rect: DOMRect | null,
     defaultMaxHeight: number,
+    direction: 'up' | 'down' = 'down',
 ): void {
     if (!rect) return
 
@@ -17,15 +18,33 @@ export function positionSuggestionPopup(
     const VIEWPORT_MARGIN = 8
     const MIN_HEIGHT = 100
 
-    const top = rect.bottom + GAP
     popup.style.left = `${rect.left}px`
-    popup.style.top = `${top}px`
 
-    const availableBelow = window.innerHeight - top - VIEWPORT_MARGIN
-    const clampedHeight = Math.max(Math.min(availableBelow, defaultMaxHeight), MIN_HEIGHT)
+    if (direction === 'up') {
+        // Anchor bottom edge to cursor, grow upward.
+        // Using `position: fixed` + `bottom` so the popup stays pinned
+        // near the cursor regardless of content height changes.
+        popup.style.position = 'fixed'
+        popup.style.top = 'auto'
+        popup.style.bottom = `${window.innerHeight - rect.top + GAP}px`
 
-    const innerEl = rendererElement.firstElementChild as HTMLElement | null
-    if (innerEl) {
-        innerEl.style.maxHeight = `${clampedHeight}px`
+        const availableAbove = rect.top - VIEWPORT_MARGIN - GAP
+        const clampedHeight = Math.max(Math.min(availableAbove, defaultMaxHeight), MIN_HEIGHT)
+
+        const innerEl = rendererElement.firstElementChild as HTMLElement | null
+        if (innerEl) {
+            innerEl.style.maxHeight = `${clampedHeight}px`
+        }
+    } else {
+        const top = rect.bottom + GAP
+        popup.style.top = `${top}px`
+
+        const availableBelow = window.innerHeight - top - VIEWPORT_MARGIN
+        const clampedHeight = Math.max(Math.min(availableBelow, defaultMaxHeight), MIN_HEIGHT)
+
+        const innerEl = rendererElement.firstElementChild as HTMLElement | null
+        if (innerEl) {
+            innerEl.style.maxHeight = `${clampedHeight}px`
+        }
     }
 }

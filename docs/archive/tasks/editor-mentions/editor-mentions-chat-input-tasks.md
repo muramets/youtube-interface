@@ -53,17 +53,17 @@ Subagents для:
 
 | Phase | Goal | Status |
 |-------|------|--------|
-| 1 | Foundation: ChatTiptapEditor component + minimal extensions | TODO |
-| 2 | Integration: wire into ChatInput, replace textarea, preserve all behavior | TODO |
-| 3 | Context providers + catalog prop threading through ChatPanel | TODO |
-| 4 | Tests + edge cases | TODO |
-| FINAL | Double review-fix cycle (R1: Architecture, R2: Production Readiness) | TODO |
+| 1 | Foundation: ChatTiptapEditor component + minimal extensions | DONE |
+| 2 | Integration: wire into ChatInput, replace textarea, preserve all behavior | DONE |
+| 3 | Context providers + catalog prop threading through ChatPanel | DONE |
+| 4 | Tests + edge cases | DONE |
+| FINAL | Double review-fix cycle (R1: Architecture, R2: Production Readiness) | DONE |
 
 ## Current Test Count
 
-- **Frontend: 540 tests (39 files)** — verified via `npx vitest run --project frontend` (2026-03-19)
+- **Frontend: 562 tests (41 files)** — verified via `npx vitest run --project frontend` (2026-03-19)
 - **Backend: 871 tests (61 files)** — verified via `npx vitest run --project functions` (2026-03-19)
-- **Total: 1411 tests (100 files)**
+- **Total: 1433 tests (102 files)**
 
 ---
 
@@ -83,7 +83,7 @@ Subagents для:
 
 ### Tasks
 
-- [ ] **T1.1** — Create `useChatEditorExtensions` hook
+- [x] **T1.1** — Create `useChatEditorExtensions` hook
   - Create: `src/features/Chat/hooks/useChatEditorExtensions.ts`
   - Function: `useChatEditorExtensions(placeholder: string, videoCatalog: VideoPreviewData[], knowledgeCatalog: KiPreviewData[], onSend: () => void): Extension[]`
   - Extensions:
@@ -107,7 +107,7 @@ Subagents для:
   - ⚠️ `useMemo` on `[placeholder]` ONLY — НЕ включать `videoCatalog`, `knowledgeCatalog`, `onSend` в deps. Tiptap при изменении `extensions` делает destroy/recreate editor. Каталоги читаются через замыкание `this.options` внутри `UnifiedMention` при каждом keystroke. `onSend` обернуть в `useRef` (callback ref pattern) — extension читает `onSendRef.current`.
   - Pattern: follow `useEditorExtensions.ts` structure but 70% simpler
 
-- [ ] **T1.2** — Create `ChatKeyboardShortcuts` extension (inline in T1.1 or separate)
+- [x] **T1.2** — Create `ChatKeyboardShortcuts` extension (inline in T1.1 or separate)
   - Custom Tiptap Extension:
     ```typescript
     const ChatKeyboardShortcuts = Extension.create<{ onSendRef: React.RefObject<(() => void) | null> }>({
@@ -139,7 +139,7 @@ Subagents для:
   - Shift+Enter inserts `<br>` via `setHardBreak()` — user sees newline
   - `StarterKit` includes `HardBreak` extension by default — no extra import needed
 
-- [ ] **T1.3** — Create `useChatTurndownService` hook
+- [x] **T1.3** — Create `useChatTurndownService` hook
   - Create: `src/features/Chat/hooks/useChatTurndownService.ts`
   - Simplified Turndown for chat: only needs basic markdown conversion
   - Rules to INCLUDE (from `useTurndownService.ts`):
@@ -154,7 +154,7 @@ Subagents для:
   - Keep: `keep(['span', 'br'])` (spans from marks, br from hardBreak)
   - `useMemo(() => new TurndownService(...), [])`
 
-- [ ] **T1.4** — Create `ChatTiptapEditor` component
+- [x] **T1.4** — Create `ChatTiptapEditor` component
   - Create: `src/features/Chat/components/ChatTiptapEditor.tsx`
   - Props interface:
     ```typescript
@@ -230,7 +230,7 @@ Subagents для:
   - Disable editor when `disabled` prop is true via `editor.setEditable(!disabled)` in `useEffect`
   - **Suggestion popup direction:** ⚠️ **БЛОКИРУЮЩАЯ ЗАДАЧА.** `UnifiedMention` вызывает `positionSuggestionPopup` который ставит popup НИЖЕ курсора (`rect.bottom + GAP`). Chat input внизу экрана → popup за viewport = нерабочий UX. **Решение:** добавить `direction: 'up' | 'down'` param в `positionSuggestionPopup` (файл `src/components/ui/organisms/RichTextEditor/utils/positionSuggestionPopup.ts`). При `direction: 'up'`: `top = rect.top - popupHeight - GAP`. Передавать direction через `UnifiedMention` options. Существующие RTE-users не затронуты (default = 'down').
 
-- [ ] **T1.5** — Add `direction` param to `positionSuggestionPopup`
+- [x] **T1.5** — Add `direction` param to `positionSuggestionPopup`
   - File: `src/components/ui/organisms/RichTextEditor/utils/positionSuggestionPopup.ts`
   - Add optional param `direction: 'up' | 'down' = 'down'`
   - When `'down'` (default): existing behavior (`top = rect.bottom + GAP`)
@@ -257,9 +257,9 @@ npm run check                          # lint + typecheck + doc links
 ```
 
 **MANDATORY: Update this file before proceeding:**
-- [ ] Mark completed tasks above
-- [ ] Update Phase Status table: Phase 1 -> DONE
-- [ ] Record test count in "Current Test Count" section
+- [x] Mark completed tasks above
+- [x] Update Phase Status table: Phase 1 -> DONE
+- [x] Record test count in "Current Test Count" section
 
 ### Review Gate 1
 
@@ -302,7 +302,7 @@ Fix all findings before moving to Phase 2.
 
 ### Tasks
 
-- [ ] **T2.1** — Refactor ChatInput state management
+- [x] **T2.1** — Refactor ChatInput state management
   - File: `src/features/Chat/ChatInput.tsx`
   - Remove `text` state (`const [text, setText] = useState('')`)
   - Remove `textareaRef` (`const textareaRef = useRef<HTMLTextAreaElement>(null)`)
@@ -326,7 +326,7 @@ Fix all findings before moving to Phase 2.
   - Remove `handleTextChange` (auto-resize not needed)
   - Remove `handlePaste` (moved to ChatTiptapEditor)
 
-- [ ] **T2.2** — Replace textarea JSX with ChatTiptapEditor
+- [x] **T2.2** — Replace textarea JSX with ChatTiptapEditor
   - File: `src/features/Chat/ChatInput.tsx`
   - Replace textarea block (search for `<textarea` in ChatInput JSX):
     ```tsx
@@ -344,7 +344,7 @@ Fix all findings before moving to Phase 2.
   - Add `onContentChange: (hasContent: boolean) => void` callback to ChatTiptapEditor props — fires on every editor update, used for `canSend` tracking
   - CSS wrapper: keep the same container `<div>` with rounded border styling (`border rounded-xl...`), put ChatTiptapEditor inside with matching padding/sizing
 
-- [ ] **T2.3** — Edit mode sync
+- [x] **T2.3** — Edit mode sync
   - File: `src/features/Chat/ChatInput.tsx`
   - Replace the "sync text with editingMessage" block (search for `editingMessage !== prevEditingRef.current`):
     ```typescript
@@ -360,7 +360,7 @@ Fix all findings before moving to Phase 2.
   - `setContent(editingMessage.text)` → parses markdown → sets HTML → marks render correctly
   - Focus after content set needs rAF (same as current textarea focus)
 
-- [ ] **T2.4** — Update CSS for Tiptap in chat input container
+- [x] **T2.4** — Update CSS for Tiptap in chat input container
   - File: `src/features/Chat/ChatInput.tsx` or `src/features/Chat/components/ChatTiptapEditor.tsx`
   - Chat-specific Tiptap styles (no prose, compact):
     ```css
@@ -404,9 +404,9 @@ npm run dev                            # manual: open chat, type @vi, verify dro
 ```
 
 **MANDATORY: Update this file before proceeding:**
-- [ ] Mark completed tasks above
-- [ ] Update Phase Status table: Phase 2 -> DONE
-- [ ] Record test count in "Current Test Count" section
+- [x] Mark completed tasks above
+- [x] Update Phase Status table: Phase 2 -> DONE
+- [x] Record test count in "Current Test Count" section
 
 ### Review Gate 2
 
@@ -445,7 +445,7 @@ Fix all findings before moving to Phase 3.
 
 ### Tasks
 
-- [ ] **T3.1** — Add catalog hooks to ChatPanel
+- [x] **T3.1** — Add catalog hooks to ChatPanel
   - File: `src/features/Chat/ChatPanel.tsx`
   - Add imports:
     ```typescript
@@ -459,7 +459,7 @@ Fix all findings before moving to Phase 3.
     ```
   - Hooks are unconditional (React rules), but data loads only when `userId && channelId` (internal `enabled` guard in useVideosCatalog query)
 
-- [ ] **T3.2** — Thread catalogs through ChatInput props
+- [x] **T3.2** — Thread catalogs through ChatInput props
   - File: `src/features/Chat/ChatPanel.tsx`
   - Update ChatInput usage (around line 349-366):
     ```tsx
@@ -477,7 +477,7 @@ Fix all findings before moving to Phase 3.
     ```
   - Destructure from props, pass through to `ChatTiptapEditor`
 
-- [ ] **T3.3** — Update feature doc
+- [x] **T3.3** — Update feature doc
   - File: `docs/features/editor-mentions.md`
   - Update "Где прокинуты mentions" table — add row for Chat Input:
     ```
@@ -500,9 +500,9 @@ npm run dev                            # manual: open chat, type @, verify sugge
 ```
 
 **MANDATORY: Update this file before proceeding:**
-- [ ] Mark completed tasks above
-- [ ] Update Phase Status table: Phase 3 -> DONE
-- [ ] Record test count in "Current Test Count" section
+- [x] Mark completed tasks above
+- [x] Update Phase Status table: Phase 3 -> DONE
+- [x] Record test count in "Current Test Count" section
 
 ### Review Gate 3
 
@@ -536,7 +536,7 @@ Fix all findings before moving to Phase 4.
 
 ### Tasks
 
-- [ ] **T4.1** — Tests for `useChatTurndownService`
+- [x] **T4.1** — Tests for `useChatTurndownService`
   - Create: `src/features/Chat/hooks/__tests__/useChatTurndownService.test.ts`
   - Cases:
     - Plain text → markdown (unchanged)
@@ -549,7 +549,7 @@ Fix all findings before moving to Phase 4.
   - Mock targets: none (pure function test)
   - Pattern: direct Turndown service test — `const service = renderHook(() => useChatTurndownService()).result.current; expect(service.turndown(html)).toBe(expected)`
 
-- [ ] **T4.2** — Tests for `ChatTiptapEditor` imperative handle
+- [x] **T4.2** — Tests for `ChatTiptapEditor` imperative handle
   - Create: `src/features/Chat/components/__tests__/ChatTiptapEditor.test.tsx`
   - Cases:
     - `getMarkdown()` returns plain text when editor has text
@@ -562,7 +562,7 @@ Fix all findings before moving to Phase 4.
   - Mock targets: none (real Tiptap editor in jsdom)
   - `renderHook` is not enough — need full `render` with `EditorContent` for marks to initialize
 
-- [ ] **T4.3** — Tests for keyboard shortcuts integration
+- [x] **T4.3** — Tests for keyboard shortcuts integration
   - Create: `src/features/Chat/components/__tests__/ChatTiptapEditor.test.tsx` (same file as T4.2)
   - Cases:
     - Enter key calls `onSend` callback
@@ -572,7 +572,7 @@ Fix all findings before moving to Phase 4.
     - Editor is not editable when `disabled=true`
   - Simulate keyboard events via Tiptap's `editor.commands` or RTL `fireEvent.keyDown`
 
-- [ ] **T4.4** — Tests for file paste proxy
+- [x] **T4.4** — Tests for file paste proxy
   - Create: `src/features/Chat/components/__tests__/ChatTiptapEditor.test.tsx` (same file)
   - Cases:
     - Paste event with file items → calls `onAddFiles` with files
@@ -595,9 +595,9 @@ npm run check                          # lint + typecheck
 ```
 
 **MANDATORY: Update this file before proceeding:**
-- [ ] Mark completed tasks above
-- [ ] Update Phase Status table: Phase 4 -> DONE
-- [ ] Record test count in "Current Test Count" section
+- [x] Mark completed tasks above
+- [x] Update Phase Status table: Phase 4 -> DONE
+- [x] Record test count in "Current Test Count" section
 
 ### Review Gate 4
 
@@ -668,9 +668,8 @@ npm run check                          # lint + typecheck + doc links
 ```
 
 **MANDATORY: Update this file:**
-- [ ] Update Phase Status table: FINAL -> DONE
-- [ ] Record final test count
-- [ ] Update `docs/features/editor-mentions.md`:
-  - Move `← YOU ARE HERE` marker
-  - Ensure coverage matrix includes Chat Input row
-  - Mark Stage 3 item `@-mentions в Chat input` as `[x]`
+- [x] Update Phase Status table: FINAL -> DONE
+- [x] Record final test count
+- [x] Update `docs/features/editor-mentions.md`:
+  - [x] Coverage matrix includes Chat Input row
+  - [x] Stage 3 item `@-mentions в Chat input` marked `[x]`
