@@ -12,7 +12,6 @@
 | 2 | Chat / YT Research | `publishedAfter` early stop при пагинации | Low | [Roadmap](features/chat/tools/layer-1-discovery/2-browse-channel-videos-tool.md#roadmap) |
 | 3 | Chat / YT Research | `lookupTrendVideos` — explicit tool для trend cache | Low | [Roadmap](features/chat/tools/layer-1-discovery/2-browse-channel-videos-tool.md#roadmap) |
 | 4 | UI | DropZone consolidation (Audio → shared base) | Low | [dropzone-consolidation.md](backlog/dropzone-consolidation.md) |
-| 5 | Infrastructure | Cache consolidation Phase 5 (cleanup old collection) | Low | [cache-consolidation-tasks.md](decisions/cache-consolidation/cache-consolidation-tasks.md#phase-5-cleanup-old-collection) |
 | 7 | Packaging | Primary language: не-ENG локализация по умолчанию | Medium | [packaging.md](features/video-details/packaging.md#stage-5--localization--ux-polish--you-are-here) |
 | 8 | Packaging | Shared tags across localizations | Medium | [packaging.md](features/video-details/packaging.md#stage-5--localization--ux-polish--you-are-here) |
 | 9 | Packaging | Draft warning (напоминание о Published URL) | Medium | [packaging.md](features/video-details/packaging.md#stage-5--localization--ux-polish--you-are-here) |

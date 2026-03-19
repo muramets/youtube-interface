@@ -7,7 +7,7 @@
 | Shared Infrastructure: hardlinks → prebuild copy | `shared/models.ts` prebuild copy via `functions/scripts/copy-shared.mjs` |
 | Rename `thinkingLevel` → `thinkingOptionId` | API contract rename across ~10 files |
 | `browseChannelVideos` split into two tools | SRP: `getChannelOverview` + `browseChannelVideos`. [Архитектура](../features/chat/tools/README.md) |
-| Cache consolidation (Phases 0-4) | `cached_suggested_traffic_videos/` → `cached_external_videos/`. [Task doc](../decisions/cache-consolidation/cache-consolidation-tasks.md) |
+| Cache consolidation (Phases 0-5, COMPLETE) | `cached_suggested_traffic_videos/` → `cached_external_videos/`. 10,110 docs migrated (Phase 0), old collection deleted (Phase 5). [Task doc](../archive/tasks/cache-consolidation/cache-consolidation-tasks.md) |
 | `browseChannelVideos` own channel comparison | `ownChannelSync` — сравнение видео в приложении vs на YouTube |
 | Tool pill UI gap during large tool_use generation | `toolCallStart` SSE event fires immediately on `content_block_start`, pill appears before JSON args. Streaming dedup fix (onSnapshot vs SSE race). Registry-driven labels + video ID extractors. |
 | Tool pills registry refactor | Labels, video ID extractors, expandability consolidated into `toolRegistry.ts` as SSOT. `toolCallGrouping.ts` 399→97 lines. |
