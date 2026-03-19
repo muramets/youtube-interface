@@ -4,6 +4,9 @@ import { Suggestion } from '@tiptap/suggestion'
 import { ReactRenderer } from '@tiptap/react'
 import type { VideoPreviewData } from '../../../../../features/Video/types'
 import { VideoSuggestionList, type VideoSuggestionListRef } from '../components/VideoSuggestionList'
+import { positionSuggestionPopup } from '../utils/positionSuggestionPopup'
+
+const VIDEO_MAX_HEIGHT = 280
 
 export interface VideoMentionOptions {
     videoCatalog: VideoPreviewData[]
@@ -83,20 +86,16 @@ export const VideoMention = Extension.create<VideoMentionOptions>({
                             popup.appendChild(renderer.element)
                             document.body.appendChild(popup)
 
-                            const rect = props.clientRect?.()
-                            if (rect && popup) {
-                                popup.style.left = `${rect.left}px`
-                                popup.style.top = `${rect.bottom + 4}px`
+                            if (popup && renderer) {
+                                positionSuggestionPopup(popup, renderer.element, props.clientRect?.() ?? null, VIDEO_MAX_HEIGHT)
                             }
                         },
 
                         onUpdate(props) {
                             renderer?.updateProps(props)
 
-                            const rect = props.clientRect?.()
-                            if (rect && popup) {
-                                popup.style.left = `${rect.left}px`
-                                popup.style.top = `${rect.bottom + 4}px`
+                            if (popup && renderer) {
+                                positionSuggestionPopup(popup, renderer.element, props.clientRect?.() ?? null, VIDEO_MAX_HEIGHT)
                             }
                         },
 

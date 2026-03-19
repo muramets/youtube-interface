@@ -46,7 +46,7 @@ export const VideoSuggestionList = forwardRef<VideoSuggestionListRef, VideoSugge
         return (
             <div
                 ref={listRef}
-                className="bg-bg-secondary border border-border rounded-xl shadow-2xl overflow-y-auto overscroll-contain max-h-[280px] py-1 w-[320px]"
+                className="bg-bg-secondary border border-border rounded-xl shadow-2xl overflow-y-auto overscroll-none max-h-[280px] py-1 w-[320px]"
             >
                 {items.map((item, index) => (
                     <button

@@ -16,6 +16,7 @@ import { TabIndentation } from '../extensions/TabIndentation'
 import { CustomBlockquote } from '../extensions/CustomBlockquote'
 import { VideoRefMark } from '../extensions/VideoRefMark'
 import { VideoMention } from '../extensions/VideoMention'
+import { SlashCommand } from '../extensions/SlashCommand'
 import { Details, DetailsSummary, DetailsContent } from '../extensions/DetailsNode'
 import type { VideoPreviewData } from '../../../../../features/Video/types'
 
@@ -121,5 +122,8 @@ export function useEditorExtensions(placeholder?: string, videoCatalog?: VideoPr
         VideoMention.configure({
             videoCatalog: videoCatalog ?? [],
         }),
+
+        // /-slash command palette for block formatting
+        SlashCommand,
     ], [placeholder, videoCatalog, defaultCollapsedLevel, CustomCodeMark, CustomCodeBlockNode])
 }
