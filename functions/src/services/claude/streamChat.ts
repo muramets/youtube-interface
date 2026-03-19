@@ -41,6 +41,7 @@ import type {
     ToolDefinition,
     AttachmentRef,
     StreamCallbacks,
+    ToolIteration,
 } from "../ai/types.js";
 import { AiStreamTimeoutError, withStreamRetry } from "../ai/retry.js";
 import { executeToolBatch } from "../ai/toolExecution.js";
@@ -81,6 +82,11 @@ export interface ClaudeStreamChatResult {
     tokenUsage?: TokenUsage;
     normalizedUsage?: NormalizedTokenUsage;
     toolCalls?: ToolCallRecord[];
+    /**
+     * Per-iteration agentic loop structure for cache-aligned history reconstruction.
+     * Passed through factory via providerMeta → persisted to Firestore → used by buildHistory().
+     */
+    toolIterations?: ToolIteration[];
     /** Images injected during the agentic loop (from tool responses). */
     agenticImages?: { count: number; tokens: number };
     /** True when the stream was aborted — usage is partial. */
@@ -222,12 +228,45 @@ async function fetchTextAttachmentBlock(att: AttachmentRef): Promise<TextBlockPa
  *   - Summary synthetic messages (id starting with '__summary__')
  *   - Tool call reconstruction: model messages with toolCalls → 3 MessageParams
  *     (assistant[tool_use] → user[tool_result] → assistant[text])
+ *   - Cache-aligned reconstruction: toolIterations → per-iteration message pairs
+ *     (byte-identical to agentic loop output for prompt cache reuse)
  */
 function buildHistory(messages: HistoryMessage[]): MessageParam[] {
     return messages.flatMap((msg) => {
         const role: "user" | "assistant" = msg.role === "model" ? "assistant" : "user";
 
-        // --- Tool call reconstruction for model messages ---
+        // --- Cache-aligned reconstruction (priority over legacy toolCalls) ---
+        // Preserves per-iteration message structure, original tool_use IDs, and thinking blocks.
+        // This produces byte-identical output to what the agentic loop sent to the API.
+        if (role === "assistant" && msg.toolIterations && msg.toolIterations.length > 0) {
+            const valid = msg.toolIterations.every(iter =>
+                Array.isArray(iter.assistantContent) && iter.assistantContent.length > 0
+                && Array.isArray(iter.toolResults) && iter.toolResults.length > 0
+                && iter.assistantContent.some((b: unknown) =>
+                    typeof b === "object" && b !== null && "type" in b && "id" in b)
+                && iter.toolResults.every((b: unknown) =>
+                    typeof b === "object" && b !== null && "type" in b && "tool_use_id" in b),
+            );
+
+            if (valid) {
+                const result: MessageParam[] = [];
+                for (const iter of msg.toolIterations) {
+                    result.push({ role: "assistant", content: iter.assistantContent as ContentBlockParam[] });
+                    result.push({ role: "user", content: iter.toolResults as ContentBlockParam[] });
+                }
+                if (msg.text) {
+                    result.push({
+                        role: "assistant",
+                        content: [{ type: "text", text: msg.text } as TextBlockParam],
+                    });
+                }
+                return result;
+            }
+            // Validation failed — fall through to legacy toolCalls path
+            console.warn(`[claude:buildHistory] toolIterations validation failed for msg ${msg.id}, falling back to toolCalls`);
+        }
+
+        // --- Legacy tool call reconstruction for model messages ---
         // Reconstruct native tool_use/tool_result blocks from Firestore toolCalls.
         // Only when ALL results are defined (undefined result = stopped message → fallback to text).
         const hasToolCalls = role === "assistant"
@@ -581,6 +620,7 @@ export async function streamChat(
     let fullText = "";
     let tokenUsage: TokenUsage | undefined;
     const allToolCalls: ToolCallRecord[] = [];
+    const allToolIterations: ToolIteration[] = [];
     const iterationSnapshots: IterationSnapshot[] = [];
     let agenticImageCount = 0;
     let agenticImageTokens = 0;
@@ -799,6 +839,12 @@ export async function streamChat(
             role: "user",
             content: toolResultBlocks,
         });
+
+        // Record iteration for cache-aligned history reconstruction
+        allToolIterations.push({
+            assistantContent: iterationResult.assistantBlocks,
+            toolResults: toolResultBlocks,
+        });
     }
 
     } catch (loopErr) {
@@ -835,6 +881,7 @@ export async function streamChat(
                 tokenUsage,
                 normalizedUsage,
                 toolCalls: allToolCalls.length > 0 ? allToolCalls : undefined,
+                toolIterations: allToolIterations.length > 0 ? allToolIterations : undefined,
                 agenticImages: agenticImageCount > 0
                     ? { count: agenticImageCount, tokens: agenticImageTokens }
                     : undefined,
@@ -859,6 +906,7 @@ export async function streamChat(
                 tokenUsage,
                 normalizedUsage,
                 toolCalls: allToolCalls.length > 0 ? allToolCalls : undefined,
+                toolIterations: allToolIterations.length > 0 ? allToolIterations : undefined,
                 agenticImages: agenticImageCount > 0
                     ? { count: agenticImageCount, tokens: agenticImageTokens }
                     : undefined,
@@ -909,6 +957,7 @@ export async function streamChat(
         tokenUsage,
         normalizedUsage,
         toolCalls: allToolCalls.length > 0 ? allToolCalls : undefined,
+        toolIterations: allToolIterations.length > 0 ? allToolIterations : undefined,
         agenticImages: agenticImageCount > 0
             ? { count: agenticImageCount, tokens: agenticImageTokens }
             : undefined,

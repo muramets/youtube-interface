@@ -77,6 +77,13 @@ export interface HistoryMessage {
     appContext?: any[];
     /** Tool calls executed during this message's agentic loop (model messages only). */
     toolCalls?: ToolCallRecord[];
+    /**
+     * Iteration-aware tool call structure for cache-aligned history reconstruction.
+     * Each element = one agentic loop round with full assistant content blocks + tool results.
+     * When present, buildHistory() uses this instead of toolCalls for byte-identical cache prefix.
+     * @see docs/features/chat/infrastructure/cache-aligned-history.md
+     */
+    toolIterations?: ToolIteration[];
 }
 
 // --- Attachments ---
@@ -183,6 +190,22 @@ export interface ToolCallRecord {
     name: string;
     args: Record<string, unknown>;
     result?: Record<string, unknown>;
+}
+
+/**
+ * One iteration (round) of the agentic loop, stored with full content blocks
+ * for cache-aligned history reconstruction.
+ *
+ * Uses `unknown[]` intentionally — Firestore returns untyped JSON.
+ * `buildHistory()` validates key fields (`type`, `id`, `tool_use_id`) at runtime.
+ *
+ * @see docs/features/chat/infrastructure/cache-aligned-history.md
+ */
+export interface ToolIteration {
+    /** Raw Anthropic assistant content blocks: thinking + tool_use (preserves API IDs). */
+    assistantContent: unknown[];
+    /** Raw Anthropic tool_result blocks with matching tool_use_id references. */
+    toolResults: unknown[];
 }
 
 // --- Factory ---

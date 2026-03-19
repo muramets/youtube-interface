@@ -2191,3 +2191,371 @@ describe("Claude streamChat — thinking timeout resilience", () => {
         expect(onHeartbeat).not.toHaveBeenCalled();
     });
 });
+
+// ===========================================================================
+// Suite G: Cache-aligned history — toolIterations reconstruction
+// ===========================================================================
+
+describe("Claude streamChat — toolIterations (cache-aligned history)", () => {
+
+    it("toolIterations → per-iteration assistant/user pairs (not collapsed)", async () => {
+        const mockStream = mockClientStreams({
+            events: [
+                ...textEvents("Follow-up"),
+                finalMessageEvent({ input_tokens: 200, output_tokens: 10 }),
+            ],
+        });
+
+        await streamChat(makeOpts({
+            history: [
+                { id: "u1", role: "user", text: "analyze" },
+                {
+                    id: "m1",
+                    role: "model",
+                    text: "Analysis complete",
+                    toolIterations: [
+                        {
+                            assistantContent: [
+                                { type: "thinking", thinking: "Let me analyze..." },
+                                { type: "tool_use", id: "toolu_abc", name: "analyzeTraffic", input: { videoId: "v1" } },
+                            ],
+                            toolResults: [
+                                { type: "tool_result", tool_use_id: "toolu_abc", content: [{ type: "text", text: '{"views":1000}' }] },
+                            ],
+                        },
+                        {
+                            assistantContent: [
+                                { type: "tool_use", id: "toolu_def", name: "mentionVideo", input: { videoId: "v1" } },
+                            ],
+                            toolResults: [
+                                { type: "tool_result", tool_use_id: "toolu_def", content: [{ type: "text", text: '{"title":"My Video"}' }] },
+                            ],
+                        },
+                    ],
+                    toolCalls: [
+                        { name: "analyzeTraffic", args: { videoId: "v1" }, result: { views: 1000 } },
+                        { name: "mentionVideo", args: { videoId: "v1" }, result: { title: "My Video" } },
+                    ],
+                },
+            ],
+            text: "next question",
+        }));
+
+        const messages = mockStream.mock.calls[0][0].messages as Array<{ role: string; content: unknown }>;
+
+        // u1, asst_iter1, user_iter1, asst_iter2, user_iter2, asst_text, user_current = 7
+        expect(messages).toHaveLength(7);
+        expect(messages.map(m => m.role)).toEqual([
+            "user",       // u1
+            "assistant",  // iter1 assistant (thinking + tool_use)
+            "user",       // iter1 tool_result
+            "assistant",  // iter2 assistant (tool_use)
+            "user",       // iter2 tool_result
+            "assistant",  // final text
+            "user",       // current message
+        ]);
+
+        // Iteration 1: assistant with thinking + tool_use
+        const iter1Asst = messages[1].content as Array<Record<string, unknown>>;
+        expect(iter1Asst).toHaveLength(2);
+        expect(iter1Asst[0].type).toBe("thinking");
+        expect(iter1Asst[1].type).toBe("tool_use");
+        expect(iter1Asst[1].id).toBe("toolu_abc");
+
+        // Iteration 1: user with tool_result
+        const iter1Results = messages[2].content as Array<Record<string, unknown>>;
+        expect(iter1Results[0].type).toBe("tool_result");
+        expect(iter1Results[0].tool_use_id).toBe("toolu_abc");
+
+        // Iteration 2: original API ID preserved
+        const iter2Asst = messages[3].content as Array<Record<string, unknown>>;
+        expect(iter2Asst[0].id).toBe("toolu_def");
+
+        // Final text
+        const textBlocks = messages[5].content as Array<Record<string, unknown>>;
+        expect(textBlocks[0].type).toBe("text");
+        expect(textBlocks[0].text).toBe("Analysis complete");
+    });
+
+    it("toolIterations with text → 2*N+1 assistant/user messages + current", async () => {
+        const mockStream = mockClientStreams({
+            events: [
+                ...textEvents("OK"),
+                finalMessageEvent({ input_tokens: 100, output_tokens: 5 }),
+            ],
+        });
+
+        await streamChat(makeOpts({
+            history: [
+                { id: "u1", role: "user", text: "query" },
+                {
+                    id: "m1",
+                    role: "model",
+                    text: "Final answer",
+                    toolIterations: [
+                        {
+                            assistantContent: [
+                                { type: "tool_use", id: "toolu_1", name: "tool1", input: {} },
+                            ],
+                            toolResults: [
+                                { type: "tool_result", tool_use_id: "toolu_1", content: [{ type: "text", text: "{}" }] },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            text: "follow up",
+        }));
+
+        const messages = mockStream.mock.calls[0][0].messages as Array<{ role: string; content: unknown }>;
+
+        // u1, asst(tool_use), user(tool_result), asst(text), user(current) = 5
+        expect(messages).toHaveLength(5);
+        expect(messages.map(m => m.role)).toEqual([
+            "user", "assistant", "user", "assistant", "user",
+        ]);
+
+        // Final assistant message has text
+        const textMsg = messages[3].content as Array<Record<string, unknown>>;
+        expect(textMsg[0].type).toBe("text");
+        expect(textMsg[0].text).toBe("Final answer");
+    });
+
+    it("toolIterations takes priority over toolCalls (not both expanded)", async () => {
+        const mockStream = mockClientStreams({
+            events: [
+                ...textEvents("OK"),
+                finalMessageEvent({ input_tokens: 100, output_tokens: 5 }),
+            ],
+        });
+
+        await streamChat(makeOpts({
+            history: [
+                { id: "u1", role: "user", text: "q" },
+                {
+                    id: "m1",
+                    role: "model",
+                    text: "Answer",
+                    toolIterations: [
+                        {
+                            assistantContent: [
+                                { type: "tool_use", id: "real-id", name: "myTool", input: { a: 1 } },
+                            ],
+                            toolResults: [
+                                { type: "tool_result", tool_use_id: "real-id", content: [{ type: "text", text: '{"ok":true}' }] },
+                            ],
+                        },
+                    ],
+                    toolCalls: [
+                        { name: "myTool", args: { a: 1 }, result: { ok: true } },
+                    ],
+                },
+            ],
+            text: "next",
+        }));
+
+        const messages = mockStream.mock.calls[0][0].messages as Array<{ role: string; content: unknown }>;
+
+        // Should use toolIterations (real-id), NOT toolCalls (hist-m1-0)
+        const assistantContent = messages[1].content as Array<Record<string, unknown>>;
+        expect(assistantContent[0].id).toBe("real-id"); // From toolIterations
+        expect(assistantContent[0].id).not.toBe("hist-m1-0"); // NOT from legacy
+    });
+
+    it("invalid toolIterations → fallback to legacy toolCalls", async () => {
+        const mockStream = mockClientStreams({
+            events: [
+                ...textEvents("OK"),
+                finalMessageEvent({ input_tokens: 100, output_tokens: 5 }),
+            ],
+        });
+
+        await streamChat(makeOpts({
+            history: [
+                { id: "u1", role: "user", text: "q" },
+                {
+                    id: "m1",
+                    role: "model",
+                    text: "Answer",
+                    toolIterations: [
+                        {
+                            assistantContent: [{ broken: true }], // Missing type/id
+                            toolResults: [{ type: "tool_result", tool_use_id: "x", content: "" }],
+                        },
+                    ],
+                    toolCalls: [
+                        { name: "myTool", args: {}, result: { ok: true } },
+                    ],
+                },
+            ],
+            text: "next",
+        }));
+
+        const messages = mockStream.mock.calls[0][0].messages as Array<{ role: string; content: unknown }>;
+
+        // Fallback to legacy: should use synthetic IDs
+        const assistantContent = messages[1].content as Array<Record<string, unknown>>;
+        expect(assistantContent[0].id).toBe("hist-m1-0"); // Legacy synthetic ID
+    });
+
+    it("tool_use IDs from API preserved (not synthetic)", async () => {
+        const mockStream = mockClientStreams({
+            events: [
+                ...textEvents("OK"),
+                finalMessageEvent({ input_tokens: 100, output_tokens: 5 }),
+            ],
+        });
+
+        const originalId = "toolu_01ABC123XYZ";
+        await streamChat(makeOpts({
+            history: [
+                { id: "u1", role: "user", text: "q" },
+                {
+                    id: "m1",
+                    role: "model",
+                    text: "Done",
+                    toolIterations: [
+                        {
+                            assistantContent: [
+                                { type: "tool_use", id: originalId, name: "analyzeTraffic", input: { v: "x" } },
+                            ],
+                            toolResults: [
+                                { type: "tool_result", tool_use_id: originalId, content: [{ type: "text", text: "{}" }] },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            text: "next",
+        }));
+
+        const messages = mockStream.mock.calls[0][0].messages as Array<{ role: string; content: unknown }>;
+        const assistantContent = messages[1].content as Array<Record<string, unknown>>;
+        const resultContent = messages[2].content as Array<Record<string, unknown>>;
+
+        expect(assistantContent[0].id).toBe(originalId);
+        expect(resultContent[0].tool_use_id).toBe(originalId);
+    });
+
+    it("thinking blocks preserved in toolIterations reconstruction", async () => {
+        const mockStream = mockClientStreams({
+            events: [
+                ...textEvents("OK"),
+                finalMessageEvent({ input_tokens: 100, output_tokens: 5 }),
+            ],
+        });
+
+        await streamChat(makeOpts({
+            history: [
+                { id: "u1", role: "user", text: "q" },
+                {
+                    id: "m1",
+                    role: "model",
+                    text: "Result",
+                    toolIterations: [
+                        {
+                            assistantContent: [
+                                { type: "thinking", thinking: "Deep analysis of traffic patterns..." },
+                                { type: "tool_use", id: "toolu_think", name: "analyze", input: {} },
+                            ],
+                            toolResults: [
+                                { type: "tool_result", tool_use_id: "toolu_think", content: [{ type: "text", text: "{}" }] },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            text: "next",
+        }));
+
+        const messages = mockStream.mock.calls[0][0].messages as Array<{ role: string; content: unknown }>;
+        const assistantContent = messages[1].content as Array<Record<string, unknown>>;
+
+        expect(assistantContent[0].type).toBe("thinking");
+        expect(assistantContent[0].thinking).toBe("Deep analysis of traffic patterns...");
+        expect(assistantContent[1].type).toBe("tool_use");
+    });
+
+    it("toolIterations without msg.text → no extra assistant text message", async () => {
+        const mockStream = mockClientStreams({
+            events: [
+                ...textEvents("OK"),
+                finalMessageEvent({ input_tokens: 100, output_tokens: 5 }),
+            ],
+        });
+
+        await streamChat(makeOpts({
+            history: [
+                { id: "u1", role: "user", text: "q" },
+                {
+                    id: "m1",
+                    role: "model",
+                    text: "", // Empty text — no final assistant text message should be appended
+                    toolIterations: [
+                        {
+                            assistantContent: [
+                                { type: "tool_use", id: "toolu_x", name: "tool1", input: {} },
+                            ],
+                            toolResults: [
+                                { type: "tool_result", tool_use_id: "toolu_x", content: [{ type: "text", text: "{}" }] },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            text: "next",
+        }));
+
+        const messages = mockStream.mock.calls[0][0].messages as Array<{ role: string; content: unknown }>;
+
+        // u1, asst(tool_use), user(tool_result), user(current) = 4 (no assistant text)
+        expect(messages).toHaveLength(4);
+        expect(messages.map(m => m.role)).toEqual([
+            "user", "assistant", "user", "user",
+        ]);
+    });
+
+    it("JSON.parse(JSON.stringify()) roundtrip preserves content blocks", () => {
+        // Simulates Firestore serialization roundtrip
+        const original = {
+            assistantContent: [
+                { type: "thinking", thinking: "analysis" },
+                { type: "tool_use", id: "toolu_abc", name: "tool1", input: { nested: { deep: true } } },
+            ],
+            toolResults: [
+                { type: "tool_result", tool_use_id: "toolu_abc", content: [{ type: "text", text: '{"data":42}' }] },
+            ],
+        };
+
+        const roundtripped = JSON.parse(JSON.stringify(original));
+
+        expect(roundtripped).toEqual(original);
+        expect(roundtripped.assistantContent[1].id).toBe("toolu_abc");
+        expect(roundtripped.toolResults[0].tool_use_id).toBe("toolu_abc");
+    });
+
+    it("ImageBlockParam in tool_result survives roundtrip", () => {
+        const original = {
+            assistantContent: [
+                { type: "tool_use", id: "toolu_img", name: "viewThumbnails", input: {} },
+            ],
+            toolResults: [
+                {
+                    type: "tool_result",
+                    tool_use_id: "toolu_img",
+                    content: [
+                        { type: "text", text: '{"ok":true}' },
+                        { type: "image", source: { type: "url", url: "https://example.com/thumb.jpg" } },
+                    ],
+                },
+            ],
+        };
+
+        const roundtripped = JSON.parse(JSON.stringify(original));
+        expect(roundtripped).toEqual(original);
+
+        const imgBlock = roundtripped.toolResults[0].content[1];
+        expect(imgBlock.type).toBe("image");
+        expect(imgBlock.source.url).toBe("https://example.com/thumb.jpg");
+    });
+});

@@ -17,7 +17,7 @@ import { geminiFactory } from "../services/gemini/factory.js";
 import { geminiContext } from "../services/gemini/context.js";
 import { claudeFactory } from "../services/claude/factory.js";
 import { TOOL_DECLARATIONS, CONCLUDE_TOOL_DECLARATIONS } from "../services/tools/definitions.js";
-import type { StreamCallbacks, AttachmentRef, ToolCallRecord } from "../services/ai/types.js";
+import type { StreamCallbacks, AttachmentRef, ToolCallRecord, ToolIteration } from "../services/ai/types.js";
 import { AiStreamTimeoutError } from "../services/ai/retry.js";
 import { writeSSE } from "./sseWriter.js";
 import { deepStripUndefined } from "./helpers.js";
@@ -167,6 +167,7 @@ export const aiChat = onRequest(
                         attachments: data.attachments,
                         appContext: data.appContext,
                         toolCalls: data.toolCalls as ToolCallRecord[] | undefined,
+                        toolIterations: data.toolIterations as ToolIteration[] | undefined,
                     };
                 });
             const convData = convDoc.data();
@@ -505,6 +506,14 @@ export const aiChat = onRequest(
             if (tokenUsage) rawMsg.tokenUsage = tokenUsage;
             if (normalizedUsage) rawMsg.normalizedUsage = normalizedUsage;
             if (persistToolCalls) rawMsg.toolCalls = persistToolCalls;
+
+            // Cache-aligned iteration structure — serialize SDK objects to plain JSON
+            // BEFORE deepStripUndefined (which may corrupt SDK types like RedactedThinkingBlock).
+            const rawToolIterations = providerMeta?.toolIterations as unknown[] | undefined;
+            if (rawToolIterations && rawToolIterations.length > 0) {
+                rawMsg.toolIterations = JSON.parse(JSON.stringify(rawToolIterations));
+            }
+
             rawMsg.contextBreakdown = contextBreakdown;
             if (thinkingAccumulator) {
                 rawMsg.thinking = thinkingAccumulator;
@@ -562,6 +571,13 @@ export const aiChat = onRequest(
                         console.info(`[aiChat] Persisted ${messageStatus} message ${msgRef.id} for conv=${body.conversationId}${attempt > 0 ? ` (retry ${attempt})` : ''}`);
                         return;
                     } catch (err) {
+                        // Document too large — drop toolIterations and retry once
+                        const errMsg = err instanceof Error ? err.message : String(err);
+                        if (msg.toolIterations && errMsg.includes('exceeds the maximum allowed size')) {
+                            console.warn(`[aiChat] Document too large with toolIterations — retrying without (conv=${body.conversationId})`);
+                            delete msg.toolIterations;
+                            continue; // retry immediately without toolIterations
+                        }
                         if (attempt < MAX_PERSIST_RETRIES) {
                             const delay = 500 * Math.pow(2, attempt); // 500ms → 1000ms
                             await new Promise(r => setTimeout(r, delay));
