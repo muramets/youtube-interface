@@ -38,6 +38,8 @@
 
 7. **VideoRefContext + KiRefContext оборачивают ChatTiptapEditor.** Для работы tooltip MarkView нужен React Context. Paттерн: `RichTextEditor.tsx` lines 162-164. Maps строятся из `videoCatalog`/`knowledgeCatalog` props.
 
+8. **Visual parity constraint.** Замена касается ТОЛЬКО `<textarea>` → `<EditorContent>`. Action bar (attach, model selector, thinking toggle, context bridge, memorize, send/stop) и container div (border, memorize mode styling) НЕ ЗАТРАГИВАЮТСЯ. JSX action bar остаётся в `ChatInput.tsx` as-is. Агент НЕ должен перемещать action bar внутрь `ChatTiptapEditor`.
+
 ## Agent Orchestration Strategy
 
 Main context = **executor + orchestrator** (keeps cross-phase context).
@@ -190,7 +192,7 @@ Subagents для:
        - `isEmpty()`: `editor.isEmpty`
     7. CSS classes: no prose, no min-height large — match textarea look:
        ```
-       CHAT_EDITOR_CLASSES = 'focus:outline-none text-[13px] leading-snug text-text-primary'
+       CHAT_EDITOR_CLASSES = 'focus:outline-none text-[13px] leading-snug text-text-primary caret-text-secondary font-[inherit]'
        ```
   - File paste handler via `editorProps.handlePaste`:
     ```typescript
@@ -380,7 +382,7 @@ Fix all findings before moving to Phase 2.
       pointer-events: none;
     }
     ```
-  - Apply via `<div className="chat-tiptap-editor">` wrapper OR via `editorProps.attributes.class`
+  - Add CSS rules to `src/index.css` (in a new section "CHAT TIPTAP EDITOR" after KI reference highlight block) — global styles, same pattern as `.video-reference-highlight`
   - ProseMirror paragraph: `margin: 0` critical — without it, each "line" has 1em margin like in blog editor
   - Max-height 80px matches current textarea constraint
   - Video/KI marks: `.video-reference-highlight` and `.ki-reference-highlight` styles already defined globally in `src/index.css` — will work automatically
@@ -419,7 +421,10 @@ npm run dev                            # manual: open chat, type @vi, verify dro
 8. Is the memorize mode flow updated to use `getMarkdown()` instead of `text`?
 9. Are CSS styles correct: `max-height: 80px`, `overflow-y: auto`, no paragraph margin, placeholder color?
 10. Is `console.error('[ChatInput] memorize failed:')` replaced with `logger.error` (from `src/core/utils/logger.ts`)?
-11. Run `npm run check`."
+11. Is the action bar JSX 100% unchanged (attach, model selector, thinking toggle, context bridge, memorize, send/stop)?
+12. Does the container border highlight on focus (`focus-within:border-text-tertiary`) — same as before?
+13. Does `CHAT_EDITOR_CLASSES` include `caret-text-secondary` and `font-[inherit]`?
+14. Run `npm run check`."
 
 Fix all findings before moving to Phase 3.
 
@@ -604,9 +609,9 @@ npm run check                          # lint + typecheck
 5. Is there a test for Enter while @-dropdown is open (should NOT call onSend)?
 6. Is there a test for disabled state (editor not editable)?
 7. Do paste tests verify file paste is intercepted but text paste is not?
-6. Are tests using real Tiptap editor (not mocking extensions)?
-7. Is test count updated in this file?
-8. Run `npx vitest run --project frontend && npm run check`."
+8. Are tests using real Tiptap editor (not mocking extensions)?
+9. Is test count updated in this file?
+10. Run `npx vitest run --project frontend && npm run check`."
 
 Fix all findings before moving to FINAL.
 
