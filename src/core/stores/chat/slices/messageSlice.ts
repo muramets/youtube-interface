@@ -37,10 +37,16 @@ export function createMessageSlice(
                 const pendingOptimistic = get().messages.filter(
                     m => m.id.startsWith('optimistic-') && !firestoreUserTexts.has(m.text)
                 );
-                const merged = [...firestoreMessages, ...pendingOptimistic];
 
                 if (isFirstLoad) {
                     isFirstLoad = false;
+
+                    // "Fetch N+1" pattern: subscription requests PAGE_SIZE+1 docs.
+                    // If we got more than PAGE_SIZE, there are older messages to load.
+                    const hasMore = firestoreMessages.length > MESSAGE_PAGE_SIZE;
+                    // Trim the extra probe element so the UI shows exactly PAGE_SIZE messages.
+                    const trimmed = hasMore ? firestoreMessages.slice(1) : firestoreMessages;
+                    const merged = [...trimmed, ...pendingOptimistic];
 
                     // Check for explicit server-side error signal on the conversation
                     const conv = get().conversations.find(c => c.id === conversationId);
@@ -48,7 +54,7 @@ export function createMessageSlice(
                         set({
                             messages: merged,
                             isLoading: false,
-                            hasMoreMessages: firestoreMessages.length >= MESSAGE_PAGE_SIZE,
+                            hasMoreMessages: hasMore,
                             error: conv.lastError.error,
                             lastFailedRequest: { text: conv.lastError.failedText || '', messageId: conv.lastError.messageId },
                         });
@@ -56,10 +62,15 @@ export function createMessageSlice(
                         set({
                             messages: merged,
                             isLoading: false,
-                            hasMoreMessages: firestoreMessages.length >= MESSAGE_PAGE_SIZE,
+                            hasMoreMessages: hasMore,
                         });
                     }
                 } else {
+                    // Subsequent onSnapshot updates — use all messages as-is (no trimming).
+                    // The subscription may return up to PAGE_SIZE+1 docs, but after first load
+                    // new messages push the window forward, so all returned docs are relevant.
+                    const merged = [...firestoreMessages, ...pendingOptimistic];
+
                     // Clear client-side ghost when a NEW model message arrives via onSnapshot.
                     // Count-based check avoids false positives from old stopped messages
                     // (previous abort'ed messages already in Firestore).
@@ -92,9 +103,11 @@ export function createMessageSlice(
             );
 
             if (older.length > 0) {
+                const hasMore = older.length > MESSAGE_PAGE_SIZE;
+                const trimmed = hasMore ? older.slice(0, MESSAGE_PAGE_SIZE) : older;
                 set({
-                    messages: [...older, ...messages],
-                    hasMoreMessages: older.length >= MESSAGE_PAGE_SIZE,
+                    messages: [...trimmed, ...messages],
+                    hasMoreMessages: hasMore,
                 });
             } else {
                 set({ hasMoreMessages: false });

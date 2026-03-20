@@ -237,7 +237,7 @@ export const ChatService = {
         return subscribeToCollection<ChatMessage>(
             messagesPath(userId, channelId, conversationId),
             callback,
-            [orderBy('createdAt', 'asc'), limitToLast(MESSAGE_PAGE_SIZE)]
+            [orderBy('createdAt', 'asc'), limitToLast(MESSAGE_PAGE_SIZE + 1)]
         );
     },
 
@@ -262,7 +262,7 @@ export const ChatService = {
     ): Promise<ChatMessage[]> {
         return fetchCollection<ChatMessage>(
             messagesPath(userId, channelId, conversationId),
-            [orderBy('createdAt', 'asc'), endBefore(beforeTimestamp), limitToLast(count)]
+            [orderBy('createdAt', 'asc'), endBefore(beforeTimestamp), limitToLast(count + 1)]
         );
     },
 
