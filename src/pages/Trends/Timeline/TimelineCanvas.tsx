@@ -24,7 +24,13 @@ import { useTimelineInteraction } from './hooks/useTimelineInteraction';
 import { useTimelineHotkeys } from './hooks/useTimelineHotkeys';
 import { useTimelineAutoUpdate } from './hooks/useTimelineAutoUpdate';
 import { useTimelineTooltip } from './hooks/useTimelineTooltip';
-import { LOD_SHOW_THUMBNAIL } from './utils/timelineConstants';
+import { useTimelineVirtualization } from './hooks/useTimelineVirtualization';
+import {
+    LOD_MIN_THUMBNAIL_SCALE,
+    LOD_ALWAYS_THUMBNAIL_SCALE,
+    LOD_MAX_VISIBLE_THUMBNAILS,
+    LOD_SHOW_LABEL
+} from './utils/timelineConstants';
 
 // Constants
 const HEADER_HEIGHT = 48;
@@ -290,8 +296,19 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [clearSelection]);
 
-    // Determine visibility logic
-    const showThumbnails = transformState.scale >= LOD_SHOW_THUMBNAIL;
+    // 11. Virtualization (lifted here for dynamic LOD decision)
+    const { visibleVideos } = useTimelineVirtualization({
+        videoPositions,
+        transform: transformState,
+        worldWidth,
+        worldHeight: dynamicWorldHeight
+    });
+
+    // Dynamic LOD: show thumbnails based on scale AND visible video count
+    const showThumbnails =
+        transformState.scale >= LOD_ALWAYS_THUMBNAIL_SCALE ||
+        (transformState.scale >= LOD_MIN_THUMBNAIL_SCALE && visibleVideos.length <= LOD_MAX_VISIBLE_THUMBNAILS);
+    const showLabels = transformState.scale >= LOD_SHOW_LABEL;
 
     // Determine if pan is available (not at fit-in state)
     const canPan = transformState.scale > minScale * 1.01; // Small buffer for floating point comparison
@@ -350,6 +367,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
                     activeVideoIds={selectionState.selectedIds}
                     getPercentileGroup={getPercentileGroup}
                     verticalSpread={verticalSpread}
+                    showThumbnails={showThumbnails}
                     onHoverVideo={handleHoverVideo}
                     onClickVideo={(video, e) => {
                         forceCloseTooltip();
@@ -372,7 +390,9 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
             {/* DOM Layer for Zoomed In State (Thumbnails) */}
             <TimelineVideoLayer
                 ref={videoLayerRef}
-                videoPositions={videoPositions}
+                visibleVideos={visibleVideos}
+                showThumbnails={showThumbnails}
+                showLabels={showLabels}
                 transform={transformState}
                 worldWidth={worldWidth}
                 worldHeight={dynamicWorldHeight}

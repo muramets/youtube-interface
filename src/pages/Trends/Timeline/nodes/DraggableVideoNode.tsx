@@ -3,6 +3,7 @@ import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import type { TrendVideo, VideoPosition } from '../../../../core/types/trends';
 import { useTrendStore } from '../../../../core/stores/trends/trendStore';
+import { THUMB_COUNTER_SCALE_MAX, THUMB_COUNTER_SCALE_CEILING } from '../utils/timelineConstants';
 
 // Helper for formatting
 const formatCompactNumber = (num: number) => {
@@ -86,7 +87,8 @@ export const DraggableVideoNode = memo(({
                 top: y,
                 width: width,
                 // Combine base transform with drag transform
-                transform: `translate(-50%, -50%) ${isHighlighted ? 'scale(1.25)' : ''}`,
+                // Counter-scale: clamp(natural, ceiling, growth) — proportional growth with floor + cap
+                transform: `translate(-50%, -50%) scale(clamp(1, calc(${THUMB_COUNTER_SCALE_CEILING} / var(--timeline-scale, 0.25)), ${THUMB_COUNTER_SCALE_MAX}))${isHighlighted ? ' scale(1.25)' : ''}`,
                 // During drag: hide original completely (ghost shown via DragOverlay)
                 opacity: isDragging ? 0 : 1,
                 zIndex: isDragging ? 2000 : (isHighlighted || isElevated ? 1000 : 10),

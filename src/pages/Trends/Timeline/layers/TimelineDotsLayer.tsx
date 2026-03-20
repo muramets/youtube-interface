@@ -7,8 +7,7 @@ import {
     DOT_HIT_BUFFER_PX,
     HOVER_DEBOUNCE_MS,
     MIN_INTERACTION_SIZE_PX,
-    TOOLTIP_SHOW_DELAY_MS,
-    LOD_SHOW_THUMBNAIL
+    TOOLTIP_SHOW_DELAY_MS
 } from '../utils/timelineConstants';
 
 // =============================================================================
@@ -105,6 +104,8 @@ interface TimelineDotsLayerProps {
     onClickEmpty?: () => void;
     /** Vertical spread factor (0 = compressed, 1 = full spread). Affects hit buffer. */
     verticalSpread?: number;
+    /** Whether thumbnails are currently shown (dynamic LOD). Used to suppress interaction conflicts. */
+    showThumbnails?: boolean;
 }
 
 // =============================================================================
@@ -116,7 +117,7 @@ interface TimelineDotsLayerProps {
  *
  * ## Purpose:
  * Renders thousands of video dots efficiently using HTML5 Canvas.
- * Used at zoom levels < LOD_SHOW_THUMBNAIL (0.25) where DOM-based VideoNodes
+ * Used when dynamic LOD determines too many videos for DOM thumbnails, where DOM-based VideoNodes
  * would be too slow. Above this threshold, TimelineVideoLayer takes over.
  *
  * ## Key Features:
@@ -149,7 +150,8 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
     onClickVideo,
     onDoubleClickVideo,
     onClickEmpty,
-    verticalSpread = 1.0
+    verticalSpread = 1.0,
+    showThumbnails = false
 }) => {
     // =========================================================================
     // REFS
@@ -530,9 +532,9 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
      * Uses geometric hit testing on canvas coordinates.
      */
     const handleInteraction = (e: React.MouseEvent, type: 'hover' | 'click' | 'dblclick') => {
-        // When thumbnails are visible (high zoom), VideoLayer handles interactions
+        // When thumbnails are visible (dynamic LOD), VideoLayer handles interactions
         // This prevents "blinking" from both layers fighting for hover state
-        if (transform.scale >= LOD_SHOW_THUMBNAIL) return;
+        if (showThumbnails) return;
 
         const rect = containerRef.current?.getBoundingClientRect();
         if (!rect) return;

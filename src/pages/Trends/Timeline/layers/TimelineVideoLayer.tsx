@@ -2,12 +2,9 @@ import React, { useState, useRef, forwardRef, useImperativeHandle } from 'react'
 import { useDndMonitor } from '@dnd-kit/core';
 import type { TrendVideo, VideoPosition } from '../../../../core/types/trends';
 import type { Transform } from '../utils/timelineMath';
-import { useTimelineVirtualization } from '../hooks/useTimelineVirtualization';
 import { VideoDot } from '../nodes/VideoDot';
 import { DraggableVideoNode } from '../nodes/DraggableVideoNode';
 import {
-    LOD_SHOW_LABEL,
-    LOD_SHOW_THUMBNAIL,
     TOOLTIP_SHOW_DELAY_MS,
     ELEVATION_TIMEOUT_MS,
     HOVER_DEBOUNCE_MS
@@ -15,7 +12,9 @@ import {
 import { debug } from '../../../../core/utils/debug';
 
 interface TimelineVideoLayerProps {
-    videoPositions: VideoPosition[];
+    visibleVideos: VideoPosition[];
+    showThumbnails: boolean;
+    showLabels: boolean;
     transform: Transform;
     worldWidth: number;
     worldHeight: number;
@@ -36,7 +35,9 @@ export interface TimelineVideoLayerHandle {
 
 
 const TimelineVideoLayerContent = forwardRef<TimelineVideoLayerHandle, TimelineVideoLayerProps>(({
-    videoPositions,
+    visibleVideos,
+    showThumbnails,
+    showLabels,
     transform,
     worldWidth,
     worldHeight,
@@ -69,18 +70,7 @@ const TimelineVideoLayerContent = forwardRef<TimelineVideoLayerHandle, TimelineV
     const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const showTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Use Virtualization Hook
-    const { visibleVideos } = useTimelineVirtualization({
-        videoPositions,
-        transform,
-        worldWidth
-    });
-
-
-
-    // LOD state based on zoom level
-    const showThumbnails = transform.scale >= LOD_SHOW_THUMBNAIL;
-    const showLabels = transform.scale >= LOD_SHOW_LABEL;
+    // visibleVideos, showThumbnails, showLabels are provided by parent (TimelineCanvas)
 
     // Track global drag state to suppress tooltips during drag
     const [isAnyDragging, setIsAnyDragging] = useState(false);

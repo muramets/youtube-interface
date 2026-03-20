@@ -7,44 +7,52 @@ interface UseTimelineVirtualizationProps {
     videoPositions: VideoPosition[];
     transform: Transform;
     worldWidth: number;
-    viewportWidth?: number; // Optional, can default to window.innerWidth
+    worldHeight: number;
+    viewportWidth?: number;
+    viewportHeight?: number;
 }
+
+const BUFFER_PX = 500;
 
 export const useTimelineVirtualization = ({
     videoPositions,
     transform,
     worldWidth,
-    viewportWidth
+    worldHeight,
+    viewportWidth,
+    viewportHeight
 }: UseTimelineVirtualizationProps) => {
 
-    // -- VIRTUALIZATION / CULLING (throttled for performance) --
-    const rawVisibleRegion = useMemo(() => {
+    // -- VIRTUALIZATION / CULLING --
+    const visibleRegion = useMemo(() => {
         const width = viewportWidth || (typeof window !== 'undefined' ? window.innerWidth : 1920);
-        const minX = -500; // Buffer
-        const maxX = width + 500;
+        const height = viewportHeight || (typeof window !== 'undefined' ? window.innerHeight : 1080);
 
         // Transform screen coords to world coords: screenX = worldX * scale + offsetX
         // worldX = (screenX - offsetX) / scale
-        const worldMinX = (minX - transform.offsetX) / transform.scale;
-        const worldMaxX = (maxX - transform.offsetX) / transform.scale;
+        const worldMinX = (-BUFFER_PX - transform.offsetX) / transform.scale;
+        const worldMaxX = (width + BUFFER_PX - transform.offsetX) / transform.scale;
+        const worldMinY = (-BUFFER_PX - transform.offsetY) / transform.scale;
+        const worldMaxY = (height + BUFFER_PX - transform.offsetY) / transform.scale;
 
-        return { start: worldMinX, end: worldMaxX };
-    }, [transform.offsetX, transform.scale, viewportWidth]);
+        return {
+            startX: worldMinX, endX: worldMaxX,
+            startY: worldMinY, endY: worldMaxY
+        };
+    }, [transform.offsetX, transform.offsetY, transform.scale, viewportWidth, viewportHeight]);
 
-    // Throttle removed to prevent flickering during rapid layout changes (anchoring)
-    // The visibility check is cheap enough to run every frame
-    const visibleRegion = rawVisibleRegion;
-
-    // Filter videos based on X position
+    // Filter videos based on X and Y position
     const visibleVideos = useMemo(() => {
         return videoPositions.filter(p => {
             const x = p.xNorm * worldWidth;
-            return x >= visibleRegion.start && x <= visibleRegion.end;
+            const y = p.yNorm * worldHeight;
+            return x >= visibleRegion.startX && x <= visibleRegion.endX
+                && y >= visibleRegion.startY && y <= visibleRegion.endY;
         });
-    }, [videoPositions, visibleRegion, worldWidth]);
+    }, [videoPositions, visibleRegion, worldWidth, worldHeight]);
 
     return {
         visibleVideos,
-        visibleRegion // Exposed for debug if needed
+        visibleRegion
     };
 };
