@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Tag, AlignLeft, GitCompare, TrendingUp } from 'lucide-react';
+import { Calendar, Tag, AlignLeft, GitCompare, TrendingUp, ExternalLink } from 'lucide-react';
 import { useVideoPlayer } from '../../../core/hooks/useVideoPlayer';
+import { useChannelStore } from '../../../core/stores/channelStore';
 import { DiffHighlight } from './DiffHighlight';
 import { CopyButton } from '../../../components/ui/atoms/CopyButton';
 import { formatViewCount, formatDelta, getDeltaColor } from '../../../core/utils/formatUtils';
@@ -52,7 +53,9 @@ export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
     const [areTagsExpanded, setAreTagsExpanded] = useState(false);
     const [isComparing, setIsComparing] = useState(false);
 
+    const currentChannel = useChannelStore(s => s.currentChannel);
     const { minimize, activeVideoId, isMinimized } = useVideoPlayer();
+    const isOwnVideo = video.ownership === 'own-draft' || video.ownership === 'own-published';
 
     // 300ms delay before loading iframe — prevents layout shift from killing
     // the tooltip on first render (tooltip flicker prevention).
@@ -96,6 +99,20 @@ export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
                         >
                             <GitCompare size={12} />
                             <span>Compare</span>
+                        </button>
+                    )}
+                    {isOwnVideo && currentChannel && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                window.open(`/video/${currentChannel.id}/${videoId}/details`, '_blank');
+                            }}
+                            className="flex items-center gap-1.5 text-[10px] bg-white/5 hover:bg-white/10 text-text-secondary hover:text-text-primary px-2 py-1 rounded-md transition-colors border border-white/5"
+                            title="Open video details"
+                        >
+                            <ExternalLink size={12} />
+                            <span>Details</span>
                         </button>
                     )}
                     {!isPlayingInMiniPlayer && embedId && (

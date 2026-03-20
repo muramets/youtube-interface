@@ -9,7 +9,7 @@
 
 ## Текущее состояние
 
-Единый `VideoPreviewTooltip` с двумя режимами: `full` (800×700, Trends/Traffic) и `mini` (480×auto, Chat). Dedicated тип `VideoPreviewData` — чистый tooltip-ориентированный тип без baggage от app context. `referenceVideoMap` в `ChatMessageList` собирает данные из трёх слоёв: Layer 1 (persistedContext — карточки из сайдбара), Layer 2 (`buildToolVideoMap` — 7 tool extractors), Layer 3 (`mentionedVideos` — @-упоминания пользователя, resolved из videoCatalog при отправке). `ToolCallSummary` — orchestrator (215 строк) + 11 модулей в `toolStats/`. Tool registry (13 tools) обеспечивает Open-Closed: новый tool = запись в registry + extractor в buildToolVideoMap + extractor в toolCallGrouping.
+Единый `VideoPreviewTooltip` с двумя режимами: `full` (800×700, Trends/Traffic) и `mini` (480×auto, Chat). Dedicated тип `VideoPreviewData` — чистый tooltip-ориентированный тип без baggage от app context. Для own-видео (`ownership: 'own-draft' | 'own-published'`) в header отображается кнопка "Details" — открывает страницу видео в новой вкладке. Используется во всех контекстах: Chat, KI card, Trends. `referenceVideoMap` в `ChatMessageList` собирает данные из трёх слоёв: Layer 1 (persistedContext — карточки из сайдбара), Layer 2 (`buildToolVideoMap` — 7 tool extractors), Layer 3 (`mentionedVideos` — @-упоминания пользователя, resolved из videoCatalog при отправке). `ToolCallSummary` — orchestrator (215 строк) + 11 модулей в `toolStats/`. Tool registry (13 tools) обеспечивает Open-Closed: новый tool = запись в registry + extractor в buildToolVideoMap + extractor в toolCallGrouping.
 
 ## Ключевые архитектурные решения
 
