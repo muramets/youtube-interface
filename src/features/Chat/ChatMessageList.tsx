@@ -487,8 +487,8 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     // --- Scroll State Machine (extracted to dedicated hook) ---
     const lastMsg = messages[messages.length - 1];
     const {
-        containerRef, pinAnchorRef, spacerRef, bottomRef,
-        showScrollFab, scrollToBottom, handleScroll,
+        containerRef, stickyZoneRef, spacerRef, bottomRef,
+        showScrollFab, isPinned, scrollToBottom, handleScroll,
     } = useChatScroll({
         messageCount: messages.length,
         isStreaming,
@@ -538,6 +538,33 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
         [messages]
     );
 
+    // Split point: last user message. Messages from here onward render inside
+    // the sticky zone. splitIndex is independent of isPinned — messages never
+    // move between segments when pin toggles (avoids React remount).
+    const splitIndex = useMemo(() => {
+        for (let i = visibleMessages.length - 1; i >= 0; i--) {
+            if (visibleMessages[i].role === 'user') return i;
+        }
+        return visibleMessages.length; // no user messages → all in pre-zone
+    }, [visibleMessages]);
+
+    // Pre-compute checkpoint→message mapping (O(N+M) instead of O(N×M) per render)
+    const checkpointMap = useMemo(() => {
+        const map = new Map<string, typeof conversationMemories>();
+        if (conversationMemories.length === 0) return map;
+        for (let i = 0; i < visibleMessages.length; i++) {
+            const msgTime = visibleMessages[i].createdAt?.toMillis() ?? 0;
+            const prevTime = i > 0 ? visibleMessages[i - 1].createdAt?.toMillis() ?? 0 : 0;
+            const matches = conversationMemories.filter(m => {
+                if (!m.createdAt?.toMillis) return false;
+                const memTime = m.createdAt.toMillis();
+                return memTime > prevTime && memTime <= msgTime;
+            });
+            if (matches.length > 0) map.set(visibleMessages[i].id, matches);
+        }
+        return map;
+    }, [visibleMessages, conversationMemories]);
+
     if (messages.length === 0 && !isStreaming) {
         return (
             <div className="chat-messages flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-3.5 pt-3.5 pb-1 flex flex-col gap-3">
@@ -559,18 +586,9 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
 
     return (
         <div className="chat-messages flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-3.5 pt-3.5 pb-1 flex flex-col gap-3" ref={containerRef} onScroll={handleScroll}>
-            {visibleMessages.map((msg, idx) => {
-                // Render memory checkpoints between messages (by timestamp)
-                const checkpointsBefore = conversationMemories.filter(m => {
-                    if (!m.createdAt?.toMillis || !msg.createdAt?.toMillis) return false;
-                    const memTime = m.createdAt.toMillis();
-                    const msgTime = msg.createdAt.toMillis();
-                    const prevTime = idx > 0
-                        ? visibleMessages[idx - 1].createdAt?.toMillis() ?? 0
-                        : 0;
-                    return memTime > prevTime && memTime <= msgTime;
-                });
-
+            {/* Pre-zone messages: everything before the last user message */}
+            {visibleMessages.slice(0, splitIndex).map((msg, idx) => {
+                const checkpointsBefore = checkpointMap.get(msg.id) ?? [];
                 return (
                     <React.Fragment key={msg.id}>
                         {checkpointsBefore.map(mem => (
@@ -605,92 +623,139 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                 );
             })}
 
-            {/* Checkpoints after last message */}
-            {conversationMemories.filter(m => {
-                if (!m.createdAt?.toMillis || visibleMessages.length === 0) return false;
-                const lastMsg = visibleMessages[visibleMessages.length - 1];
-                return m.createdAt.toMillis() > (lastMsg.createdAt?.toMillis() ?? 0);
-            }).map(mem => (
-                <MemoryCheckpoint
-                    key={`checkpoint-${mem.id}`}
-                    memory={mem}
-                    onUpdate={updateMemory}
-                    onDelete={deleteMemory}
-                    knowledgeCatalog={knowledgeCatalog}
-                />
-            ))}
+            {/* Sticky zone: last user message + streaming response + trailing content.
+                When isPinned, gets position:sticky via .chat-sticky-zone class.
+                When not pinned, transparent flex wrapper — no layout effect. */}
+            <div
+                ref={stickyZoneRef}
+                className={`flex flex-col gap-3 ${isPinned ? 'chat-sticky-zone' : ''}`}
+                style={{ overflowAnchor: 'none' }}
+            >
+                {/* Zone messages: last user msg + any model responses after it */}
+                {visibleMessages.slice(splitIndex).map((msg, idx) => {
+                    const globalIdx = splitIndex + idx;
+                    const checkpointsBefore = checkpointMap.get(msg.id) ?? [];
+                    return (
+                        <React.Fragment key={msg.id}>
+                            {checkpointsBefore.map(mem => (
+                                <MemoryCheckpoint
+                                    key={`checkpoint-${mem.id}`}
+                                    memory={mem}
+                                    onUpdate={updateMemory}
+                                    onDelete={deleteMemory}
+                                    knowledgeCatalog={knowledgeCatalog}
+                                />
+                            ))}
+                            <MessageErrorBoundary messageId={msg.id}>
+                                <MessageItem
+                                    msg={msg}
+                                    skipAnimation={skipAnimateReconciled || (globalIdx === lastMsgIndex && skipAnimateLastModel)}
+                                    isFailed={msg.role === 'user' && failedMessageId === msg.id}
+                                    isStreaming={isStreaming}
+                                    onRetry={retryLastMessage}
+                                    onEdit={setEditingMessage}
+                                    videoMap={referenceVideoMap}
+                                    kiMap={referenceKiMap}
+                                    sessionThinking={
+                                        msg.role === 'model'
+                                            ? (msg.thinking
+                                                ? { text: msg.thinking, elapsedMs: msg.thinkingElapsedMs ?? 0 }
+                                                : getSessionThinking(msg.id))
+                                            : null
+                                    }
+                                />
+                            </MessageErrorBoundary>
+                        </React.Fragment>
+                    );
+                })}
 
-            {/* Pin anchor — invisible sentinel for pin-to-top scroll position */}
-            <div ref={pinAnchorRef} className="h-0 -mt-3" />
+                {/* Trailing checkpoints (after last message, inside zone) */}
+                {conversationMemories.filter(m => {
+                    if (!m.createdAt?.toMillis || visibleMessages.length === 0) return false;
+                    const lastVisibleMsg = visibleMessages[visibleMessages.length - 1];
+                    return m.createdAt.toMillis() > (lastVisibleMsg.createdAt?.toMillis() ?? 0);
+                }).map(mem => (
+                    <MemoryCheckpoint
+                        key={`checkpoint-${mem.id}`}
+                        memory={mem}
+                        onUpdate={updateMemory}
+                        onDelete={deleteMemory}
+                        knowledgeCatalog={knowledgeCatalog}
+                    />
+                ))}
 
-            {/* Streaming message */}
-            {isStreaming && (
-                <div className="chat-message flex flex-col max-w-[85%] self-start animate-message-in mb-2">
-                    <div className={MSG_BUBBLE_MODEL}>
-                        {/* Progressive status — shown when no text or thinking has arrived yet */}
-                        <StreamingStatusMessage />
+                {/* Streaming message — suppressed when Firestore model message already arrived
+                   (race: Firestore write can land before SSE stream ends → prevents 2-3 frame duplication) */}
+                {isStreaming && visibleMessages[visibleMessages.length - 1]?.role !== 'model' && (
+                    <div className="chat-message flex flex-col max-w-[85%] self-start animate-message-in mb-2">
+                        <div className={MSG_BUBBLE_MODEL}>
+                            {/* Progressive status — shown when no text or thinking has arrived yet */}
+                            <StreamingStatusMessage />
 
-                        {/* Thinking bubble — collapsible, before tool calls and text */}
-                        {thinkingText && (
-                            <ThinkingBubble text={thinkingText} isStreaming={isStreaming} />
-                        )}
+                            {/* Thinking bubble — collapsible, before tool calls and text */}
+                            {thinkingText && (
+                                <ThinkingBubble text={thinkingText} isStreaming={isStreaming} />
+                            )}
 
-                        {/* Tool call summary — between thinking and text */}
-                        {activeToolCalls.length > 0 && (
-                            <ToolCallSummary toolCalls={activeToolCalls} videoMap={referenceVideoMap} isStreaming />
-                        )}
+                            {/* Tool call summary — between thinking and text */}
+                            {activeToolCalls.length > 0 && (
+                                <ToolCallSummary toolCalls={activeToolCalls} videoMap={referenceVideoMap} isStreaming />
+                            )}
 
-                        {streamingText ? (
-                            <div className="animate-fade-in">
-                                {debouncedStreamingText ? <MarkdownMessage text={debouncedStreamingText} videoMap={referenceVideoMap} kiMap={referenceKiMap} /> : <span className="whitespace-pre-wrap">{streamingText}</span>}
-                            </div>
-                        ) : (
-                            <span className="inline-flex items-center gap-[3px] align-middle">
-                                <span className="w-1.5 h-1.5 rounded-full bg-text-tertiary animate-typing-dot" style={{ animationDelay: '0ms' }} />
-                                <span className="w-1.5 h-1.5 rounded-full bg-text-tertiary animate-typing-dot" style={{ animationDelay: '150ms' }} />
-                                <span className="w-1.5 h-1.5 rounded-full bg-text-tertiary animate-typing-dot" style={{ animationDelay: '300ms' }} />
-                            </span>
-                        )}
-                    </div>
-                </div>
-            )}
-
-            {/* Ghost message — partial AI response after user clicked Stop (session-only) */}
-            {!isStreaming && stoppedResponse && (
-                <div className="chat-message flex flex-col max-w-[85%] self-start mb-2 opacity-60">
-                    <div className={`${MSG_BUBBLE_MODEL} border border-border`}>
-                        {stoppedResponse.thinking && (
-                            <ThinkingBubble text={stoppedResponse.thinking} isStreaming={false} initialElapsedMs={stoppedResponse.thinkingElapsedMs} />
-                        )}
-                        {stoppedResponse.toolCalls.length > 0 && (
-                            <ToolCallSummary toolCalls={stoppedResponse.toolCalls} videoMap={referenceVideoMap} stopped />
-                        )}
-                        {stoppedResponse.text && (
-                            <MarkdownMessage text={stoppedResponse.text} videoMap={referenceVideoMap} kiMap={referenceKiMap} />
-                        )}
-                        <div className="flex items-center gap-1.5 mt-2 pt-1.5 border-t border-border text-text-tertiary text-[11px]">
-                            <Square size={10} />
-                            <span>Generation stopped</span>
+                            {streamingText ? (
+                                <div className="animate-fade-in">
+                                    {debouncedStreamingText ? <MarkdownMessage text={debouncedStreamingText} videoMap={referenceVideoMap} kiMap={referenceKiMap} /> : <span className="whitespace-pre-wrap">{streamingText}</span>}
+                                </div>
+                            ) : (
+                                <span className="inline-flex items-center gap-[3px] align-middle">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-text-tertiary animate-typing-dot" style={{ animationDelay: '0ms' }} />
+                                    <span className="w-1.5 h-1.5 rounded-full bg-text-tertiary animate-typing-dot" style={{ animationDelay: '150ms' }} />
+                                    <span className="w-1.5 h-1.5 rounded-full bg-text-tertiary animate-typing-dot" style={{ animationDelay: '300ms' }} />
+                                </span>
+                            )}
                         </div>
                     </div>
-                </div>
-            )}
+                )}
 
-            {/* Thumbnail batch confirmation — shown below streaming message when middleware blocks */}
-            {pendingLargePayloadConfirmation && (
-                <div className="self-start max-w-[85%] mb-2 animate-fade-in">
-                    <ConfirmLargePayloadBanner
-                        count={pendingLargePayloadConfirmation.count}
-                        onConfirm={confirmLargePayload}
-                        onDismiss={dismissLargePayload}
-                    />
-                </div>
-            )}
+                {/* Ghost message — partial AI response after user clicked Stop (session-only) */}
+                {!isStreaming && stoppedResponse && (
+                    <div className="chat-message flex flex-col max-w-[85%] self-start mb-2 opacity-60">
+                        <div className={`${MSG_BUBBLE_MODEL} border border-border`}>
+                            {stoppedResponse.thinking && (
+                                <ThinkingBubble text={stoppedResponse.thinking} isStreaming={false} initialElapsedMs={stoppedResponse.thinkingElapsedMs} />
+                            )}
+                            {stoppedResponse.toolCalls.length > 0 && (
+                                <ToolCallSummary toolCalls={stoppedResponse.toolCalls} videoMap={referenceVideoMap} stopped />
+                            )}
+                            {stoppedResponse.text && (
+                                <MarkdownMessage text={stoppedResponse.text} videoMap={referenceVideoMap} kiMap={referenceKiMap} />
+                            )}
+                            <div className="flex items-center gap-1.5 mt-2 pt-1.5 border-t border-border text-text-tertiary text-[11px]">
+                                <Square size={10} />
+                                <span>Generation stopped</span>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
-            <div ref={bottomRef} className="-mt-3" />
+                {/* Thumbnail batch confirmation — shown below streaming message when middleware blocks */}
+                {pendingLargePayloadConfirmation && (
+                    <div className="self-start max-w-[85%] mb-2 animate-fade-in">
+                        <ConfirmLargePayloadBanner
+                            count={pendingLargePayloadConfirmation.count}
+                            onConfirm={confirmLargePayload}
+                            onDismiss={dismissLargePayload}
+                        />
+                    </div>
+                )}
 
-            {/* Scroll-past-end spacer — after bottomRef, only adds scrollHeight */}
-            <div ref={spacerRef} aria-hidden="true" style={{ minHeight: 0 }} />
+                <div ref={bottomRef} className="-mt-3" />
+            </div>
+
+            {/* Spacer OUTSIDE sticky zone — one-shot P3 cushion for scroll position preservation.
+                Height managed solely via DOM (setSpacer) — no React-controlled style,
+                so re-renders don't reset it. */}
+            <div ref={spacerRef} aria-hidden="true" />
 
             {/* Scroll-to-bottom FAB */}
             {

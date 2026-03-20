@@ -104,10 +104,16 @@
     cursor: nwse-resize;
 }
 
-/* --- Scroll anchoring (prevents content jumps during streaming) --- */
-
-.chat-messages {
-    overflow-anchor: auto;
+/* --- Sticky zone: pin-to-top during streaming (compositor-native, no JS jitter) --- */
+.chat-sticky-zone {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--card-bg);
+    padding-top: 12px;
+    /* top: 0 + padding-top: 12px = zone sticks flush to scrollport, padding provides
+       visible gap covered by --card-bg (prevents pre-zone content peeking through). */
+    /* min-height set via DOM in useChatScroll (CSS 100% unreliable in scroll containers) */
 }
 
 /* --- Context accordion (ChatInput) - uses design tokens for consistency --- */

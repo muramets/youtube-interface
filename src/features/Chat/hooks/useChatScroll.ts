@@ -1,29 +1,44 @@
 // =============================================================================
-// Chat Scroll State Machine — manages scroll behavior for ChatMessageList
+// Chat Scroll State Machine — CSS sticky-based scroll pinning
 //
 // States:
 //   idle   — default, no special scroll behavior
-//   pinned — user message pinned to top, streaming below
-//   away   — user scrolled away from pinned position
+//   pinned — user message pinned to top via CSS position:sticky, streaming below
+//   away   — user scrolled away from pinned position to view history
 //
 // Transitions:
 //   idle → pinned   — new user message sent (P1) or streaming starts (P2)
 //   pinned → away   — user scrolls >80px from bottom
-//   away → idle     — user scrolls back near bottom
+//   away → pinned   — user scrolls back near bottom during streaming (re-pin)
+//   away → idle     — user scrolls back near bottom after streaming ends
 //   pinned → idle   — streaming ends (P3)
 // =============================================================================
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
 import { debug } from '../../../core/utils/debug';
 
 type ScrollIntent = 'idle' | 'pinned' | 'away';
+
+/** Threshold (px) for showing scroll-to-bottom FAB */
+const FAB_DISTANCE_THRESHOLD = 200;
+/** Threshold (px) for "user scrolled away" detection during pinned state */
+const AWAY_DISTANCE_THRESHOLD = 80;
+
+/** Position zone flush with scrollport top (before paint). */
+function flushZoneToTop(zone: HTMLDivElement, container: HTMLDivElement): void {
+    zone.scrollIntoView({ block: 'start', behavior: 'instant' });
+    const residualGap = zone.getBoundingClientRect().top - container.getBoundingClientRect().top;
+    if (residualGap > 0) {
+        container.scrollTop += residualGap;
+    }
+}
 
 interface UseChatScrollOpts {
     /** Number of messages in the list (triggers scroll logic on change). */
     messageCount: number;
     /** Whether AI is currently streaming a response. */
     isStreaming: boolean;
-    /** Current streaming text (used as effect dependency for scroll updates). */
+    /** Current streaming text (effect dependency for transition detection). */
     streamingText: string | null;
     /** Role of the last message ('user' | 'model'). */
     lastMessageRole?: string;
@@ -32,15 +47,17 @@ interface UseChatScrollOpts {
 interface UseChatScrollReturn {
     /** Ref for the scrollable container element. */
     containerRef: React.RefObject<HTMLDivElement | null>;
-    /** Ref for the invisible pin anchor (place after last message). */
-    pinAnchorRef: React.RefObject<HTMLDivElement | null>;
-    /** Ref for the scroll-past-end spacer (place after bottomRef). */
+    /** Ref for the sticky zone wrapper (gets .chat-sticky-zone class when pinned). */
+    stickyZoneRef: React.RefObject<HTMLDivElement | null>;
+    /** Ref for the scroll-past-end spacer (one-shot P3 cushion, outside sticky zone). */
     spacerRef: React.RefObject<HTMLDivElement | null>;
-    /** Ref for the bottom sentinel (place after streaming message). */
+    /** Ref for the bottom sentinel (inside sticky zone, after streaming content). */
     bottomRef: React.RefObject<HTMLDivElement | null>;
     /** Whether to show the scroll-to-bottom FAB. */
     showScrollFab: boolean;
-    /** Scroll the container to the bottom (smooth). */
+    /** Whether the sticky zone is pinned (controls CSS class + minHeight in JSX). */
+    isPinned: boolean;
+    /** Scroll to bottom (or return to pinned view during streaming). */
     scrollToBottom: () => void;
     /** onScroll handler — attach to the scrollable container. */
     handleScroll: () => void;
@@ -54,40 +71,27 @@ export function useChatScroll({
 }: UseChatScrollOpts): UseChatScrollReturn {
     const containerRef = useRef<HTMLDivElement>(null);
     const bottomRef = useRef<HTMLDivElement>(null);
-    const pinAnchorRef = useRef<HTMLDivElement>(null);
+    const stickyZoneRef = useRef<HTMLDivElement>(null);
     const spacerRef = useRef<HTMLDivElement>(null);
 
     const [showScrollFab, setShowScrollFab] = useState(false);
-    const isProgrammaticRef = useRef(false);
-    const scrollEndCleanupRef = useRef<(() => void) | null>(null);
+    const [isPinned, setIsPinned] = useState(false);
 
     const intentRef = useRef<ScrollIntent>('idle');
     const prevMsgCountRef = useRef(messageCount);
     const prevStreamingRef = useRef(isStreaming);
 
-    // Helper: set scrollTop without triggering handleScroll's away-detection
-    // Uses scrollend event to keep guard up for entire smooth scroll duration
-    const programmaticScroll = useCallback((fn: () => void) => {
-        debug.scroll('programmaticScroll: setting isProgrammatic=true');
-        scrollEndCleanupRef.current?.();
-        isProgrammaticRef.current = true;
-        fn();
-        const container = containerRef.current;
-        if (container) {
-            const reset = () => {
-                isProgrammaticRef.current = false;
-                const el = containerRef.current;
-                const finalPos = el ? `scrollTop=${el.scrollTop} scrollHeight=${el.scrollHeight} clientHeight=${el.clientHeight}` : 'no container';
-                debug.scroll(`programmaticScroll: reset isProgrammatic=false (scrollend/timeout) ${finalPos}`);
-                clearTimeout(fallback);
-                container.removeEventListener('scrollend', reset);
-                scrollEndCleanupRef.current = null;
-            };
-            container.addEventListener('scrollend', reset, { once: true });
-            const fallback = setTimeout(reset, 1000);
-            scrollEndCleanupRef.current = reset;
-        }
-    }, []);
+    // Ref mirror: lets stable callbacks (handleScroll, scrollToBottom) read current streaming state
+    const isStreamingRef = useRef(isStreaming);
+    isStreamingRef.current = isStreaming;
+
+    // Flag: P1 sets this to trigger useLayoutEffect positioning on next render.
+    // Prevents repositioning on non-P1 messageCount changes (e.g., model response arrival).
+    const needsPositionRef = useRef(false);
+
+    // Scroll preservation for "Load earlier messages" — track scrollHeight between renders
+    const prevScrollHeightRef = useRef(0);
+    const prevMsgCountLayoutRef = useRef(messageCount);
 
     // Helper: expand/collapse spacer synchronously via DOM
     const setSpacer = useCallback((height: number) => {
@@ -100,8 +104,7 @@ export function useChatScroll({
     // Single effect: all scroll decisions in one place, clear priority
     useEffect(() => {
         const container = containerRef.current;
-        const bottom = bottomRef.current;
-        if (!container || !bottom) return;
+        if (!container) return;
 
         const newCount = messageCount;
         const prevCount = prevMsgCountRef.current;
@@ -109,79 +112,49 @@ export function useChatScroll({
         const streamingJustEnded = !isStreaming && prevStreamingRef.current;
 
         debug.scroll(`=== EFFECT === intent=${intentRef.current} msgs=${prevCount}->${newCount} streaming=${isStreaming} justStarted=${streamingJustStarted} justEnded=${streamingJustEnded} streamingText=${streamingText ? streamingText.length + 'chars' : 'null'}`);
-        debug.scroll(`  container: scrollTop=${container.scrollTop} scrollHeight=${container.scrollHeight} clientHeight=${container.clientHeight}`);
 
         prevMsgCountRef.current = newCount;
         prevStreamingRef.current = isStreaming;
 
-        // --- Priority 1: Pin-to-top when user sends a new message ---
+        // --- P1: Pin-to-top when user sends a new message ---
+        // Sets isPinned=true → React re-renders → useLayoutEffect positions zone before paint.
         if (newCount > prevCount && prevCount > 0 && intentRef.current !== 'away') {
             if (lastMessageRole === 'user') {
-                const anchor = pinAnchorRef.current;
-                const lastMsgEl = anchor?.previousElementSibling as HTMLElement | null;
-                const msgHeight = lastMsgEl?.offsetHeight ?? 0;
-                const spacerHeight = Math.max(0, container.clientHeight - msgHeight - 24);
-                setSpacer(spacerHeight);
-                debug.scroll(`P1: spacer expanded to ${spacerHeight}px, scrollHeight now=${container.scrollHeight}`);
-
-                if (anchor) {
-                    if (lastMsgEl) {
-                        const cRect = container.getBoundingClientRect();
-                        const mRect = lastMsgEl.getBoundingClientRect();
-                        const targetScrollTop = container.scrollTop + (mRect.top - cRect.top - 12);
-                        debug.scroll(`P1: pin scroll - current=${container.scrollTop} target=${targetScrollTop} delta=${mRect.top - cRect.top - 12} mRect.top=${mRect.top} cRect.top=${cRect.top}`);
-                        programmaticScroll(() => {
-                            container.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
-                        });
-                    } else {
-                        debug.scroll('P1: no lastMsgEl found (anchor.previousElementSibling is null)');
-                    }
-                } else {
-                    debug.scroll('P1: no pinAnchorRef');
-                }
-
+                needsPositionRef.current = true;
+                setIsPinned(true);
                 intentRef.current = 'pinned';
-                debug.scroll('P1: intent -> pinned, returning');
+                debug.scroll('P1: intent -> pinned');
                 return;
             }
         }
 
-        // --- Priority 2: During streaming — stay pinned, no auto-scroll ---
+        // --- P2: During streaming — stay pinned, no auto-scroll ---
         if (isStreaming && intentRef.current !== 'away') {
             if (streamingJustStarted && intentRef.current === 'idle') {
-                debug.scroll('P2: streaming just started, intent idle -> pinned');
+                setIsPinned(true);
                 intentRef.current = 'pinned';
+                debug.scroll('P2: streaming just started, intent idle -> pinned');
             }
             debug.scroll(`P2: streaming active, intent=${intentRef.current}, no scroll`);
             return;
         }
 
-        // --- Priority 3: Streaming just ended — shrink spacer, preserve scroll position ---
+        // --- P3: Streaming just ended ---
+        // Lazy approach: do NOTHING to the DOM. Keep sticky, keep minHeight, keep padding.
+        // User stays in the pinned view (their message at top, model response below).
+        // Cleanup happens on next P1 (overwrites) or scrollToBottom (explicit user action).
         if (streamingJustEnded) {
-            const currentScroll = container.scrollTop;
-            const contentH = container.scrollHeight - (spacerRef.current?.offsetHeight ?? 0);
-            const neededScrollH = currentScroll + container.clientHeight;
-            const neededSpacer = Math.max(0, neededScrollH - contentH);
-            debug.scroll(`P3: streaming ended, spacer ${spacerRef.current?.offsetHeight ?? 0}->${neededSpacer}, preserving scrollTop=${currentScroll}`);
-            setSpacer(neededSpacer);
             intentRef.current = 'idle';
+            debug.scroll('P3: streaming ended, intent -> idle (no DOM changes)');
             return;
         }
 
-        // --- Priority 4: Initial history load — scroll to bottom ---
+        // --- P4: Initial history load — scroll to bottom ---
+        // Direct scrollTop set — useEffect runs after React commits DOM, so content is ready.
         if (newCount > prevCount && intentRef.current === 'idle') {
-            const isInitialLoad = prevCount === 0;
-            debug.scroll(`P4: new messages, isInitialLoad=${isInitialLoad}`);
-            if (isInitialLoad) {
-                requestAnimationFrame(() => {
-                    requestAnimationFrame(() => {
-                        const finalScrollHeight = container.scrollHeight;
-                        const target = finalScrollHeight - container.clientHeight;
-                        debug.scroll(`P4 (instant): scrollHeight=${finalScrollHeight} target=${target}`);
-                        container.scrollTop = target;
-                        debug.scroll(`P4 (instant): scrollTop after set=${container.scrollTop}`);
-                    });
-                });
+            if (prevCount === 0) {
+                container.scrollTop = container.scrollHeight - container.clientHeight;
+                debug.scroll('P4: initial load scroll to bottom');
             }
         }
 
@@ -189,30 +162,86 @@ export function useChatScroll({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [messageCount, streamingText, isStreaming]);
 
-    // Track scroll position for FAB + away detection (ignores programmatic scrolls)
-    const handleScroll = useCallback(() => {
-        if (isProgrammaticRef.current) {
-            debug.scroll('handleScroll: skipped (programmatic)');
+    // Position zone BEFORE browser paint when isPinned changes to true.
+    // useLayoutEffect runs after React commits DOM but before paint — zero frame delay.
+    // This handles P1 positioning (minHeight + scrollTop) and ensures no visual "shift".
+    // Position zone BEFORE browser paint. Depends on isPinned + messageCount because:
+    // - isPinned: initial pin (false → true)
+    // - messageCount: subsequent pins when isPinned is already true (P3 lazy approach
+    //   doesn't reset isPinned, so setIsPinned(true) is a no-op on next send)
+    useLayoutEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
+
+        const countDelta = messageCount - prevMsgCountLayoutRef.current;
+        prevMsgCountLayoutRef.current = messageCount;
+
+        // --- P1: Position zone before paint ---
+        if (needsPositionRef.current) {
+            needsPositionRef.current = false;
+
+            const zone = stickyZoneRef.current;
+            if (!zone) return;
+
+            // Set minHeight — zone must cover viewport for sticky runway
+            zone.style.minHeight = `${container.clientHeight}px`;
+
+            // Position zone flush with scrollport top. Zone's own CSS padding-top (12px)
+            // provides the visual gap — no reliance on container padding or flex gap.
+            flushZoneToTop(zone, container);
+
+            prevScrollHeightRef.current = container.scrollHeight;
+            debug.scroll(`useLayoutEffect P1: flush, scrollTop=${container.scrollTop}`);
             return;
         }
+
+        // --- Scroll preservation for bulk prepend ("Load earlier messages") ---
+        // When messages are added above the zone while pinned, Chrome's scroll anchoring
+        // can't fully compensate (zone has overflow-anchor:none). Re-position zone flush
+        // with the scrollport — same absolute logic as P1, idempotent regardless of
+        // what Chrome already did.
+        // countDelta > 1 filters out single model-message arrivals (+1).
+        if (isPinned && countDelta > 1 && prevScrollHeightRef.current > 0) {
+            const zone = stickyZoneRef.current;
+            if (zone) {
+                flushZoneToTop(zone, container);
+                debug.scroll(`useLayoutEffect: prepend re-flush, countDelta=${countDelta}`);
+            }
+            prevScrollHeightRef.current = container.scrollHeight;
+        }
+    }, [isPinned, messageCount]);
+
+    // Track scroll position for FAB + away detection
+    const handleScroll = useCallback(() => {
         const el = containerRef.current;
         if (!el) return;
         const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
 
-        setShowScrollFab(distanceFromBottom > 200);
+        // Hide FAB when pinned — user is already in correct view (Key Decision #10)
+        setShowScrollFab(distanceFromBottom > FAB_DISTANCE_THRESHOLD && intentRef.current !== 'pinned');
 
-        if (distanceFromBottom > 80 && intentRef.current === 'pinned') {
-            debug.scroll(`handleScroll: user scrolled away! distance=${distanceFromBottom} intent pinned -> away`);
+        // Pinned → away: user scrolled to history during streaming
+        if (distanceFromBottom > AWAY_DISTANCE_THRESHOLD && intentRef.current === 'pinned') {
+            debug.scroll(`handleScroll: user scrolled away, intent pinned -> away`);
             intentRef.current = 'away';
         }
 
-        if (distanceFromBottom <= 80 && intentRef.current === 'away') {
-            debug.scroll(`handleScroll: user scrolled back near bottom, intent away -> idle`);
-            intentRef.current = 'idle';
+        // Away → return: user scrolled back near bottom
+        if (distanceFromBottom <= AWAY_DISTANCE_THRESHOLD && intentRef.current === 'away') {
+            if (isStreamingRef.current) {
+                // Streaming still active — re-pin (Key Decision #9)
+                debug.scroll('handleScroll: back near bottom during streaming, re-pin');
+                intentRef.current = 'pinned';
+                // isPinned stays true (never set to false during away)
+            } else {
+                debug.scroll('handleScroll: back near bottom, intent away -> idle');
+                intentRef.current = 'idle';
+                setIsPinned(false);
+                setSpacer(0);
+            }
         }
 
-        // Lazy spacer cleanup: P3 leaves a residual spacer to preserve scroll
-        // position after streaming ends. Once the user scrolls, collapse it.
+        // Lazy spacer cleanup (P3 residual)
         const spacerH = spacerRef.current?.offsetHeight ?? 0;
         if (spacerH > 0 && intentRef.current === 'idle') {
             debug.scroll(`handleScroll: collapsing residual spacer (${spacerH}px)`);
@@ -229,7 +258,7 @@ export function useChatScroll({
             const newHeight = el.clientHeight;
             if (newHeight < prevHeight) {
                 const distFromBottom = el.scrollHeight - el.scrollTop - prevHeight;
-                if (distFromBottom < 80) {
+                if (distFromBottom < AWAY_DISTANCE_THRESHOLD) {
                     el.scrollTop = el.scrollHeight - newHeight;
                 }
             }
@@ -241,19 +270,35 @@ export function useChatScroll({
 
     const scrollToBottom = useCallback(() => {
         debug.scroll('scrollToBottom clicked');
-        intentRef.current = 'idle';
-        setSpacer(0);
-        programmaticScroll(() => {
-            containerRef.current?.scrollTo({ top: containerRef.current.scrollHeight, behavior: 'smooth' });
-        });
-    }, [setSpacer, programmaticScroll]);
+        if (isStreamingRef.current && stickyZoneRef.current && containerRef.current) {
+            // During streaming: return to pinned view (Key Decision #10)
+            intentRef.current = 'pinned';
+            const containerRect = containerRef.current.getBoundingClientRect();
+            const zoneRect = stickyZoneRef.current.getBoundingClientRect();
+            containerRef.current.scrollTo({
+                top: containerRef.current.scrollTop + zoneRect.top - containerRect.top,
+                behavior: 'smooth',
+            });
+        } else {
+            // After streaming: normal scroll to bottom
+            intentRef.current = 'idle';
+            setIsPinned(false);
+            setSpacer(0);
+            if (stickyZoneRef.current) stickyZoneRef.current.style.minHeight = '';
+            containerRef.current?.scrollTo({
+                top: containerRef.current.scrollHeight,
+                behavior: 'smooth',
+            });
+        }
+    }, [setSpacer]);
 
     return {
         containerRef,
-        pinAnchorRef,
+        stickyZoneRef,
         spacerRef,
         bottomRef,
         showScrollFab,
+        isPinned,
         scrollToBottom,
         handleScroll,
     };
