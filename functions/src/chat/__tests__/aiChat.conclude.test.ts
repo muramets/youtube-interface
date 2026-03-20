@@ -1,22 +1,21 @@
 // =============================================================================
 // aiChat — conclude/memorize integration tests
 //
-// Verifies: isConclude tool injection and correct tool list composition.
+// Verifies: saveMemory is always in TOOL_DECLARATIONS, tool list is stable
+// regardless of isConclude flag (critical for prompt cache stability).
 // =============================================================================
 
 import { describe, it, expect } from "vitest";
 import { TOOL_DECLARATIONS, CONCLUDE_TOOL_DECLARATIONS } from "../../services/tools/definitions.js";
 
-describe("Conclude tool injection", () => {
-    it("TOOL_DECLARATIONS does NOT include saveMemory", () => {
+describe("Tool list stability (prompt cache)", () => {
+    it("TOOL_DECLARATIONS includes saveMemory", () => {
         const names = TOOL_DECLARATIONS.map(t => t.name);
-        expect(names).not.toContain("saveMemory");
+        expect(names).toContain("saveMemory");
     });
 
-    it("CONCLUDE_TOOL_DECLARATIONS includes saveMemory", () => {
-        const names = CONCLUDE_TOOL_DECLARATIONS.map(t => t.name);
-        expect(names).toContain("saveMemory");
-        expect(names).toHaveLength(1);
+    it("CONCLUDE_TOOL_DECLARATIONS is empty (deprecated)", () => {
+        expect(CONCLUDE_TOOL_DECLARATIONS).toHaveLength(0);
     });
 
     it("TOOL_DECLARATIONS includes all KI tools", () => {
@@ -27,27 +26,20 @@ describe("Conclude tool injection", () => {
         expect(names).toContain("getKnowledge");
     });
 
-    it("isConclude=true produces combined tool list with saveMemory at end", () => {
-        const isConclude = true;
-        const tools = isConclude
-            ? [...TOOL_DECLARATIONS, ...CONCLUDE_TOOL_DECLARATIONS]
-            : TOOL_DECLARATIONS;
+    it("tool list is the same regardless of isConclude", () => {
+        // This is the critical test: the tool list must never change between
+        // normal and conclude calls, otherwise BP2 cache breakpoint invalidates.
+        const normalTools = TOOL_DECLARATIONS;
+        const concludeTools = [...TOOL_DECLARATIONS, ...CONCLUDE_TOOL_DECLARATIONS];
 
-        const names = tools.map(t => t.name);
-        expect(names).toContain("saveMemory");
-        expect(names).toContain("saveKnowledge");
-        // saveMemory is at the end (after all standard tools)
-        expect(names.indexOf("saveMemory")).toBeGreaterThan(names.indexOf("saveKnowledge"));
+        expect(concludeTools).toEqual(normalTools);
     });
 
-    it("isConclude=false does NOT include saveMemory", () => {
-        const isConclude = false;
-        const tools = isConclude
-            ? [...TOOL_DECLARATIONS, ...CONCLUDE_TOOL_DECLARATIONS]
-            : TOOL_DECLARATIONS;
-
-        const names = tools.map(t => t.name);
-        expect(names).not.toContain("saveMemory");
+    it("saveMemory tool description does not mention conclude-only", () => {
+        const saveMemoryTool = TOOL_DECLARATIONS.find(t => t.name === "saveMemory");
+        expect(saveMemoryTool).toBeDefined();
+        expect(saveMemoryTool!.description.toLowerCase()).not.toContain("only available during memorize");
+        expect(saveMemoryTool!.description.toLowerCase()).not.toContain("conclude-only");
     });
 });
 

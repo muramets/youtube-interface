@@ -16,7 +16,7 @@ import { createProviderRouter } from "../services/ai/providerRouter.js";
 import { geminiFactory } from "../services/gemini/factory.js";
 import { geminiContext } from "../services/gemini/context.js";
 import { claudeFactory } from "../services/claude/factory.js";
-import { TOOL_DECLARATIONS, CONCLUDE_TOOL_DECLARATIONS } from "../services/tools/definitions.js";
+import { TOOL_DECLARATIONS } from "../services/tools/definitions.js";
 import type { StreamCallbacks, AttachmentRef, ToolCallRecord, ToolIteration } from "../services/ai/types.js";
 import { AiStreamTimeoutError } from "../services/ai/retry.js";
 import { writeSSE } from "./sseWriter.js";
@@ -392,9 +392,10 @@ export const aiChat = onRequest(
                     if (!existingKI.empty) {
                         const kiList = existingKI.docs.map(doc => {
                             const d = doc.data();
-                            return `- ${d.category}: "${d.title}" [id: ${doc.id}]`;
+                            const videoSuffix = d.videoId ? ` (video: ${d.videoId})` : '';
+                            return `- ${d.category}: "${d.title}"${videoSuffix} [id: ${doc.id}]`;
                         }).join('\n');
-                        concludeText += `\n\nKnowledge Items already saved for this conversation (do NOT recreate):\n${kiList}`;
+                        concludeText += `\n\nKnowledge Items already saved for this conversation (use editKnowledge to update, not saveKnowledge to recreate):\n${kiList}`;
                         console.info(`[aiChat] ── Conclude context ── ${existingKI.size} existing KI injected`);
                     }
                 } catch (err) {
@@ -410,7 +411,7 @@ export const aiChat = onRequest(
                 text: concludeText,
                 attachments: body.isConclude ? undefined : currentAttachments, // Skip attachments for conclude — context already in history
                 imageUrls: body.isConclude ? undefined : body.thumbnailUrls, // Skip thumbnails for conclude — AI doesn't need images when memorizing
-                tools: body.isConclude ? [...TOOL_DECLARATIONS, ...CONCLUDE_TOOL_DECLARATIONS] : TOOL_DECLARATIONS,
+                tools: TOOL_DECLARATIONS,
                 toolContext: { userId, channelId: body.channelId, channelName, youtubeApiKey: userYoutubeApiKey, conversationId: body.conversationId, model, isConclude: body.isConclude },
                 thinkingOptionId,
                 callbacks,

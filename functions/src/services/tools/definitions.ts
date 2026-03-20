@@ -633,31 +633,25 @@ const editKnowledge: ToolDefinition = {
     },
 };
 
-// --- Conclude-only tools (injected when isConclude = true) ---
-
 const saveMemory: ToolDefinition = {
     name: TOOL_NAMES.SAVE_MEMORY,
     description:
-        "Save a cross-conversation memory summarizing key decisions and insights. " +
-        "ONLY available during memorize/conclude turns. " +
-        "Call AFTER all saveKnowledge calls are complete. " +
-        "The memory should reference Knowledge Items by ID (from saveKnowledge results), " +
-        "NOT duplicate their content. Keep the memory concise — it's a pointer, not a copy. " +
-        "Include: key decisions made, open questions, action items, and KI references.",
+        "Save or update a cross-conversation memory — a concise summary that carries context " +
+        "into future sessions. Call when the conversation reaches a meaningful checkpoint " +
+        "(e.g., a strategy was decided, next steps were agreed, or open questions were identified). " +
+        "Include: key decisions, action items, open questions.",
     parametersJsonSchema: {
         type: "object",
         properties: {
             content: {
                 type: "string",
                 description:
-                    "Memory content in markdown. Reference KI by title (not raw ID). " +
+                    "Memory content in markdown. This text will be injected into the system prompt " +
+                    "of future conversations so the assistant remembers context across sessions. " +
+                    "Write for your future self: what would you need to know to continue this work? " +
                     "When referencing videos, use [video title](vid://VIDEO_ID) links. " +
+                    "When referencing Knowledge Items, use [Title](ki://kiId) links. " +
                     "Sections: Decisions, Insights, Action Items, Open Questions.",
-            },
-            kiRefs: {
-                type: "array",
-                items: { type: "string" },
-                description: "IDs of Knowledge Items created during this conversation (from saveKnowledge results).",
             },
         },
         required: ["content"],
@@ -684,9 +678,8 @@ export const TOOL_DECLARATIONS: ToolDefinition[] = [
     editKnowledge,
     listKnowledge,
     getKnowledge,
-];
-
-/** Conclude-only tools — injected into tool list when isConclude = true */
-export const CONCLUDE_TOOL_DECLARATIONS: ToolDefinition[] = [
     saveMemory,
 ];
+
+/** @deprecated Empty — saveMemory moved to TOOL_DECLARATIONS. Kept for backward compat (test mocks). */
+export const CONCLUDE_TOOL_DECLARATIONS: ToolDefinition[] = [];

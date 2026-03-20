@@ -150,9 +150,9 @@ Composite indexes deployed: idempotency guard (`conversationId + category + vide
 | `functions/src/services/tools/handlers/knowledge/saveKnowledge.ts` | Slug validation, idempotency guard (no auto-delete/supersede — each KI is a point-in-time snapshot), **custom video ID resolution** (`resolveVideosByIds` before batch — maps YouTube IDs to `custom-*` docs), atomic batch (KI doc + discovery flags), registry update, **video ref resolution** (regex extract from raw IDs + `vid://` links → `resolveVideosByIds` → `resolvedVideoRefs` snapshot with `hasRealVideoData` guard). Structured logging: `── Validation failed ──`, `── Duplicate ──`, `── Video not found ──`, `── Persisted ──`, `── VideoRefs ──` |
 | `functions/src/services/tools/handlers/knowledge/listKnowledge.ts` | Summary + meta (no content), `.limit(50)` |
 | `functions/src/services/tools/handlers/knowledge/getKnowledge.ts` | Full content by IDs (`db.getAll`) or filters, `.limit(20)` |
-| `functions/src/services/tools/handlers/knowledge/saveMemory.ts` | Conclude-only (`isConclude`), idempotency (60s window), orphan guard, validates `kiRefs` via `db.getAll()` |
+| `functions/src/services/tools/handlers/knowledge/saveMemory.ts` | Always-available. Deterministic doc ID (`conversationId`), upsert: get → exists ? update : set. Orphan guard, validates `kiRefs` via `db.getAll()` |
 | `functions/src/triggers/onKnowledgeItemDeleted.ts` | Firestore trigger: `FieldValue.increment(-1)` + conditional `arrayRemove` for discovery flags |
-| `functions/src/services/tools/definitions.ts` | Tool definitions + `CONCLUDE_TOOL_DECLARATIONS` (saveMemory, injected at `isConclude`) |
+| `functions/src/services/tools/definitions.ts` | Tool definitions. `saveMemory` always in `TOOL_DECLARATIONS`. `CONCLUDE_TOOL_DECLARATIONS` empty (deprecated) |
 | `functions/src/chat/aiChat.ts` | `isConclude` → **conclude context injection** (existing KI list appended to avoid duplicates), tool injection, strip `saveKnowledge` content before persist, skip thumbnails/attachments for conclude |
 
 ### Frontend

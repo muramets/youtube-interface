@@ -1,43 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ToolContext } from '../../../types.js';
 
-// --- Mock Firestore ---
+// --- Mock Firestore (deterministic ID pattern) ---
 
-const mockCollectionAdd = vi.fn();
-const mockCollectionWhere = vi.fn();
-const mockGet = vi.fn();
 const mockDocGet = vi.fn();
-const mockGetAll = vi.fn();
-const mockDocPaths = new Map<string, string>();
-
-const createChainedQuery = () => ({
-    where: (...args: unknown[]) => {
-        mockCollectionWhere(...args);
-        return createChainedQuery();
-    },
-    limit: () => createChainedQuery(),
-    get: () => mockGet(),
-});
+const mockDocSet = vi.fn();
+const mockDocUpdate = vi.fn();
 
 vi.mock('../../../../../shared/db.js', () => ({
     db: {
-        collection: () => ({
-            where: (...args: unknown[]) => {
-                mockCollectionWhere(...args);
-                return createChainedQuery();
-            },
-            add: (data: unknown) => mockCollectionAdd(data),
+        doc: (path: string) => ({
+            get: () => mockDocGet(path),
+            set: (data: unknown) => mockDocSet(path, data),
+            update: (data: unknown) => mockDocUpdate(path, data),
+            id: path.split('/').pop() || path,
+            path,
         }),
-        doc: (path: string) => {
-            const id = path.split('/').pop() || path;
-            mockDocPaths.set(id, path);
-            return {
-                get: () => mockDocGet(),
-                id,
-                path,
-            };
-        },
-        getAll: (...refs: unknown[]) => mockGetAll(...refs),
     },
 }));
 
@@ -55,104 +33,113 @@ const CTX: ToolContext = {
     conversationId: 'conv-123',
 };
 
+const CONV_PATH = 'users/user1/channels/ch1/chatConversations/conv-123';
+const MEMORY_PATH = 'users/user1/channels/ch1/conversationMemories/conv-123';
+
 beforeEach(() => {
     vi.clearAllMocks();
-    mockDocPaths.clear();
-    // Default: no duplicate, conversation exists
-    mockGet.mockResolvedValue({ empty: true, docs: [] });
-    mockDocGet.mockResolvedValue({
-        exists: true,
-        data: () => ({ title: 'Test Conversation' }),
+    // Default: conversation exists, memory does not exist
+    mockDocGet.mockImplementation((path: string) => {
+        if (path === CONV_PATH) {
+            return Promise.resolve({
+                exists: true,
+                data: () => ({ title: 'Test Conversation' }),
+            });
+        }
+        // Memory doc does not exist by default
+        return Promise.resolve({ exists: false });
     });
-    mockCollectionAdd.mockResolvedValue({ id: 'mem-new-id' });
-    // Default: all KI refs exist
-    mockGetAll.mockResolvedValue([
-        { exists: true, id: 'ki-1' },
-        { exists: true, id: 'ki-2' },
-    ]);
+    mockDocSet.mockResolvedValue(undefined);
+    mockDocUpdate.mockResolvedValue(undefined);
 });
 
 describe('handleSaveMemory', () => {
-    it('creates Memory doc with validated kiRefs', async () => {
+    // --- Create path ---
+
+    it('creates new Memory doc with deterministic ID', async () => {
         const result = await handleSaveMemory(
-            { content: '## Decisions\n- chose X', kiRefs: ['ki-1', 'ki-2'] },
+            { content: '## Decisions\n- chose X' },
             CTX,
         );
 
-        expect(result.memoryId).toBe('mem-new-id');
-        expect(result.content).toContain('2 Knowledge Item references');
+        expect(result.memoryId).toBe('conv-123');
+        expect(result).not.toHaveProperty('updated');
 
-        const savedData = mockCollectionAdd.mock.calls[0][0];
-        expect(savedData.conversationId).toBe('conv-123');
-        expect(savedData.conversationTitle).toBe('Test Conversation');
-        expect(savedData.content).toBe('## Decisions\n- chose X');
-        expect(savedData.kiRefs).toEqual(['ki-1', 'ki-2']);
-        expect(savedData.createdAt).toBe('SERVER_TIMESTAMP');
+        expect(mockDocSet).toHaveBeenCalledWith(MEMORY_PATH, {
+            conversationId: 'conv-123',
+            conversationTitle: 'Test Conversation',
+            content: '## Decisions\n- chose X',
+            createdAt: 'SERVER_TIMESTAMP',
+            updatedAt: 'SERVER_TIMESTAMP',
+        });
+        expect(mockDocUpdate).not.toHaveBeenCalled();
     });
 
-    it('creates Memory without kiRefs when empty', async () => {
-        const result = await handleSaveMemory(
-            { content: '## Quick notes' },
-            CTX,
-        );
+    // --- Update path (deterministic ID upsert) ---
 
-        expect(result.memoryId).toBe('mem-new-id');
-
-        const savedData = mockCollectionAdd.mock.calls[0][0];
-        expect(savedData).not.toHaveProperty('kiRefs');
-        expect(mockGetAll).not.toHaveBeenCalled();
-    });
-
-    it('filters out non-existent kiRefs', async () => {
-        mockGetAll.mockResolvedValue([
-            { exists: true, id: 'ki-1' },
-            { exists: false, id: 'ki-bad' },
-            { exists: true, id: 'ki-3' },
-        ]);
-
-        const result = await handleSaveMemory(
-            { content: '## Notes', kiRefs: ['ki-1', 'ki-bad', 'ki-3'] },
-            CTX,
-        );
-
-        expect(result.memoryId).toBe('mem-new-id');
-
-        const savedData = mockCollectionAdd.mock.calls[0][0];
-        expect(savedData.kiRefs).toEqual(['ki-1', 'ki-3']);
-    });
-
-    it('omits kiRefs entirely when all are invalid', async () => {
-        mockGetAll.mockResolvedValue([
-            { exists: false, id: 'ki-bad-1' },
-            { exists: false, id: 'ki-bad-2' },
-        ]);
-
-        const result = await handleSaveMemory(
-            { content: '## Notes', kiRefs: ['ki-bad-1', 'ki-bad-2'] },
-            CTX,
-        );
-
-        expect(result.memoryId).toBe('mem-new-id');
-
-        const savedData = mockCollectionAdd.mock.calls[0][0];
-        expect(savedData).not.toHaveProperty('kiRefs');
-    });
-
-    it('returns existing Memory if duplicate within 60s (idempotency)', async () => {
-        mockGet.mockResolvedValue({
-            empty: false,
-            docs: [{ id: 'mem-existing' }],
+    it('updates existing memory when doc exists', async () => {
+        mockDocGet.mockImplementation((path: string) => {
+            if (path === CONV_PATH) {
+                return Promise.resolve({
+                    exists: true,
+                    data: () => ({ title: 'Updated Title' }),
+                });
+            }
+            return Promise.resolve({ exists: true });
         });
 
         const result = await handleSaveMemory(
-            { content: '## Notes' },
+            { content: '## Updated summary' },
             CTX,
         );
 
-        expect(result.memoryId).toBe('mem-existing');
-        expect(result.skipped).toBe(true);
-        expect(mockCollectionAdd).not.toHaveBeenCalled();
+        expect(result.memoryId).toBe('conv-123');
+        expect(result.updated).toBe(true);
+
+        expect(mockDocUpdate).toHaveBeenCalledWith(MEMORY_PATH, {
+            content: '## Updated summary',
+            conversationTitle: 'Updated Title',
+            updatedAt: 'SERVER_TIMESTAMP',
+        });
+        expect(mockDocSet).not.toHaveBeenCalled();
     });
+
+    it('update preserves original createdAt', async () => {
+        mockDocGet.mockImplementation((path: string) => {
+            if (path === CONV_PATH) {
+                return Promise.resolve({
+                    exists: true,
+                    data: () => ({ title: 'Title' }),
+                });
+            }
+            return Promise.resolve({ exists: true });
+        });
+
+        await handleSaveMemory({ content: '## Notes' }, CTX);
+
+        const updateData = mockDocUpdate.mock.calls[0][1] as Record<string, unknown>;
+        expect(updateData).not.toHaveProperty('createdAt');
+        expect(updateData).toHaveProperty('updatedAt');
+    });
+
+    it('update refreshes conversationTitle from conv doc', async () => {
+        mockDocGet.mockImplementation((path: string) => {
+            if (path === CONV_PATH) {
+                return Promise.resolve({
+                    exists: true,
+                    data: () => ({ title: 'Renamed Conversation' }),
+                });
+            }
+            return Promise.resolve({ exists: true });
+        });
+
+        await handleSaveMemory({ content: '## Notes' }, CTX);
+
+        const updateData = mockDocUpdate.mock.calls[0][1] as Record<string, unknown>;
+        expect(updateData.conversationTitle).toBe('Renamed Conversation');
+    });
+
+    // --- Guard paths ---
 
     it('fails if conversation was deleted (orphan prevention)', async () => {
         mockDocGet.mockResolvedValue({ exists: false });
@@ -163,23 +150,18 @@ describe('handleSaveMemory', () => {
         );
 
         expect(result.error).toContain('deleted during memorization');
-        expect(mockCollectionAdd).not.toHaveBeenCalled();
+        expect(mockDocSet).not.toHaveBeenCalled();
+        expect(mockDocUpdate).not.toHaveBeenCalled();
     });
 
     it('returns error when content missing', async () => {
         const result = await handleSaveMemory({}, CTX);
-
         expect(result.error).toContain('content is required');
     });
 
     it('returns error when conversationId missing', async () => {
         const noConvCtx: ToolContext = { userId: 'user1', channelId: 'ch1' };
-
-        const result = await handleSaveMemory(
-            { content: '## Notes' },
-            noConvCtx,
-        );
-
+        const result = await handleSaveMemory({ content: '## Notes' }, noConvCtx);
         expect(result.error).toContain('conversationId');
     });
 });

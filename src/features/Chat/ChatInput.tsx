@@ -439,7 +439,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     )}
 
                     {/* Send / Stop / Memorize-Submit button */}
-                    {isMemorizing ? (
+                    {isMemorizing && !isStreaming ? (
                         <button
                             className={`${actionBtnClass} !text-accent hover:!bg-accent/10`}
                             onClick={handleMemorizeSend}
