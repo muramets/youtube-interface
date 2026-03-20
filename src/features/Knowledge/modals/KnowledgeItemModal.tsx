@@ -13,22 +13,14 @@ import type { KnowledgeItem, KnowledgeVersionWithId } from '../../../core/types/
 import type { VideoPreviewData } from '../../Video/types'
 import type { KiPreviewData } from '../../../components/ui/organisms/RichTextEditor/types'
 import { VideoLinkField } from '../components/VideoLinkField'
-import { formatKnowledgeDate, formatVersionLabel } from '../utils/formatDate'
+import { formatKnowledgeDate, formatVersionLabel, getOriginLabel } from '../utils/formatDate'
+import type { KnowledgeItemSaveUpdates } from '../hooks/useKnowledgeSaveHandler'
 
 interface KnowledgeItemModalProps {
     /** The Knowledge Item to edit */
     item: KnowledgeItem
     /** Called with updated fields when user saves */
-    onSave: (updates: {
-        title: string;
-        summary: string;
-        content: string;
-        videoId?: string;
-        scope?: 'video' | 'channel';
-        skipVersioning?: boolean;
-        lastEditSource?: string;
-        lastEditedBy?: string;
-    }) => void
+    onSave: (updates: KnowledgeItemSaveUpdates) => void
     /** Called when modal should close */
     onClose: () => void
     /** Video catalog for @-autocomplete and vid:// tooltips */
@@ -64,7 +56,7 @@ export const KnowledgeItemModal = React.memo(({
     const [content, setContent] = useState(item.content)
     const [linkedVideoId, setLinkedVideoId] = useState<string | undefined>(item.videoId)
 
-    const { versions, deleteVersion, deleteVersions } = useKnowledgeVersions(userId, channelId, item.id)
+    const { versions, deleteVersion } = useKnowledgeVersions(userId, channelId, item.id)
     const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null)
     const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([])
     const [restoredVersion, setRestoredVersion] = useState<KnowledgeVersionWithId | null>(null)
@@ -131,13 +123,12 @@ export const KnowledgeItemModal = React.memo(({
                 updates.lastEditSource = 'manual'
                 updates.lastEditedBy = ''
             }
+            // Atomic: version cleanup happens in the same Firestore batch as save
+            updates.versionIdsToDelete = [...pendingDeleteIds, restoredVersion.id]
         }
         onSave(updates)
-        if (isRestore && restoredVersion) {
-            deleteVersions([...pendingDeleteIds, restoredVersion.id])
-        }
         onClose()
-    }, [title, summary, content, linkedVideoId, item.videoId, onSave, onClose, isRestore, restoredVersion, pendingDeleteIds, deleteVersions])
+    }, [title, summary, content, linkedVideoId, item.videoId, onSave, onClose, isRestore, restoredVersion, pendingDeleteIds])
 
     const hasChanges = title.trim() !== item.title
         || summary.trim() !== item.summary
@@ -145,14 +136,16 @@ export const KnowledgeItemModal = React.memo(({
         || linkedVideoId !== item.videoId
     const dateStr = formatKnowledgeDate(item.createdAt)
     const baseCurrentDate = formatKnowledgeDate(item.updatedAt ?? item.createdAt, true)
-    const baseCurrentSource = item.lastEditSource ?? item.source
     const baseCurrentModel = item.lastEditedBy ?? item.model
 
     // When restore is active, Current shows the restored version's metadata
     const currentDateStr = restoredVersion
         ? new Date(restoredVersion.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
         : baseCurrentDate
-    const currentSource = restoredVersion ? restoredVersion.source : baseCurrentSource
+    // Origin is always the KI creation source (immutable)
+    const originSource = item.source
+    // Edit source: who last edited. undefined = never edited
+    const editSource = restoredVersion ? restoredVersion.source : item.lastEditSource
     const currentModel = restoredVersion ? (restoredVersion.model ?? '') : baseCurrentModel
 
     // --- Expanded mode slots ---
@@ -166,11 +159,12 @@ export const KnowledgeItemModal = React.memo(({
             onRestore={handleRestore}
             pendingDeleteIds={pendingDeleteIds}
             restoredVersionId={restoredVersion?.id}
-            currentSource={currentSource}
+            originSource={originSource}
+            editSource={editSource}
             currentModel={currentModel}
             currentDate={currentDateStr}
         />
-    ), [versions, selectedVersionId, deleteVersion, handleRestore, pendingDeleteIds, restoredVersion, currentSource, currentModel, currentDateStr])
+    ), [versions, selectedVersionId, deleteVersion, handleRestore, pendingDeleteIds, restoredVersion, originSource, editSource, currentModel, currentDateStr])
 
     const expandedSidePanel = selectedVersion ? (
         <LiveDiffPanel
@@ -226,7 +220,7 @@ export const KnowledgeItemModal = React.memo(({
                             </span>
                         )}
                         <Badge variant="neutral">
-                            {item.source === 'manual' ? 'Manual' : item.source === 'conclude' ? 'via Memorize' : 'Chat'}
+                            {getOriginLabel(item.source)}
                         </Badge>
                     </div>
 

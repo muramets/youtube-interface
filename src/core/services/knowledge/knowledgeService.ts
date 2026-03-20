@@ -228,21 +228,24 @@ export const KnowledgeService = {
         userId: string,
         channelId: string,
         itemId: string,
-        updates: Partial<Pick<KnowledgeItem, 'title' | 'content' | 'summary' | 'videoId' | 'scope'>>,
+        updates: Partial<Pick<KnowledgeItem, 'title' | 'content' | 'summary' | 'videoId' | 'scope' | 'lastEditSource' | 'lastEditedBy'>>,
         previousItem: KnowledgeItem,
+        versionIdsToDelete?: string[],
     ): Promise<void> => {
-        const contentChanged = updates.content !== undefined
-            && updates.content.trim() !== previousItem.content.trim();
-        const scopeChanged = hasScopeChange(updates, previousItem);
-        const needsBatch = contentChanged || scopeChanged;
+        const { lastEditSource, lastEditedBy, ...baseUpdates } = updates;
+        const contentChanged = baseUpdates.content !== undefined
+            && baseUpdates.content.trim() !== previousItem.content.trim();
+        const scopeChanged = hasScopeChange(baseUpdates, previousItem);
+        const hasVersionDeletes = versionIdsToDelete && versionIdsToDelete.length > 0;
+        const needsBatch = contentChanged || scopeChanged || hasVersionDeletes;
 
         if (needsBatch) {
             const batch = writeBatch(db);
+            const versionsPath = `${getKnowledgeItemsPath(userId, channelId)}/${itemId}/versions`;
 
             // Version snapshot (only if content changed)
             if (contentChanged) {
                 const versionId = `v-${Date.now()}`;
-                const versionsPath = `${getKnowledgeItemsPath(userId, channelId)}/${itemId}/versions`;
                 const versionRef = doc(db, versionsPath, versionId);
                 const contentTs = previousItem.updatedAt ?? previousItem.createdAt;
                 const contentTimeMs = contentTs.toDate?.()?.getTime()
@@ -256,19 +259,26 @@ export const KnowledgeService = {
                 }));
             }
 
+            // Atomic version cleanup (restore flow — delete newer versions in same batch)
+            if (hasVersionDeletes) {
+                for (const vId of versionIdsToDelete) {
+                    batch.delete(doc(db, versionsPath, vId));
+                }
+            }
+
             // Main doc update
             const kiRef = doc(db, getKnowledgeItemsPath(userId, channelId), itemId);
-            const kiPayload = buildKiUpdatePayload(updates);
+            const kiPayload = buildKiUpdatePayload(baseUpdates);
             if (contentChanged) {
-                kiPayload.lastEditSource = 'manual';
-                kiPayload.lastEditedBy = '';
+                kiPayload.lastEditSource = lastEditSource ?? 'manual';
+                kiPayload.lastEditedBy = lastEditedBy ?? '';
             }
             batch.update(kiRef, kiPayload);
 
             // Discovery flags update (only if scope/videoId changed)
             if (scopeChanged) {
                 const basePath = `users/${userId}/channels/${channelId}`;
-                addDiscoveryFlagUpdates(batch, basePath, previousItem, updates);
+                addDiscoveryFlagUpdates(batch, basePath, previousItem, baseUpdates);
             }
 
             await batch.commit();
@@ -277,7 +287,7 @@ export const KnowledgeService = {
             await updateDocument(
                 getKnowledgeItemsPath(userId, channelId),
                 itemId,
-                buildKiUpdatePayload(updates),
+                buildKiUpdatePayload(baseUpdates),
             );
         }
     },

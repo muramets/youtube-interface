@@ -138,7 +138,7 @@ export const CollapsibleMarkdownSections = React.memo(({
             variant="mini"
             title={
                 <div className="inline-block pointer-events-none">
-                    <ReactMarkdown rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]} components={config.headerComponents}>
+                    <ReactMarkdown rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]} urlTransform={allowCustomUrls} components={config.headerComponents}>
                         {section.title}
                     </ReactMarkdown>
                 </div>

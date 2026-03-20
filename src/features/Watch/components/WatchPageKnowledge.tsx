@@ -2,6 +2,7 @@ import React, { useState, useCallback, useMemo } from 'react'
 import { useAuth } from '../../../core/hooks/useAuth'
 import { useChannelStore } from '../../../core/stores/channelStore'
 import { useVideoKnowledgeItems, useUpdateKnowledgeItem, useDeleteKnowledgeItem } from '../../../core/hooks/useKnowledgeItems'
+import { useKnowledgeSaveHandler } from '../../Knowledge/hooks/useKnowledgeSaveHandler'
 import { useVideos } from '../../../core/hooks/useVideos'
 import { useVideosCatalog } from '../../../core/hooks/useVideosCatalog'
 import { useKnowledgeCatalog } from '../../../core/hooks/useKnowledgeCatalog'
@@ -41,24 +42,7 @@ export const WatchPageKnowledge = React.memo(({ videoId }: WatchPageKnowledgePro
         setEditingItem(item)
     }, [])
 
-    const handleSave = useCallback((updates: {
-        title: string;
-        summary: string;
-        content: string;
-        videoId?: string;
-        scope?: 'video' | 'channel';
-        skipVersioning?: boolean;
-        lastEditSource?: string;
-        lastEditedBy?: string;
-    }) => {
-        if (!editingItem) return
-        const { skipVersioning, ...firestoreUpdates } = updates
-        updateMutation.mutate({
-            itemId: editingItem.id,
-            updates: firestoreUpdates,
-            previousItem: skipVersioning ? undefined : editingItem,
-        })
-    }, [editingItem, updateMutation])
+    const handleSave = useKnowledgeSaveHandler(editingItem, updateMutation)
 
     const handleDelete = useCallback((item: KnowledgeItem) => {
         deleteMutation.mutate(item.id)

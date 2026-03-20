@@ -125,6 +125,7 @@ Slug validation: `SLUG_PATTERN` (`/^[a-z0-9]+(-[a-z0-9]+)*$/`) — shared меж
 
 ## Related Features
 
+- [Edit Knowledge](./edit-knowledge.md) — LLM/UI редактирование KI, version history, diff viewer, restore
 - [Memory System](../chat/context/memory-system.md) — L4 cross-conversation memory; Memorize создаёт KI перед Memory
 - [YouTube Research Tools](../chat/tools/README.md) — тулы, генерирующие данные для KI
 - [Video View Deltas](../trends/video-view-deltas.md) — delta enrichment, потребитель KI при анализе
@@ -147,10 +148,10 @@ Composite indexes deployed: idempotency guard (`conversationId + category + vide
 
 | File | Role |
 |------|------|
-| `functions/src/services/tools/handlers/knowledge/saveKnowledge.ts` | Slug validation, idempotency guard (no auto-delete/supersede — each KI is a point-in-time snapshot), **custom video ID resolution** (`resolveVideosByIds` before batch — maps YouTube IDs to `custom-*` docs), atomic batch (KI doc + discovery flags), registry update, **video ref resolution** (regex extract from raw IDs + `vid://` links → `resolveVideosByIds` → `resolvedVideoRefs` snapshot with `hasRealVideoData` guard). Structured logging: `── Validation failed ──`, `── Duplicate ──`, `── Video not found ──`, `── Persisted ──`, `── VideoRefs ──` |
-| `functions/src/services/tools/handlers/knowledge/listKnowledge.ts` | Summary + meta (no content), `.limit(50)` |
-| `functions/src/services/tools/handlers/knowledge/getKnowledge.ts` | Full content by IDs (`db.getAll`) or filters, `.limit(20)` |
-| `functions/src/services/tools/handlers/knowledge/saveMemory.ts` | Always-available. Deterministic doc ID (`conversationId`), upsert: get → exists ? update : set. Orphan guard. KI referenced via `ki://` links in content, not structured field |
+| `functions/src/services/tools/handlers/knowledge/saveKnowledge.ts` | Slug validation, idempotency guard (no auto-delete/supersede — each KI is a point-in-time snapshot), **custom video ID resolution** (`resolveVideosByIds` before batch — maps YouTube IDs to `custom-*` docs), atomic batch (KI doc + discovery flags), registry update, **video ref resolution** (regex extract from raw IDs + `vid://` links → `resolveVideosByIds` → `resolvedVideoRefs` snapshot with `hasRealVideoData` guard). `firebase-functions/v2` logger |
+| `functions/src/services/tools/handlers/knowledge/listKnowledge.ts` | Summary + meta (no content), `.limit(50)`. `firebase-functions/v2` logger |
+| `functions/src/services/tools/handlers/knowledge/getKnowledge.ts` | Full content by IDs (`db.getAll`) or filters, `.limit(20)`. `firebase-functions/v2` logger |
+| `functions/src/services/tools/handlers/knowledge/saveMemory.ts` | Always-available. Deterministic doc ID (`conversationId`), upsert: get → exists ? update : set. Orphan guard. KI referenced via `ki://` links in content, not structured field. `firebase-functions/v2` logger |
 | `functions/src/triggers/onKnowledgeItemDeleted.ts` | Firestore trigger: `FieldValue.increment(-1)` + conditional `arrayRemove` for discovery flags |
 | `functions/src/services/tools/definitions.ts` | Tool definitions. `saveMemory` always in `TOOL_DECLARATIONS`. `CONCLUDE_TOOL_DECLARATIONS` empty (deprecated) |
 | `functions/src/chat/aiChat.ts` | `isConclude` → **conclude context injection** (existing KI list appended to avoid duplicates), tool injection, strip `saveKnowledge` content before persist, skip thumbnails/attachments for conclude |
@@ -160,7 +161,7 @@ Composite indexes deployed: idempotency guard (`conversationId + category + vide
 | File | Role |
 |------|------|
 | `src/core/types/knowledge.ts` | Types: `KnowledgeItem` (includes `lastEditSource?`/`lastEditedBy?` for edit provenance tracking), `KnowledgeCategoryEntry`, `KnowledgeFlags`, `SEED_CATEGORIES`, `SLUG_PATTERN` re-export |
-| `src/core/services/knowledge/knowledgeService.ts` | Firestore CRUD for KI |
+| `src/core/services/knowledge/knowledgeService.ts` | Firestore CRUD for KI. `updateKnowledgeItemWithVersion` supports `lastEditSource`/`lastEditedBy` provenance + `versionIdsToDelete` (atomic restore cleanup in same batch) |
 | `src/core/services/knowledge/knowledgeCategoryService.ts` | Category registry CRUD + seed creation |
 | `src/core/hooks/useKnowledgeItems.ts` | TanStack Query: `useVideoKnowledgeItems`, `useChannelKnowledgeItems`, `useAllKnowledgeItems`, mutations (accept `videoId`/`scope`) |
 | `src/core/stores/knowledgeStore.ts` | Zustand: `scopeFilter` (all/channel/video), `selectedCategory`, `sortOrder` (Knowledge Page UI state) |
@@ -168,6 +169,7 @@ Composite indexes deployed: idempotency guard (`conversationId + category + vide
 | `src/features/Knowledge/components/KnowledgeList.tsx` | Shared list (Watch Page + Knowledge Page), passes `videoMap` |
 | `src/features/Knowledge/components/KnowledgeViewer.tsx` | Zen Mode: Portal + AnimatePresence + backdrop blur |
 | `src/features/Knowledge/components/VideoLinkField.tsx` | Video link/unlink form field: search dropdown + compact preview, used in Edit modal |
+| `src/features/Knowledge/hooks/useKnowledgeSaveHandler.ts` | Shared save handler for KnowledgeItemModal consumers (KnowledgePage + WatchPageKnowledge). Deduplicates `onSave` callback logic, exports `KnowledgeItemSaveUpdates` type |
 | `src/features/Knowledge/modals/KnowledgeItemModal.tsx` | Edit modal: RichTextEditor, read-only provenance, Badge for source, VideoLinkField for video linking |
 | `src/features/Knowledge/modals/CreateKnowledgeItemModal.tsx` | Manual creation: Dropdown molecule for category, RichTextEditor |
 | `src/core/utils/linkifyVideoIds.ts` | Enriches markdown with interactive video references — converts raw video IDs → `[title](vid://ID)` or `[title](mention://ID)` links. Used by Knowledge (vid://) and Chat (mention://) |
@@ -180,6 +182,8 @@ Composite indexes deployed: idempotency guard (`conversationId + category + vide
 | `src/components/ui/organisms/RichTextEditor/components/VideoRefView.tsx` | React MarkView: highlighted span + `PortalTooltip` + `VideoPreviewTooltip` |
 | `src/components/ui/organisms/RichTextEditor/components/KiRefView.tsx` | React MarkView for KI: highlighted span + `PortalTooltip` (title, category, summary) |
 | `src/components/ui/organisms/RichTextEditor/components/UnifiedSuggestionList.tsx` | Tabbed dropdown for `@` autocomplete: Videos tab + Knowledge tab, Tab key switches |
+| `src/features/Knowledge/components/CollapsibleMarkdownSections.tsx` | Shared section rendering for KnowledgeCard and KnowledgeViewer. Parses markdown into hierarchical collapsible sections, applies `allowCustomUrls` urlTransform |
+| `src/features/Knowledge/utils/formatDate.ts` | SSOT label functions: `getOriginLabel`, `getEditLabel`, `getSourceLabel`, `formatVersionLabel`, `formatKnowledgeDate`. Used by KnowledgeCard, KnowledgeItemModal, VersionDropdown |
 | `src/features/Knowledge/utils/markdownSections.ts` | `parseMarkdownSections` → hierarchical `HierarchicalSection[]` + preamble |
 | `src/features/Knowledge/utils/videoRefMap.ts` | `buildVideoRefMap`: channel videos → `Map<videoId, VideoPreviewData>` (indexed by id + publishedVideoId) |
 | `src/features/Watch/components/WatchPageKnowledge.tsx` | Video-level KI: AI Research tab on Watch Page |
@@ -203,6 +207,9 @@ Composite indexes deployed: idempotency guard (`conversationId + category + vide
 | `src/components/ui/organisms/RichTextEditor/__tests__/videoMentionFilter.test.ts` | `@` autocomplete items filter: threshold, spaces, max results |
 | `src/features/Knowledge/utils/__tests__/markdownSections.test.ts` | `parseMarkdownSections`: hierarchy, preamble, nested headings, edge cases |
 | `src/features/Knowledge/utils/__tests__/videoRefMap.test.ts` | `buildVideoRefMap`: own videos, publishedVideoId indexing, competitor refs |
+| `src/features/Knowledge/utils/__tests__/formatDate.test.ts` | `getOriginLabel`, `getEditLabel`, `getSourceLabel`, `formatVersionLabel` label function tests |
+| `src/features/Knowledge/utils/__tests__/allowCustomUrls.test.ts` | `allowCustomUrls` protocol allowlist: vid/mention/ki/http/https pass, javascript/data/vbscript blocked |
+| `functions/src/services/tools/handlers/knowledge/__tests__/editKnowledge.test.ts` | `editKnowledge` handler: happy path, validation, not found, content-changed early return, version provenance, video ref resolution |
 
 ### Dependencies (added for KI)
 

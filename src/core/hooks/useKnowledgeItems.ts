@@ -132,14 +132,16 @@ export const useUpdateKnowledgeItem = (userId: string, channelId: string) => {
             itemId,
             updates,
             previousItem,
+            versionIdsToDelete,
         }: {
             itemId: string;
-            updates: Partial<Pick<KnowledgeItem, 'title' | 'content' | 'summary' | 'videoId' | 'scope'>>;
+            updates: Partial<Pick<KnowledgeItem, 'title' | 'content' | 'summary' | 'videoId' | 'scope' | 'lastEditSource' | 'lastEditedBy'>>;
             previousItem?: KnowledgeItem;
+            versionIdsToDelete?: string[];
         }) => {
             if (previousItem) {
                 await KnowledgeService.updateKnowledgeItemWithVersion(
-                    userId, channelId, itemId, updates, previousItem,
+                    userId, channelId, itemId, updates, previousItem, versionIdsToDelete,
                 );
             } else {
                 await KnowledgeService.updateKnowledgeItem(userId, channelId, itemId, updates);

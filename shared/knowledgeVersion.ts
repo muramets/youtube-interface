@@ -16,8 +16,8 @@ export interface KnowledgeVersion {
     title?: string;
     /** Unix timestamp (Date.now()) — NOT serverTimestamp (arrayUnion gotcha) */
     createdAt: number;
-    /** How this version was created */
-    source: 'chat-tool' | 'conclude' | 'manual';
+    /** How this version was created (includes 'chat-edit' for LLM-edited content) */
+    source: 'chat-tool' | 'conclude' | 'manual' | 'chat-edit';
     /** Model that created this version (empty for manual edits) */
     model?: string;
 }

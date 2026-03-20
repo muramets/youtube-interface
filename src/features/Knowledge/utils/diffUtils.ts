@@ -134,5 +134,14 @@ export function computeDiffBlocks(oldContent: string, newContent: string): {
     return { left, right, stats: { added, removed } }
 }
 
-/** Allow vid:// and mention:// URIs through ReactMarkdown's URL sanitizer. */
-export const allowCustomUrls = (url: string) => url
+/**
+ * Allow only safe protocols through ReactMarkdown's URL sanitizer.
+ * Defense-in-depth alongside rehypeSanitize — blocks javascript:, data:, etc.
+ */
+const ALLOWED_PROTOCOL_RE = /^(https?|vid|mention|ki):\/\//
+export const allowCustomUrls = (url: string): string => {
+    if (ALLOWED_PROTOCOL_RE.test(url)) return url
+    // Allow relative URLs (no protocol prefix)
+    if (!url.includes(':') || url.startsWith('#') || url.startsWith('/') || url.startsWith('?')) return url
+    return ''
+}

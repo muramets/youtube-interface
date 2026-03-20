@@ -8,6 +8,7 @@
 
 import { db } from "../../../../shared/db.js";
 import { FieldValue } from "firebase-admin/firestore";
+import { logger } from "firebase-functions/v2";
 import type { ToolContext } from "../../types.js";
 
 export async function handleSaveMemory(
@@ -32,7 +33,7 @@ export async function handleSaveMemory(
 
     const convSnap = await db.doc(convPath).get();
     if (!convSnap.exists) {
-        console.warn(`[saveMemory] Orphan prevented: conv=${ctx.conversationId} deleted`);
+        logger.warn(`[saveMemory] Orphan prevented: conv=${ctx.conversationId} deleted`);
         return { error: "Conversation was deleted during memorization." };
     }
 
@@ -51,7 +52,7 @@ export async function handleSaveMemory(
             updatedAt: FieldValue.serverTimestamp(),
         });
 
-        console.info(`[saveMemory] Updated memory conv=${ctx.conversationId}`);
+        logger.info(`[saveMemory] Updated memory conv=${ctx.conversationId}`);
 
         return {
             content: `Memory updated [id: ${ctx.conversationId}]`,
@@ -68,7 +69,7 @@ export async function handleSaveMemory(
         updatedAt: FieldValue.serverTimestamp(),
     });
 
-    console.info(`[saveMemory] Created memory conv=${ctx.conversationId}`);
+    logger.info(`[saveMemory] Created memory conv=${ctx.conversationId}`);
 
     return {
         content: `Memory saved [id: ${ctx.conversationId}]`,

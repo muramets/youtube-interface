@@ -12,7 +12,7 @@ import type { VideoPreviewData } from '../../Video/types'
 import { ConfirmDeleteButton } from '../../../components/ui/atoms/ConfirmDeleteButton'
 import { KnowledgeViewer } from './KnowledgeViewer'
 import { CollapsibleMarkdownSections } from './CollapsibleMarkdownSections'
-import { formatKnowledgeDate } from '../utils/formatDate'
+import { formatKnowledgeDate, getOriginLabel } from '../utils/formatDate'
 import { buildBodyComponents } from '../utils/bodyComponents'
 import { allowCustomUrls } from '../utils/diffUtils'
 import { linkifyVideoIds } from '../../../core/utils/linkifyVideoIds'
@@ -214,7 +214,7 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
                                         </span>
                                     )}
                                     <Badge variant="neutral">
-                                        {item.source === 'manual' ? 'Manual' : item.source === 'conclude' ? 'via Memorize' : 'Chat'}
+                                        {getOriginLabel(item.source)}
                                     </Badge>
                                 </div>
 

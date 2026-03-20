@@ -9,6 +9,7 @@
 
 import { db } from "../../../../shared/db.js";
 import { FieldValue } from "firebase-admin/firestore";
+import { logger } from "firebase-functions/v2";
 import type { ToolContext } from "../../types.js";
 import { SLUG_PATTERN } from "../../../../shared/knowledge.js";
 import { resolveVideosByIds } from "../../utils/resolveVideos.js";
@@ -57,12 +58,12 @@ export async function handleSaveKnowledge(
     // --- Validation ---
 
     if (!category || !title || !content || !summary) {
-        console.warn(`[saveKnowledge] ── Validation failed ── missing required fields conv=${ctx.conversationId}`);
+        logger.warn(`[saveKnowledge] ── Validation failed ── missing required fields conv=${ctx.conversationId}`);
         return { error: "Required fields: category, title, content, summary" };
     }
 
     if (!SLUG_PATTERN.test(category)) {
-        console.warn(`[saveKnowledge] ── Validation failed ── invalid slug "${category}" conv=${ctx.conversationId}`);
+        logger.warn(`[saveKnowledge] ── Validation failed ── invalid slug "${category}" conv=${ctx.conversationId}`);
         return {
             error: `Invalid category slug "${category}". Must be lowercase kebab-case (e.g. "traffic-analysis"). ` +
                 `Pattern: /^[a-z0-9]+(-[a-z0-9]+)*$/`,
@@ -70,7 +71,7 @@ export async function handleSaveKnowledge(
     }
 
     if (!ctx.conversationId) {
-        console.warn(`[saveKnowledge] ── Validation failed ── no conversationId`);
+        logger.warn(`[saveKnowledge] ── Validation failed ── no conversationId`);
         return { error: "conversationId is required in tool context" };
     }
 
@@ -90,7 +91,7 @@ export async function handleSaveKnowledge(
         if (match) {
             resolvedDocId = match.docId;
         } else {
-            console.warn(`[saveKnowledge] ── Video not found ── videoId=${videoId}, saving as channel-level`);
+            logger.warn(`[saveKnowledge] ── Video not found ── videoId=${videoId}, saving as channel-level`);
             effectiveScope = "channel";
             resolvedDocId = undefined;
         }
@@ -108,7 +109,7 @@ export async function handleSaveKnowledge(
 
     if (!idempotencySnapshot.empty) {
         const existingId = idempotencySnapshot.docs[0].id;
-        console.info(`[saveKnowledge] ── Duplicate ── conv=${ctx.conversationId} category=${category} existing=${existingId}`);
+        logger.info(`[saveKnowledge] ── Duplicate ── conv=${ctx.conversationId} category=${category} existing=${existingId}`);
         return {
             content: `Knowledge Item already exists for this conversation + category: ${title} [id: ${existingId}] (skipped duplicate)`,
             id: existingId,
@@ -154,7 +155,7 @@ export async function handleSaveKnowledge(
 
     await batch.commit();
 
-    console.info(
+    logger.info(
         `[saveKnowledge] ── Persisted ── id=${kiId} scope=${effectiveScope} category=${category}` +
         ` title="${title.slice(0, 60)}" conv=${ctx.conversationId} model=${ctx.model || "unknown"}` +
         ` source=${ctx.isConclude ? "conclude" : "chat-tool"} contentLen=${content.length}` +
@@ -167,7 +168,7 @@ export async function handleSaveKnowledge(
         await resolveContentVideoRefs(content, basePath, kiRef, 'saveKnowledge');
     } catch (err) {
         // Non-critical — KI is saved even if video ref resolution fails
-        console.warn(`[saveKnowledge] Video ref resolution failed:`, err);
+        logger.warn(`[saveKnowledge] Video ref resolution failed:`, err);
     }
 
     // --- Registry update (outside batch, atomic map merge) ---
@@ -183,7 +184,7 @@ export async function handleSaveKnowledge(
         }, { merge: true });
     } catch (err) {
         // Non-critical — KI is saved even if registry update fails
-        console.warn(`[saveKnowledge] Registry update failed for category "${category}":`, err);
+        logger.warn(`[saveKnowledge] Registry update failed for category "${category}":`, err);
     }
 
     // No auto-delete: each KI is a point-in-time snapshot. Multiple KI with the same

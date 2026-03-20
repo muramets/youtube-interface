@@ -6,6 +6,7 @@
 // =============================================================================
 
 import { db } from "../../../../shared/db.js";
+import { logger } from "firebase-functions/v2";
 import type { ToolContext } from "../../types.js";
 
 export async function handleGetKnowledge(
@@ -66,10 +67,12 @@ export async function handleGetKnowledge(
             };
         });
 
-    console.info(
-        `[getKnowledge] ── Fetched ── ${items.length} items` +
-        `${ids ? ` byIds=[${ids.join(",")}]` : ""}${videoId ? ` videoId=${videoId}` : ""}${categories ? ` categories=[${categories.join(",")}]` : ""}`
-    );
+    logger.info("[getKnowledge] Fetched", {
+        count: items.length,
+        ...(ids && { ids }),
+        ...(videoId && { videoId }),
+        ...(categories && { categories }),
+    });
 
     if (items.length === 0) {
         return {

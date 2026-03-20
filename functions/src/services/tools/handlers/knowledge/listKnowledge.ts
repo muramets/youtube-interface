@@ -6,6 +6,7 @@
 // =============================================================================
 
 import { db } from "../../../../shared/db.js";
+import { logger } from "firebase-functions/v2";
 import type { ToolContext } from "../../types.js";
 
 export async function handleListKnowledge(
@@ -52,10 +53,13 @@ export async function handleListKnowledge(
             };
         });
 
-    console.info(
-        `[listKnowledge] ── Query ── ${items.length} active of ${snapshot.size} total` +
-        `${videoId ? ` videoId=${videoId}` : ""}${scope ? ` scope=${scope}` : ""}${category ? ` category=${category}` : ""}`
-    );
+    logger.info("[listKnowledge] Query", {
+        active: items.length,
+        total: snapshot.size,
+        ...(videoId && { videoId }),
+        ...(scope && { scope }),
+        ...(category && { category }),
+    });
 
     if (items.length === 0) {
         return {

@@ -7,6 +7,7 @@
 
 import { db } from "../../../../shared/db.js";
 import { FieldValue } from "firebase-admin/firestore";
+import { logger } from "firebase-functions/v2";
 import type { ToolContext } from "../../types.js";
 import { resolveContentVideoRefs } from "../../utils/resolveContentVideoRefs.js";
 
@@ -37,12 +38,12 @@ export async function handleEditKnowledge(
     // --- Validation ---
 
     if (!kiId || !content) {
-        console.warn(`[editKnowledge] ── Validation failed ── missing required fields`);
+        logger.warn("[editKnowledge] Validation failed: missing required fields");
         return { error: "Required fields: kiId, content" };
     }
 
     if (!ctx.userId || !ctx.channelId) {
-        console.warn(`[editKnowledge] ── Validation failed ── missing userId or channelId`);
+        logger.warn("[editKnowledge] Validation failed: missing userId or channelId");
         return { error: "userId and channelId are required in tool context" };
     }
 
@@ -54,7 +55,7 @@ export async function handleEditKnowledge(
     const kiSnap = await kiRef.get();
 
     if (!kiSnap.exists) {
-        console.warn(`[editKnowledge] ── Not found ── kiId=${kiId}`);
+        logger.warn("[editKnowledge] Not found", { kiId });
         return { error: `Knowledge Item not found: ${kiId}` };
     }
 
@@ -64,6 +65,19 @@ export async function handleEditKnowledge(
     const oldSource = (kiData.lastEditSource as string) || (kiData.source as string) || 'chat-tool';
     const oldModel = (kiData.lastEditedBy as string) ?? (kiData.model as string) ?? '';
     const title = oldTitle;
+
+    // --- Content-changed check: skip version snapshot if content is identical ---
+
+    if (content.trim() === oldContent.trim()) {
+        logger.info("[editKnowledge] Content unchanged, skipping version", { kiId });
+        return {
+            content: `Knowledge Item unchanged: ${title} [id: ${kiId}]`,
+            id: kiId,
+            title,
+            category: (kiData.category as string) || undefined,
+            contentLength: content.length,
+        };
+    }
 
     // --- Atomic batch: version snapshot + main doc update ---
 
@@ -94,10 +108,9 @@ export async function handleEditKnowledge(
 
     await batch.commit();
 
-    console.info(
-        `[editKnowledge] ── Updated ── id=${kiId} title="${title.slice(0, 60)}"` +
-        ` source=${source} model=${ctx.model || "unknown"} contentLen=${content.length}`,
-    );
+    logger.info("[editKnowledge] Updated", {
+        kiId, title: title.slice(0, 60), source, model: ctx.model || "unknown", contentLen: content.length,
+    });
 
     // --- Resolve video references from new content (non-blocking) ---
 
@@ -105,7 +118,7 @@ export async function handleEditKnowledge(
         await resolveContentVideoRefs(content, basePath, kiRef, 'editKnowledge');
     } catch (err) {
         // Non-critical — KI is updated even if video ref resolution fails
-        console.warn(`[editKnowledge] Video ref resolution failed:`, err);
+        logger.warn("[editKnowledge] Video ref resolution failed", { kiId, error: String(err) });
     }
 
     return {

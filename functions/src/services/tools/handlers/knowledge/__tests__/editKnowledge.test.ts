@@ -36,6 +36,14 @@ vi.mock('firebase-admin/firestore', () => ({
     },
 }));
 
+vi.mock('firebase-functions/v2', () => ({
+    logger: {
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+    },
+}));
+
 const mockResolveContentVideoRefs = vi.fn().mockResolvedValue(undefined);
 vi.mock('../../../utils/resolveContentVideoRefs.js', () => ({
     resolveContentVideoRefs: (...args: unknown[]) => mockResolveContentVideoRefs(...args),
@@ -219,6 +227,33 @@ describe('handleEditKnowledge', () => {
 
         const updateData = mockBatchUpdate.mock.calls[0][1];
         expect(updateData.updatedAt).toBe('SERVER_TIMESTAMP');
+    });
+
+    it('skips version snapshot when content is unchanged (trimmed comparison)', async () => {
+        const result = await handleEditKnowledge(
+            { kiId: 'ki-123', content: '## Old Traffic Analysis\nBrowse 45%...  ' }, // trailing spaces
+            CTX,
+        );
+
+        expect(result.content).toContain('unchanged');
+        expect(result.id).toBe('ki-123');
+        // No batch operations — early return
+        expect(mockBatchSet).not.toHaveBeenCalled();
+        expect(mockBatchUpdate).not.toHaveBeenCalled();
+        expect(mockBatchCommit).not.toHaveBeenCalled();
+        // No video ref resolution either
+        expect(mockResolveContentVideoRefs).not.toHaveBeenCalled();
+    });
+
+    it('creates version when content differs only in non-whitespace', async () => {
+        const result = await handleEditKnowledge(
+            { kiId: 'ki-123', content: '## Old Traffic Analysis\nBrowse 50%...' }, // 50% instead of 45%
+            CTX,
+        );
+
+        expect(result.content).toContain('updated');
+        expect(mockBatchSet).toHaveBeenCalledOnce();
+        expect(mockBatchCommit).toHaveBeenCalledOnce();
     });
 
     it('strips undefined from version data (model empty string)', async () => {

@@ -5,6 +5,7 @@ import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip'
 import { useAuth } from '../../core/hooks/useAuth'
 import { useChannelStore } from '../../core/stores/channelStore'
 import { useAllKnowledgeItems, useUpdateKnowledgeItem, useCreateKnowledgeItem, useDeleteKnowledgeItem } from '../../core/hooks/useKnowledgeItems'
+import { useKnowledgeSaveHandler } from '../../features/Knowledge/hooks/useKnowledgeSaveHandler'
 import { useVideos } from '../../core/hooks/useVideos'
 import { useVideosCatalog } from '../../core/hooks/useVideosCatalog'
 import { useKnowledgeCatalog } from '../../core/hooks/useKnowledgeCatalog'
@@ -82,24 +83,7 @@ export const KnowledgePage: React.FC = () => {
         setEditingItem(item)
     }, [])
 
-    const handleSaveEdit = useCallback((updates: {
-        title: string;
-        summary: string;
-        content: string;
-        videoId?: string;
-        scope?: 'video' | 'channel';
-        skipVersioning?: boolean;
-        lastEditSource?: string;
-        lastEditedBy?: string;
-    }) => {
-        if (!editingItem) return
-        const { skipVersioning, ...firestoreUpdates } = updates
-        updateMutation.mutate({
-            itemId: editingItem.id,
-            updates: firestoreUpdates,
-            previousItem: skipVersioning ? undefined : editingItem,
-        })
-    }, [editingItem, updateMutation])
+    const handleSaveEdit = useKnowledgeSaveHandler(editingItem, updateMutation)
 
     const handleCreate = useCallback((item: { category: string; title: string; content: string; summary: string }) => {
         createMutation.mutate({ ...item, scope: 'channel' })

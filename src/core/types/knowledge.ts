@@ -75,7 +75,7 @@ export interface KnowledgeItem {
     // — Last edit provenance (set by editKnowledge handler & frontend manual edits) —
 
     /** Source of the most recent edit (overrides `source` for display) */
-    lastEditSource?: 'chat-tool' | 'conclude' | 'manual';
+    lastEditSource?: 'chat-tool' | 'conclude' | 'manual' | 'chat-edit';
     /** Model that performed the most recent edit (overrides `model` for display) */
     lastEditedBy?: string;
 }

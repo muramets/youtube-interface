@@ -1,4 +1,4 @@
-import { fetchCollection, deleteDocument, setDocument, batchDeleteDocuments } from '../firestore';
+import { fetchCollection, deleteDocument, setDocument } from '../firestore';
 import { orderBy, limit } from 'firebase/firestore';
 import type { KnowledgeVersionWithId } from '../../types/knowledge';
 import type { KnowledgeVersion } from '../../../../shared/knowledgeVersion';
@@ -55,18 +55,4 @@ export const KnowledgeVersionService = {
         );
     },
 
-    /**
-     * Delete multiple version documents in a single batch.
-     * Used by "revert to version" to remove all versions newer than the target.
-     */
-    deleteVersions: async (
-        userId: string,
-        channelId: string,
-        kiId: string,
-        versionIds: string[],
-    ): Promise<void> => {
-        if (versionIds.length === 0) return;
-        const path = getVersionsPath(userId, channelId, kiId);
-        await batchDeleteDocuments(versionIds.map(id => ({ path, id })));
-    },
 };

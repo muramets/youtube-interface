@@ -4,7 +4,7 @@
 
 ## Текущее состояние
 
-Реализовано полностью. LLM может редактировать существующие KI через `editKnowledge` tool call. Backend handler читает старый doc, создаёт version snapshot в `versions/` subcollection (атомарный batch), обновляет main doc, re-resolves video refs. UI Edit модалка тоже создаёт версию при изменении content. Zen Mode показывает dropdown с историей версий и premium split-view DiffViewer (npm `diff` + custom React, line numbers, green/red highlights, theme-aware CSS variables). Conclude prompt обновлён: LLM предпочитает editKnowledge над saveKnowledge когда KI уже существует. Restore-to-version: пользователь может откатить KI к любой предыдущей версии — контент восстанавливается в редакторе, при Save все версии новее выбранной удаляются (batch delete), версионный snapshot при restore-save не создаётся (`skipVersioning`). Dropdown версий корректно считает текущую версию в total count.
+Production-ready. LLM может редактировать существующие KI через `editKnowledge` tool call. Backend handler читает старый doc, создаёт version snapshot в `versions/` subcollection (атомарный batch), обновляет main doc, re-resolves video refs. Backend пропускает version snapshot если content не изменился (content-changed check). UI Edit модалка тоже создаёт версию при изменении content. Zen Mode показывает dropdown с историей версий и premium split-view DiffViewer (npm `diff` + custom React, line numbers, green/red highlights, theme-aware CSS variables). Conclude prompt обновлён: LLM предпочитает editKnowledge над saveKnowledge когда KI уже существует. Restore-to-version: пользователь может откатить KI к любой предыдущей версии — контент восстанавливается в редакторе, при Save все версии новее выбранной удаляются **атомарно в том же Firestore batch** (не fire-and-forget), `skipVersioning` предотвращает лишний snapshot. Version provenance: `lastEditSource`/`lastEditedBy` корректно проходят через весь pipeline (types → mutation → service), restore pure-content сохраняет оригинальный провенанс. URL sanitization: `allowCustomUrls` с protocol allowlist (defense-in-depth). ESC key: dropdown перехватывает в capture phase, не закрывает модалку. Save handler: deduplicated через `useKnowledgeSaveHandler` shared hook.
 
 ---
 
@@ -60,6 +60,7 @@ Premium IDE-like diff viewer — **только в Zen Mode** (fullscreen). KI c
 - [x] Phase 4: UI Edit → version — ручное редактирование тоже создаёт версию
 - [x] FINAL: Double review-fix cycle (R1 Architecture 9/9 PASS + R2 Production 10/10 PASS after fixes)
 - [x] Phase 5: Restore-to-version — restore button (LiveDiffPanel + VersionDropdown), deferred version cleanup on Save, skipVersioning flag, version count bugfix (+1 for Current)
+- [x] Phase 6: Version Hardening — type contracts (`'chat-edit'` union), provenance pipeline fix, atomic restore (batch save+delete), content-changed check (backend), URL allowlist, ESC capture phase, `useKnowledgeSaveHandler` dedup, `console.*` → `logger`
 
 ← YOU ARE HERE
 
@@ -84,8 +85,8 @@ Premium IDE-like diff viewer — **только в Zen Mode** (fullscreen). KI c
 
 | File | Role |
 |------|------|
-| `shared/knowledgeVersion.ts` | `KnowledgeVersion` interface — SSOT, shared by frontend + backend |
-| `functions/src/services/tools/handlers/knowledge/editKnowledge.ts` | Handler: read existing KI, atomic batch (version snapshot + doc update), video ref re-resolution |
+| `shared/knowledgeVersion.ts` | `KnowledgeVersion` interface — SSOT, shared by frontend + backend. `source` union includes `'chat-edit'` |
+| `functions/src/services/tools/handlers/knowledge/editKnowledge.ts` | Handler: content-changed check (early return), atomic batch (version snapshot + doc update), video ref re-resolution, `firebase-functions/v2` logger |
 | `functions/src/services/tools/utils/resolveContentVideoRefs.ts` | Shared utility: extract video IDs from content, resolve via 3-step resolver, write `resolvedVideoRefs` snapshot |
 | `functions/src/services/tools/definitions.ts` | `editKnowledge` tool definition (in `TOOL_DECLARATIONS`, available in chat + memorize) |
 | `functions/src/services/tools/executor.ts` | Handler registration |
@@ -95,20 +96,31 @@ Premium IDE-like diff viewer — **только в Zen Mode** (fullscreen). KI c
 
 | File | Role |
 |------|------|
-| `src/core/types/knowledge.ts` | Re-exports `KnowledgeVersion`, adds `KnowledgeVersionWithId` |
+| `src/core/types/knowledge.ts` | Re-exports `KnowledgeVersion`, adds `KnowledgeVersionWithId`. `lastEditSource` includes `'chat-edit'` |
 | `src/core/services/knowledge/knowledgeVersionService.ts` | Version CRUD: getVersions (limit 50, DESC), createVersion, deleteVersion, deleteVersions (batch) |
-| `src/core/services/knowledge/knowledgeService.ts` | `updateKnowledgeItemWithVersion` — wrapper: if content changed → create version → update |
+| `src/core/services/knowledge/knowledgeService.ts` | `updateKnowledgeItemWithVersion` — accepts `lastEditSource`/`lastEditedBy` (restore provenance) + `versionIdsToDelete` (atomic restore cleanup) |
 | `src/core/hooks/useKnowledgeVersions.ts` | TanStack Query hook: versions subcollection, 30s staleTime, delete mutation, deleteVersions (batch for restore) |
-| `src/core/hooks/useKnowledgeItems.ts` | `useUpdateKnowledgeItem` — accepts optional `previousItem` for version creation |
+| `src/core/hooks/useKnowledgeItems.ts` | `useUpdateKnowledgeItem` — accepts `previousItem`, `versionIdsToDelete`, `lastEditSource`/`lastEditedBy` |
+| `src/features/Knowledge/hooks/useKnowledgeSaveHandler.ts` | Shared save handler for KnowledgeItemModal consumers (KnowledgePage + WatchPageKnowledge). Exports `KnowledgeItemSaveUpdates` type |
 | `src/features/Knowledge/components/VersionDropdown.tsx` | Version history dropdown with ARIA, Escape key, delete per version, restore quick-action (RotateCcw icon), version count includes Current (+1) |
 | `src/features/Knowledge/components/RenderedDiffViewer.tsx` | Read-only split-view diff: rendered markdown with vid:// tooltips in both columns |
 | `src/features/Knowledge/components/LiveDiffPanel.tsx` | Editor side panel: rendered markdown diff (old version), debounced 300ms, Restore button |
 | `src/features/Knowledge/components/KnowledgeViewer.tsx` | Zen Mode: version dropdown, RenderedDiffViewer when version selected, near-fullscreen |
-| `src/features/Knowledge/utils/diffUtils.ts` | Shared: `computeDiffBlocks` (diffLines), `allowCustomUrls` |
+| `src/features/Knowledge/utils/diffUtils.ts` | Shared: `computeDiffBlocks` (diffArrays), `allowCustomUrls` (protocol allowlist: http/https/vid/mention/ki) |
+| `src/features/Knowledge/utils/formatDate.ts` | SSOT label functions: `getOriginLabel`, `getEditLabel`, `getSourceLabel`, `formatVersionLabel` — used by VersionDropdown, KnowledgeCard, KnowledgeItemModal |
 | `src/features/Knowledge/utils/bodyComponents.tsx` | ReactMarkdown overrides: h1-h6 sizing, vid:// link tooltips, `<ol start>` preservation |
+| `src/features/Knowledge/components/CollapsibleMarkdownSections.tsx` | Shared section rendering. Header rendering applies `allowCustomUrls` urlTransform |
 | `src/components/ui/organisms/RichTextEditor/types.ts` | Slot props: `expandedToolbarExtra`, `expandedSidePanel` |
 | `src/core/config/concludePrompt.ts` | Conclude instruction: prefer editKnowledge over saveKnowledge for existing KI |
 | `src/features/Chat/utils/toolRegistry.ts` | `editKnowledge` badge (BookOpen, emerald) |
+
+### Tests
+
+| File | Coverage |
+|------|----------|
+| `functions/src/services/tools/handlers/knowledge/__tests__/editKnowledge.test.ts` | Handler: happy path, validation, not found, content-changed early return, version provenance, video ref resolution |
+| `src/features/Knowledge/utils/__tests__/formatDate.test.ts` | Label functions: `getOriginLabel`, `getEditLabel`, `getSourceLabel`, `formatVersionLabel` |
+| `src/features/Knowledge/utils/__tests__/allowCustomUrls.test.ts` | Protocol allowlist: vid/mention/ki/http/https pass, javascript/data/vbscript blocked, relative URLs |
 
 ### Dependencies
 
@@ -131,5 +143,5 @@ Premium IDE-like diff viewer — **только в Zen Mode** (fullscreen). KI c
 | 9 | Version snapshot includes `title?` | Forward-proofing: title нужен для diff labels, добавить позже без миграции |
 | 10 | LLM prefers editKnowledge over saveKnowledge | При Memorize: если KI с тем же category+video уже есть — edit, не create |
 | 11 | Version provenance via `lastEditSource`/`lastEditedBy` | Main doc tracks who last edited (backend writes at LLM edit, frontend writes at manual edit). Version snapshot captures `lastEditSource ?? source` to correctly identify the OLD content's origin. `source`/`model` on main doc = original creation provenance (immutable) |
-| 12 | Deferred version cleanup on restore | Restore only changes editor state (local). Version deletion + content save happen together on Save. Cancel = no side effects. `skipVersioning` flag prevents `updateKnowledgeItemWithVersion` from creating an unwanted snapshot of the pre-restore content |
+| 12 | Atomic version cleanup on restore | Restore only changes editor state (local). Version deletion + content save happen in **same Firestore batch** on Save (via `versionIdsToDelete`). Cancel = no side effects. `skipVersioning` flag prevents unwanted snapshot of pre-restore content |
 | 13 | Version count includes Current | `getVersionCountLabel(previousVersionCount)` returns `previousVersionCount + 1` — aligns dropdown header with visible entries (Current is always shown) |

@@ -16,8 +16,28 @@ export function formatKnowledgeDate(
 }
 
 /**
- * Human-readable label for a KI source.
- * Single source of truth — used by VersionDropdown, KnowledgeCard, KnowledgeViewer, etc.
+ * Creation origin label — who created the KI (badge text).
+ * SSOT for badges on KnowledgeCard, KnowledgeItemModal, VersionDropdown.
+ */
+export function getOriginLabel(source: string): string {
+    if (source === 'conclude') return 'Memorize'
+    if (source === 'manual') return 'Manual'
+    if (source === 'chat-edit') return 'LLM Edit'
+    return 'Chat'
+}
+
+/**
+ * Edit provenance label — who last edited (companion text, conditional).
+ * Shown only when KI has been edited (lastEditSource exists).
+ */
+export function getEditLabel(source: string): string {
+    if (source === 'manual') return 'Manually edited'
+    return 'LLM edited'
+}
+
+/**
+ * Combined source label for version entries — context for each historical snapshot.
+ * Used by VersionDropdown version list and formatVersionLabel.
  */
 export function getSourceLabel(source: string): string {
     if (source === 'conclude') return 'via Memorize'

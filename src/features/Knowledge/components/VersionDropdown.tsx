@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Clock, Check, RotateCcw } from 'lucide-react'
+import { Badge } from '../../../components/ui/atoms/Badge/Badge'
 import { ConfirmDeleteButton } from '../../../components/ui/atoms/ConfirmDeleteButton'
-import { getSourceLabel } from '../utils/formatDate'
+import { getOriginLabel, getEditLabel } from '../utils/formatDate'
 import type { KnowledgeVersionWithId } from '../../../core/types/knowledge'
 
 interface VersionDropdownProps {
@@ -14,7 +15,10 @@ interface VersionDropdownProps {
     pendingDeleteIds?: string[]
     /** The version that was restored — hidden from list (shown as Current) */
     restoredVersionId?: string
-    currentSource: string
+    /** KI creation source — always displayed */
+    originSource: KnowledgeVersionWithId['source']
+    /** Who last edited current content — displayed conditionally */
+    editSource?: KnowledgeVersionWithId['source']
     currentModel: string
     currentDate: string
 }
@@ -47,7 +51,8 @@ export const VersionDropdown = ({
     onRestore,
     pendingDeleteIds,
     restoredVersionId,
-    currentSource,
+    originSource,
+    editSource,
     currentModel,
     currentDate,
 }: VersionDropdownProps) => {
@@ -71,15 +76,15 @@ export const VersionDropdown = ({
         }
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape') {
-                e.stopPropagation() // Don't close Zen Mode
+                e.stopPropagation() // Capture phase — prevents modal/Zen Mode ESC handlers
                 setIsOpen(false)
             }
         }
         document.addEventListener('mousedown', handleClick, true)
-        document.addEventListener('keydown', handleKeyDown)
+        document.addEventListener('keydown', handleKeyDown, true) // capture phase
         return () => {
             document.removeEventListener('mousedown', handleClick, true)
-            document.removeEventListener('keydown', handleKeyDown)
+            document.removeEventListener('keydown', handleKeyDown, true)
         }
     }, [isOpen])
 
@@ -123,10 +128,16 @@ export const VersionDropdown = ({
                         )}
                         <div className={selectedVersionId === null ? '' : 'pl-5'}>
                             <div className="text-[11px] font-medium text-text-primary">Current</div>
-                            <div className="text-[10px] text-text-tertiary">
-                                {currentDate} · {getSourceLabel(currentSource)}
-                                {currentModel && ` · ${currentModel}`}
+                            <div className="text-[10px] text-text-tertiary flex items-center gap-1.5 mt-0.5">
+                                {currentDate}
+                                <Badge variant="neutral">{getOriginLabel(originSource)}</Badge>
+                                {currentModel && <span>· {currentModel}</span>}
                             </div>
+                            {editSource && (
+                                <div className="text-[10px] text-text-tertiary/70 mt-0.5">
+                                    {getEditLabel(editSource)}
+                                </div>
+                            )}
                         </div>
                     </button>
 
@@ -158,9 +169,9 @@ export const VersionDropdown = ({
                                                 <div className="text-[11px] text-text-primary truncate">
                                                     {formatVersionDate(version.createdAt)}
                                                 </div>
-                                                <div className="text-[10px] text-text-tertiary">
-                                                    {getSourceLabel(version.source)}
-                                                    {version.model && ` · ${version.model}`}
+                                                <div className="text-[10px] text-text-tertiary flex items-center gap-1.5">
+                                                    <Badge variant="neutral">{getOriginLabel(version.source)}</Badge>
+                                                    {version.model && <span>· {version.model}</span>}
                                                 </div>
                                             </div>
                                         </button>
