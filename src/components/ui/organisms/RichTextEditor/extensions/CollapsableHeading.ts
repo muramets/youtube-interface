@@ -109,22 +109,6 @@ export const CollapsableHeadings = Extension.create({
                     return editor.commands.liftListItem('listItem')
                 }
 
-                // 2. Handle Paragraphs: Hierarchy Climbing
-                if (node.content.size === 0 && node.type.name === 'paragraph') {
-                    let prevHeadingLevel = 0
-                    let found = false
-                    state.doc.nodesBetween(0, $from.pos, (n) => {
-                        if (n.type.name === 'heading') {
-                            prevHeadingLevel = n.attrs.level
-                            found = true
-                        }
-                    })
-
-                    if (found) {
-                        return editor.commands.setNode('heading', { level: prevHeadingLevel })
-                    }
-                }
-
                 return false
             }
         }
