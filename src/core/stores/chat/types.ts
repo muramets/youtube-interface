@@ -29,6 +29,8 @@ export interface SendOptions {
     isConclude?: boolean;
     /** Text sent to backend (if different from display text persisted in chat). */
     backendText?: string;
+    /** Video preview data for @-mentioned videos, resolved from videoCatalog at send time. */
+    mentionedVideos?: import('../../types/chat/chat').ChatMessage['mentionedVideos'];
 }
 
 export interface ChatState {
@@ -128,7 +130,7 @@ export interface ChatState {
 
     // Actions — Edit
     setEditingMessage: (msg: ChatMessage | null) => void;
-    editMessage: (newText: string, attachments?: ReadyAttachment[]) => Promise<void>;
+    editMessage: (newText: string, attachments?: ReadyAttachment[], options?: SendOptions) => Promise<void>;
 
     // Actions — Tier 3 Override
     startReferenceSelection: (messageId: string, num: string) => void;

@@ -68,6 +68,8 @@ export interface ChatMessage {
     thinking?: string;
     /** Approximate time spent thinking (ms). */
     thinkingElapsedMs?: number;
+    /** Video preview data for @-mentioned videos, resolved at send time from videoCatalog. */
+    mentionedVideos?: import('../../../features/Video/types').VideoPreviewData[];
     createdAt: Timestamp;
 }
 

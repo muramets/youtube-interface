@@ -35,6 +35,7 @@ import { useVideosCatalog } from '../../core/hooks/useVideosCatalog';
 import { useKnowledgeCatalog } from '../../core/hooks/useKnowledgeCatalog';
 import type { ReadyAttachment } from '../../core/types/chat/chatAttachment';
 import { buildConversationTrace, downloadJson } from './utils/exportConversation';
+import { extractMentionedVideos } from './utils/extractMentionedVideos';
 
 export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number; anchorRightPx?: number }> = ({ onClose, anchorBottomPx = 32, anchorRightPx = 32 }) => {
     const { user } = useAuth();
@@ -182,12 +183,14 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
         if (!userId || !channelId || sendingRef.current) return;
         sendingRef.current = true;
         try {
-            sendMessage(text, attachments);
+            const mentioned = extractMentionedVideos(text, videoCatalog);
+            const options = mentioned.length ? { mentionedVideos: mentioned } : undefined;
+            sendMessage(text, attachments, undefined, undefined, options);
             clearAll();
         } finally {
             sendingRef.current = false;
         }
-    }, [userId, channelId, sendMessage, clearAll]);
+    }, [userId, channelId, sendMessage, clearAll, videoCatalog]);
 
     return (
         <>
@@ -368,7 +371,10 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
                             }}
                             editingMessage={editingMessage}
                             onCancelEdit={() => setEditingMessage(null)}
-                            onEditSend={(newText, attachments) => editMessage(newText, attachments)}
+                            onEditSend={(newText, attachments) => {
+                                const mentioned = extractMentionedVideos(newText, videoCatalog);
+                                editMessage(newText, attachments, mentioned.length ? { mentionedVideos: mentioned } : undefined);
+                            }}
                             videoCatalog={videoCatalog}
                             knowledgeCatalog={knowledgeCatalog}
                         />

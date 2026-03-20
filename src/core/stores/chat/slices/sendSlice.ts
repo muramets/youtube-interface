@@ -36,6 +36,7 @@ async function persistUserMessage(
     userId: string, channelId: string, convId: string,
     text: string, attachments: ReadyAttachment[] | undefined,
     appContext: AppContextItem[] | undefined,
+    mentionedVideos: ChatMessage['mentionedVideos'],
     currentMessages: ChatMessage[],
     set: (partial: Partial<ChatState>) => void,
 ): Promise<string> {
@@ -45,10 +46,11 @@ async function persistUserMessage(
         text,
         attachments,
         appContext,
+        mentionedVideos,
         createdAt: Timestamp.now(),
     };
     set({ messages: [...currentMessages, optimisticMsg] });
-    const persisted = await ChatService.addMessage(userId, channelId, convId, { role: 'user', text, attachments, appContext });
+    const persisted = await ChatService.addMessage(userId, channelId, convId, { role: 'user', text, attachments, appContext, mentionedVideos });
     return persisted.id;
 }
 
@@ -304,7 +306,8 @@ export function createSendSlice(
                 // 2. Optimistic UI — show user message + dots BEFORE enrichment
                 const isFirstExchange = messages.length === 0;
                 const rawAppContext = hasContext ? rawContextItems : undefined;
-                userMessageId = await persistUserMessage(userId, channelId, convId, text, attachments, rawAppContext, messages, set);
+                const mentionedVideos = options?.mentionedVideos?.length ? options.mentionedVideos : undefined;
+                userMessageId = await persistUserMessage(userId, channelId, convId, text, attachments, rawAppContext, mentionedVideos, messages, set);
                 if (!activeConversationId) set({ activeConversationId: convId });
 
                 // 3. Context pipeline: enrich → merge → persist (user sees dots)
@@ -371,7 +374,7 @@ export function createSendSlice(
             }
         },
 
-        editMessage: async (newText, attachments) => {
+        editMessage: async (newText, attachments, options) => {
             const { editingMessage, activeConversationId, messages } = get();
             if (!editingMessage || !activeConversationId) return;
             const { userId, channelId } = requireContext(get);
@@ -391,7 +394,7 @@ export function createSendSlice(
             ]);
 
             // 4. Send the new version (reuses full sendMessage flow: persist + stream AI)
-            await get().sendMessage(newText, attachments);
+            await get().sendMessage(newText, attachments, undefined, undefined, options);
         },
 
         confirmLargePayload: async () => {

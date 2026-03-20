@@ -87,6 +87,16 @@
 
 **Примечание:** KI mentions в read mode полностью работают в Memory (Settings + Chat). В KnowledgeCard, diff panels и chat messages — `ki://` ссылки пройдут sanitize, но без tooltip (kiMap не передан). Это приемлемо: KI внутри других KI — редкий кейс.
 
+### Data persistence: vid:// vs ki://
+
+| | vid:// (Video) | ki:// (Knowledge Item) |
+|---|---|---|
+| **Данные для рендера** | `referenceVideoMap` (3 layers) | `referenceKiMap` (полный каталог) |
+| **Persistence** | `mentionedVideos` на ChatMessage (Firestore) | Не нужна — каталог всегда загружен |
+| **Резон** | Видеокаталог тяжёлый (own + trend channels) — нерационально загружать целиком для рендера | KI каталог лёгкий (десятки записей) — `useKnowledgeCatalog()` в ChatMessageList |
+
+При отправке сообщения с `vid://` упоминанием, `extractMentionedVideos` парсит текст, ищет видео в `videoCatalog` (уже в памяти для @-autocomplete) и сохраняет `VideoPreviewData` в поле `mentionedVideos` на `ChatMessage`. При рендере `referenceVideoMap` читает это поле как Layer 3.
+
 ---
 
 ## Technical Implementation
@@ -182,3 +192,4 @@ PortalTooltip + KiPreviewTooltipContent
 | `src/features/Chat/components/ChatTiptapEditor.tsx` | Minimal Tiptap wrapper for Chat Input |
 | `src/features/Chat/hooks/useChatEditorExtensions.ts` | Chat-specific extensions (StarterKit minimal + mentions + Enter-to-send) |
 | `src/features/Chat/hooks/useChatTurndownService.ts` | Chat Turndown (base factory, no extra rules) |
+| `src/features/Chat/utils/extractMentionedVideos.ts` | Parse `vid://` from text + resolve from videoCatalog at send time |

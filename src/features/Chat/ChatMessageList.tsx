@@ -444,15 +444,15 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     const confirmLargePayload = useChatStore(s => s.confirmLargePayload);
     const dismissLargePayload = useChatStore(s => s.dismissLargePayload);
 
-    // Build video lookup: persistedContext (user-attached) + all tool results.
-    // Used by inline mention:// links and ToolCallSummary expanded previews.
+    // Build video lookup: persistedContext (user-attached) + tool results + @-mentions.
+    // Used by inline mention:// / vid:// links and ToolCallSummary expanded previews.
     const activeConversationId = useChatStore(s => s.activeConversationId);
     const conversations = useChatStore(s => s.conversations);
     const referenceVideoMap = useMemo<Map<string, VideoPreviewData>>(() => {
         const conv = conversations.find(c => c.id === activeConversationId);
         const ctx = conv?.persistedContext;
 
-        // Convert persisted VideoCardContext entries to VideoPreviewData
+        // Layer 1: Convert persisted VideoCardContext entries to VideoPreviewData
         const baseMap = new Map<string, VideoPreviewData>();
         if (ctx && ctx.length > 0) {
             for (const [videoId, card] of buildVideoIdMap(ctx)) {
@@ -460,12 +460,24 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
             }
         }
 
-        // Merge video data from tool results.
+        // Layer 2: Merge video data from tool results.
         // persistedContext entries are authoritative — tool data only fills gaps.
         const toolMap = buildToolVideoMap(messages);
         for (const [videoId, toolEntry] of toolMap) {
             if (!baseMap.has(videoId)) {
                 baseMap.set(videoId, toolEntry);
+            }
+        }
+
+        // Layer 3: @-mentioned videos (resolved from videoCatalog at send time).
+        // Fills gaps for vid:// links in user messages that aren't in Layers 1-2.
+        for (const msg of messages) {
+            if (msg.mentionedVideos) {
+                for (const v of msg.mentionedVideos) {
+                    if (!baseMap.has(v.videoId)) {
+                        baseMap.set(v.videoId, v);
+                    }
+                }
             }
         }
 

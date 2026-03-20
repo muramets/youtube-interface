@@ -55,6 +55,8 @@
 
 - [Telescope Pattern Overview](../README.md) — utility layer
 - Все analysis tools используют `mentionVideo` для reference видео в ответах
+- [Editor Mentions](../../../editor-mentions.md) — user-side `vid://` mentions (persistence через `mentionedVideos` на ChatMessage, не зависят от `mentionVideo` tool call)
+- [Video Tooltip & Video Map](../../video-tooltip.md) — `referenceVideoMap` 3-layer merge (persistedContext + tool results + mentionedVideos)
 
 ---
 
