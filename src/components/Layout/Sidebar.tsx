@@ -1,6 +1,7 @@
 import React from 'react';
 import { Home, List, Settings, TrendingUp, Music, BookOpen } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { AnimatePresence, motion } from 'framer-motion';
 import { SettingsModal } from '../../features/Settings/SettingsModal';
 import { useUIStore } from '../../core/stores/uiStore';
 import { useAuth } from '../../core/hooks/useAuth';
@@ -61,12 +62,12 @@ export const SidebarDivider: React.FC = () => (
   <div className="my-3 mx-3 border-t border-border" />
 );
 
-import { AnimatePresence, motion } from 'framer-motion';
+const AVATAR_CLASSES = 'w-8 h-8 rounded-full object-cover transition-all duration-300 hover:shadow-[0_0_15px_rgba(255,255,255,0.4)] hover:scale-110 cursor-pointer';
+const AVATAR_FALLBACK_CLASSES = 'w-8 h-8 rounded-full flex items-center justify-center bg-white/10 text-white/80 text-[10px] font-bold transition-all duration-300 hover:shadow-[0_0_15px_rgba(255,255,255,0.4)] hover:scale-110 cursor-pointer';
 
-// Expanded sidebar item - icon on left, text on right
 export const TrendsCollapsedGroup: React.FC<{
   isActive: boolean;
-  channels: TrendChannel[]; // Avoid circular dep or import type
+  channels: TrendChannel[];
   selectedChannelId: string | null;
   navigate: (path: string) => void;
   setSelectedChannelId: (id: string | null) => void;
@@ -78,13 +79,7 @@ export const TrendsCollapsedGroup: React.FC<{
   const [isHovered, setHovered] = React.useState(false);
   const { brokenAvatarChannelIds, markAvatarBroken } = useTrendStore();
 
-  // Robust single-list approach
-  const showDropdown = isHovered;
-
-  // Determine which channels to show
-  // If hovering: Show ALL channels
-  // If not hovering: Show ONLY selected channel (if any)
-  const visibleChannels = showDropdown
+  const visibleChannels = isHovered
     ? channels
     : (selectedChannelId ? channels.filter(c => c.id === selectedChannelId) : []);
 
@@ -94,7 +89,6 @@ export const TrendsCollapsedGroup: React.FC<{
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      {/* Main Trigger */}
       <div className="w-full relative z-20">
         <CollapsedSidebarItem
           icon={icons.normal}
@@ -109,80 +103,51 @@ export const TrendsCollapsedGroup: React.FC<{
         />
       </div>
 
-      {/* Single Unified Channel List */}
+      {/* Channel avatars — single AnimatePresence, no overflow clipping */}
       <motion.div
         layout
-        className="relative z-10 w-full flex flex-col items-center overflow-hidden"
+        transition={{ layout: { duration: 0.25 } }}
+        className={`relative z-10 w-full flex flex-col items-center ${visibleChannels.length > 0 ? 'gap-3 pt-4 pb-3' : ''}`}
         initial={false}
       >
         <AnimatePresence mode="popLayout">
-          {visibleChannels.length > 0 && (
-            <motion.div
-              layout
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0, transition: { duration: 0.3 } }}
-              className="flex flex-col items-center gap-3 pt-4 pb-4 w-full"
-            >
-              <AnimatePresence mode="popLayout">
-                {visibleChannels.map(channel => {
-                  const isSelected = selectedChannelId === channel.id;
-                  const isBroken = brokenAvatarChannelIds.has(channel.id);
-
-                  const imageClasses = `w-8 h-8 rounded-full object-cover transition-all duration-300
-                                        hover:shadow-[0_0_15px_rgba(255,255,255,0.4)] hover:scale-110 cursor-pointer
-                                    `;
-
-                  return (
-                    <motion.div
-                      key={channel.id}
-                      layout="position"
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.8 }}
-                      transition={{
-                        opacity: { duration: 0.2 }
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedChannelId(channel.id);
-                        navigate('/trends');
-                      }}
-                      className="flex flex-col items-center justify-center w-full px-1 relative hover:z-30"
-                      title={channel.title}
-                    >
-                      <div className={`relative transition-all duration-200 ${isSelected ? 'ring-2 ring-text-primary rounded-full p-[2px]' : ''}`}>
-                        {channel.avatarUrl && !isBroken ? (
-                          /* 
-                             INDUSTRY STANDARD: 
-                             We must use `referrerPolicy="no-referrer"` to bypass YouTube's hotlink protection
-                             (otherwise we get 403 Forbidden). 
-                          */
-                          <img
-                            src={channel.avatarUrl}
-                            alt={channel.title}
-                            referrerPolicy="no-referrer"
-                            /*
-                               PREMIUM UX:
-                               If loading fails (404/Network), we mark it globally in the store.
-                               This prevents "flickering" between broken/working states across the app.
-                            */
-                            onError={() => markAvatarBroken(channel.id)}
-                            className={imageClasses}
-                          />
-                        ) : (
-                          /* Fallback: Stylish initial circle instead of ugly browser "broken image" icon */
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center bg-white/10 text-white/80 text-[10px] font-bold transition-all duration-300 hover:shadow-[0_0_15px_rgba(255,255,255,0.4)] hover:scale-110 cursor-pointer`}>
-                            {channel.title.charAt(0).toUpperCase()}
-                          </div>
-                        )}
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </AnimatePresence>
-            </motion.div>
-          )}
+          {visibleChannels.map((channel, index) => {
+            const isSelected = selectedChannelId === channel.id;
+            const isBroken = brokenAvatarChannelIds.has(channel.id);
+            return (
+              <motion.div
+                key={channel.id}
+                layout="position"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ opacity: { duration: 0.2 } }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedChannelId(channel.id);
+                  navigate('/trends');
+                }}
+                className="flex flex-col items-center justify-center w-full px-1 relative hover:z-30"
+                title={channel.title}
+              >
+                <div className={`relative transition-all duration-200 ${isSelected ? 'ring-2 ring-text-primary rounded-full p-[2px]' : ''}`}>
+                  {channel.avatarUrl && !isBroken ? (
+                    <img
+                      src={channel.avatarUrl}
+                      alt={channel.title}
+                      referrerPolicy="no-referrer"
+                      onError={() => markAvatarBroken(channel.id)}
+                      className={AVATAR_CLASSES}
+                    />
+                  ) : (
+                    <div className={AVATAR_FALLBACK_CLASSES}>
+                      {channel.title.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            );
+          })}
         </AnimatePresence>
       </motion.div>
     </div>
@@ -394,29 +359,17 @@ export const Sidebar: React.FC = () => {
                 noBackground={true}
                 onClick={() => navigate('/music')}
               />
-              {/* Trends Section with Hover Dropdown */}
-              <div
-                className="flex flex-col w-full"
-                onMouseEnter={() => {
-                  // Preload or ensure logic is ready if needed
+              <TrendsCollapsedGroup
+                isActive={isTrends && !selectedChannelId}
+                channels={trendChannels}
+                selectedChannelId={selectedChannelId}
+                navigate={navigate}
+                setSelectedChannelId={setSelectedChannelId}
+                icons={{
+                  normal: trendsIcon,
+                  active: trendsActiveIcon
                 }}
-              >
-                {/* Main Trends Icon - acts as hover trigger for the group if we wrap it?
-                      Actually, we want the list to stay open when hovering the list too.
-                      So we need a wrapper around both.
-                  */}
-                <TrendsCollapsedGroup
-                  isActive={isTrends && !selectedChannelId}
-                  channels={trendChannels}
-                  selectedChannelId={selectedChannelId}
-                  navigate={navigate}
-                  setSelectedChannelId={setSelectedChannelId}
-                  icons={{
-                    normal: trendsIcon,
-                    active: trendsActiveIcon
-                  }}
-                />
-              </div>
+              />
 
               <div className={`mt-auto transition-[padding] duration-300 ${hasAudioPlayer ? 'pb-14' : ''}`}>
                 <CollapsedSidebarItem
