@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, forwardRef, useImperativeHandle } from 'react'
+import { useState, useCallback, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
 import { BookOpen } from 'lucide-react'
 import { SegmentedControl } from '../../../../ui/molecules/SegmentedControl'
 import type { VideoPreviewData } from '../../../../../features/Video/types'
@@ -44,6 +44,13 @@ export const UnifiedSuggestionList = forwardRef<UnifiedSuggestionListRef, Unifie
             onModeChange(next)
             setRawIndex(0)
         }, [mode, onModeChange, hasVideos, hasKnowledge])
+
+        useEffect(() => {
+            if (items.length === 0) return
+            listRef.current
+                ?.querySelector<HTMLButtonElement>(`button[data-index="${selectedIndex}"]`)
+                ?.scrollIntoView({ block: 'nearest' })
+        }, [selectedIndex, items.length])
 
         useImperativeHandle(ref, () => ({
             onKeyDown: ({ event }: { event: KeyboardEvent }) => {
@@ -98,6 +105,7 @@ export const UnifiedSuggestionList = forwardRef<UnifiedSuggestionListRef, Unifie
                         items.map((item, index) => (
                             <button
                                 key={item.kind === 'video' ? item.data.videoId : item.data.id}
+                                data-index={index}
                                 className={`w-full flex items-center gap-2.5 px-3 py-1.5 text-left cursor-pointer border-none hover-trail ${
                                     index === selectedIndex ? 'bg-[var(--settings-dropdown-hover)]' : 'hover:bg-[var(--settings-dropdown-hover)]'
                                 }`}

@@ -117,6 +117,10 @@ export const UnifiedMention = Extension.create<UnifiedMentionOptions>({
                     let renderer: ReactRenderer<UnifiedSuggestionListRef> | null = null
                     let popup: HTMLDivElement | null = null
                     let lastQuery = ''
+                    let removeScrollListener: (() => void) | null = null
+                    // Latest clientRect getter — updated on each Tiptap callback so the
+                    // scroll listener always reads the current cursor position.
+                    let latestClientRect: (() => DOMRect | null) | null = null
 
                     // Build props for the suggestion list, with onModeChange wired to re-filter
                     const buildListProps = (baseProps: object, items: SuggestionItem[]) => ({
@@ -137,6 +141,7 @@ export const UnifiedMention = Extension.create<UnifiedMentionOptions>({
                         onStart(props) {
                             currentMode = 'videos'
                             lastQuery = (props as unknown as { query: string }).query
+                            latestClientRect = props.clientRect ?? null
 
                             renderer = new ReactRenderer(UnifiedSuggestionList, {
                                 props: buildListProps(props, filterItems(lastQuery)),
@@ -145,27 +150,38 @@ export const UnifiedMention = Extension.create<UnifiedMentionOptions>({
 
                             popup = document.createElement('div')
                             popup.dataset.suggestionPopup = ''
-                            popup.style.position = 'absolute'
                             popup.style.zIndex = '700'
                             popup.appendChild(renderer.element)
                             document.body.appendChild(popup)
 
                             if (popup && renderer) {
-                                positionSuggestionPopup(popup, renderer.element, props.clientRect?.() ?? null, POPUP_MAX_HEIGHT, popupDirection ?? 'down')
+                                positionSuggestionPopup(popup, renderer.element, latestClientRect?.() ?? null, POPUP_MAX_HEIGHT, popupDirection ?? 'down')
                             }
+
+                            // Reposition on scroll — capture phase catches nested scroll containers
+                            const onScroll = () => {
+                                if (popup && renderer && latestClientRect) {
+                                    positionSuggestionPopup(popup, renderer.element, latestClientRect() ?? null, POPUP_MAX_HEIGHT, popupDirection ?? 'down')
+                                }
+                            }
+                            window.addEventListener('scroll', onScroll, { capture: true, passive: true })
+                            removeScrollListener = () => window.removeEventListener('scroll', onScroll, true)
                         },
 
                         onUpdate(props) {
                             lastQuery = (props as unknown as { query: string }).query
+                            latestClientRect = props.clientRect ?? null
                             renderer?.updateProps(buildListProps(props, filterItems(lastQuery)))
 
                             if (popup && renderer) {
-                                positionSuggestionPopup(popup, renderer.element, props.clientRect?.() ?? null, POPUP_MAX_HEIGHT, popupDirection ?? 'down')
+                                positionSuggestionPopup(popup, renderer.element, latestClientRect?.() ?? null, POPUP_MAX_HEIGHT, popupDirection ?? 'down')
                             }
                         },
 
                         onKeyDown(props) {
                             if (props.event.key === 'Escape') {
+                                removeScrollListener?.()
+                                removeScrollListener = null
                                 popup?.remove()
                                 popup = null
                                 renderer?.destroy()
@@ -176,6 +192,8 @@ export const UnifiedMention = Extension.create<UnifiedMentionOptions>({
                         },
 
                         onExit() {
+                            removeScrollListener?.()
+                            removeScrollListener = null
                             popup?.remove()
                             popup = null
                             renderer?.destroy()

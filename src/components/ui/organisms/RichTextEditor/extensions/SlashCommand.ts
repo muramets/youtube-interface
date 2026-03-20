@@ -40,35 +40,50 @@ export const SlashCommand = Extension.create({
                 render: () => {
                     let renderer: ReactRenderer<SlashCommandListRef> | null = null
                     let popup: HTMLDivElement | null = null
+                    let removeScrollListener: (() => void) | null = null
+                    let latestClientRect: (() => DOMRect | null) | null = null
 
                     return {
                         onStart(props) {
+                            latestClientRect = props.clientRect ?? null
+
                             renderer = new ReactRenderer(SlashCommandList, {
                                 props,
                                 editor: props.editor,
                             })
 
                             popup = document.createElement('div')
-                            popup.style.position = 'absolute'
+                            popup.dataset.suggestionPopup = ''
                             popup.style.zIndex = '700' // z-tooltip
                             popup.appendChild(renderer.element)
                             document.body.appendChild(popup)
 
                             if (popup && renderer) {
-                                positionSuggestionPopup(popup, renderer.element, props.clientRect?.() ?? null, SLASH_MAX_HEIGHT)
+                                positionSuggestionPopup(popup, renderer.element, latestClientRect?.() ?? null, SLASH_MAX_HEIGHT)
                             }
+
+                            const onScroll = () => {
+                                if (popup && renderer && latestClientRect) {
+                                    positionSuggestionPopup(popup, renderer.element, latestClientRect() ?? null, SLASH_MAX_HEIGHT)
+                                }
+                            }
+                            window.addEventListener('scroll', onScroll, { capture: true, passive: true })
+                            removeScrollListener = () => window.removeEventListener('scroll', onScroll, true)
                         },
 
                         onUpdate(props) {
+                            latestClientRect = props.clientRect ?? null
                             renderer?.updateProps(props)
 
                             if (popup && renderer) {
-                                positionSuggestionPopup(popup, renderer.element, props.clientRect?.() ?? null, SLASH_MAX_HEIGHT)
+                                positionSuggestionPopup(popup, renderer.element, latestClientRect?.() ?? null, SLASH_MAX_HEIGHT)
                             }
                         },
 
                         onKeyDown(props) {
                             if (props.event.key === 'Escape') {
+                                removeScrollListener?.()
+                                removeScrollListener = null
                                 popup?.remove()
                                 popup = null
                                 renderer?.destroy()
@@ -79,6 +94,8 @@ export const SlashCommand = Extension.create({
                         },
 
                         onExit() {
+                            removeScrollListener?.()
+                            removeScrollListener = null
                             popup?.remove()
                             popup = null
                             renderer?.destroy()

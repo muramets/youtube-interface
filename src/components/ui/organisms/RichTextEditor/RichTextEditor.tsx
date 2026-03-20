@@ -111,6 +111,9 @@ export const RichTextEditor = ({
             return () => {
                 document.removeEventListener('keydown', handleEsc)
 
+                // Remove any orphaned suggestion popups (@-mentions, /slash commands)
+                document.querySelectorAll('[data-suggestion-popup]').forEach(el => el.remove())
+
                 // Move card back
                 const ph = placeholderRef.current
                 if (ph?.parentNode) {

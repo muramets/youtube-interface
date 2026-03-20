@@ -18,13 +18,11 @@ export function positionSuggestionPopup(
     const VIEWPORT_MARGIN = 8
     const MIN_HEIGHT = 100
 
-    popup.style.left = `${rect.left}px`
-
     if (direction === 'up') {
-        // Anchor bottom edge to cursor, grow upward.
-        // Using `position: fixed` + `bottom` so the popup stays pinned
-        // near the cursor regardless of content height changes.
+        // Chat input: fixed position — input itself is pinned to viewport bottom.
+        // clientRect() returns viewport coords which match `position: fixed` directly.
         popup.style.position = 'fixed'
+        popup.style.left = `${rect.left}px`
         popup.style.top = 'auto'
         popup.style.bottom = `${window.innerHeight - rect.top + GAP}px`
 
@@ -36,6 +34,11 @@ export function positionSuggestionPopup(
             innerEl.style.maxHeight = `${clampedHeight}px`
         }
     } else {
+        // RTE: fixed position — repositioned on scroll via listener in the extension.
+        // clientRect() returns viewport coords which match `position: fixed` directly.
+        popup.style.position = 'fixed'
+        popup.style.left = `${rect.left}px`
+        popup.style.bottom = 'auto'
         const top = rect.bottom + GAP
         popup.style.top = `${top}px`
 
