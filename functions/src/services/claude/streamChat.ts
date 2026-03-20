@@ -625,6 +625,7 @@ export async function streamChat(
     let agenticImageCount = 0;
     let agenticImageTokens = 0;
     let iteration = 0;
+    let hadPartialIteration = false;
 
     // Mutable messages list — we append tool results within the loop
     const agenticMessages = [...messages];
@@ -730,6 +731,7 @@ export async function streamChat(
 
         // If aborted, stop the agentic loop — usage is partial
         if (iterationResult.partial || signal?.aborted) {
+            hadPartialIteration = true;
             break;
         }
 
@@ -943,8 +945,9 @@ export async function streamChat(
 
     // Aggregate iteration snapshots into normalizedUsage
     let normalizedUsage: NormalizedTokenUsage | undefined;
-    // Detect if any iteration was aborted (partial usage)
-    const wasAborted = signal?.aborted === true;
+    // Detect if any iteration was aborted — check both signal AND partial iteration flag
+    // (streamIteration may detect abort via error.name without signal being set)
+    const wasAborted = hadPartialIteration || signal?.aborted === true;
     if (iterationSnapshots.length > 0 && modelConfig) {
         normalizedUsage = aggregateIterations(iterationSnapshots, modelConfig);
         if (wasAborted) {
@@ -1241,28 +1244,41 @@ async function streamIteration(
 
         await streamPromise;
     } catch (err) {
-        // On abort: build partial usage from earlyInputTokens (exact input, approximate output)
-        const isAbort = err instanceof Error && (
-            err.name === 'AbortError' ||
-            (err as { code?: string }).code === 'ERR_CANCELLED' ||
-            signal?.aborted
-        );
-        if (isAbort && earlyInputTokens != null) {
-            const approxOutput = Math.ceil(iterationText.length / 4);
-            const cached = earlyCacheRead ?? 0;
-            const cacheWrite = earlyCacheWrite ?? 0;
-            tokenUsage = {
-                promptTokens: earlyInputTokens,
-                completionTokens: approxOutput,
-                totalTokens: earlyInputTokens + cached + cacheWrite + approxOutput,
-                ...(cached > 0 ? { cachedTokens: cached } : {}),
-                ...(cacheWrite > 0 ? { cacheWriteTokens: cacheWrite } : {}),
-            };
+        // On abort: preserve accumulated text and build partial usage if available.
+        // Previously this threw when earlyInputTokens was null, losing all accumulated
+        // text in local variables. Now we always return on abort, with or without usage.
+        // Detect abort from any source:
+        //   - signal.aborted: Firestore side-channel or caller abort (most reliable)
+        //   - err.name 'AbortError': DOMException (not instanceof Error in Node.js!)
+        //   - err.code 'ERR_CANCELLED': Node.js-specific abort indicator
+        const errObj = err as { name?: string; code?: string } | null;
+        const isAbort =
+            signal?.aborted ||
+            errObj?.name === 'AbortError' ||
+            errObj?.code === 'ERR_CANCELLED';
+        if (isAbort) {
+            if (earlyInputTokens != null) {
+                const approxOutput = Math.ceil(iterationText.length / 4);
+                const cached = earlyCacheRead ?? 0;
+                const cacheWrite = earlyCacheWrite ?? 0;
+                tokenUsage = {
+                    promptTokens: earlyInputTokens,
+                    completionTokens: approxOutput,
+                    totalTokens: earlyInputTokens + cached + cacheWrite + approxOutput,
+                    ...(cached > 0 ? { cachedTokens: cached } : {}),
+                    ...(cacheWrite > 0 ? { cacheWriteTokens: cacheWrite } : {}),
+                };
+                console.log(
+                    `[claude:streamChat] Abort — partial usage: input=${earlyInputTokens}, ` +
+                    `output≈${approxOutput} (${iterationText.length} chars / 4)`,
+                );
+            } else {
+                console.log(
+                    `[claude:streamChat] Abort — no early usage (message event not received). ` +
+                    `Preserving ${iterationText.length} chars text`,
+                );
+            }
             partial = true;
-            console.log(
-                `[claude:streamChat] Abort — partial usage: input=${earlyInputTokens}, ` +
-                `output≈${approxOutput} (${iterationText.length} chars / 4)`,
-            );
         } else {
             throw err;
         }

@@ -706,7 +706,7 @@ describe("Claude streamChat — agentic loop (tool calling)", () => {
         });
     });
 
-    it("throws on abort error — tokenUsage lost because finalMessage never fires (baseline for Task D)", async () => {
+    it("preserves accumulated text on abort even without message event (earlyInputTokens null)", async () => {
         mockClientStreams({
             events: [
                 { event: "text", data: "partial response" },
@@ -715,7 +715,11 @@ describe("Claude streamChat — agentic loop (tool calling)", () => {
             ],
         });
 
-        await expect(streamChat(makeOpts())).rejects.toThrow();
+        const result = await streamChat(makeOpts());
+
+        expect(result.partial).toBe(true);
+        expect(result.text).toBe("partial response");
+        expect(result.tokenUsage).toBeUndefined();
     });
 });
 
