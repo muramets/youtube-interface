@@ -244,10 +244,13 @@ export const KnowledgeService = {
                 const versionId = `v-${Date.now()}`;
                 const versionsPath = `${getKnowledgeItemsPath(userId, channelId)}/${itemId}/versions`;
                 const versionRef = doc(db, versionsPath, versionId);
+                const contentTs = previousItem.updatedAt ?? previousItem.createdAt;
+                const contentTimeMs = contentTs.toDate?.()?.getTime()
+                    ?? (contentTs.seconds ? contentTs.seconds * 1000 : Date.now());
                 batch.set(versionRef, stripUndefined({
                     content: previousItem.content,
                     title: previousItem.title || undefined,
-                    createdAt: Date.now(),
+                    createdAt: contentTimeMs,
                     source: previousItem.lastEditSource ?? previousItem.source,
                     model: previousItem.lastEditedBy ?? previousItem.model,
                 }));

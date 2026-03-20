@@ -71,10 +71,13 @@ export async function handleEditKnowledge(
 
     // 1. Snapshot old content to versions/ subcollection
     const versionRef = db.collection(`${basePath}/knowledgeItems/${kiId}/versions`).doc();
+    const updatedAtTs = kiData.updatedAt as { toMillis?: () => number } | undefined;
+    const createdAtTs = kiData.createdAt as { toMillis?: () => number } | undefined;
+    const contentTimeMs = (updatedAtTs ?? createdAtTs)?.toMillis?.() ?? Date.now();
     const versionData = stripUndefined({
         content: oldContent,
         title: oldTitle || undefined,
-        createdAt: Date.now(),
+        createdAt: contentTimeMs,
         source: oldSource,
         model: oldModel || undefined,
     });
