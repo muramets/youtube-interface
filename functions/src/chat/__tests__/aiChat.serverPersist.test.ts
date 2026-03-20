@@ -400,7 +400,7 @@ describe("aiChat — server-only writer: empty response edge case", () => {
     });
 });
 
-describe("aiChat — server-only writer: KI content stripping", () => {
+describe("aiChat — server-only writer: KI content preserved", () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mockBatchSet.mockClear();
@@ -409,13 +409,13 @@ describe("aiChat — server-only writer: KI content stripping", () => {
         streamChatResult = {};
     });
 
-    it("replaces saveKnowledge args.content with pointer in persisted toolCalls", async () => {
+    it("preserves saveKnowledge args.content in persisted toolCalls (no placeholder)", async () => {
         streamChatResult = {
             text: "Saved!",
             partial: false,
             toolCalls: [{
                 name: "saveKnowledge",
-                args: { title: "Test KI", content: "Very long content that should be stripped..." },
+                args: { title: "Test KI", content: "Very long content that is preserved as-is" },
                 result: { id: "ki-123" },
             }],
         };
@@ -431,7 +431,7 @@ describe("aiChat — server-only writer: KI content stripping", () => {
         expect(mockBatchSet).toHaveBeenCalledTimes(1);
         const msg = mockBatchSet.mock.calls[0][1] as Record<string, unknown>;
         const toolCalls = msg.toolCalls as Array<{ name: string; args: Record<string, unknown> }>;
-        expect(toolCalls[0].args.content).toBe("[Saved as KI ki-123]");
+        expect(toolCalls[0].args.content).toBe("Very long content that is preserved as-is");
     });
 });
 

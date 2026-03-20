@@ -453,19 +453,11 @@ export const aiChat = onRequest(
             // Determine message status (immutable after write)
             const messageStatus = partial ? 'stopped' as const : 'complete' as const;
 
-            // Strip large KI content from toolCalls before sending to client / persisting
-            // Replaces saveKnowledge args.content with a lightweight reference pointer.
-            // Preserves summary (lightweight, useful for history reconstruction).
-            const persistToolCalls = toolCalls?.map(tc => {
-                if (tc.name === 'saveKnowledge' && tc.args?.content && tc.result?.id) {
-                    return { ...tc, args: { ...tc.args, content: `[Saved as KI ${tc.result.id}]` } };
-                }
-                if (tc.name === 'editKnowledge' && tc.args?.content && tc.result?.id) {
-                    return { ...tc, args: { ...tc.args, content: `[Updated KI ${tc.result.id}]` } };
-                }
-                return tc;
-            });
-
+            // NOTE: toolCalls are persisted with full content (including KI bodies).
+            // Previously args.content was replaced with "[Saved as KI {id}]" placeholders,
+            // but Claude misinterpreted these as missing content and wasted tool calls
+            // trying to "fix" them. KI content (~5K chars) is negligible vs traffic
+            // analysis results (~160K chars) already stored in full.
 
             // --- Server-only writer: pre-generate message ID (sync — no network call) ---
             const msgRef = db.collection(messagesPath).doc();
@@ -477,7 +469,7 @@ export const aiChat = onRequest(
                     text: responseText,
                     tokenUsage,
                     normalizedUsage,
-                    toolCalls: persistToolCalls,
+                    toolCalls,
                     usedSummary: memory.usedSummary,
                     summary: memory.newSummary,
                     status: messageStatus,
@@ -505,7 +497,7 @@ export const aiChat = onRequest(
             };
             if (tokenUsage) rawMsg.tokenUsage = tokenUsage;
             if (normalizedUsage) rawMsg.normalizedUsage = normalizedUsage;
-            if (persistToolCalls) rawMsg.toolCalls = persistToolCalls;
+            if (toolCalls) rawMsg.toolCalls = toolCalls;
 
             // Cache-aligned iteration structure — serialize SDK objects to plain JSON
             // BEFORE deepStripUndefined (which may corrupt SDK types like RedactedThinkingBlock).
