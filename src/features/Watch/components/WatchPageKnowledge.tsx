@@ -47,9 +47,14 @@ export const WatchPageKnowledge = React.memo(({ videoId }: WatchPageKnowledgePro
         content: string;
         videoId?: string;
         scope?: 'video' | 'channel';
+        skipVersioning?: boolean;
     }) => {
         if (!editingItem) return
-        updateMutation.mutate({ itemId: editingItem.id, updates, previousItem: editingItem })
+        updateMutation.mutate({
+            itemId: editingItem.id,
+            updates,
+            previousItem: updates.skipVersioning ? undefined : editingItem,
+        })
     }, [editingItem, updateMutation])
 
     const handleDelete = useCallback((item: KnowledgeItem) => {

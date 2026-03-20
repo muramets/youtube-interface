@@ -105,7 +105,7 @@ export const EDITOR_PROSE_CLASSES = clsx(
     '[&_.details-toggle-icon]:flex [&_.details-toggle-icon]:items-center [&_.details-toggle-icon]:justify-center',
     '[&_.details-toggle-icon]:w-5 [&_.details-toggle-icon]:h-5',
     '[&_.details-toggle-icon]:cursor-pointer [&_.details-toggle-icon]:transition-all [&_.details-toggle-icon]:duration-200',
-    '[&_.details-toggle-icon]:text-inherit [&_.details-toggle-icon]:z-modal',
+    '[&_.details-toggle-icon]:text-inherit [&_.details-toggle-icon]:z-10',
     '[&_.details-toggle-closed]:-rotate-90',
 
     // Details content spacing

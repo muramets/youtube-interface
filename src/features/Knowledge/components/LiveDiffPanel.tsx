@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { X } from 'lucide-react'
+import { X, RotateCcw } from 'lucide-react'
 import { buildBodyComponents } from '../utils/bodyComponents'
 import { computeDiffBlocks } from '../utils/diffUtils'
 import { DiffBlockView } from './RenderedDiffViewer'
@@ -16,6 +16,8 @@ interface LiveDiffPanelProps {
     videoMap?: Map<string, VideoPreviewData>
     /** Close the diff panel (exit compare mode) */
     onClose?: () => void
+    /** Restore editor content to this version */
+    onRestore?: () => void
 }
 
 const DEBOUNCE_MS = 300
@@ -26,7 +28,7 @@ const DEBOUNCE_MS = 300
  * Shows the OLD version with diff highlights. Reuses DiffBlockView from
  * RenderedDiffViewer. Debounced to avoid lag during fast typing.
  */
-export const LiveDiffPanel = ({ oldContent, newContent, label, videoMap, onClose }: LiveDiffPanelProps) => {
+export const LiveDiffPanel = ({ oldContent, newContent, label, videoMap, onClose, onRestore }: LiveDiffPanelProps) => {
     const [debouncedNew, setDebouncedNew] = useState(newContent)
 
     useEffect(() => {
@@ -58,6 +60,16 @@ export const LiveDiffPanel = ({ oldContent, newContent, label, videoMap, onClose
                                 <span style={{ color: 'var(--diff-removed-text)' }}>-{stats.removed}</span>
                             )}
                         </span>
+                    )}
+                    {onRestore && (
+                        <button
+                            onClick={onRestore}
+                            className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium text-accent hover:bg-accent/10 rounded transition-colors"
+                            title="Restore this version"
+                        >
+                            <RotateCcw size={11} />
+                            Restore
+                        </button>
                     )}
                     {onClose && (
                         <button

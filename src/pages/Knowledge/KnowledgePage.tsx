@@ -88,9 +88,14 @@ export const KnowledgePage: React.FC = () => {
         content: string;
         videoId?: string;
         scope?: 'video' | 'channel';
+        skipVersioning?: boolean;
     }) => {
         if (!editingItem) return
-        updateMutation.mutate({ itemId: editingItem.id, updates, previousItem: editingItem })
+        updateMutation.mutate({
+            itemId: editingItem.id,
+            updates,
+            previousItem: updates.skipVersioning ? undefined : editingItem,
+        })
     }, [editingItem, updateMutation])
 
     const handleCreate = useCallback((item: { category: string; title: string; content: string; summary: string }) => {

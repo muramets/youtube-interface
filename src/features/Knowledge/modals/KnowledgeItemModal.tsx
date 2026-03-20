@@ -25,6 +25,7 @@ interface KnowledgeItemModalProps {
         content: string;
         videoId?: string;
         scope?: 'video' | 'channel';
+        skipVersioning?: boolean;
     }) => void
     /** Called when modal should close */
     onClose: () => void
@@ -61,8 +62,9 @@ export const KnowledgeItemModal = React.memo(({
     const [content, setContent] = useState(item.content)
     const [linkedVideoId, setLinkedVideoId] = useState<string | undefined>(item.videoId)
 
-    const { versions, deleteVersion } = useKnowledgeVersions(userId, channelId, item.id)
+    const { versions, deleteVersion, deleteVersions } = useKnowledgeVersions(userId, channelId, item.id)
     const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null)
+    const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([])
 
     // Build videoMap from videoCatalog for diff panel vid:// link rendering
     const videoMap = useMemo(() => {
@@ -90,27 +92,45 @@ export const KnowledgeItemModal = React.memo(({
         return () => document.removeEventListener('keydown', handleKeyDown)
     }, [onClose])
 
+    const handleRestore = useCallback((versionId: string) => {
+        const version = versions.find(v => v.id === versionId)
+        if (!version) return
+        setContent(version.content)
+        // Delete the target version (now identical to Current) + all newer versions
+        const idsToDelete = versions
+            .filter(v => v.createdAt >= version.createdAt)
+            .map(v => v.id)
+        setPendingDeleteIds(idsToDelete)
+        setSelectedVersionId(null)
+    }, [versions])
+
+    const isRestore = pendingDeleteIds.length > 0
+
     const handleSave = useCallback(() => {
         const videoChanged = linkedVideoId !== item.videoId
         const updates: Parameters<typeof onSave>[0] = {
             title: title.trim(),
             summary: summary.trim(),
             content,
+            skipVersioning: isRestore,
         }
         if (videoChanged) {
             updates.videoId = linkedVideoId
             updates.scope = linkedVideoId ? 'video' : 'channel'
         }
         onSave(updates)
+        if (isRestore) {
+            deleteVersions(pendingDeleteIds)
+        }
         onClose()
-    }, [title, summary, content, linkedVideoId, item.videoId, onSave, onClose])
+    }, [title, summary, content, linkedVideoId, item.videoId, onSave, onClose, isRestore, pendingDeleteIds, deleteVersions])
 
     const hasChanges = title.trim() !== item.title
         || summary.trim() !== item.summary
         || content !== item.content
         || linkedVideoId !== item.videoId
     const dateStr = formatKnowledgeDate(item.createdAt)
-    const currentDateStr = formatKnowledgeDate(item.updatedAt ?? item.createdAt)
+    const currentDateStr = formatKnowledgeDate(item.updatedAt ?? item.createdAt, true)
     const currentSource = item.lastEditSource ?? item.source
     const currentModel = item.lastEditedBy ?? item.model
 
@@ -122,11 +142,12 @@ export const KnowledgeItemModal = React.memo(({
             selectedVersionId={selectedVersionId}
             onSelect={setSelectedVersionId}
             onDelete={deleteVersion}
+            onRestore={handleRestore}
             currentSource={currentSource}
             currentModel={currentModel}
             currentDate={currentDateStr}
         />
-    ), [versions, selectedVersionId, deleteVersion, currentSource, currentModel, currentDateStr])
+    ), [versions, selectedVersionId, deleteVersion, handleRestore, currentSource, currentModel, currentDateStr])
 
     const expandedSidePanel = selectedVersion ? (
         <LiveDiffPanel
@@ -135,6 +156,7 @@ export const KnowledgeItemModal = React.memo(({
             label={formatVersionLabel(selectedVersion.createdAt, selectedVersion.source)}
             videoMap={videoMap}
             onClose={() => setSelectedVersionId(null)}
+            onRestore={() => handleRestore(selectedVersion.id)}
         />
     ) : undefined
 

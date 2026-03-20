@@ -4,7 +4,7 @@
 
 ## Текущее состояние
 
-Реализовано полностью. LLM может редактировать существующие KI через `editKnowledge` tool call. Backend handler читает старый doc, создаёт version snapshot в `versions/` subcollection (атомарный batch), обновляет main doc, re-resolves video refs. UI Edit модалка тоже создаёт версию при изменении content. Zen Mode показывает dropdown с историей версий и premium split-view DiffViewer (npm `diff` + custom React, line numbers, green/red highlights, theme-aware CSS variables). Conclude prompt обновлён: LLM предпочитает editKnowledge над saveKnowledge когда KI уже существует.
+Реализовано полностью. LLM может редактировать существующие KI через `editKnowledge` tool call. Backend handler читает старый doc, создаёт version snapshot в `versions/` subcollection (атомарный batch), обновляет main doc, re-resolves video refs. UI Edit модалка тоже создаёт версию при изменении content. Zen Mode показывает dropdown с историей версий и premium split-view DiffViewer (npm `diff` + custom React, line numbers, green/red highlights, theme-aware CSS variables). Conclude prompt обновлён: LLM предпочитает editKnowledge над saveKnowledge когда KI уже существует. Restore-to-version: пользователь может откатить KI к любой предыдущей версии — контент восстанавливается в редакторе, при Save все версии новее выбранной удаляются (batch delete), версионный snapshot при restore-save не создаётся (`skipVersioning`). Dropdown версий корректно считает текущую версию в total count.
 
 ---
 
@@ -35,6 +35,7 @@
 - Текущая версия — всегда на основном документе (zero extra reads при обычном просмотре)
 - Diff: line-level, как в git/IDE — номера строк, green (added) / red (removed)
 - Пользователь может удалить любую версию вручную
+- **Restore-to-version:** откат к выбранной версии. Две точки входа: кнопка "Restore" в LiveDiffPanel (после просмотра diff) или иконка RotateCcw в VersionDropdown (quick action). При restore контент заменяется в редакторе (local state), при Save — все новые версии удаляются batch-ом, version snapshot не создаётся (`skipVersioning`). Cancel отменяет restore без побочных эффектов
 
 ## Diff UI
 
@@ -58,6 +59,7 @@ Premium IDE-like diff viewer — **только в Zen Mode** (fullscreen). KI c
 - [x] Phase 3: DiffViewer — npm `diff` + custom premium component (split view, line numbers, green/red)
 - [x] Phase 4: UI Edit → version — ручное редактирование тоже создаёт версию
 - [x] FINAL: Double review-fix cycle (R1 Architecture 9/9 PASS + R2 Production 10/10 PASS after fixes)
+- [x] Phase 5: Restore-to-version — restore button (LiveDiffPanel + VersionDropdown), deferred version cleanup on Save, skipVersioning flag, version count bugfix (+1 for Current)
 
 ← YOU ARE HERE
 
@@ -94,13 +96,13 @@ Premium IDE-like diff viewer — **только в Zen Mode** (fullscreen). KI c
 | File | Role |
 |------|------|
 | `src/core/types/knowledge.ts` | Re-exports `KnowledgeVersion`, adds `KnowledgeVersionWithId` |
-| `src/core/services/knowledge/knowledgeVersionService.ts` | Version CRUD: getVersions (limit 50, DESC), createVersion, deleteVersion |
+| `src/core/services/knowledge/knowledgeVersionService.ts` | Version CRUD: getVersions (limit 50, DESC), createVersion, deleteVersion, deleteVersions (batch) |
 | `src/core/services/knowledge/knowledgeService.ts` | `updateKnowledgeItemWithVersion` — wrapper: if content changed → create version → update |
-| `src/core/hooks/useKnowledgeVersions.ts` | TanStack Query hook: versions subcollection, 30s staleTime, delete mutation |
+| `src/core/hooks/useKnowledgeVersions.ts` | TanStack Query hook: versions subcollection, 30s staleTime, delete mutation, deleteVersions (batch for restore) |
 | `src/core/hooks/useKnowledgeItems.ts` | `useUpdateKnowledgeItem` — accepts optional `previousItem` for version creation |
-| `src/features/Knowledge/components/VersionDropdown.tsx` | Version history dropdown with ARIA, Escape key, delete per version |
+| `src/features/Knowledge/components/VersionDropdown.tsx` | Version history dropdown with ARIA, Escape key, delete per version, restore quick-action (RotateCcw icon), version count includes Current (+1) |
 | `src/features/Knowledge/components/RenderedDiffViewer.tsx` | Read-only split-view diff: rendered markdown with vid:// tooltips in both columns |
-| `src/features/Knowledge/components/LiveDiffPanel.tsx` | Editor side panel: rendered markdown diff (old version), debounced 300ms |
+| `src/features/Knowledge/components/LiveDiffPanel.tsx` | Editor side panel: rendered markdown diff (old version), debounced 300ms, Restore button |
 | `src/features/Knowledge/components/KnowledgeViewer.tsx` | Zen Mode: version dropdown, RenderedDiffViewer when version selected, near-fullscreen |
 | `src/features/Knowledge/utils/diffUtils.ts` | Shared: `computeDiffBlocks` (diffLines), `allowCustomUrls` |
 | `src/features/Knowledge/utils/bodyComponents.tsx` | ReactMarkdown overrides: h1-h6 sizing, vid:// link tooltips, `<ol start>` preservation |
@@ -129,3 +131,5 @@ Premium IDE-like diff viewer — **только в Zen Mode** (fullscreen). KI c
 | 9 | Version snapshot includes `title?` | Forward-proofing: title нужен для diff labels, добавить позже без миграции |
 | 10 | LLM prefers editKnowledge over saveKnowledge | При Memorize: если KI с тем же category+video уже есть — edit, не create |
 | 11 | Version provenance via `lastEditSource`/`lastEditedBy` | Main doc tracks who last edited (backend writes at LLM edit, frontend writes at manual edit). Version snapshot captures `lastEditSource ?? source` to correctly identify the OLD content's origin. `source`/`model` on main doc = original creation provenance (immutable) |
+| 12 | Deferred version cleanup on restore | Restore only changes editor state (local). Version deletion + content save happen together on Save. Cancel = no side effects. `skipVersioning` flag prevents `updateKnowledgeItemWithVersion` from creating an unwanted snapshot of the pre-restore content |
+| 13 | Version count includes Current | `getVersionCountLabel(previousVersionCount)` returns `previousVersionCount + 1` — aligns dropdown header with visible entries (Current is always shown) |

@@ -186,7 +186,7 @@ export const CollapsableHeadings = Extension.create({
                                             const leftOffset = (level - 1) * 1.5;
 
                                             icon.className = clsx(
-                                                "absolute flex items-center justify-center w-5 h-[1.3em] cursor-pointer transition-all duration-200 text-text-secondary hover:text-text-primary z-modal",
+                                                "absolute flex items-center justify-center w-5 h-[1.3em] cursor-pointer transition-all duration-200 text-text-secondary hover:text-text-primary z-10",
                                                 "top-0",
                                                 isCollapsed ? "-rotate-90" : "rotate-0"
                                             )

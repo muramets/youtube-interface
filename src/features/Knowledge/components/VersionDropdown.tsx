@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Clock, Check } from 'lucide-react'
+import { Clock, Check, RotateCcw } from 'lucide-react'
 import { ConfirmDeleteButton } from '../../../components/ui/atoms/ConfirmDeleteButton'
 import { getSourceLabel } from '../utils/formatDate'
 import type { KnowledgeVersionWithId } from '../../../core/types/knowledge'
@@ -9,6 +9,7 @@ interface VersionDropdownProps {
     selectedVersionId: string | null
     onSelect: (versionId: string | null) => void
     onDelete: (versionId: string) => void
+    onRestore?: (versionId: string) => void
     currentSource: string
     currentModel: string
     currentDate: string
@@ -24,11 +25,22 @@ function formatVersionDate(timestamp: number): string {
     })
 }
 
+/**
+ * Returns the version count label for the dropdown trigger button.
+ * @param previousVersionCount — number of previous versions in Firestore subcollection
+ * @returns e.g. "1 version", "3 versions"
+ */
+function getVersionCountLabel(previousVersionCount: number): string {
+    const total = previousVersionCount + 1
+    return `${total} version${total !== 1 ? 's' : ''}`
+}
+
 export const VersionDropdown = ({
     versions,
     selectedVersionId,
     onSelect,
     onDelete,
+    onRestore,
     currentSource,
     currentModel,
     currentDate,
@@ -50,10 +62,10 @@ export const VersionDropdown = ({
                 setIsOpen(false)
             }
         }
-        document.addEventListener('mousedown', handleClick)
+        document.addEventListener('mousedown', handleClick, true)
         document.addEventListener('keydown', handleKeyDown)
         return () => {
-            document.removeEventListener('mousedown', handleClick)
+            document.removeEventListener('mousedown', handleClick, true)
             document.removeEventListener('keydown', handleKeyDown)
         }
     }, [isOpen])
@@ -63,7 +75,7 @@ export const VersionDropdown = ({
         setIsOpen(false)
     }, [onSelect])
 
-    const hasVersions = versions.length > 0
+    const versionLabel = getVersionCountLabel(versions.length)
 
     return (
         <div className="relative" ref={dropdownRef}>
@@ -73,10 +85,10 @@ export const VersionDropdown = ({
                 aria-expanded={isOpen}
                 aria-haspopup="listbox"
                 className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] text-text-secondary hover:text-text-primary hover:bg-hover-bg rounded-md transition-colors"
-                title={hasVersions ? `${versions.length} version${versions.length !== 1 ? 's' : ''}` : 'No history'}
+                title={versionLabel}
             >
                 <Clock size={12} />
-                <span>{hasVersions ? `${versions.length} version${versions.length !== 1 ? 's' : ''}` : 'No history'}</span>
+                <span>{versionLabel}</span>
             </button>
 
             {/* Dropdown menu */}
@@ -84,7 +96,7 @@ export const VersionDropdown = ({
                 <div
                     role="listbox"
                     aria-label="Version history"
-                    className="absolute right-0 top-full mt-1 w-72 bg-bg-secondary border border-border rounded-lg shadow-xl z-10 overflow-hidden"
+                    className="absolute right-0 top-full mt-1 w-72 bg-bg-secondary border border-border rounded-lg shadow-xl z-popover overflow-hidden"
                 >
                     {/* Current version (not deletable) */}
                     <button
@@ -136,7 +148,16 @@ export const VersionDropdown = ({
                                             </div>
                                         </div>
                                     </button>
-                                    <div className="opacity-0 group-hover:opacity-100 transition-all flex-shrink-0">
+                                    <div className="opacity-0 group-hover:opacity-100 transition-all flex-shrink-0 flex items-center gap-0.5">
+                                        {onRestore && (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); onRestore(version.id) }}
+                                                className="p-1.5 text-text-tertiary hover:text-accent hover:bg-accent/10 rounded transition-colors"
+                                                title="Restore this version"
+                                            >
+                                                <RotateCcw size={11} />
+                                            </button>
+                                        )}
                                         <ConfirmDeleteButton
                                             onConfirm={() => onDelete(version.id)}
                                             size={11}

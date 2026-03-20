@@ -35,9 +35,18 @@ export const useKnowledgeVersions = (
         },
     });
 
+    const deleteVersionsMutation = useMutation({
+        mutationFn: (versionIds: string[]) =>
+            KnowledgeVersionService.deleteVersions(userId, channelId, kiId, versionIds),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey });
+        },
+    });
+
     return {
         versions: versions || EMPTY,
         isLoading,
         deleteVersion: deleteMutation.mutate,
+        deleteVersions: deleteVersionsMutation.mutate,
     };
 };

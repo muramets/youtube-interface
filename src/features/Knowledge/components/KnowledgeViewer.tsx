@@ -53,7 +53,7 @@ export const KnowledgeViewer = React.memo(({
 
     const isDiffActive = !!selectedVersion
     const dateStr = item.createdAt ? formatKnowledgeDate(item.createdAt) : ''
-    const currentDateStr = formatKnowledgeDate(item.updatedAt ?? item.createdAt)
+    const currentDateStr = formatKnowledgeDate(item.updatedAt ?? item.createdAt, true)
     const currentSource = item.lastEditSource ?? item.source
     const currentModel = item.lastEditedBy ?? item.model
 
