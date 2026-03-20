@@ -16,6 +16,8 @@ import { formatKnowledgeDate } from '../utils/formatDate'
 import { buildBodyComponents } from '../utils/bodyComponents'
 import { allowCustomUrls } from '../utils/diffUtils'
 import { linkifyVideoIds } from '../../../core/utils/linkifyVideoIds'
+import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip'
+import { VideoPreviewTooltip, PREVIEW_DIMENSIONS } from '../../Video/components/VideoPreviewTooltip'
 
 interface KnowledgeCardProps {
     item: KnowledgeItem
@@ -147,22 +149,33 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
 
                     {/* Linked video — video-scoped KI only, hidden on Watch Page */}
                     {showLinkedVideo && linkedVideo && (
-                        <div className="flex items-center gap-2 mt-1.5">
+                        <div className="group/linked flex items-center gap-2 mt-1.5 cursor-default">
                             {linkedVideo.thumbnailUrl && (
                                 <img
                                     src={linkedVideo.thumbnailUrl}
                                     alt=""
-                                    className="w-8 aspect-video object-cover rounded flex-shrink-0"
+                                    className="w-8 aspect-video object-cover rounded flex-shrink-0 transition-transform group-hover/linked:scale-110"
                                 />
                             )}
-                            <span className="text-[10px] text-text-tertiary truncate">
-                                {linkedVideo.title}
-                            </span>
-                            {linkedVideo.channelTitle && (
-                                <span className="text-[10px] text-text-tertiary/50 truncate flex-shrink-0">
-                                    {linkedVideo.channelTitle}
+                            <PortalTooltip
+                                content={<VideoPreviewTooltip video={linkedVideo} mode="mini" />}
+                                variant="glass"
+                                side="top"
+                                align="center"
+                                sizeMode="fixed"
+                                fixedDimensions={PREVIEW_DIMENSIONS.mini}
+                                enterDelay={200}
+                                inline
+                            >
+                                <span className="text-[10px] text-text-tertiary truncate transition-colors group-hover/linked:text-text-secondary">
+                                    {linkedVideo.title}
+                                    {linkedVideo.channelTitle && (
+                                        <span className="text-text-tertiary/50 transition-colors group-hover/linked:text-text-tertiary ml-1">
+                                            {linkedVideo.channelTitle}
+                                        </span>
+                                    )}
                                 </span>
-                            )}
+                            </PortalTooltip>
                         </div>
                     )}
 
