@@ -111,7 +111,7 @@ export const TrendsCollapsedGroup: React.FC<{
         initial={false}
       >
         <AnimatePresence mode="popLayout">
-          {visibleChannels.map((channel, index) => {
+          {visibleChannels.map((channel) => {
             const isSelected = selectedChannelId === channel.id;
             const isBroken = brokenAvatarChannelIds.has(channel.id);
             return (

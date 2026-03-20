@@ -22,7 +22,8 @@ export function formatKnowledgeDate(
 export function getSourceLabel(source: string): string {
     if (source === 'conclude') return 'via Memorize'
     if (source === 'manual') return 'Manual edit'
-    return 'LLM edit'
+    if (source === 'chat-edit') return 'LLM edit'
+    return 'via Chat'
 }
 
 /**

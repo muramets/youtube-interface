@@ -84,7 +84,7 @@ export async function handleEditKnowledge(
     batch.set(versionRef, versionData);
 
     // 2. Update main doc with new content
-    const source = ctx.isConclude ? 'conclude' : 'chat-tool';
+    const source = ctx.isConclude ? 'conclude' : 'chat-edit';
     batch.update(kiRef, {
         content,
         updatedAt: FieldValue.serverTimestamp(),

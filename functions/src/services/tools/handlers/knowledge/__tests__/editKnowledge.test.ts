@@ -100,7 +100,7 @@ describe('handleEditKnowledge', () => {
         expect(updateData.content).toBe('## Updated Analysis\nBrowse 50%...');
         expect(updateData.updatedAt).toBe('SERVER_TIMESTAMP');
         expect(updateData.lastEditedBy).toBe('claude-sonnet-4-6');
-        expect(updateData.lastEditSource).toBe('chat-tool');
+        expect(updateData.lastEditSource).toBe('chat-edit');
     });
 
     it('returns error when kiId is missing', async () => {

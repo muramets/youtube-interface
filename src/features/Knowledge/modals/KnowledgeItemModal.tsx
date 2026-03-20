@@ -9,7 +9,7 @@ import { LiveDiffPanel } from '../components/LiveDiffPanel'
 import { useKnowledgeVersions } from '../../../core/hooks/useKnowledgeVersions'
 import { useAuth } from '../../../core/hooks/useAuth'
 import { useChannelStore } from '../../../core/stores/channelStore'
-import type { KnowledgeItem } from '../../../core/types/knowledge'
+import type { KnowledgeItem, KnowledgeVersionWithId } from '../../../core/types/knowledge'
 import type { VideoPreviewData } from '../../Video/types'
 import type { KiPreviewData } from '../../../components/ui/organisms/RichTextEditor/types'
 import { VideoLinkField } from '../components/VideoLinkField'
@@ -26,6 +26,8 @@ interface KnowledgeItemModalProps {
         videoId?: string;
         scope?: 'video' | 'channel';
         skipVersioning?: boolean;
+        lastEditSource?: string;
+        lastEditedBy?: string;
     }) => void
     /** Called when modal should close */
     onClose: () => void
@@ -65,6 +67,7 @@ export const KnowledgeItemModal = React.memo(({
     const { versions, deleteVersion, deleteVersions } = useKnowledgeVersions(userId, channelId, item.id)
     const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null)
     const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([])
+    const [restoredVersion, setRestoredVersion] = useState<KnowledgeVersionWithId | null>(null)
 
     // Build videoMap from videoCatalog for diff panel vid:// link rendering
     const videoMap = useMemo(() => {
@@ -96,15 +99,16 @@ export const KnowledgeItemModal = React.memo(({
         const version = versions.find(v => v.id === versionId)
         if (!version) return
         setContent(version.content)
-        // Delete the target version (now identical to Current) + all newer versions
-        const idsToDelete = versions
-            .filter(v => v.createdAt >= version.createdAt)
+        setRestoredVersion(version)
+        // Only versions NEWER than the target — the target itself becomes Current
+        const newerIds = versions
+            .filter(v => v.createdAt > version.createdAt)
             .map(v => v.id)
-        setPendingDeleteIds(idsToDelete)
+        setPendingDeleteIds(newerIds)
         setSelectedVersionId(null)
     }, [versions])
 
-    const isRestore = pendingDeleteIds.length > 0
+    const isRestore = restoredVersion !== null
 
     const handleSave = useCallback(() => {
         const videoChanged = linkedVideoId !== item.videoId
@@ -118,21 +122,38 @@ export const KnowledgeItemModal = React.memo(({
             updates.videoId = linkedVideoId
             updates.scope = linkedVideoId ? 'video' : 'channel'
         }
+        if (isRestore && restoredVersion) {
+            const isPureRestore = content === restoredVersion.content
+            if (isPureRestore) {
+                updates.lastEditSource = restoredVersion.source
+                updates.lastEditedBy = restoredVersion.model ?? ''
+            } else {
+                updates.lastEditSource = 'manual'
+                updates.lastEditedBy = ''
+            }
+        }
         onSave(updates)
-        if (isRestore) {
-            deleteVersions(pendingDeleteIds)
+        if (isRestore && restoredVersion) {
+            deleteVersions([...pendingDeleteIds, restoredVersion.id])
         }
         onClose()
-    }, [title, summary, content, linkedVideoId, item.videoId, onSave, onClose, isRestore, pendingDeleteIds, deleteVersions])
+    }, [title, summary, content, linkedVideoId, item.videoId, onSave, onClose, isRestore, restoredVersion, pendingDeleteIds, deleteVersions])
 
     const hasChanges = title.trim() !== item.title
         || summary.trim() !== item.summary
         || content !== item.content
         || linkedVideoId !== item.videoId
     const dateStr = formatKnowledgeDate(item.createdAt)
-    const currentDateStr = formatKnowledgeDate(item.updatedAt ?? item.createdAt, true)
-    const currentSource = item.lastEditSource ?? item.source
-    const currentModel = item.lastEditedBy ?? item.model
+    const baseCurrentDate = formatKnowledgeDate(item.updatedAt ?? item.createdAt, true)
+    const baseCurrentSource = item.lastEditSource ?? item.source
+    const baseCurrentModel = item.lastEditedBy ?? item.model
+
+    // When restore is active, Current shows the restored version's metadata
+    const currentDateStr = restoredVersion
+        ? new Date(restoredVersion.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+        : baseCurrentDate
+    const currentSource = restoredVersion ? restoredVersion.source : baseCurrentSource
+    const currentModel = restoredVersion ? (restoredVersion.model ?? '') : baseCurrentModel
 
     // --- Expanded mode slots ---
 
@@ -143,11 +164,13 @@ export const KnowledgeItemModal = React.memo(({
             onSelect={setSelectedVersionId}
             onDelete={deleteVersion}
             onRestore={handleRestore}
+            pendingDeleteIds={pendingDeleteIds}
+            restoredVersionId={restoredVersion?.id}
             currentSource={currentSource}
             currentModel={currentModel}
             currentDate={currentDateStr}
         />
-    ), [versions, selectedVersionId, deleteVersion, handleRestore, currentSource, currentModel, currentDateStr])
+    ), [versions, selectedVersionId, deleteVersion, handleRestore, pendingDeleteIds, restoredVersion, currentSource, currentModel, currentDateStr])
 
     const expandedSidePanel = selectedVersion ? (
         <LiveDiffPanel

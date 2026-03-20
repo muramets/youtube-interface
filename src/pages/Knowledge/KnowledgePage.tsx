@@ -89,12 +89,15 @@ export const KnowledgePage: React.FC = () => {
         videoId?: string;
         scope?: 'video' | 'channel';
         skipVersioning?: boolean;
+        lastEditSource?: string;
+        lastEditedBy?: string;
     }) => {
         if (!editingItem) return
+        const { skipVersioning, ...firestoreUpdates } = updates
         updateMutation.mutate({
             itemId: editingItem.id,
-            updates,
-            previousItem: updates.skipVersioning ? undefined : editingItem,
+            updates: firestoreUpdates,
+            previousItem: skipVersioning ? undefined : editingItem,
         })
     }, [editingItem, updateMutation])
 

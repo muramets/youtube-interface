@@ -10,6 +10,10 @@ interface VersionDropdownProps {
     onSelect: (versionId: string | null) => void
     onDelete: (versionId: string) => void
     onRestore?: (versionId: string) => void
+    /** IDs of versions pending deletion after restore (dimmed in UI) */
+    pendingDeleteIds?: string[]
+    /** The version that was restored — hidden from list (shown as Current) */
+    restoredVersionId?: string
     currentSource: string
     currentModel: string
     currentDate: string
@@ -41,10 +45,19 @@ export const VersionDropdown = ({
     onSelect,
     onDelete,
     onRestore,
+    pendingDeleteIds,
+    restoredVersionId,
     currentSource,
     currentModel,
     currentDate,
 }: VersionDropdownProps) => {
+    const pendingSet = pendingDeleteIds?.length
+        ? new Set(pendingDeleteIds)
+        : null
+    // Hide the restored version from list — its info is shown as Current
+    const displayVersions = restoredVersionId
+        ? versions.filter(v => v.id !== restoredVersionId)
+        : versions
     const [isOpen, setIsOpen] = useState(false)
     const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -75,7 +88,7 @@ export const VersionDropdown = ({
         setIsOpen(false)
     }, [onSelect])
 
-    const versionLabel = getVersionCountLabel(versions.length)
+    const versionLabel = getVersionCountLabel(displayVersions.length)
 
     return (
         <div className="relative" ref={dropdownRef}>
@@ -118,54 +131,64 @@ export const VersionDropdown = ({
                     </button>
 
                     {/* Version entries */}
-                    {versions.length === 0 ? (
+                    {displayVersions.length === 0 ? (
                         <div className="px-3 py-3 text-[11px] text-text-tertiary text-center">
                             No previous versions
                         </div>
                     ) : (
                         <div className="max-h-60 overflow-y-auto">
-                            {versions.map((version) => (
-                                <div
-                                    key={version.id}
-                                    role="option"
-                                    aria-selected={selectedVersionId === version.id}
-                                    className="flex items-center gap-1 px-3 py-2 hover:bg-hover-bg transition-colors group"
-                                >
-                                    <button
-                                        onClick={() => handleSelect(version.id)}
-                                        className="flex-1 flex items-center gap-2 text-left min-w-0"
+                            {displayVersions.map((version) => {
+                                const isPending = pendingSet?.has(version.id) ?? false
+                                return (
+                                    <div
+                                        key={version.id}
+                                        role="option"
+                                        aria-selected={selectedVersionId === version.id}
+                                        className={`flex items-center gap-1 px-3 py-2 transition-colors ${isPending ? 'opacity-40' : 'hover:bg-hover-bg group'}`}
                                     >
-                                        {selectedVersionId === version.id && (
-                                            <Check size={12} className="text-accent flex-shrink-0" />
-                                        )}
-                                        <div className={selectedVersionId === version.id ? '' : 'pl-5'}>
-                                            <div className="text-[11px] text-text-primary truncate">
-                                                {formatVersionDate(version.createdAt)}
+                                        <button
+                                            onClick={isPending ? undefined : () => handleSelect(version.id)}
+                                            className={`flex-1 flex items-center gap-2 text-left min-w-0 ${isPending ? 'cursor-default' : ''}`}
+                                            disabled={isPending}
+                                        >
+                                            {selectedVersionId === version.id && !isPending && (
+                                                <Check size={12} className="text-accent flex-shrink-0" />
+                                            )}
+                                            <div className={selectedVersionId === version.id && !isPending ? '' : 'pl-5'}>
+                                                <div className="text-[11px] text-text-primary truncate">
+                                                    {formatVersionDate(version.createdAt)}
+                                                </div>
+                                                <div className="text-[10px] text-text-tertiary">
+                                                    {getSourceLabel(version.source)}
+                                                    {version.model && ` · ${version.model}`}
+                                                </div>
                                             </div>
-                                            <div className="text-[10px] text-text-tertiary">
-                                                {getSourceLabel(version.source)}
-                                                {version.model && ` · ${version.model}`}
+                                        </button>
+                                        {isPending ? (
+                                            <span className="text-[9px] text-text-tertiary flex-shrink-0">
+                                                Pending removal
+                                            </span>
+                                        ) : (
+                                            <div className="opacity-0 group-hover:opacity-100 transition-all flex-shrink-0 flex items-center gap-0.5">
+                                                {onRestore && (
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); onRestore(version.id) }}
+                                                        className="p-1.5 text-text-tertiary hover:text-accent hover:bg-accent/10 rounded transition-colors"
+                                                        title="Restore this version"
+                                                    >
+                                                        <RotateCcw size={11} />
+                                                    </button>
+                                                )}
+                                                <ConfirmDeleteButton
+                                                    onConfirm={() => onDelete(version.id)}
+                                                    size={11}
+                                                    title="Delete version"
+                                                />
                                             </div>
-                                        </div>
-                                    </button>
-                                    <div className="opacity-0 group-hover:opacity-100 transition-all flex-shrink-0 flex items-center gap-0.5">
-                                        {onRestore && (
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); onRestore(version.id) }}
-                                                className="p-1.5 text-text-tertiary hover:text-accent hover:bg-accent/10 rounded transition-colors"
-                                                title="Restore this version"
-                                            >
-                                                <RotateCcw size={11} />
-                                            </button>
                                         )}
-                                        <ConfirmDeleteButton
-                                            onConfirm={() => onDelete(version.id)}
-                                            size={11}
-                                            title="Delete version"
-                                        />
                                     </div>
-                                </div>
-                            ))}
+                                )
+                            })}
                         </div>
                     )}
                 </div>
