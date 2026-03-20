@@ -118,6 +118,7 @@ const GroupPill: React.FC<{
         return record?.result ?? null;
     };
 
+    const RecordComponent = config?.RecordComponent;
     const StatsComponent = config?.StatsComponent;
     const statsResult = getStatsResult();
 
@@ -143,32 +144,12 @@ const GroupPill: React.FC<{
             {/* Expanded content */}
             {expanded && group.allResolved && !group.hasErrors && (
                 <div className="mt-1.5 flex flex-col gap-1 w-full">
-                    {/* KI tools: show title + category per record */}
-                    {(group.toolName === 'saveKnowledge' || group.toolName === 'saveMemory') && group.records.map((rec, i) => {
-                        const args = rec.args as Record<string, unknown> | undefined;
-                        const result = rec.result as Record<string, unknown> | undefined;
-                        const skipped = Boolean(result?.skipped);
-                        return (
-                            <div key={i} className="px-2 py-1.5 rounded-md bg-white/[0.03] text-[11px] min-w-0">
-                                {group.toolName === 'saveKnowledge' ? (
-                                    <div className="flex flex-col gap-0.5">
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-[9px] font-medium text-accent uppercase tracking-wider">
-                                                {(args?.category as string)?.replace(/-/g, ' ')}
-                                            </span>
-                                            {skipped && <span className="text-[9px] text-text-tertiary">(already exists)</span>}
-                                        </div>
-                                        <span className="text-text-primary truncate">{String(args?.title ?? '')}</span>
-                                        {typeof args?.summary === 'string' && <span className="text-text-tertiary leading-relaxed line-clamp-2">{args.summary}</span>}
-                                    </div>
-                                ) : (
-                                    <span className="text-text-secondary">{result?.memoryId ? 'Conversation memorized' : 'Memory saved'}</span>
-                                )}
-                            </div>
-                        );
-                    })}
-                    {/* Stats component from registry */}
-                    {StatsComponent && statsResult && <StatsComponent result={statsResult} />}
+                    {/* Per-record rendering (registry-driven) */}
+                    {RecordComponent && group.records.map((rec, i) => (
+                        <RecordComponent key={i} record={rec} />
+                    ))}
+                    {/* Stats component from registry (single-result view) */}
+                    {!RecordComponent && StatsComponent && statsResult && <StatsComponent result={statsResult} />}
                     {/* Thumbnail tool: image grid */}
                     {isThumbnailTool(group) && <ThumbnailGrid group={group} />}
                     {/* Video-based tools: video preview list (skip for thumbnails — ThumbnailGrid above already shows them) */}

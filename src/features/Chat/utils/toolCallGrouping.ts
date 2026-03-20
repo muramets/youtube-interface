@@ -77,11 +77,11 @@ export function getGroupLabel(group: ToolCallGroup): string {
 
 // --- Expandability ---
 
-/** Whether a group should be expandable (has video previews, stats, or inline content). */
+/** Whether a group should be expandable (has video previews, stats, or per-record content). */
 export function isExpandable(group: ToolCallGroup): boolean {
     const config = getToolConfig(group.toolName);
     if (!config?.hasExpandableContent) return false;
-    if (config.inlineExpand) return group.allResolved;
+    if (config.RecordComponent) return group.allResolved;
     return group.allResolved && (group.videoIds.length > 0 || !!config.StatsComponent);
 }
 

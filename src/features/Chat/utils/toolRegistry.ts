@@ -22,7 +22,9 @@ import {
     NicheSnapshotStats,
     FindSimilarStats,
     SearchDatabaseStats,
-    EditKnowledgeStats,
+    SaveKnowledgeRecord,
+    EditKnowledgeRecord,
+    SaveMemoryRecord,
 } from '../components/toolStats';
 
 // --- Types ---
@@ -43,9 +45,11 @@ export interface ToolConfig {
     color: ToolColor;
     /** Label text for each pill state (error, loading, done). */
     labels: ToolLabels;
-    /** Optional stats component rendered in expanded view. */
+    /** Optional stats component rendered in expanded view (receives first record's result). */
     StatsComponent?: React.FC<{ result: Record<string, unknown> }>;
-    /** Whether this tool has expandable content (stats or video list). */
+    /** Optional per-record component for expanded view (renders once per record in group). */
+    RecordComponent?: React.FC<{ record: ToolCallRecord }>;
+    /** Whether this tool has expandable content (stats, records, or video list). */
     hasExpandableContent: boolean;
     /** Extract video IDs from tool call records for expanded preview list. */
     extractVideoIds?: (records: ToolCallRecord[]) => string[];
@@ -53,8 +57,6 @@ export interface ToolConfig {
     sortVideosBy?: 'views';
     /** Sort channels in stats component by this field (default: preserve backend order). */
     sortChannelsBy?: 'averageViews';
-    /** Tools with inline expanded content in ToolCallSummary (not driven by videoIds or StatsComponent). */
-    inlineExpand?: boolean;
 }
 
 // --- Video ID extraction helpers ---
@@ -354,8 +356,8 @@ const TOOL_REGISTRY: Record<string, ToolConfig> = {
     saveKnowledge: {
         icon: BookOpen,
         color: 'emerald',
+        RecordComponent: SaveKnowledgeRecord,
         hasExpandableContent: true,
-        inlineExpand: true,
         labels: {
             error: "Couldn't save knowledge",
             loading: 'Saving knowledge...',
@@ -372,15 +374,18 @@ const TOOL_REGISTRY: Record<string, ToolConfig> = {
     editKnowledge: {
         icon: BookOpen,
         color: 'emerald',
-        StatsComponent: EditKnowledgeStats,
+        RecordComponent: EditKnowledgeRecord,
         hasExpandableContent: true,
         labels: {
             error: "Couldn't edit knowledge",
             loading: 'Editing knowledge...',
             preparing: 'Editing knowledge...',
             done: (group) => {
-                const title = group.records[0]?.result?.title as string | undefined;
-                return title ? `Edited: "${title}"` : 'Knowledge updated';
+                if (group.records.length === 1) {
+                    const title = group.records[0]?.result?.title as string | undefined;
+                    return title ? `Edited: "${title}"` : 'Knowledge updated';
+                }
+                return `Edited ${group.records.length} knowledge items`;
             },
         },
     },
@@ -410,8 +415,8 @@ const TOOL_REGISTRY: Record<string, ToolConfig> = {
     saveMemory: {
         icon: Brain,
         color: 'accent',
+        RecordComponent: SaveMemoryRecord,
         hasExpandableContent: true,
-        inlineExpand: true,
         labels: {
             error: "Couldn't save memory",
             loading: 'Saving memory...',
