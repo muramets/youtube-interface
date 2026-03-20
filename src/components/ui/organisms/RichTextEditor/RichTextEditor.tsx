@@ -81,6 +81,10 @@ export const RichTextEditor = ({
         if (!card) return
 
         if (isExpanded) {
+            // Lock body scroll while Zen mode is active
+            const prevOverflow = document.body.style.overflow
+            document.body.style.overflow = 'hidden'
+
             // Create fullscreen overlay
             const overlay = document.createElement('div')
             overlay.className = 'fixed inset-0 z-tooltip bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 sm:p-8 animate-fade-in'
@@ -110,6 +114,7 @@ export const RichTextEditor = ({
 
             return () => {
                 document.removeEventListener('keydown', handleEsc)
+                document.body.style.overflow = prevOverflow
 
                 // Remove any orphaned suggestion popups (@-mentions, /slash commands)
                 document.querySelectorAll('[data-suggestion-popup]').forEach(el => el.remove())
