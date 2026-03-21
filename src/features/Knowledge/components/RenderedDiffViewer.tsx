@@ -59,7 +59,7 @@ export const RenderedDiffViewer = ({
         return computeDiffBlocks(oldLinkified, newLinkified)
     }, [oldContent, newContent, videoMap])
 
-    const mdComponents = useMemo(() => buildBodyComponents(videoMap), [videoMap])
+    const mdComponents = useMemo(() => buildBodyComponents(videoMap, 'prose'), [videoMap])
 
     return (
         <div className="h-full flex flex-col">

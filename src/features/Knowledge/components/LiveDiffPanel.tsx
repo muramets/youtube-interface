@@ -41,7 +41,7 @@ export const LiveDiffPanel = ({ oldContent, newContent, label, videoMap, onClose
         [oldContent, debouncedNew],
     )
 
-    const mdComponents = useMemo(() => buildBodyComponents(videoMap), [videoMap])
+    const mdComponents = useMemo(() => buildBodyComponents(videoMap, 'prose'), [videoMap])
 
     return (
         <div className="h-full flex flex-col">
