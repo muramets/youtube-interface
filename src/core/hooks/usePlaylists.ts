@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { PlaylistService, type Playlist, type PlaylistSettings } from '../services/playlistService';
 import { SettingsService } from '../services/settingsService';
 
@@ -31,13 +31,7 @@ export const usePlaylists = (userId: string, channelId: string) => {
         enabled: !!userId && !!channelId,
     });
 
-    useEffect(() => {
-        if (!userId || !channelId) return;
-        const unsubscribe = PlaylistService.subscribeToPlaylists(userId, channelId, (data) => {
-            queryClient.setQueryData(queryKey, data);
-        });
-        return () => unsubscribe();
-    }, [userId, channelId, queryClient, queryKey]);
+    // Subscription managed centrally by useFirestoreSync (App.tsx)
 
     // Mutations
     const createPlaylistMutation = useMutation({

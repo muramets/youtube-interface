@@ -9,6 +9,7 @@ import {
     deleteDoc,
     writeBatch
 } from 'firebase/firestore';
+import { trackRead } from '../../utils/debug';
 import type { TrafficType, TrafficTypeEdge } from '../../types/suggestedTraffic/videoTrafficType';
 
 /**
@@ -42,7 +43,9 @@ export const TrafficTypeService = {
         const collectionPath = TrafficTypeService.getCollectionPath(userId, targetVideoId, snapshotId);
         const q = query(collection(db, collectionPath));
 
+        trackRead('traffic_types', 0, true);
         return onSnapshot(q, (snapshot) => {
+            trackRead('traffic_types', snapshot.size, false);
             const edges: TrafficTypeEdge[] = [];
             snapshot.forEach((docSnap) => {
                 const data = docSnap.data();

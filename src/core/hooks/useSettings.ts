@@ -1,5 +1,4 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
 import { useAuth } from './useAuth';
 import { useChannelStore } from '../stores/channelStore';
 import { SettingsService, type GeneralSettings, type SyncSettings, type CloneSettings, type RecommendationOrder, type PackagingSettings, type UploadDefaults, type TrafficSettings, type PickerSettings } from '../services/settingsService';
@@ -156,64 +155,7 @@ export const useSettings = () => {
     });
     const pickerSettings = pickerQuery.data || DEFAULT_PICKER_SETTINGS;
 
-    // --- Subscriptions ---
-
-    useEffect(() => {
-        if (!enabled) return;
-
-        const unsubGeneral = SettingsService.subscribeToGeneralSettings(userId, channelId, (data) => {
-            if (data) queryClient.setQueryData(['settings', 'general', userId, channelId], (old: GeneralSettings) => ({ ...old, ...data }));
-        });
-
-        const unsubSync = SettingsService.subscribeToSyncSettings(userId, channelId, (data) => {
-            if (data) queryClient.setQueryData(['settings', 'sync', userId, channelId], data);
-        });
-
-        const unsubClone = SettingsService.subscribeToCloneSettings(userId, channelId, (data) => {
-            if (data) queryClient.setQueryData(['settings', 'clone', userId, channelId], data);
-        });
-
-        const unsubRecs = SettingsService.subscribeToRecommendationOrders(userId, channelId, (data) => {
-            if (data) queryClient.setQueryData(['settings', 'recommendationOrders', userId, channelId], data);
-        });
-
-        const unsubVideoOrder = SettingsService.subscribeToVideoOrder(userId, channelId, (data) => {
-            if (data) queryClient.setQueryData(['settings', 'videoOrder', userId, channelId], data);
-        });
-
-        const unsubPlaylistOrder = SettingsService.subscribeToPlaylistOrder(userId, channelId, (data) => {
-            if (data) queryClient.setQueryData(['settings', 'playlistOrder', userId, channelId], data);
-        });
-
-        const unsubPackaging = SettingsService.subscribeToPackagingSettings(userId, channelId, (data) => {
-            if (data) queryClient.setQueryData(['settings', 'packaging', userId, channelId], data);
-        });
-
-        const unsubUploadDefaults = SettingsService.subscribeToUploadDefaults(userId, channelId, (data) => {
-            if (data) queryClient.setQueryData(['settings', 'uploadDefaults', userId, channelId], data);
-        });
-
-        const unsubTraffic = SettingsService.subscribeToTrafficSettings(userId, channelId, (data) => {
-            if (data) queryClient.setQueryData(['settings', 'traffic', userId, channelId], data);
-        });
-
-        const unsubPicker = SettingsService.subscribeToPickerSettings(userId, channelId, (data) => {
-            if (data) queryClient.setQueryData(['settings', 'picker', userId, channelId], data);
-        });
-
-        return () => {
-            unsubGeneral();
-            unsubSync();
-            unsubClone();
-            unsubRecs();
-            unsubVideoOrder();
-            unsubPlaylistOrder();
-            unsubPackaging();
-            unsubUploadDefaults();
-            unsubTraffic();
-            unsubPicker();
-        };
-    }, [userId, channelId, enabled, queryClient]);
+    // Subscriptions managed centrally by useFirestoreSync (App.tsx)
 
     // --- Mutations ---
 

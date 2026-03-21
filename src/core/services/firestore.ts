@@ -17,6 +17,7 @@ import {
     type Transaction
 } from 'firebase/firestore';
 import { db } from '../../config/firebase';
+import { trackRead, labelFromPath } from '../utils/debug';
 
 // Generic type for Firestore documents
 export type FirestoreDoc<T> = T & { id: string };
@@ -37,6 +38,7 @@ export const getDocRef = (path: string, id?: string) => id ? doc(db, path, id) :
 export const fetchDoc = async <T>(path: string, id: string): Promise<T | null> => {
     const docRef = doc(db, path, id);
     const snapshot = await getDoc(docRef);
+    trackRead(labelFromPath(path, id), snapshot.exists() ? 1 : 0, false);
     return snapshot.exists() ? (snapshot.data() as T) : null;
 };
 
@@ -46,6 +48,7 @@ export const fetchDoc = async <T>(path: string, id: string): Promise<T | null> =
 export const getDocument = async <T>(path: string): Promise<T | null> => {
     const docRef = doc(db, path);
     const snapshot = await getDoc(docRef);
+    trackRead(labelFromPath(path), snapshot.exists() ? 1 : 0, false);
     return snapshot.exists() ? (snapshot.data() as T) : null;
 };
 
@@ -59,6 +62,7 @@ export const fetchCollection = async <T>(
     const colRef = collection(db, path);
     const q = query(colRef, ...constraints);
     const snapshot = await getDocs(q);
+    trackRead(labelFromPath(path), snapshot.size, false);
     return snapshot.docs.map(doc => ({ ...(doc.data() as T), id: doc.id }));
 };
 
@@ -72,7 +76,10 @@ export const subscribeToCollection = <T>(
 ) => {
     const colRef = collection(db, path);
     const q = query(colRef, ...constraints);
+    const label = labelFromPath(path);
+    trackRead(label, 0, true); // register listener
     return onSnapshot(q, (snapshot) => {
+        trackRead(label, snapshot.size, false);
         const data = snapshot.docs.map(doc => ({ ...(doc.data() as T), id: doc.id }));
         callback(data);
     });
@@ -87,7 +94,10 @@ export const subscribeToDoc = <T>(
     callback: (data: T | null) => void
 ) => {
     const docRef = doc(db, path, id);
+    const label = labelFromPath(path, id);
+    trackRead(label, 0, true); // register listener
     return onSnapshot(docRef, (snapshot) => {
+        trackRead(label, snapshot.exists() ? 1 : 0, false);
         callback(snapshot.exists() ? (snapshot.data() as T) : null);
     });
 };

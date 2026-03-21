@@ -26,6 +26,7 @@ export const DEBUG_ENABLED = {
     trends: false,       // Trends table: snapshot loading, delta calculations
     canvas: false,       // Canvas: node re-renders, drag frame timing, memo hits
     context: true,       // App context: slot mutations, bridge pushes, consume/clear
+    firestore: true,     // Firestore read tracking: document counts per collection
 } as const;
 
 type DebugCategory = keyof typeof DEBUG_ENABLED;
@@ -81,6 +82,78 @@ const createGroupLogger = (category: DebugCategory) => {
     };
 };
 
+// ---------------------------------------------------------------------------
+// Firestore Read Tracker
+// Accumulates read counts by collection. Query in browser console:
+//   window.__firestoreReads()        — summary table
+//   window.__firestoreReads('reset') — reset counters
+// ---------------------------------------------------------------------------
+interface ReadEntry {
+    reads: number;
+    listeners: number;
+    lastReadAt: number;
+}
+
+/** Extract a human-readable label from a Firestore path.
+ *  `users/abc/channels/xyz/videos` → `videos`
+ *  `users/abc/channels/xyz/chatConversations/id/messages` → `chatConversations/messages`
+ *  `users/abc/channels/xyz/settings` + id `general` → `settings/general`
+ */
+const labelFromPath = (path: string, docId?: string): string => {
+    // Strip user/channel prefix: everything after `channels/{id}/`
+    const channelIdx = path.indexOf('/channels/');
+    const stripped = channelIdx !== -1
+        ? path.slice(channelIdx).replace(/^\/channels\/[^/]+\//, '')
+        : path;
+
+    // Collapse dynamic IDs in the middle (keep collection names only)
+    const parts = stripped.split('/');
+    const names = parts.filter((_, i) => i % 2 === 0); // even indices = collection names
+
+    const label = names.join('/');
+    return docId ? `${label}/${docId}` : label;
+};
+
+const firestoreReads = new Map<string, ReadEntry>();
+
+const trackRead = (label: string, docCount: number, isListener: boolean) => {
+    if (!import.meta.env.DEV) return;
+    const entry = firestoreReads.get(label) ?? { reads: 0, listeners: 0, lastReadAt: 0 };
+    entry.reads += docCount;
+    if (isListener) entry.listeners++;
+    entry.lastReadAt = Date.now();
+    firestoreReads.set(label, entry);
+
+    if (DEBUG_ENABLED.firestore) {
+        const type = isListener ? 'listener' : 'fetch';
+        console.log(`[firestore] ${type} ${label}: ${docCount} docs (total: ${entry.reads})`);
+    }
+};
+
+// Expose to browser console
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+    (window as unknown as Record<string, unknown>).__firestoreReads = (cmd?: string) => {
+        if (cmd === 'reset') {
+            firestoreReads.clear();
+            console.log('[firestore] Counters reset');
+            return;
+        }
+        const rows = [...firestoreReads.entries()]
+            .sort((a, b) => b[1].reads - a[1].reads)
+            .map(([label, e]) => ({
+                collection: label,
+                reads: e.reads,
+                listeners: e.listeners,
+                lastRead: new Date(e.lastReadAt).toLocaleTimeString(),
+            }));
+        const total = rows.reduce((sum, r) => sum + r.reads, 0);
+        console.table(rows);
+        console.log(`[firestore] Total reads: ${total.toLocaleString()}`);
+    };
+}
+
+export { trackRead, labelFromPath };
+
 // Export debug loggers for each category
 export const debug = {
     tooltip: createLogger('tooltip'),
@@ -93,6 +166,7 @@ export const debug = {
     trends: createLogger('trends'),
     canvas: createLogger('canvas'),
     context: createLogger('context'),
+    firestore: createLogger('firestore'),
 
     // Grouped logging for complex debugging sessions
     tooltipGroup: createGroupLogger('tooltip'),

@@ -20,6 +20,7 @@ import { useAutoCleanup } from './core/hooks/useAutoCleanup';
 import { useFilterChannelSync } from './core/hooks/useFilterChannelSync';
 import { useTrendSubscription } from './pages/Trends/hooks/useTrendSubscription';
 import { useUserPersistence } from './core/hooks/useUserPersistence';
+import { useFirestoreSync } from './core/hooks/useFirestoreSync';
 import { VideoPlayerProvider } from './core/contexts/VideoPlayerContext';
 import { GlobalMiniPlayer } from './features/Player/GlobalMiniPlayer';
 import { AppDndProvider } from './components/providers/AppDndProvider';
@@ -79,6 +80,7 @@ function AppContent() {
     };
   }, [isWatchPage]);
 
+  useFirestoreSync(); // Single source of all global Firestore subscriptions
   useCheckinScheduler();
   useVideoFetchRetry();
   useAutoCleanup();

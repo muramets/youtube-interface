@@ -41,6 +41,11 @@ export default defineConfig({
       manifest: false,
     }),
   ],
+  server: {
+    watch: {
+      ignored: ['**/docs/**', '**/functions/**'],
+    },
+  },
   resolve: {
     alias: {
       '@': '/src',

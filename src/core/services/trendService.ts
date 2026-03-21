@@ -15,6 +15,7 @@ import {
     where
 } from 'firebase/firestore';
 import { db } from '../../config/firebase';
+import { trackRead } from '../utils/debug';
 import type { TrendChannel, TrendVideo, TrendNiche, HiddenVideo, TrendSnapshot } from '../types/trends';
 import { getPercentileDistribution } from '../../../shared/percentiles';
 
@@ -73,7 +74,9 @@ export const TrendService = {
 
     subscribeToTrendChannels: (userId: string, userChannelId: string, callback: (channels: TrendChannel[]) => void) => {
         const ref = collection(db, `users/${userId}/channels/${userChannelId}/trendChannels`);
+        trackRead('trendChannels', 0, true);
         return onSnapshot(ref, (snapshot) => {
+            trackRead('trendChannels', snapshot.size, false);
             const channels = snapshot.docs.map(doc => doc.data() as TrendChannel);
             callback(channels);
         });
@@ -89,7 +92,9 @@ export const TrendService = {
 
     subscribeToNiches: (userId: string, userChannelId: string, callback: (niches: TrendNiche[]) => void) => {
         const ref = collection(db, `users/${userId}/channels/${userChannelId}/trendNiches`);
+        trackRead('trendNiches', 0, true);
         return onSnapshot(ref, (snapshot) => {
+            trackRead('trendNiches', snapshot.size, false);
             const niches = snapshot.docs.map(doc => doc.data() as TrendNiche);
             callback(niches);
         });
@@ -126,7 +131,9 @@ export const TrendService = {
 
     subscribeToNicheAssignments: (userId: string, userChannelId: string, callback: (assignments: Record<string, { nicheId: string; addedAt: number }[]>) => void) => {
         const ref = collection(db, `users/${userId}/channels/${userChannelId}/videoNicheAssignments`);
+        trackRead('videoNicheAssignments', 0, true);
         return onSnapshot(ref, (snapshot) => {
+            trackRead('videoNicheAssignments', snapshot.size, false);
             const data: Record<string, { nicheId: string; addedAt: number }[]> = {};
             snapshot.docs.forEach(doc => {
                 data[doc.id] = doc.data().assignments || [];
@@ -413,7 +420,9 @@ export const TrendService = {
 
     subscribeToHiddenVideos: (userId: string, userChannelId: string, callback: (hidden: HiddenVideo[]) => void) => {
         const ref = collection(db, `users/${userId}/channels/${userChannelId}/hiddenVideos`);
+        trackRead('hiddenVideos', 0, true);
         return onSnapshot(ref, (snapshot) => {
+            trackRead('hiddenVideos', snapshot.size, false);
             callback(snapshot.docs.map(d => d.data() as HiddenVideo));
         });
     },

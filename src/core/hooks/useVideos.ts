@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useCallback } from 'react';
+import { useMemo, useCallback } from 'react';
 import { deleteField } from 'firebase/firestore';
 import { useChannelStore } from '../stores/channelStore';
 import { VideoService } from '../services/videoService';
@@ -9,10 +9,10 @@ import { useUIStore } from '../stores/uiStore';
 import type { PackagingVersion } from '../types/versioning';
 import { SettingsService } from '../services/settingsService';
 
-// Global set to track videos currently being deleted across all instances of the hook
-// This prevents "flickering" where a video reappears in one instance (e.g. HomePage)
-// because an unrelated update in another instance (e.g. VideoCard) triggered a snapshot
-const terminatingVideoIds = new Set<string>();
+// Global set to track videos currently being deleted across all instances of the hook.
+// This prevents "flickering" where a video reappears because an onSnapshot update
+// arrives before the delete propagates. Used by useFirestoreSync to filter snapshots.
+export const terminatingVideoIds = new Set<string>();
 
 // Export the return type for use in other components
 export interface UseVideosResult {
@@ -54,17 +54,7 @@ export const useVideos = (userId: string, channelId: string): UseVideosResult =>
 
     const videos = rawVideos || EMPTY_VIDEOS;
 
-    useEffect(() => {
-        if (!userId || !channelId) return;
-        const unsubscribe = VideoService.subscribeToVideos(userId, channelId, (data) => {
-            // Filter out videos that are currently being deleted
-            const filteredData = data.filter(v => !terminatingVideoIds.has(v.id));
-            queryClient.setQueryData(queryKey, filteredData);
-        });
-        return () => {
-            unsubscribe();
-        }
-    }, [userId, channelId, queryClient, queryKey]);
+    // Subscription managed centrally by useFirestoreSync (App.tsx)
 
     // 2. Mutations
 
