@@ -54,6 +54,8 @@ function collapseDetailsBlocks(md: string): string {
                 // trim: indented <details> (inside lists) would otherwise
                 // start with 4+ spaces → treated as code block by CommonMark
                 result.push(buffer.join(' ').trimStart())
+                // Blank line after HTML block so CommonMark resumes markdown parsing
+                result.push('')
                 buffer = []
                 depth = 0
             }
