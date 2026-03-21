@@ -22,17 +22,18 @@ export function formatKnowledgeDate(
 export function getOriginLabel(source: string): string {
     if (source === 'conclude') return 'Memorize'
     if (source === 'manual') return 'Manual'
-    if (source === 'chat-edit') return 'LLM Edit'
     return 'Chat'
 }
 
 /**
  * Edit provenance label — who last edited (companion text, conditional).
- * Shown only when KI has been edited (lastEditSource exists).
+ * Returns undefined for origin sources ('chat-tool', 'conclude') — these mean
+ * the content was never edited, so no edit label should be shown.
  */
-export function getEditLabel(source: string): string {
+export function getEditLabel(source: string): string | undefined {
     if (source === 'manual') return 'Manually edited'
-    return 'LLM edited'
+    if (source === 'chat-edit') return 'LLM edited'
+    return undefined
 }
 
 /**

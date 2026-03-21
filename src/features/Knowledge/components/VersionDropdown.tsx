@@ -3,7 +3,7 @@ import { Clock, Check, RotateCcw } from 'lucide-react'
 import { Badge } from '../../../components/ui/atoms/Badge/Badge'
 import { ConfirmDeleteButton } from '../../../components/ui/atoms/ConfirmDeleteButton'
 import { getOriginLabel, getEditLabel } from '../utils/formatDate'
-import type { KnowledgeVersionWithId } from '../../../core/types/knowledge'
+import type { KnowledgeVersionWithId, KnowledgeItem } from '../../../core/types/knowledge'
 
 interface VersionDropdownProps {
     versions: KnowledgeVersionWithId[]
@@ -15,10 +15,12 @@ interface VersionDropdownProps {
     pendingDeleteIds?: string[]
     /** The version that was restored — hidden from list (shown as Current) */
     restoredVersionId?: string
+    /** Virtual entry for old Current state before restore (shown as pending removal) */
+    oldCurrentSnapshot?: KnowledgeVersionWithId
     /** KI creation source — always displayed */
-    originSource: KnowledgeVersionWithId['source']
+    originSource: KnowledgeItem['source']
     /** Who last edited current content — displayed conditionally */
-    editSource?: KnowledgeVersionWithId['source']
+    editSource?: KnowledgeItem['lastEditSource']
     currentModel: string
     currentDate: string
 }
@@ -51,6 +53,7 @@ export const VersionDropdown = ({
     onRestore,
     pendingDeleteIds,
     restoredVersionId,
+    oldCurrentSnapshot,
     originSource,
     editSource,
     currentModel,
@@ -59,10 +62,14 @@ export const VersionDropdown = ({
     const pendingSet = pendingDeleteIds?.length
         ? new Set(pendingDeleteIds)
         : null
-    // Hide the restored version from list — its info is shown as Current
-    const displayVersions = restoredVersionId
+    // Hide the restored version from list — its info is shown as Current.
+    // Prepend old current snapshot (if restoring) so it appears as pending removal.
+    const baseVersions = restoredVersionId
         ? versions.filter(v => v.id !== restoredVersionId)
         : versions
+    const displayVersions = oldCurrentSnapshot
+        ? [oldCurrentSnapshot, ...baseVersions]
+        : baseVersions
     const [isOpen, setIsOpen] = useState(false)
     const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -114,7 +121,7 @@ export const VersionDropdown = ({
                 <div
                     role="listbox"
                     aria-label="Version history"
-                    className="absolute right-0 top-full mt-1 w-72 bg-bg-secondary border border-border rounded-lg shadow-xl z-popover overflow-hidden"
+                    className="absolute right-0 top-full mt-1 min-w-64 w-max bg-bg-secondary border border-border rounded-lg shadow-xl z-popover overflow-hidden"
                 >
                     {/* Current version (not deletable) */}
                     <button
@@ -127,17 +134,15 @@ export const VersionDropdown = ({
                             <Check size={12} className="text-accent flex-shrink-0" />
                         )}
                         <div className={selectedVersionId === null ? '' : 'pl-5'}>
-                            <div className="text-[11px] font-medium text-text-primary">Current</div>
-                            <div className="text-[10px] text-text-tertiary flex items-center gap-1.5 mt-0.5">
-                                {currentDate}
+                            <div className="text-[11px] text-text-primary truncate">
+                                <span className="font-medium">Current</span>
+                                <span className="text-text-tertiary ml-1.5">{currentDate}</span>
+                            </div>
+                            <div className="text-[10px] text-text-tertiary flex items-center gap-1.5 whitespace-nowrap">
                                 <Badge variant="neutral">{getOriginLabel(originSource)}</Badge>
+                                {editSource && getEditLabel(editSource) && <span className="text-text-tertiary/70">· {getEditLabel(editSource)}</span>}
                                 {currentModel && <span>· {currentModel}</span>}
                             </div>
-                            {editSource && (
-                                <div className="text-[10px] text-text-tertiary/70 mt-0.5">
-                                    {getEditLabel(editSource)}
-                                </div>
-                            )}
                         </div>
                     </button>
 
@@ -169,9 +174,12 @@ export const VersionDropdown = ({
                                                 <div className="text-[11px] text-text-primary truncate">
                                                     {formatVersionDate(version.createdAt)}
                                                 </div>
-                                                <div className="text-[10px] text-text-tertiary flex items-center gap-1.5">
+                                                <div className="text-[10px] text-text-tertiary flex items-center gap-1.5 whitespace-nowrap">
                                                     <Badge variant="neutral">{getOriginLabel(version.source)}</Badge>
-                                                    {version.model && <span>· {version.model}</span>}
+                                                    {version.lastEditSource && getEditLabel(version.lastEditSource) && (
+                                                        <span className="text-text-tertiary/70">· {getEditLabel(version.lastEditSource)}</span>
+                                                    )}
+                                                    {version.model && <span className="truncate">· {version.model}</span>}
                                                 </div>
                                             </div>
                                         </button>

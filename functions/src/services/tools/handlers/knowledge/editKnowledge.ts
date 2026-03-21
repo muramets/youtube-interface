@@ -62,8 +62,10 @@ export async function handleEditKnowledge(
     const kiData = kiSnap.data() as Record<string, unknown>;
     const oldContent = (kiData.content as string) || '';
     const oldTitle = (kiData.title as string) || '';
-    const oldSource = (kiData.lastEditSource as string) || (kiData.source as string) || 'chat-tool';
-    const oldModel = (kiData.lastEditedBy as string) ?? (kiData.model as string) ?? '';
+    const oldOriginSource = (kiData.source as string) || 'chat-tool';
+    const oldOriginModel = (kiData.model as string) || '';
+    const oldEditSource = (kiData.lastEditSource as string) || undefined;
+    const oldEditModel = (kiData.lastEditedBy as string) || undefined;
     const title = oldTitle;
 
     // --- Content-changed check: skip version snapshot if content is identical ---
@@ -92,8 +94,10 @@ export async function handleEditKnowledge(
         content: oldContent,
         title: oldTitle || undefined,
         createdAt: contentTimeMs,
-        source: oldSource,
-        model: oldModel || undefined,
+        source: oldOriginSource,
+        model: oldOriginModel || undefined,
+        lastEditSource: oldEditSource,
+        lastEditedBy: oldEditModel,
     });
     batch.set(versionRef, versionData);
 

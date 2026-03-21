@@ -349,7 +349,7 @@ describe('KnowledgeService', () => {
             expect(versionData.model).toBe('claude-sonnet-4-6');
         });
 
-        it('version source prefers lastEditSource over source', async () => {
+        it('version snapshot preserves origin and edit provenance separately', async () => {
             const itemWithLastEdit = {
                 ...PREVIOUS_ITEM,
                 lastEditSource: 'manual' as const,
@@ -363,8 +363,11 @@ describe('KnowledgeService', () => {
             );
 
             const versionData = mockBatchSet.mock.calls[0][1];
-            expect(versionData.source).toBe('manual');
-            expect(versionData.model).toBe('');
+            // Origin stays as KI.source
+            expect(versionData.source).toBe('chat-tool');
+            expect(versionData.model).toBe('claude-sonnet-4-6');
+            // Edit provenance stored separately
+            expect(versionData.lastEditSource).toBe('manual');
         });
     });
 

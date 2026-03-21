@@ -16,8 +16,18 @@ export interface KnowledgeVersion {
     title?: string;
     /** Unix timestamp (Date.now()) — NOT serverTimestamp (arrayUnion gotcha) */
     createdAt: number;
-    /** How this version was created (includes 'chat-edit' for LLM-edited content) */
-    source: 'chat-tool' | 'conclude' | 'manual' | 'chat-edit';
-    /** Model that created this version (empty for manual edits) */
+
+    // — Origin provenance (copied from KI.source / KI.model) —
+
+    /** How the KI was originally created */
+    source: 'chat-tool' | 'conclude' | 'manual';
+    /** Model that originally created the KI */
     model?: string;
+
+    // — Edit provenance (copied from KI.lastEditSource / KI.lastEditedBy) —
+
+    /** Who last edited this content before it was snapshot'd */
+    lastEditSource?: 'chat-tool' | 'conclude' | 'manual' | 'chat-edit';
+    /** Model that performed the last edit */
+    lastEditedBy?: string;
 }

@@ -60,6 +60,7 @@ export const KnowledgeItemModal = React.memo(({
     const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null)
     const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([])
     const [restoredVersion, setRestoredVersion] = useState<KnowledgeVersionWithId | null>(null)
+    const [oldCurrentSnapshot, setOldCurrentSnapshot] = useState<KnowledgeVersionWithId | null>(null)
 
     // Build videoMap from videoCatalog for diff panel vid:// link rendering
     const videoMap = useMemo(() => {
@@ -90,15 +91,33 @@ export const KnowledgeItemModal = React.memo(({
     const handleRestore = useCallback((versionId: string) => {
         const version = versions.find(v => v.id === versionId)
         if (!version) return
+
+        // Capture old Current as a virtual version entry (shown as pending removal)
+        const contentTs = item.updatedAt ?? item.createdAt
+        const contentTimeMs = contentTs?.toDate?.()?.getTime()
+            ?? ((contentTs as unknown as { seconds?: number })?.seconds
+                ? (contentTs as unknown as { seconds: number }).seconds * 1000
+                : Date.now())
+        setOldCurrentSnapshot({
+            id: 'pending-old-current',
+            content: content,
+            title: item.title,
+            createdAt: contentTimeMs,
+            source: item.source,
+            model: item.model,
+            lastEditSource: item.lastEditSource,
+            lastEditedBy: item.lastEditedBy,
+        })
+
         setContent(version.content)
         setRestoredVersion(version)
-        // Only versions NEWER than the target — the target itself becomes Current
+        // Versions NEWER than the target + old current virtual entry
         const newerIds = versions
             .filter(v => v.createdAt > version.createdAt)
             .map(v => v.id)
-        setPendingDeleteIds(newerIds)
+        setPendingDeleteIds([...newerIds, 'pending-old-current'])
         setSelectedVersionId(null)
-    }, [versions])
+    }, [versions, content, item])
 
     const isRestore = restoredVersion !== null
 
@@ -144,8 +163,8 @@ export const KnowledgeItemModal = React.memo(({
         : baseCurrentDate
     // Origin is always the KI creation source (immutable)
     const originSource = item.source
-    // Edit source: who last edited. undefined = never edited
-    const editSource = restoredVersion ? restoredVersion.source : item.lastEditSource
+    // Edit source: who last edited. undefined = never edited.
+    const editSource = restoredVersion ? restoredVersion.lastEditSource : item.lastEditSource
     const currentModel = restoredVersion ? (restoredVersion.model ?? '') : baseCurrentModel
 
     // --- Expanded mode slots ---
@@ -159,12 +178,13 @@ export const KnowledgeItemModal = React.memo(({
             onRestore={handleRestore}
             pendingDeleteIds={pendingDeleteIds}
             restoredVersionId={restoredVersion?.id}
+            oldCurrentSnapshot={oldCurrentSnapshot ?? undefined}
             originSource={originSource}
             editSource={editSource}
             currentModel={currentModel}
             currentDate={currentDateStr}
         />
-    ), [versions, selectedVersionId, deleteVersion, handleRestore, pendingDeleteIds, restoredVersion, originSource, editSource, currentModel, currentDateStr])
+    ), [versions, selectedVersionId, deleteVersion, handleRestore, pendingDeleteIds, restoredVersion, oldCurrentSnapshot, originSource, editSource, currentModel, currentDateStr])
 
     const expandedSidePanel = selectedVersion ? (
         <LiveDiffPanel

@@ -254,8 +254,10 @@ export const KnowledgeService = {
                     content: previousItem.content,
                     title: previousItem.title || undefined,
                     createdAt: contentTimeMs,
-                    source: previousItem.lastEditSource ?? previousItem.source,
-                    model: previousItem.lastEditedBy ?? previousItem.model,
+                    source: previousItem.source,
+                    model: previousItem.model || undefined,
+                    lastEditSource: previousItem.lastEditSource || undefined,
+                    lastEditedBy: previousItem.lastEditedBy || undefined,
                 }));
             }
 

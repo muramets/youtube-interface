@@ -193,6 +193,33 @@ describe('handleEditKnowledge', () => {
         expect(versionData.model).toBe('gemini-2.5-pro');
     });
 
+    it('version snapshot preserves origin and edit provenance separately', async () => {
+        mockDocGet.mockResolvedValue({
+            exists: true,
+            data: () => ({
+                content: 'Edited content',
+                title: 'Title',
+                source: 'chat-tool',
+                model: 'claude-sonnet-4-6',
+                lastEditSource: 'chat-edit',
+                lastEditedBy: 'claude-haiku-4-5',
+            }),
+        });
+
+        await handleEditKnowledge(
+            { kiId: 'ki-123', content: 'New content' },
+            CTX,
+        );
+
+        const versionData = mockBatchSet.mock.calls[0][1];
+        // Origin provenance — from KI.source / KI.model
+        expect(versionData.source).toBe('chat-tool');
+        expect(versionData.model).toBe('claude-sonnet-4-6');
+        // Edit provenance — from KI.lastEditSource / KI.lastEditedBy
+        expect(versionData.lastEditSource).toBe('chat-edit');
+        expect(versionData.lastEditedBy).toBe('claude-haiku-4-5');
+    });
+
     it('sets source to "conclude" when ctx.isConclude is true', async () => {
         const concludeCtx = { ...CTX, isConclude: true };
 

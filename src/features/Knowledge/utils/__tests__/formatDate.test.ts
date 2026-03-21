@@ -14,10 +14,6 @@ describe('getOriginLabel', () => {
         expect(getOriginLabel('manual')).toBe('Manual')
     })
 
-    it('returns "LLM Edit" for chat-edit', () => {
-        expect(getOriginLabel('chat-edit')).toBe('LLM Edit')
-    })
-
     it('defaults to "Chat" for unknown source', () => {
         expect(getOriginLabel('something-else')).toBe('Chat')
     })
@@ -32,12 +28,12 @@ describe('getEditLabel', () => {
         expect(getEditLabel('chat-edit')).toBe('LLM edited')
     })
 
-    it('returns "LLM edited" for conclude', () => {
-        expect(getEditLabel('conclude')).toBe('LLM edited')
+    it('returns undefined for conclude (origin, not edit)', () => {
+        expect(getEditLabel('conclude')).toBeUndefined()
     })
 
-    it('returns "LLM edited" for chat-tool', () => {
-        expect(getEditLabel('chat-tool')).toBe('LLM edited')
+    it('returns undefined for chat-tool (origin, not edit)', () => {
+        expect(getEditLabel('chat-tool')).toBeUndefined()
     })
 })
 
