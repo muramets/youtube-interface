@@ -75,7 +75,6 @@ export const useChannelKnowledgeItems = (userId: string, channelId: string) => {
 // =============================================================================
 
 export const useAllKnowledgeItems = (userId: string, channelId: string) => {
-    const queryClient = useQueryClient();
     const queryKey = useMemo(
         () => ['knowledgeItems', userId, channelId, 'all'],
         [userId, channelId]
@@ -90,15 +89,7 @@ export const useAllKnowledgeItems = (userId: string, channelId: string) => {
         enabled: !!userId && !!channelId,
     });
 
-    // Real-time subscription
-    useEffect(() => {
-        if (!userId || !channelId) return;
-        const unsubscribe = KnowledgeService.subscribeToAllKnowledgeItems(
-            userId, channelId,
-            (data) => queryClient.setQueryData(queryKey, data)
-        );
-        return () => unsubscribe();
-    }, [userId, channelId, queryClient, queryKey]);
+    // Subscription managed centrally by useFirestoreSync (App.tsx)
 
     return { items: rawItems || EMPTY, isLoading, error };
 };

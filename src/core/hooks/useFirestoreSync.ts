@@ -11,6 +11,7 @@ import { useAuth } from './useAuth';
 import { useChannelStore } from '../stores/channelStore';
 import { VideoService } from '../services/videoService';
 import { PlaylistService } from '../services/playlistService';
+import { KnowledgeService } from '../services/knowledge/knowledgeService';
 import { SettingsService, type GeneralSettings } from '../services/settingsService';
 import { terminatingVideoIds } from './useVideos';
 
@@ -82,5 +83,14 @@ export const useFirestoreSync = () => {
         ];
 
         return () => unsubs.forEach(fn => fn());
+    }, [userId, channelId, queryClient]);
+
+    // --- Knowledge Items: 1 listener instead of 2 ---
+    useEffect(() => {
+        if (!userId || !channelId) return;
+        const unsub = KnowledgeService.subscribeToAllKnowledgeItems(userId, channelId, (data) => {
+            queryClient.setQueryData(['knowledgeItems', userId, channelId, 'all'], data);
+        });
+        return () => unsub();
     }, [userId, channelId, queryClient]);
 };
