@@ -41,62 +41,35 @@ const INDENT: Record<number, string> = {
     6: 'pl-5',
 }
 
-// --- Variant-specific styling ---
+// --- Section layout config ---
 
-interface VariantConfig {
-    headerSize: Record<number, string>
-    headerComponents: Components
-    sectionSpacing: string
-    preambleSpacing: string
-    contentTopMargin: string
+const HEADER_SIZE: Record<number, string> = {
+    1: '[&_[role=button]]:text-base',
+    2: '[&_[role=button]]:text-sm',
+    3: '[&_[role=button]]:text-xs',
+    4: '[&_[role=button]]:text-[11px]',
+    5: '[&_[role=button]]:text-[10px]',
+    6: '[&_[role=button]]:text-[10px]',
 }
 
-const COMPACT_CONFIG: VariantConfig = {
-    headerSize: {
-        1: '[&_[role=button]]:text-sm',
-        2: '[&_[role=button]]:text-xs',
-        3: '[&_[role=button]]:text-[11px]',
-        4: '[&_[role=button]]:text-[10px]',
-        5: '[&_[role=button]]:text-[10px]',
-        6: '[&_[role=button]]:text-[9px]',
-    },
-    headerComponents: {
-        h1: ({ className, style, children }) => <h1 className={clsx('text-sm font-bold text-inherit', className)} style={style}>{children}</h1>,
-        h2: ({ className, style, children }) => <h2 className={clsx('text-xs font-bold text-inherit', className)} style={style}>{children}</h2>,
-        h3: ({ className, style, children }) => <h3 className={clsx('text-[11px] font-bold text-inherit', className)} style={style}>{children}</h3>,
-        h4: ({ className, style, children }) => <h4 className={clsx('text-[10px] font-bold text-inherit', className)} style={style}>{children}</h4>,
-        p: ({ children }) => <span className="inline">{children}</span>,
-        strong: ({ children }) => <strong className="font-bold text-inherit">{children}</strong>,
-    },
-    sectionSpacing: 'mb-3',
-    preambleSpacing: 'mb-3',
-    contentTopMargin: '',
+const HEADER_COMPONENTS: Components = {
+    h1: ({ className, style, children }) => <h1 className={clsx('text-base font-bold text-inherit', className)} style={style}>{children}</h1>,
+    h2: ({ className, style, children }) => <h2 className={clsx('text-sm font-bold text-inherit', className)} style={style}>{children}</h2>,
+    h3: ({ className, style, children }) => <h3 className={clsx('text-xs font-bold text-inherit', className)} style={style}>{children}</h3>,
+    h4: ({ className, style, children }) => <h4 className={clsx('text-[11px] font-bold text-inherit', className)} style={style}>{children}</h4>,
+    h5: ({ className, style, children }) => <h5 className={clsx('text-[10px] font-bold text-inherit', className)} style={style}>{children}</h5>,
+    p: ({ children }) => <span className="inline">{children}</span>,
+    strong: ({ children }) => <strong className="font-bold text-inherit">{children}</strong>,
 }
 
-const ZEN_CONFIG: VariantConfig = {
-    headerSize: {
-        1: '[&_[role=button]]:text-base',
-        2: '[&_[role=button]]:text-sm',
-        3: '[&_[role=button]]:text-xs',
-        4: '[&_[role=button]]:text-[11px]',
-        5: '[&_[role=button]]:text-[10px]',
-        6: '[&_[role=button]]:text-[10px]',
-    },
-    headerComponents: {
-        h1: ({ className, style, children }) => <h1 className={clsx('text-base font-bold text-inherit', className)} style={style}>{children}</h1>,
-        h2: ({ className, style, children }) => <h2 className={clsx('text-sm font-bold text-inherit', className)} style={style}>{children}</h2>,
-        h3: ({ className, style, children }) => <h3 className={clsx('text-xs font-bold text-inherit', className)} style={style}>{children}</h3>,
-        h4: ({ className, style, children }) => <h4 className={clsx('text-[11px] font-bold text-inherit', className)} style={style}>{children}</h4>,
-        h5: ({ className, style, children }) => <h5 className={clsx('text-[10px] font-bold text-inherit', className)} style={style}>{children}</h5>,
-        p: ({ children }) => <span className="inline">{children}</span>,
-        strong: ({ children }) => <strong className="font-bold text-inherit">{children}</strong>,
-    },
-    sectionSpacing: 'mb-1',
-    preambleSpacing: 'mb-4',
-    contentTopMargin: 'mt-3',
+/** Spacing between sections, content margins, children wrapper gaps */
+const SECTION_SPACING = {
+    section: 'mb-1',
+    preamble: 'mb-4',
+    contentTop: 'mt-1',
+    contentBottom: 'mb-6',
+    childrenTop: 'mt-1',
 }
-
-const VARIANT_MAP = { compact: COMPACT_CONFIG, zen: ZEN_CONFIG }
 
 interface CollapsibleMarkdownSectionsProps {
     /** Pre-processed markdown content (with linkified video refs) */
@@ -107,8 +80,6 @@ interface CollapsibleMarkdownSectionsProps {
     kiMap?: Map<string, KiPreviewData>
     /** Sections at this level and below are collapsed by default (0 = all collapsed, 3 = h4+ collapsed) */
     defaultOpenLevel?: number
-    /** Visual variant: compact (card) or zen (reading mode, more breathing room) */
-    variant?: 'compact' | 'zen'
 }
 
 /**
@@ -116,21 +87,20 @@ interface CollapsibleMarkdownSectionsProps {
  *
  * Parses markdown into sections by headings, renders each as a CollapsibleSection
  * with hover animations, indent, and configurable default open state.
- * Shared between KnowledgeCard (compact, all collapsed) and Zen Mode (zen, h1-h3 open).
+ * Used by KnowledgeCard (all collapsed), KnowledgeViewer/Zen Mode (h1-h3 open),
+ * WatchPageNotes, and AiAssistantSettings.
  */
 export const CollapsibleMarkdownSections = React.memo(({
     content,
     videoMap,
     kiMap,
     defaultOpenLevel = 3,
-    variant = 'compact',
 }: CollapsibleMarkdownSectionsProps) => {
-    const config = VARIANT_MAP[variant]
-    const bodyComponents = useMemo(() => buildBodyComponents(videoMap, variant, kiMap), [videoMap, variant, kiMap])
+    const bodyComponents = useMemo(() => buildBodyComponents(videoMap, 'prose', kiMap), [videoMap, kiMap])
 
     // Extend header components with vid:// link support + pointer-events-auto
     const headerComponents = useMemo((): Components => ({
-        ...config.headerComponents,
+        ...HEADER_COMPONENTS,
         a({ href, children }) {
             if (href && videoMap) {
                 const vidMatch = VID_RE.exec(href)
@@ -154,7 +124,7 @@ export const CollapsibleMarkdownSections = React.memo(({
             }
             return <span>{children}</span>
         },
-    }), [config.headerComponents, videoMap])
+    }), [videoMap])
 
     const sections = useMemo(
         () => parseMarkdownSections(content),
@@ -173,21 +143,23 @@ export const CollapsibleMarkdownSections = React.memo(({
                     </ReactMarkdown>
                 </div>
             }
+            headerGap="mb-0"
             className={clsx(
-                config.sectionSpacing,
+                SECTION_SPACING.section,
                 '[&_[role=button]]:items-start [&_[role=button]]:text-left [&_button_div:first-child]:mt-[5px]',
-                '[&>div:first-child]:!mb-0',
                 INDENT[section.level] ?? 'pl-5',
-                config.headerSize[section.level] ?? '[&_[role=button]]:text-xs',
+                HEADER_SIZE[section.level] ?? '[&_[role=button]]:text-xs',
             )}
         >
-            <div className={config.contentTopMargin}>
-                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]} urlTransform={allowCustomUrls} components={bodyComponents}>
-                    {section.content.join('\n')}
-                </ReactMarkdown>
-            </div>
+            {section.content.join('').trim() && (
+                <div className={clsx(SECTION_SPACING.contentTop, SECTION_SPACING.contentBottom)}>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]} urlTransform={allowCustomUrls} components={bodyComponents}>
+                        {section.content.join('\n')}
+                    </ReactMarkdown>
+                </div>
+            )}
             {section.children.length > 0 && (
-                <div className="mt-2">
+                <div className={SECTION_SPACING.childrenTop}>
                     {section.children.map((child, i) => renderSection(child, i))}
                 </div>
             )}
@@ -197,7 +169,7 @@ export const CollapsibleMarkdownSections = React.memo(({
     return (
         <>
             {sections.preamble && (
-                <div className={config.preambleSpacing}>
+                <div className={SECTION_SPACING.preamble}>
                     <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]} urlTransform={allowCustomUrls} components={bodyComponents}>
                         {sections.preamble}
                     </ReactMarkdown>

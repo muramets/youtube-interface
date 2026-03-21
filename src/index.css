@@ -443,12 +443,12 @@
    --diff-separator: var(--border);
 
    /* ---------------------------------------------------------------------------
-     Zen reader (KI full-screen reading — MonkeyLearn-inspired muted tones)
+     Prose (KI reading typography — monospace font, muted tones, generous spacing)
      --------------------------------------------------------------------------- */
-   --zen-body: #707070;
-   --zen-bold: #1a1a1a;
-   --zen-heading: #505050;
-   --zen-marker: #a0a0a0;
+   --prose-body: #707070;
+   --prose-bold: #1a1a1a;
+   --prose-heading: #505050;
+   --prose-marker: #a0a0a0;
 }
 
 /* =============================================================================
@@ -574,12 +574,12 @@
    --diff-separator: var(--border);
 
    /* ---------------------------------------------------------------------------
-     Zen reader (KI full-screen reading — MonkeyLearn-inspired muted tones)
+     Prose (KI reading typography — monospace font, muted tones, generous spacing)
      --------------------------------------------------------------------------- */
-   --zen-body: #656669;
-   --zen-bold: #d1d0c5;
-   --zen-heading: #656669;
-   --zen-marker: #4a4a4a;
+   --prose-body: #656669;
+   --prose-bold: #d1d0c5;
+   --prose-heading: #656669;
+   --prose-marker: #4a4a4a;
 }
 
 /* =============================================================================

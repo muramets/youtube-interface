@@ -409,7 +409,6 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
                                                     videoMap={videoMap}
                                                     kiMap={kiMap}
                                                     defaultOpenLevel={0}
-                                                    variant="zen"
                                                 />
                                             </div>
                                         </>

@@ -231,7 +231,6 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
                                         content={linkifiedContent}
                                         videoMap={videoMap}
                                         defaultOpenLevel={0}
-                                        variant="zen"
                                     />
                                 </div>
                             </div>

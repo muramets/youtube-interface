@@ -168,7 +168,6 @@ export const WatchPageNotes: React.FC<WatchPageNotesProps> = ({ video }) => {
                                     <CollapsibleMarkdownSections
                                         content={note.text}
                                         defaultOpenLevel={0}
-                                        variant="zen"
                                     />
                                 )}
                             </div>

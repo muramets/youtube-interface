@@ -8,6 +8,8 @@ interface CollapsibleSectionProps {
     trailing?: React.ReactNode;
     className?: string;
     variant?: 'default' | 'mini' | 'micro';
+    /** Override the default gap between header and content (Tailwind mb-* class) */
+    headerGap?: string;
     isOpen?: boolean;
     onToggle?: () => void;
     dragHandle?: React.ReactNode;
@@ -21,6 +23,7 @@ export function CollapsibleSection({
     dragHandle,
     className = '',
     variant = 'default',
+    headerGap,
     isOpen: controlledIsOpen,
     onToggle,
 }: CollapsibleSectionProps) {
@@ -39,7 +42,7 @@ export function CollapsibleSection({
 
     const iconClass = isCompact ? "w-2.5 h-2.5" : "w-5 h-5";
     const gapClass = isCompact ? "gap-2" : "gap-3";
-    const mbClass = isCompact ? "mb-2" : "mb-4";
+    const mbClass = headerGap ?? (isCompact ? "mb-2" : "mb-4");
 
     const isSectionOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen;
 

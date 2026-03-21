@@ -158,7 +158,6 @@ export const KnowledgeViewer = React.memo(({
                                 content={content}
                                 videoMap={videoMap}
                                 defaultOpenLevel={3}
-                                variant="zen"
                             />
                         </div>
                     )}

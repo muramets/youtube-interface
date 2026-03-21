@@ -53,41 +53,41 @@ const COMPACT: SizePreset = {
     summary: 'text-xs text-text-secondary',
 }
 
-/** Zen: for Zen Mode reading — MonkeyLearn-inspired muted tones, generous spacing */
-const ZEN: SizePreset = {
-    p: 'mb-2 last:mb-0 text-xs font-mono leading-relaxed [color:var(--zen-body)]',
-    ul: 'list-disc list-outside pl-5 mb-2 space-y-3 text-xs font-mono [color:var(--zen-body)]',
-    ol: 'list-decimal list-outside pl-5 mb-2 space-y-3 text-xs font-mono [color:var(--zen-body)]',
-    li: 'pl-1 [&::marker]:![color:var(--zen-marker)]',
-    strong: 'font-bold [color:var(--zen-bold)]',
-    code: 'bg-bg-primary/50 rounded px-1.5 py-0.5 text-[10px] font-mono [color:var(--zen-bold)]',
-    blockquote: 'border-l-4 border-accent/50 pl-4 my-3 bg-[var(--zen-body)]/5 py-1 rounded-r-md [color:var(--zen-body)] not-italic font-medium',
+/** Prose: reading-optimized typography — monospace font, generous spacing, muted tones */
+const PROSE: SizePreset = {
+    p: 'mb-2 last:mb-0 text-xs font-mono leading-relaxed [color:var(--prose-body)]',
+    ul: 'list-disc list-outside pl-5 mb-1 space-y-1 text-xs font-mono [color:var(--prose-body)]',
+    ol: 'list-decimal list-outside pl-5 mb-1 space-y-1 text-xs font-mono [color:var(--prose-body)]',
+    li: 'pl-1 [&::marker]:![color:var(--prose-marker)] [&>p]:mb-1',
+    strong: 'font-bold [color:var(--prose-bold)]',
+    code: 'bg-bg-primary/50 rounded px-1.5 py-0.5 text-[10px] font-mono [color:var(--prose-bold)]',
+    blockquote: 'border-l-4 border-accent/50 pl-4 my-3 bg-[var(--prose-body)]/5 py-1 rounded-r-md [color:var(--prose-body)] not-italic font-medium',
     table: 'border-collapse w-full my-3 text-[11px] font-mono',
-    th: 'border border-border p-2 text-left font-semibold bg-bg-primary/50 [color:var(--zen-bold)]',
-    td: 'border border-border p-2 [color:var(--zen-body)]',
+    th: 'border border-border p-2 text-left font-semibold bg-bg-primary/50 [color:var(--prose-bold)]',
+    td: 'border border-border p-2 [color:var(--prose-body)]',
     hr: 'my-1 border-none h-px bg-border/30',
-    h1: 'text-base font-bold mb-3 mt-5 first:mt-0 [color:var(--zen-heading)] hover:text-text-primary transition-colors duration-200 [&_strong]:![color:inherit]',
-    h2: 'text-sm font-bold mb-2 mt-4 [color:var(--zen-heading)] hover:text-text-primary transition-colors duration-200 [&_strong]:![color:inherit]',
-    h3: 'text-xs font-bold mb-1.5 mt-3 [color:var(--zen-heading)] hover:text-text-primary transition-colors duration-200 [&_strong]:![color:inherit]',
-    h4: 'text-[11px] font-bold mb-1 mt-2 [color:var(--zen-heading)] hover:text-text-primary transition-colors duration-200 [&_strong]:![color:inherit]',
-    h5: 'text-[10px] font-bold mb-1 mt-2 [color:var(--zen-heading)] hover:text-text-primary transition-colors duration-200 [&_strong]:![color:inherit]',
-    h6: 'text-[10px] font-medium mb-1 mt-2 [color:var(--zen-heading)] hover:text-text-primary transition-colors duration-200 [&_strong]:![color:inherit]',
-    summary: 'text-xs font-mono [color:var(--zen-body)]',
+    h1: 'text-base font-bold mb-3 mt-5 first:mt-0 [color:var(--prose-heading)] hover:text-text-primary transition-colors duration-200 [&_strong]:![color:inherit]',
+    h2: 'text-sm font-bold mb-2 mt-4 [color:var(--prose-heading)] hover:text-text-primary transition-colors duration-200 [&_strong]:![color:inherit]',
+    h3: 'text-xs font-bold mb-1.5 mt-3 [color:var(--prose-heading)] hover:text-text-primary transition-colors duration-200 [&_strong]:![color:inherit]',
+    h4: 'text-[11px] font-bold mb-1 mt-2 [color:var(--prose-heading)] hover:text-text-primary transition-colors duration-200 [&_strong]:![color:inherit]',
+    h5: 'text-[10px] font-bold mb-1 mt-2 [color:var(--prose-heading)] hover:text-text-primary transition-colors duration-200 [&_strong]:![color:inherit]',
+    h6: 'text-[10px] font-medium mb-1 mt-2 [color:var(--prose-heading)] hover:text-text-primary transition-colors duration-200 [&_strong]:![color:inherit]',
+    summary: 'text-xs font-mono [color:var(--prose-body)]',
 }
 
-const PRESETS = { compact: COMPACT, zen: ZEN }
+const PRESETS = { compact: COMPACT, prose: PROSE }
 
 /**
  * Shared markdown body components for KnowledgeCard, Zen Mode, MemoryCheckpoint.
  * Handles vid:// (LLM-generated), mention:// (legacy), and ki:// (KI reference) links.
  *
  * @param videoMap - Video data for vid:// tooltip rendering
- * @param variant - Size variant: 'compact' (card/diff) or 'zen' (reading mode)
+ * @param variant - Size variant: 'compact' (card/diff) or 'prose' (reading mode)
  * @param kiMap - KI data for ki:// tooltip rendering
  */
 export function buildBodyComponents(
     videoMap?: Map<string, VideoPreviewData>,
-    variant: 'compact' | 'zen' = 'compact',
+    variant: 'compact' | 'prose' = 'compact',
     kiMap?: Map<string, KiPreviewData>,
 ): Components {
     const s = PRESETS[variant]
