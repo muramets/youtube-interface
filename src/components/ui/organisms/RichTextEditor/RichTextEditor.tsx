@@ -22,7 +22,7 @@ import { buildCatalogVideoMap, buildCatalogKiMap } from './utils/catalogMaps'
  * appendChild. React tree stays intact — no unmount/mount, marks survive.
  */
 
-const COMPACT_CLASSES = 'flex flex-col bg-bg-secondary rounded-lg p-3 transition-all duration-300'
+const COMPACT_CLASSES = 'flex flex-col bg-bg-secondary rounded-lg p-3 transition-all duration-300 border border-border'
 const EXPANDED_CLASSES = 'flex flex-col w-full bg-bg-secondary max-w-6xl mx-auto rounded-xl shadow-2xl p-6 h-[85vh] border border-border'
 const EXPANDED_WIDE_CLASSES = 'flex flex-col w-full bg-bg-secondary mx-auto rounded-xl shadow-2xl p-6 h-[85vh] border border-border'
 
@@ -166,7 +166,7 @@ export const RichTextEditor = ({
                     'overflow-y-auto w-full min-h-0',
                     isExpanded && hasSidePanel
                         ? 'flex-grow mt-4 flex gap-4 overflow-hidden'
-                        : isExpanded ? 'flex-grow mt-4' : 'flex-1 min-h-[100px]'
+                        : isExpanded ? 'flex-grow mt-4' : 'flex-1 min-h-[100px] max-h-[300px]'
                 )}>
                     {isExpanded && expandedSidePanel && (
                         <div className="w-1/2 overflow-y-auto border border-border rounded-lg flex-shrink-0">

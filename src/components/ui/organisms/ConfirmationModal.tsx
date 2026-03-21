@@ -40,14 +40,14 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
             onClick={onClose}
         >
             <div
-                className={`bg-bg-secondary rounded-xl flex flex-col overflow-hidden animate-scale-in border border-border shadow-2xl ${className || 'w-[400px]'} max-w-[90vw]`}
+                className={`bg-bg-secondary rounded-xl flex flex-col overflow-hidden animate-scale-in shadow-2xl ${className || 'w-[400px]'} max-w-[90vw]`}
                 onClick={e => e.stopPropagation()}
             >
-                <div className="px-6 py-4 flex items-center justify-between border-b border-border">
+                <div className="px-6 py-4 flex items-center justify-between">
                     <h2 className="text-xl font-bold text-text-primary m-0">{title}</h2>
                     <button
                         onClick={onClose}
-                        className="bg-transparent border-none text-text-primary cursor-pointer hover:opacity-70 transition-opacity"
+                        className="bg-transparent border-none text-text-primary cursor-pointer hover:text-[var(--color-error)] transition-colors"
                     >
                         <X size={24} />
                     </button>
@@ -57,9 +57,19 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
                     {message}
                 </div>
 
-                <div className="px-6 py-4 flex justify-end gap-3 border-t border-border bg-bg-secondary/30">
-                    <Button variant="secondary" onClick={onClose}>
+                <div className="px-6 py-4 flex gap-3">
+                    <Button variant="secondary" onClick={onClose} className="mr-auto">
                         {cancelLabel}
+                    </Button>
+
+                    <Button
+                        variant={confirmVariant}
+                        onClick={() => {
+                            onConfirm();
+                            onClose();
+                        }}
+                    >
+                        {confirmLabel}
                     </Button>
 
                     {onAlternate && alternateLabel && (
@@ -73,16 +83,6 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
                             {alternateLabel}
                         </Button>
                     )}
-
-                    <Button
-                        variant={confirmVariant}
-                        onClick={() => {
-                            onConfirm();
-                            onClose();
-                        }}
-                    >
-                        {confirmLabel}
-                    </Button>
                 </div>
             </div>
         </div>,

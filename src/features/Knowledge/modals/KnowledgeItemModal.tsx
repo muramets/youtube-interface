@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { X, Bot, Calendar, Tag, Wrench } from 'lucide-react'
 import { Button } from '../../../components/ui/atoms/Button/Button'
 import { Badge } from '../../../components/ui/atoms/Badge/Badge'
+import { ConfirmationModal } from '../../../components/ui/organisms/ConfirmationModal'
 import { RichTextEditor } from '../../../components/ui/organisms/RichTextEditor'
 import { VersionDropdown } from '../components/VersionDropdown'
 import { LiveDiffPanel } from '../components/LiveDiffPanel'
@@ -79,14 +80,41 @@ export const KnowledgeItemModal = React.memo(({
         ? versions.find(v => v.id === selectedVersionId)
         : null
 
-    // ESC to close
+    // Unsaved-changes guard — must be declared before ESC handler
+    const hasChanges = title.trim() !== item.title
+        || summary.trim() !== item.summary
+        || content !== item.content
+        || linkedVideoId !== item.videoId
+    const [showUnsavedConfirm, setShowUnsavedConfirm] = useState(false)
+    const handleClose = () => {
+        if (hasChanges) {
+            setShowUnsavedConfirm(true)
+        } else {
+            onClose()
+        }
+    }
+
+    // ESC to close (with unsaved-changes guard)
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') onClose()
+            if (e.key === 'Escape') {
+                if (hasChanges) {
+                    setShowUnsavedConfirm(true)
+                } else {
+                    onClose()
+                }
+            }
         }
         document.addEventListener('keydown', handleKeyDown)
         return () => document.removeEventListener('keydown', handleKeyDown)
-    }, [onClose])
+    }, [hasChanges, onClose])
+
+    // Lock body scroll while modal is open
+    useEffect(() => {
+        const prev = document.body.style.overflow
+        document.body.style.overflow = 'hidden'
+        return () => { document.body.style.overflow = prev }
+    }, [])
 
     const handleRestore = useCallback((versionId: string) => {
         const version = versions.find(v => v.id === versionId)
@@ -149,10 +177,6 @@ export const KnowledgeItemModal = React.memo(({
         onClose()
     }, [title, summary, content, linkedVideoId, item.videoId, onSave, onClose, isRestore, restoredVersion, pendingDeleteIds])
 
-    const hasChanges = title.trim() !== item.title
-        || summary.trim() !== item.summary
-        || content !== item.content
-        || linkedVideoId !== item.videoId
     const dateStr = formatKnowledgeDate(item.createdAt)
     const baseCurrentDate = formatKnowledgeDate(item.updatedAt ?? item.createdAt, true)
     const baseCurrentModel = item.lastEditedBy ?? item.model
@@ -200,7 +224,7 @@ export const KnowledgeItemModal = React.memo(({
     return createPortal(
         <div
             className="fixed inset-0 z-modal flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in"
-            onMouseDown={onClose}
+            onMouseDown={handleClose}
         >
             <div
                 className="bg-bg-secondary rounded-xl flex flex-col overflow-hidden animate-scale-in border border-border shadow-2xl w-[800px] max-w-[95vw] max-h-[90vh]"
@@ -210,7 +234,7 @@ export const KnowledgeItemModal = React.memo(({
                 <div className="px-6 py-4 flex items-center justify-between border-b border-border flex-shrink-0">
                     <h2 className="text-lg font-bold text-text-primary m-0">Edit Knowledge Item</h2>
                     <button
-                        onClick={onClose}
+                        onClick={handleClose}
                         className="bg-transparent border-none text-text-primary cursor-pointer hover:opacity-70 transition-opacity"
                     >
                         <X size={24} />
@@ -300,7 +324,7 @@ export const KnowledgeItemModal = React.memo(({
 
                 {/* Footer */}
                 <div className="px-6 py-4 flex justify-end gap-3 border-t border-border bg-bg-secondary/30 flex-shrink-0">
-                    <Button variant="secondary" onClick={onClose}>
+                    <Button variant="secondary" onClick={handleClose}>
                         Cancel
                     </Button>
                     <Button
@@ -312,6 +336,23 @@ export const KnowledgeItemModal = React.memo(({
                     </Button>
                 </div>
             </div>
+
+            {/* Unsaved-changes guard */}
+            <ConfirmationModal
+                isOpen={showUnsavedConfirm}
+                title="Unsaved Changes"
+                message="You have unsaved changes. What would you like to do?"
+                confirmLabel="Discard"
+                cancelLabel="Cancel"
+                confirmVariant="danger"
+                alternateLabel="Save"
+                onAlternate={() => {
+                    setShowUnsavedConfirm(false)
+                    handleSave()
+                }}
+                onConfirm={onClose}
+                onClose={() => setShowUnsavedConfirm(false)}
+            />
         </div>,
         document.body
     )
