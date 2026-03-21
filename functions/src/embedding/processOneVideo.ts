@@ -70,12 +70,15 @@ export async function processOneVideo(
         const needsPackaging = !existingDoc
             || (existingDoc.packagingEmbeddingVersion ?? 0) < CURRENT_PACKAGING_MODEL_VERSION
             || existingDoc.title !== title
+            || existingDoc.description !== description
             || JSON.stringify(existingDoc.tags) !== JSON.stringify(tags);
 
         const needsThumbnailDesc = !existingDoc
+            || existingDoc.thumbnailUrl !== thumbnailUrl
             || (existingDoc.thumbnailDescription == null && !existingDoc.thumbnailUnavailable);
 
         const needsVisual = !existingDoc
+            || existingDoc.thumbnailUrl !== thumbnailUrl
             || ((existingDoc.visualEmbeddingVersion ?? 0) < CURRENT_VISUAL_MODEL_VERSION
                 && !existingDoc.thumbnailUnavailable);
 
@@ -124,6 +127,7 @@ export async function processOneVideo(
             channelTitle,
             title,
             tags,
+            description,
             viewCount,
             publishedAt,
             thumbnailUrl,
@@ -182,8 +186,11 @@ export async function processOneVideo(
                     failCount: newFailCount,
                 });
             }
-        } catch {
-            // Best-effort failCount update
+        } catch (failCountErr) {
+            logger.warn("processOneVideo:failCountUpdateFailed", {
+                videoId,
+                error: failCountErr instanceof Error ? failCountErr.message : String(failCountErr),
+            });
         }
 
         logger.warn("processOneVideo:failed", {

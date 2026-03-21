@@ -10,22 +10,19 @@
 
 ## Текущее состояние
 
-**Стадия: Production, full scan nightly sync.**
+**Стадия: Production, incremental queue-based sync.**
 
-- `globalVideoEmbeddings` — глобальная Firestore коллекция (~4400 видео, 36 каналов)
+- `globalVideoEmbeddings` — глобальная Firestore коллекция (~4600 видео, 39 каналов)
 - Два типа embeddings: packaging (768d, текст) + visual (1408d, thumbnail image)
-- Nightly sync: Cloud Scheduler (00:30 UTC) → self-chaining Cloud Tasks batches
+- Incremental sync: Trends Sync пишет в dirty queue → Embedding Sync (00:30 UTC) обрабатывает только queue
 - Budget safeguard: $5/month hard stop
-- **Full scan** — каждую ночь проходит ВСЕ видео, проверяет актуальность, пересчитывает изменившиеся
+- Экономия ~150K+ Firestore reads/month по сравнению с full scan
 
 ## Roadmap
 
-### Этап 0: Текущая архитектура (full scan) ← YOU ARE HERE
-
-**User flow:** Автоматически, пользователь не видит. Каждую ночь pipeline проходит все ~4400 видео, читает embedding документ каждого, проверяет нужен ли пересчёт (новое видео, изменился title/tags, обновилась версия модели). Для 95%+ видео ответ "нет" — бесполезный Firestore read.
+### Этап 0: Базовая архитектура (full scan)
 
 **Что работает:**
-- Scheduled sync (00:30 UTC), self-chaining через Cloud Tasks
 - Packaging embedding (gemini-embedding-001, 768d): title + tags + description
 - Visual embedding (Vertex AI multimodalembedding@001, 1408d): thumbnail image
 - Thumbnail description (Gemini Flash Vision): текстовое описание обложки
@@ -33,22 +30,16 @@
 - Model version stamping — bump `CURRENT_VERSION` для автоматической миграции всех embeddings
 - `thumbnailUnavailable` sentinel — удалённые/приватные видео не ретраятся каждую ночь
 
-**Проблемы:**
-- ~4400 Firestore reads каждую ночь при ~150 реальных изменениях (3%)
-- 45 Cloud Tasks + cold starts за ~5 минут при масштабе, который не требует batch chaining
-- Не масштабируется: при 50K видео — 500 батчей, ~50 минут
+### Этап 1: Инкрементальный sync ← YOU ARE HERE
 
-### Этап 1: Инкрементальный sync
+**User flow:** Автоматический, невидимый. Trends Sync сравнивает 4 content-поля (title, tags, description, thumbnail) и записывает изменённые видео в dirty queue. Embedding Sync обрабатывает только queue.
 
-**User flow:** То же (автоматический, невидимый), но pipeline обрабатывает только изменившиеся видео.
-
-**Идея:** Video sync (`scheduledTrendSnapshot`) уже знает, какие видео новые или изменились. При обновлении trendChannel видео — записывать ID в очередь `pendingEmbeddings`. Embedding sync читает только эту очередь.
-
-- [ ] Коллекция или документ `system/pendingEmbeddings` — queue changed video IDs
-- [ ] `scheduledTrendSnapshot` пишет в очередь при добавлении/обновлении видео
-- [ ] `scheduledEmbeddingSync` читает только очередь, не full scan
-- [ ] Weekly full scan как fallback (воскресенье) — ловит edge cases и миграции модели
-- [ ] Удалить batch self-chaining для инкрементального режима (одна функция, без Cloud Tasks)
+- [x] `system/embeddingQueue/videos/{videoId}` — dirty queue (subcollection)
+- [x] `SyncService.syncChannel()` пишет в очередь атомарно с video writes (pre-read + dirty detection)
+- [x] `scheduledEmbeddingSync` читает queue, не full scan
+- [x] Fallback на full scan при первом запуске (empty queue + empty embeddings)
+- [x] Queue cleanup per-batch после обработки (failed остаются для retry)
+- [x] `processOneVideo` — description + thumbnailUrl dirty detection alignment
 
 **Ожидаемый результат:**
 - Ежедневно: ~50-200 видео вместо 4400 → 1 batch вместо 45 → секунды вместо минут
@@ -80,10 +71,11 @@ functions/src/embedding/
   queryEmbedding.ts           # Query embedding для searchDatabase (RETRIEVAL_QUERY)
   rrfMerge.ts                 # Reciprocal Rank Fusion (packaging + visual merge, k=60)
   vectorSearch.ts             # Batched findNearest() queries
-  embeddingSync.ts            # Channel discovery logic
-  scheduledEmbeddingSync.ts   # Cloud Scheduler entry point (thin launcher)
-  embeddingSyncBatch.ts       # Self-chaining batch processor
-  backfillEmbeddings.ts       # One-time backfill (same pattern)
+  embeddingSync.ts            # Channel discovery (used by fallback + backfill)
+  embeddingQueue.ts           # Dirty queue: isContentChanged, enqueueVideoForEmbedding, readEmbeddingQueue
+  scheduledEmbeddingSync.ts   # Cloud Scheduler entry point (queue-based launcher, fallback to full scan)
+  embeddingSyncBatch.ts       # Self-chaining batch processor + queue cleanup
+  backfillEmbeddings.ts       # Manual backfill (full scan via discoverChannels)
   budgetTracker.ts            # $5/month hard stop
   taskQueue.ts                # Cloud Tasks helper + pLimit
 ```
@@ -91,6 +83,7 @@ functions/src/embedding/
 ### Firestore коллекции
 
 - `globalVideoEmbeddings/{youtubeVideoId}` — embedding документы (content-addressable, shared between users)
+- `system/embeddingQueue/videos/{videoId}` — dirty queue (changed videos pending embedding sync)
 - `system/embeddingBudget` — monthly cost tracking
 - `system/syncState` — batch orchestration state (video list, progress)
 - `system/embeddingStats` — coverage statistics (written by sync as side-effect)

@@ -228,6 +228,10 @@ export async function processBackfill(params: {
 // HTTP entry point
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// HTTP entry point — main backfill
+// ---------------------------------------------------------------------------
+
 export const backfillEmbeddings = onRequest(
     {
         timeoutSeconds: 540,

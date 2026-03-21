@@ -6,17 +6,13 @@
 // =============================================================================
 
 import { db } from "../shared/db.js";
+import type { ChannelPath } from "./types.js";
+
+export type { ChannelPath };
 
 // ---------------------------------------------------------------------------
 // Discovery — find unique YouTube channels across all users
 // ---------------------------------------------------------------------------
-
-export interface ChannelPath {
-    userId: string;
-    channelId: string;
-    trendChannelId: string;
-    channelTitle: string;
-}
 
 /**
  * Discover unique YouTube channels across all users via collection group query.

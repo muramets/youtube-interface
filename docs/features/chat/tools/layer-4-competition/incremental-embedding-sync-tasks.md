@@ -97,18 +97,18 @@ Final verification — all test suites + lint + typecheck
 
 | Phase | Goal | Status |
 |-------|------|--------|
-| 0 | Prep: migrate `SyncService` to shared `db` singleton | TODO |
-| 1 | Queue infrastructure: types, queue writer utility, processOneVideo fix, tests | TODO |
-| 2 | Integrate queue writer into `syncChannel()` | TODO |
-| 3 | Switch embedding sync launcher + batch to queue-based discovery | TODO |
-| 4 | Queue cleanup + fallback logic | TODO |
-| FINAL | Double review-fix cycle (R1: Architecture, R2: Production Readiness) | TODO |
+| 0 | Prep: migrate `SyncService` to shared `db` singleton | DONE |
+| 1 | Queue infrastructure: types, queue writer utility, processOneVideo fix, tests | DONE |
+| 2 | Integrate queue writer into `syncChannel()` | DONE |
+| 3 | Switch embedding sync launcher + batch to queue-based discovery | DONE |
+| 4 | Queue cleanup + fallback logic | DONE |
+| FINAL | Double review-fix cycle (R1: Architecture, R2: Production Readiness) | DONE |
 
 ## Current Test Count
 
-- **Frontend: 615 tests (45 files)** — verified via `npx vitest run --project frontend` (2026-03-21)
-- **Backend: 876 tests (61 files)** — verified via `npx vitest run --project functions` (2026-03-21)
-- **Total: 1491 tests (106 files)** — all passing
+- **Frontend: 603 tests (44 files)** — verified via `npx vitest run --project frontend` (2026-03-21)
+- **Backend: 908 tests (62 files)** — verified via `npx vitest run --project functions` (2026-03-21)
+- **Total: 1511 tests (106 files)** — all passing
 
 ---
 
@@ -124,7 +124,7 @@ Final verification — all test suites + lint + typecheck
 
 ### Tasks
 
-- [ ] **T0.1** — Migrate `SyncService` to shared `db`
+- [x] **T0.1** — Migrate `SyncService` to shared `db`
   - File: `functions/src/services/sync.ts`
   - Changes:
     1. Add `import { db } from "../shared/db.js";`
@@ -133,7 +133,7 @@ Final verification — all test suites + lint + typecheck
     4. Remove `import * as admin from "firebase-admin";` if no longer used (check `admin.firestore.FieldValue.serverTimestamp()` in `sendNotification`)
   - ⚠️ `sendNotification` uses `admin.firestore.FieldValue.serverTimestamp()` — this still needs `admin` import. Keep `import * as admin from "firebase-admin"` but only for `FieldValue`.
 
-- [ ] **T0.2** — Update tests
+- [x] **T0.2** — Update tests
   - File: `functions/src/services/__tests__/sync.test.ts`
   - Simplify Firestore mock: replace `firebase-admin` mock with `vi.mock("../shared/db.js")` pattern (same as `embeddingSync.test.ts`)
   - All existing tests must pass without behavior change
@@ -146,8 +146,8 @@ npm run check                          # lint + typecheck
 ```
 
 **MANDATORY: Update this file before proceeding:**
-- [ ] Mark completed tasks above
-- [ ] Update Phase Status table: Phase 0 → DONE
+- [x] Mark completed tasks above
+- [x] Update Phase Status table: Phase 0 → DONE
 
 ---
 
@@ -166,7 +166,7 @@ npm run check                          # lint + typecheck
 
 ### Tasks
 
-- [ ] **T1.1** — Types и constants
+- [x] **T1.1** — Types и constants
   - File: `functions/src/embedding/types.ts`
   - Add interface `EmbeddingQueueEntry`:
     ```typescript
@@ -193,7 +193,7 @@ npm run check                          # lint + typecheck
     4. Update `BackfillState.channelPaths` too (same shape)
     5. Files affected: `types.ts`, `embeddingSync.ts`, `scheduledEmbeddingSync.ts`, `backfillEmbeddings.ts`
 
-- [ ] **T1.2** — Queue writer utility
+- [x] **T1.2** — Queue writer utility
   - Create: `functions/src/embedding/embeddingQueue.ts`
   - Functions:
     - `isContentChanged(previous: Record<string, unknown> | undefined, current: { title: string; tags: string[]; description: string; thumbnail: string }): boolean`
@@ -210,7 +210,7 @@ npm run check                          # lint + typecheck
   - ⚠️ `isContentChanged` is a pure function (no I/O). Separate from `enqueueVideoForEmbedding` (I/O via batch) — clean separation per project conventions
   - ⚠️ Import `EMBEDDING_QUEUE_PATH` from `./types.js`
 
-- [ ] **T1.3** — Fix `processOneVideo` description check (N7 + R2-F1)
+- [x] **T1.3** — Fix `processOneVideo` description check (N7 + R2-F1)
   - **R2-F1 blocker:** `EmbeddingDoc` **не хранит** `description`. Если просто добавить `existingDoc.description !== description` → `undefined !== "any string"` → всегда `true` → каждое видео re-embedded каждый sync (regression к full regeneration). Нужно два изменения:
   - **Step 1 — Add `description` to `EmbeddingDoc`:**
     - File: `functions/src/embedding/types.ts`
@@ -270,7 +270,7 @@ npm run check                          # lint + typecheck
     - ⚠️ Without this migration: every video re-embedded unnecessarily (budget drain, days to complete through $5/month limit)
     - ⚠️ With this migration: only videos with genuinely changed descriptions trigger re-embedding
 
-- [ ] **T1.4** — Tests
+- [x] **T1.4** — Tests
   - Create: `functions/src/embedding/__tests__/embeddingQueue.test.ts`
   - Mock: `db` (Firestore admin) — same pattern as `embeddingSync.test.ts`
   - Cases for `isContentChanged`:
@@ -297,9 +297,9 @@ npm run check                          # lint + typecheck + doc links
 ```
 
 **MANDATORY: Update this file before proceeding:**
-- [ ] Mark completed tasks above
-- [ ] Update Phase Status table: Phase 1 → DONE
-- [ ] Record test count in "Current Test Count" section
+- [x] Mark completed tasks above
+- [x] Update Phase Status table: Phase 1 → DONE
+- [x] Record test count in "Current Test Count" section
 
 ### Review Gate 1
 
@@ -341,7 +341,7 @@ Fix all findings before moving to Phase 2.
 
 ### Tasks
 
-- [ ] **T2.1** — Modify `SyncService.syncChannel()` to detect changes and enqueue
+- [x] **T2.1** — Modify `SyncService.syncChannel()` to detect changes and enqueue
   - File: `functions/src/services/sync.ts`
   - Changes:
     1. Add imports at top:
@@ -388,7 +388,7 @@ Fix all findings before moving to Phase 2.
   - ⚠️ `thumbnailMap.get(v.id)` is available inside the forEach — it's populated by CDN probes before the forEach loop.
   - ⚠️ `db.getAll()` returns `DocumentSnapshot[]` — some may not exist (`snap.exists === false`) for new videos. Map should only include existing docs.
 
-- [ ] **T2.2** — Tests for sync integration
+- [x] **T2.2** — Tests for sync integration
   - File: `functions/src/services/__tests__/sync.test.ts`
   - Add/modify test cases:
     - **New video** (not in Firestore): `isContentChanged` gets `undefined` → queue write added to batch
@@ -416,9 +416,9 @@ npm run check                          # lint + typecheck + doc links
 ```
 
 **MANDATORY: Update this file before proceeding:**
-- [ ] Mark completed tasks above
-- [ ] Update Phase Status table: Phase 2 → DONE
-- [ ] Record test count
+- [x] Mark completed tasks above
+- [x] Update Phase Status table: Phase 2 → DONE
+- [x] Record test count
 
 ### Review Gate 2
 
@@ -459,7 +459,7 @@ Fix all findings before moving to Phase 3.
 
 ### Tasks
 
-- [ ] **T3.1** — Queue reader utility
+- [x] **T3.1** — Queue reader utility
   - File: `functions/src/embedding/embeddingQueue.ts` (extend existing file from Phase 1)
   - Add function:
     ```typescript
@@ -479,7 +479,7 @@ Fix all findings before moving to Phase 3.
   - ⚠️ Import `ChannelPath` from `./embeddingSync.js` — reuse existing interface
   - ⚠️ Return type uses `ChannelPath` (same shape as `discoverChannels` output) for compatibility with `SyncState.channelPaths`
 
-- [ ] **T3.2** — Modify `scheduledEmbeddingSync` to use queue
+- [x] **T3.2** — Modify `scheduledEmbeddingSync` to use queue
   - File: `functions/src/embedding/scheduledEmbeddingSync.ts`
   - Changes:
     1. Replace `import { discoverChannels } from "./embeddingSync.js"` with `import { readEmbeddingQueue } from "./embeddingQueue.js"`
@@ -499,7 +499,7 @@ Fix all findings before moving to Phase 3.
     6. Rest of function (canary log, syncState write, enqueue first batch) stays the same — `SyncState` format is unchanged
   - ⚠️ `videos.length` и `queueSize` могут отличаться — queue может иметь duplicates for same videoId from different users. But `readEmbeddingQueue` deduplicates by videoId (doc ID is unique). So they should be equal. Log both for debugging.
 
-- [ ] **T3.3** — Fresh `coverageByChannel.total` from trendChannels docs
+- [x] **T3.3** — Fresh `coverageByChannel.total` from trendChannels docs
   - File: `functions/src/embedding/embeddingSyncBatch.ts`
   - Strategy (N4): `finalize()` читает актуальный `videoCount` из trendChannels docs — Trends Sync записывает его на каждом синке (`sync.ts:176`), поэтому значение всегда свежее.
   - Change in `finalize()` function:
@@ -512,7 +512,7 @@ Fix all findings before moving to Phase 3.
   - ⚠️ `finalize()` уже делает read of `system/embeddingBudget` — adding one `db.getAll()` is acceptable
   - ⚠️ Не circular dependency: finalize читает из `trendChannels` (другая коллекция), пишет в `embeddingStats`
 
-- [ ] **T3.4** — Tests
+- [x] **T3.4** — Tests
   - Create/update: `functions/src/embedding/__tests__/embeddingQueue.test.ts` (extend from Phase 1)
   - Add cases for `readEmbeddingQueue`:
     - Queue with 3 entries for 2 channels → returns 3 videos, 2 channelPaths
@@ -535,9 +535,9 @@ cd functions && npm run build          # compiles (import changes)
 ```
 
 **MANDATORY: Update this file before proceeding:**
-- [ ] Mark completed tasks above
-- [ ] Update Phase Status table: Phase 3 → DONE
-- [ ] Record test count
+- [x] Mark completed tasks above
+- [x] Update Phase Status table: Phase 3 → DONE
+- [x] Record test count
 
 ### Review Gate 3
 
@@ -574,7 +574,7 @@ Fix all findings before moving to Phase 4.
 
 ### Tasks
 
-- [ ] **T4.1** — Queue cleanup in batch processor
+- [x] **T4.1** — Queue cleanup in batch processor
   - File: `functions/src/embedding/embeddingSyncBatch.ts`
   - Changes in `processSyncBatch`:
     1. After processing all videos in batch, collect videoIds where `processOneVideo` returned `status === "generated"` or `status === "alreadyCurrent"` (NOT `"failed"`)
@@ -593,7 +593,7 @@ Fix all findings before moving to Phase 4.
   - ⚠️ Cleanup is best-effort — if cleanup batch fails, videos stay in queue → retry next run → idempotent (processOneVideo will return `alreadyCurrent`)
   - ⚠️ Firestore WriteBatch limit = 500. Batch size = 100 videos (SYNC_BATCH_SIZE). 100 deletes < 500 limit → safe in single batch.
 
-- [ ] **T4.2** — Fallback logic in launcher
+- [x] **T4.2** — Fallback logic in launcher
   - File: `functions/src/embedding/scheduledEmbeddingSync.ts`
   - Changes:
     1. Keep import of `discoverChannels` from `./embeddingSync.js` (needed for fallback)
@@ -632,7 +632,7 @@ Fix all findings before moving to Phase 4.
   - ⚠️ `buildSyncStateFromFullScan` is a LOCAL function in `scheduledEmbeddingSync.ts` — not exported. It's the fallback path, not the normal path.
   - ⚠️ The fallback path ALSO needs to write videos into the queue (for future runs)? **NO** — the fallback is a one-time bootstrap. After this run, Trends Sync will start writing to the queue, and future embedding syncs will use it.
 
-- [ ] **T4.3** — Tests
+- [x] **T4.3** — Tests
   - Update: `functions/src/embedding/__tests__/embeddingSyncBatch.test.ts`
     - Add case: successful videos cleaned from queue (batch.delete called with correct paths)
     - Add case: failed videos NOT cleaned from queue (remain for retry)
@@ -652,9 +652,9 @@ cd functions && npm run build          # compiles
 ```
 
 **MANDATORY: Update this file before proceeding:**
-- [ ] Mark completed tasks above
-- [ ] Update Phase Status table: Phase 4 → DONE
-- [ ] Record test count
+- [x] Mark completed tasks above
+- [x] Update Phase Status table: Phase 4 → DONE
+- [x] Record test count
 
 ### Review Gate 4
 
@@ -741,10 +741,10 @@ cd functions && npm run build         # compiles
 ```
 
 **MANDATORY: Update this file:**
-- [ ] Update Phase Status table: FINAL → DONE
-- [ ] Record final test count
-- [ ] Update `docs/features/chat/tools/layer-4-competition/competitive-intelligence.md`:
+- [x] Update Phase Status table: FINAL → DONE
+- [x] Record final test count
+- [x] Update `docs/features/chat/tools/layer-4-competition/competitive-intelligence.md`:
   - Add section about incremental embedding sync to "Embedding generation" section
   - Update architecture diagram if present
-- [ ] Update related docs if affected:
+- [x] Update related docs if affected:
   - `docs/features/chat/tools/layer-4-competition/embedding-infrastructure.md` — add queue architecture

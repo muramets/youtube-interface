@@ -15,6 +15,9 @@ const {
     mockRecordCost,
     mockProcessOneVideo,
     mockEnqueueBatch,
+    mockBatchDelete,
+    mockBatchCommit,
+    mockGetAll,
 } = vi.hoisted(() => ({
     mockDocGet: vi.fn(),
     mockDocSet: vi.fn(),
@@ -28,6 +31,9 @@ const {
     mockRecordCost: vi.fn(),
     mockProcessOneVideo: vi.fn(),
     mockEnqueueBatch: vi.fn(),
+    mockBatchDelete: vi.fn(),
+    mockBatchCommit: vi.fn().mockResolvedValue(undefined),
+    mockGetAll: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("../../shared/db.js", () => ({
@@ -41,6 +47,11 @@ vi.mock("../../shared/db.js", () => ({
         collection: (path: string) => ({
             add: (data: unknown) => mockCollectionAdd(path, data),
         }),
+        batch: () => ({
+            delete: mockBatchDelete,
+            commit: mockBatchCommit,
+        }),
+        getAll: (...refs: unknown[]) => mockGetAll(...refs),
     },
     admin: {
         firestore: {
@@ -164,6 +175,8 @@ describe("processSyncBatch", () => {
         mockDocDelete.mockResolvedValue(undefined);
         mockEnqueueBatch.mockResolvedValue(undefined);
         mockCollectionAdd.mockResolvedValue(undefined);
+        mockBatchCommit.mockResolvedValue(undefined);
+        mockGetAll.mockResolvedValue([]);
         mockProcessOneVideo.mockResolvedValue(generatedResult());
     });
 
@@ -658,6 +671,92 @@ describe("processSyncBatch", () => {
             expect(mockLoggerWarn).not.toHaveBeenCalledWith(
                 "embeddingSync:highFailureRate",
                 expect.anything(),
+            );
+        });
+    });
+
+    // =======================================================================
+    // Queue cleanup
+    // =======================================================================
+
+    describe("queue cleanup", () => {
+        it("deletes successfully processed videos from queue", async () => {
+            const state = makeSyncState({
+                videos: [
+                    { videoId: "vid1", youtubeChannelId: "UCabc" },
+                    { videoId: "vid2", youtubeChannelId: "UCabc" },
+                ],
+                totalVideos: 2,
+            });
+
+            mockDocGet.mockImplementation((path: string) => {
+                if (path === "system/syncState") return Promise.resolve(stateSnap(state));
+                return Promise.resolve(videoDocSnap({}));
+            });
+
+            mockProcessOneVideo
+                .mockResolvedValueOnce(generatedResult())
+                .mockResolvedValueOnce(alreadyCurrentResult());
+
+            await processSyncBatch({ apiKey: "key", offset: 0, selfUrl: SELF_URL });
+
+            // Both videos are successful (generated + alreadyCurrent)
+            expect(mockBatchDelete).toHaveBeenCalledTimes(2);
+            expect(mockBatchCommit).toHaveBeenCalled();
+            expect(mockLoggerInfo).toHaveBeenCalledWith(
+                "embeddingSyncBatch:queueCleanup",
+                expect.objectContaining({ cleaned: 2, failed: 0 }),
+            );
+        });
+
+        it("does not delete failed videos from queue (retained for retry)", async () => {
+            const state = makeSyncState({
+                videos: [
+                    { videoId: "vid-ok", youtubeChannelId: "UCabc" },
+                    { videoId: "vid-fail", youtubeChannelId: "UCabc" },
+                ],
+                totalVideos: 2,
+            });
+
+            mockDocGet.mockImplementation((path: string) => {
+                if (path === "system/syncState") return Promise.resolve(stateSnap(state));
+                return Promise.resolve(videoDocSnap({}));
+            });
+
+            mockProcessOneVideo
+                .mockResolvedValueOnce(generatedResult())
+                .mockResolvedValueOnce(failedResult());
+
+            await processSyncBatch({ apiKey: "key", offset: 0, selfUrl: SELF_URL });
+
+            // Only 1 video deleted (the successful one), not the failed one
+            expect(mockBatchDelete).toHaveBeenCalledTimes(1);
+            expect(mockLoggerInfo).toHaveBeenCalledWith(
+                "embeddingSyncBatch:queueCleanup",
+                expect.objectContaining({ cleaned: 1, failed: 1 }),
+            );
+        });
+
+        it("handles cleanup batch failure gracefully", async () => {
+            const state = makeSyncState({
+                videos: [{ videoId: "vid1", youtubeChannelId: "UCabc" }],
+                totalVideos: 1,
+            });
+
+            mockDocGet.mockImplementation((path: string) => {
+                if (path === "system/syncState") return Promise.resolve(stateSnap(state));
+                return Promise.resolve(videoDocSnap({}));
+            });
+
+            mockBatchCommit.mockRejectedValueOnce(new Error("Cleanup failed"));
+
+            const result = await processSyncBatch({ apiKey: "key", offset: 0, selfUrl: SELF_URL });
+
+            // Processing still succeeds despite cleanup failure
+            expect(result.body).toMatchObject({ batchGenerated: 1 });
+            expect(mockLoggerWarn).toHaveBeenCalledWith(
+                "embeddingSyncBatch:queueCleanupFailed",
+                expect.objectContaining({ error: expect.any(Error) }),
             );
         });
     });

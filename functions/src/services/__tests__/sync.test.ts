@@ -55,7 +55,7 @@ function makeVideo(overrides?: Partial<{
     };
 }
 
-/* ---------- Mock: firebase-admin ---------- */
+/* ---------- Mock: shared/db ---------- */
 
 const mockBatchSet = vi.fn();
 const mockBatchUpdate = vi.fn();
@@ -97,21 +97,42 @@ const mockCollection = vi.fn((path: string) => ({
     get: mockCollectionGet,
 }));
 
-const mockFirestoreInstance = () => ({
-    batch: mockBatch,
-    doc: mockDocRef,
-    collection: mockCollection,
-});
+const mockGetAll = vi.fn().mockResolvedValue([]);
 
-const firestoreFn = Object.assign(mockFirestoreInstance, {
-    FieldValue: {
-        serverTimestamp: () => "SERVER_TIMESTAMP",
+vi.mock("../../shared/db.js", () => ({
+    db: {
+        batch: mockBatch,
+        doc: mockDocRef,
+        collection: mockCollection,
+        getAll: (...refs: unknown[]) => mockGetAll(...refs),
     },
-});
+    admin: {
+        firestore: {
+            FieldValue: {
+                serverTimestamp: () => "SERVER_TIMESTAMP",
+            },
+        },
+    },
+}));
 
-vi.mock("firebase-admin", () => ({
-    default: { firestore: firestoreFn },
-    firestore: firestoreFn,
+/* ---------- Mock: embeddingQueue ---------- */
+
+const mockIsContentChanged = vi.fn().mockReturnValue(false);
+const mockEnqueueVideo = vi.fn();
+
+vi.mock("../../embedding/embeddingQueue.js", () => ({
+    isContentChanged: (...args: unknown[]) => mockIsContentChanged(...args),
+    enqueueVideoForEmbedding: (...args: unknown[]) => mockEnqueueVideo(...args),
+}));
+
+/* ---------- Mock: firebase-functions logger ---------- */
+
+vi.mock("firebase-functions/v2", () => ({
+    logger: {
+        warn: vi.fn(),
+        info: vi.fn(),
+        error: vi.fn(),
+    },
 }));
 
 /* ---------- Mock: YouTubeService ---------- */
@@ -179,6 +200,8 @@ describe("SyncService", () => {
         mockDocUpdate.mockResolvedValue(undefined);
         mockDocSet.mockResolvedValue(undefined);
         mockCollectionAdd.mockResolvedValue({ id: "notif-1" });
+        mockGetAll.mockResolvedValue([]);
+        mockIsContentChanged.mockReturnValue(false);
 
         service = new SyncService();
     });
@@ -386,9 +409,10 @@ describe("SyncService", () => {
             );
         });
 
-        // ─── 7. Large batch: >400 videos → multiple Firestore batches ───
-        it("uses multiple Firestore batches for >400 videos", async () => {
-            const videos = Array.from({ length: 450 }, (_, i) =>
+        // ─── 7. Large batch: >225 videos → multiple Firestore batches ───
+        // batchSize = floor((500 - 50) / 2) = 225 (each video = 1 write + 1 potential queue write)
+        it("uses multiple Firestore batches for >225 videos", async () => {
+            const videos = Array.from({ length: 300 }, (_, i) =>
                 makeVideo({ id: `v${i}`, viewCount: `${(i + 1) * 100}` }),
             );
             setupHappyPath(videos);
@@ -400,9 +424,10 @@ describe("SyncService", () => {
                 API_KEY,
             );
 
-            // 450 videos → 2 batches (400 + 50)
+            // 300 videos → 2 batches (225 + 75)
             expect(mockBatchCommit).toHaveBeenCalledTimes(2);
-            expect(mockBatchSet).toHaveBeenCalledTimes(450);
+            // 300 video writes + potential queue writes (mockIsContentChanged returns false by default → 0 queue writes)
+            expect(mockBatchSet).toHaveBeenCalledTimes(300);
         });
 
         // ─── 8. Field mapping: counts parsed as numbers ─────────────────
@@ -751,6 +776,114 @@ describe("SyncService", () => {
                 },
                 { merge: true },
             );
+        });
+
+        // ─── Embedding queue integration ─────────────────────────────────
+
+        it("calls isContentChanged with pre-read data and enqueues when changed", async () => {
+            const video = makeVideo({ id: "v-dirty", title: "New Title" });
+            setupHappyPath([video]);
+
+            // Pre-read returns existing doc with old title
+            mockGetAll.mockResolvedValue([{
+                exists: true,
+                id: "v-dirty",
+                data: () => ({
+                    title: "Old Title",
+                    tags: ["tag1", "tag2"],
+                    description: "A test video description",
+                    thumbnail: "https://i.ytimg.com/maxres.jpg",
+                }),
+            }]);
+            mockIsContentChanged.mockReturnValue(true);
+
+            await service.syncChannel(USER_ID, CHANNEL_ID, makeTrendChannel(), API_KEY);
+
+            expect(mockIsContentChanged).toHaveBeenCalled();
+            expect(mockEnqueueVideo).toHaveBeenCalled();
+        });
+
+        it("does not enqueue when content is unchanged", async () => {
+            setupHappyPath([makeVideo()]);
+
+            mockGetAll.mockResolvedValue([{
+                exists: true,
+                id: "vid-1",
+                data: () => ({
+                    title: "Test Video",
+                    tags: ["tag1", "tag2"],
+                    description: "A test video description",
+                    thumbnail: "https://i.ytimg.com/maxres.jpg",
+                }),
+            }]);
+            mockIsContentChanged.mockReturnValue(false);
+
+            await service.syncChannel(USER_ID, CHANNEL_ID, makeTrendChannel(), API_KEY);
+
+            expect(mockIsContentChanged).toHaveBeenCalled();
+            expect(mockEnqueueVideo).not.toHaveBeenCalled();
+        });
+
+        it("enqueues new videos (not in Firestore yet)", async () => {
+            setupHappyPath([makeVideo({ id: "v-new" })]);
+            // Pre-read returns no existing docs
+            mockGetAll.mockResolvedValue([{
+                exists: false,
+                id: "v-new",
+                data: () => null,
+            }]);
+            mockIsContentChanged.mockReturnValue(true);
+
+            await service.syncChannel(USER_ID, CHANNEL_ID, makeTrendChannel(), API_KEY);
+
+            expect(mockIsContentChanged).toHaveBeenCalledWith(
+                undefined,
+                expect.objectContaining({ title: "Test Video" }),
+            );
+            expect(mockEnqueueVideo).toHaveBeenCalled();
+        });
+
+        it("uses trendChannel.name for channelTitle in queue entry", async () => {
+            setupHappyPath([makeVideo()]);
+            mockGetAll.mockResolvedValue([]);
+            mockIsContentChanged.mockReturnValue(true);
+
+            const tc = makeTrendChannel({ id: "UCname", name: "My Channel Name" });
+            await service.syncChannel(USER_ID, CHANNEL_ID, tc, API_KEY);
+
+            const entryArg = mockEnqueueVideo.mock.calls[0][1];
+            expect(entryArg.channelTitle).toBe("My Channel Name");
+        });
+
+        it("continues video sync when db.getAll() fails (pre-read failure)", async () => {
+            setupHappyPath([makeVideo()]);
+            mockGetAll.mockRejectedValue(new Error("Firestore unavailable"));
+
+            const result = await service.syncChannel(
+                USER_ID, CHANNEL_ID, makeTrendChannel(), API_KEY,
+            );
+
+            // Video sync still completes
+            expect(result.videosProcessed).toBe(1);
+            expect(mockBatchSet).toHaveBeenCalled();
+            expect(mockBatchCommit).toHaveBeenCalled();
+        });
+
+        it("does not exceed 500 ops per batch (225 videos max per chunk)", async () => {
+            const videos = Array.from({ length: 225 }, (_, i) =>
+                makeVideo({ id: `v${i}` }),
+            );
+            setupHappyPath(videos);
+            mockGetAll.mockResolvedValue([]);
+            mockIsContentChanged.mockReturnValue(true);
+
+            await service.syncChannel(USER_ID, CHANNEL_ID, makeTrendChannel(), API_KEY);
+
+            // 225 video writes + 225 queue writes = 450 ops (< 500)
+            expect(mockBatchCommit).toHaveBeenCalledTimes(1);
+            // batch.set called: 225 (videos) + 225 (queue) = 450
+            expect(mockBatchSet).toHaveBeenCalledTimes(225);
+            expect(mockEnqueueVideo).toHaveBeenCalledTimes(225);
         });
     });
 

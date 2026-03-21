@@ -155,7 +155,9 @@ describe("processOneVideo", () => {
                 visualEmbeddingVersion: 1,
                 title: "Test Video",
                 tags: ["tag1"],
+                description: "A description",
                 viewCount: 1000,
+                thumbnailUrl: "https://i.ytimg.com/vi/vid1/mqdefault.jpg",
                 thumbnailDescription: "existing desc",
                 packagingEmbedding: MOCK_VECTOR,
                 visualEmbedding: MOCK_VISUAL_VECTOR,
@@ -176,7 +178,9 @@ describe("processOneVideo", () => {
                 visualEmbeddingVersion: 1,
                 title: "Test Video",
                 tags: ["tag1"],
+                description: "A description",
                 viewCount: 500, // old count
+                thumbnailUrl: "https://i.ytimg.com/vi/vid1/mqdefault.jpg",
                 thumbnailDescription: "existing",
                 packagingEmbedding: MOCK_VECTOR,
                 visualEmbedding: MOCK_VISUAL_VECTOR,
@@ -234,6 +238,8 @@ describe("processOneVideo", () => {
                 visualEmbeddingVersion: 1,
                 title: "Test Video",
                 tags: ["tag1"],
+                description: "A description",
+                thumbnailUrl: "https://i.ytimg.com/vi/vid1/mqdefault.jpg",
                 thumbnailDescription: null,
                 thumbnailUnavailable: true,
                 packagingEmbedding: MOCK_VECTOR,
@@ -257,6 +263,8 @@ describe("processOneVideo", () => {
                 visualEmbeddingVersion: 1,
                 title: "Old Title",
                 tags: ["tag1"],
+                description: "A description",
+                thumbnailUrl: "https://i.ytimg.com/vi/vid1/mqdefault.jpg",
                 thumbnailDescription: "existing",
                 packagingEmbedding: MOCK_VECTOR,
                 visualEmbedding: MOCK_VISUAL_VECTOR,
@@ -278,6 +286,8 @@ describe("processOneVideo", () => {
                 visualEmbeddingVersion: 1,
                 title: "Test Video",
                 tags: ["old-tag"],
+                description: "A description",
+                thumbnailUrl: "https://i.ytimg.com/vi/vid1/mqdefault.jpg",
                 thumbnailDescription: "existing",
                 packagingEmbedding: MOCK_VECTOR,
                 visualEmbedding: MOCK_VISUAL_VECTOR,
@@ -287,6 +297,63 @@ describe("processOneVideo", () => {
 
             expect(result.status).toBe("generated");
             expect(mockGeneratePackaging).toHaveBeenCalled();
+        });
+
+        it("re-generates packaging when description changes", async () => {
+            mockDocGet.mockResolvedValue(embeddingSnap(true, {
+                packagingEmbeddingVersion: 1,
+                visualEmbeddingVersion: 1,
+                title: "Test Video",
+                tags: ["tag1"],
+                description: "Old description",
+                thumbnailUrl: "https://i.ytimg.com/vi/vid1/mqdefault.jpg",
+                thumbnailDescription: "existing",
+                packagingEmbedding: MOCK_VECTOR,
+                visualEmbedding: MOCK_VISUAL_VECTOR,
+            }));
+
+            const result = await processOneVideo(makeInput(), "test-key");
+
+            expect(result.status).toBe("generated");
+            expect(mockGeneratePackaging).toHaveBeenCalled();
+            // Visual not re-generated (thumbnail unchanged)
+            expect(mockDownloadThumbnail).not.toHaveBeenCalled();
+        });
+
+        it("re-generates visual + thumbnailDesc when thumbnailUrl changes", async () => {
+            mockDocGet.mockResolvedValue(embeddingSnap(true, {
+                packagingEmbeddingVersion: 1,
+                visualEmbeddingVersion: 1,
+                title: "Test Video",
+                tags: ["tag1"],
+                description: "A description",
+                thumbnailUrl: "https://i.ytimg.com/vi/vid1/old-thumb.jpg",
+                thumbnailDescription: "existing",
+                packagingEmbedding: MOCK_VECTOR,
+                visualEmbedding: MOCK_VISUAL_VECTOR,
+            }));
+
+            const result = await processOneVideo(makeInput(), "test-key");
+
+            expect(result.status).toBe("generated");
+            // Thumbnail changed → visual + description re-generated
+            expect(mockDownloadThumbnail).toHaveBeenCalledWith("vid1");
+            expect(mockGenerateVisual).toHaveBeenCalled();
+            expect(mockGenerateThumbnailDesc).toHaveBeenCalled();
+            // Packaging NOT re-generated (title/tags/description unchanged)
+            expect(mockGeneratePackaging).not.toHaveBeenCalled();
+        });
+
+        it("writes description to EmbeddingDoc", async () => {
+            mockDocGet.mockResolvedValue(embeddingSnap(false));
+
+            await processOneVideo(makeInput(), "test-key");
+
+            expect(mockDocSet).toHaveBeenCalledWith(
+                "globalVideoEmbeddings/vid1",
+                expect.objectContaining({ description: "A description" }),
+                { merge: true },
+            );
         });
     });
 

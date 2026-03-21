@@ -1,11 +1,13 @@
-import * as admin from "firebase-admin";
 import axios from "axios";
+import { logger } from "firebase-functions/v2";
 import { YouTubeService } from "./youtube";
 import { TrendChannel, ProcessStats, Notification, YouTubeVideoItem } from "../types";
 import { getPercentileDistribution } from "../shared/percentiles.js";
+import { db, admin } from "../shared/db.js";
+import { isContentChanged, enqueueVideoForEmbedding } from "../embedding/embeddingQueue.js";
+import type { EmbeddingQueueEntry } from "../embedding/types.js";
 
 export class SyncService {
-    private db = admin.firestore();
 
     /**
      * Synchronizes a single trend channel:
@@ -33,10 +35,10 @@ export class SyncService {
             quotaDetails += quotaUsed; // Count as details/overhead quota
 
             if (avatarUrl) {
-                await this.db.doc(`users/${userId}/channels/${userChannelId}/trendChannels/${trendChannel.id}`).update({
+                await db.doc(`users/${userId}/channels/${userChannelId}/trendChannels/${trendChannel.id}`).update({
                     avatarUrl: avatarUrl
                 });
-                console.log(`Updated avatar for ${trendChannel.name}`);
+                logger.info("syncChannel:avatarUpdated", { channel: trendChannel.id });
             }
         }
 
@@ -60,10 +62,14 @@ export class SyncService {
         const timestamp = Date.now();
 
         // Chunk for Firestore batches
-        const batchSize = 400; // Safe margin below 500
+        // Each video = up to 2 ops: 1 video write + 1 potential queue write
+        const FIRESTORE_BATCH_LIMIT = 500;
+        const OPS_PER_VIDEO = 2;
+        const BATCH_SAFETY_MARGIN = 50;
+        const batchSize = Math.floor((FIRESTORE_BATCH_LIMIT - BATCH_SAFETY_MARGIN) / OPS_PER_VIDEO);
+
         for (let i = 0; i < videos.length; i += batchSize) {
             const chunk = videos.slice(i, i + batchSize);
-            const batch = this.db.batch();
 
             // YouTube Data API often omits `maxres` from snippet.thumbnails even when
             // the CDN file exists (maxresdefault.jpg returns 200).
@@ -88,11 +94,36 @@ export class SyncService {
             }
             if (cdnProbes.length > 0) await Promise.all(cdnProbes);
 
+            // Pre-read existing video docs for dirty detection (embedding queue)
+            // Best-effort: if pre-read fails, video sync continues without queue writes
+            const existingDocsMap = new Map<string, Record<string, unknown>>();
+            try {
+                const videoRefs = chunk.map(v =>
+                    db.doc(`users/${userId}/channels/${userChannelId}/trendChannels/${trendChannel.id}/videos/${v.id}`),
+                );
+                if (videoRefs.length > 0) {
+                    const existingDocs = await db.getAll(...videoRefs);
+                    for (const snap of existingDocs) {
+                        if (snap.exists) {
+                            existingDocsMap.set(snap.id, snap.data() as Record<string, unknown>);
+                        }
+                    }
+                }
+            } catch (err) {
+                logger.warn("syncChannel:embeddingQueuePreReadFailed", {
+                    error: err,
+                    channel: trendChannel.id,
+                });
+            }
+
+            const batch = db.batch();
+            let enqueuedCount = 0;
+
             chunk.forEach((v: YouTubeVideoItem) => {
                 const viewCount = parseInt(v.statistics.viewCount || '0');
                 videoViews[v.id] = viewCount;
 
-                const videoRef = this.db.doc(`users/${userId}/channels/${userChannelId}/trendChannels/${trendChannel.id}/videos/${v.id}`);
+                const videoRef = db.doc(`users/${userId}/channels/${userChannelId}/trendChannels/${trendChannel.id}/videos/${v.id}`);
 
                 batch.set(videoRef, {
                     id: v.id,
@@ -110,13 +141,47 @@ export class SyncService {
                     tags: v.snippet.tags || [],
                     lastUpdated: timestamp
                 }, { merge: true });
+
+                // Dirty detection: enqueue for embedding sync if content changed
+                // If pre-read failed, existingDocsMap is empty → all videos look "new" →
+                // all enqueued. Safe: queue entries are idempotent (merge:true),
+                // processOneVideo returns "alreadyCurrent" for unchanged videos.
+                const previousData = existingDocsMap.get(v.id);
+                const currentContent = {
+                    title: v.snippet.title,
+                    tags: v.snippet.tags || [],
+                    description: v.snippet.description || '',
+                    thumbnail: thumbnailMap.get(v.id) || '',
+                };
+
+                if (isContentChanged(previousData, currentContent)) {
+                    const entry: EmbeddingQueueEntry = {
+                        videoId: v.id,
+                        youtubeChannelId: trendChannel.id,
+                        channelTitle: trendChannel.name || trendChannel.title || trendChannel.id,
+                        userId,
+                        channelId: userChannelId,
+                        trendChannelId: trendChannel.id,
+                        enqueuedAt: timestamp,
+                    };
+                    enqueueVideoForEmbedding(batch, entry);
+                    enqueuedCount++;
+                }
             });
 
             await batch.commit();
+
+            if (enqueuedCount > 0) {
+                logger.info("syncChannel:embeddingQueueEnqueued", {
+                    channel: trendChannel.id,
+                    enqueued: enqueuedCount,
+                    chunkSize: chunk.length,
+                });
+            }
         }
 
         // 4. Save Snapshot (with idempotency guard — max 1 per UTC day)
-        const snapshotsCol = this.db.collection(
+        const snapshotsCol = db.collection(
             `users/${userId}/channels/${userChannelId}/trendChannels/${trendChannel.id}/snapshots`,
         );
         const todayStart = new Date(timestamp);
@@ -138,9 +203,10 @@ export class SyncService {
                 type: snapshotType,
             });
         } else {
-            console.log(
-                `[SyncService] Snapshot already exists for ${todayStart.toISOString().split("T")[0]} — skipping (channel: ${trendChannel.id})`,
-            );
+            logger.info("syncChannel:snapshotSkipped", {
+                channel: trendChannel.id,
+                date: todayStart.toISOString().split("T")[0],
+            });
         }
 
         // 5. Update Channel Stats (Total Views, Last Updated)
@@ -167,7 +233,7 @@ export class SyncService {
             videos.map(v => ({ viewCount: parseInt(v.statistics.viewCount || '0') }))
         );
 
-        const channelRef = this.db.doc(`users/${userId}/channels/${userChannelId}/trendChannels/${trendChannelId}`);
+        const channelRef = db.doc(`users/${userId}/channels/${userChannelId}/trendChannels/${trendChannelId}`);
         await channelRef.update({
             lastUpdated: timestamp,
             totalViewCount: totalViews,
@@ -196,9 +262,9 @@ export class SyncService {
         const batchSize = 400; // Safe margin below Firestore 500-op limit
         for (let i = 0; i < entries.length; i += batchSize) {
             const chunk = entries.slice(i, i + batchSize);
-            const batch = this.db.batch();
+            const batch = db.batch();
             for (const [channelId, subscriberCount] of chunk) {
-                const ref = this.db.doc(`users/${userId}/channels/${userChannelId}/trendChannels/${channelId}`);
+                const ref = db.doc(`users/${userId}/channels/${userChannelId}/trendChannels/${channelId}`);
                 batch.update(ref, { subscriberCount });
             }
             await batch.commit();
@@ -232,6 +298,6 @@ export class SyncService {
             category: 'trends'
         };
 
-        await this.db.collection(`users/${userId}/channels/${userChannelId}/notifications`).add(notification);
+        await db.collection(`users/${userId}/channels/${userChannelId}/notifications`).add(notification);
     }
 }

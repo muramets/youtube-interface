@@ -55,6 +55,8 @@ export interface EmbeddingDoc {
     viewCount: number;
     publishedAt: string;
     thumbnailUrl: string;
+    /** Stored for dirty detection (description changes trigger re-embedding) */
+    description?: string;
 
     /** 768d packaging embedding (title + tags + description) */
     packagingEmbedding?: number[] | null;
@@ -110,19 +112,38 @@ export interface EmbeddingStats {
     updatedAt: number;
 }
 
+// --- Shared channel path interface ---
+
+/** Firestore path components for locating a trend channel's video collection */
+export interface ChannelPath {
+    userId: string;
+    channelId: string;
+    trendChannelId: string;
+    channelTitle: string;
+}
+
+// --- Embedding queue ---
+
+/** Firestore path for embedding dirty queue */
+export const EMBEDDING_QUEUE_PATH = "system/embeddingQueue/videos";
+
+/** Entry in the embedding dirty queue — identifies a video that needs re-embedding */
+export interface EmbeddingQueueEntry {
+    videoId: string;
+    youtubeChannelId: string;
+    channelTitle: string;
+    userId: string;
+    channelId: string;
+    trendChannelId: string;
+    /** Epoch ms when enqueued */
+    enqueuedAt: number;
+}
+
 // --- Firestore document: system/backfillState ---
 
 export interface BackfillState {
     /** YouTube channel ID → Firestore path + channel title for reading video docs */
-    channelPaths: Record<
-        string,
-        {
-            userId: string;
-            channelId: string;
-            trendChannelId: string;
-            channelTitle: string;
-        }
-    >;
+    channelPaths: Record<string, ChannelPath>;
     /** Sorted list of videos to process */
     videos: Array<{
         videoId: string;
@@ -138,15 +159,7 @@ export interface BackfillState {
 
 export interface SyncState {
     /** YouTube channel ID → Firestore path + channel title for reading video docs */
-    channelPaths: Record<
-        string,
-        {
-            userId: string;
-            channelId: string;
-            trendChannelId: string;
-            channelTitle: string;
-        }
-    >;
+    channelPaths: Record<string, ChannelPath>;
     /** Sorted list of videos to process */
     videos: Array<{
         videoId: string;

@@ -15,6 +15,7 @@ import { processOneVideo, type VideoInput } from "./processOneVideo.js";
 import { enqueueBatch, pLimit } from "./taskQueue.js";
 import {
     COST_PER_VIDEO,
+    EMBEDDING_QUEUE_PATH,
     SYNC_BATCH_SIZE,
     type SyncState,
     type EmbeddingStats,
@@ -45,6 +46,8 @@ export async function processSyncBatch(params: {
     const batchNumber = Math.floor(offset / SYNC_BATCH_SIZE);
 
     try {
+        logger.info("embeddingSyncBatch:batchStart", { batch: batchNumber, offset });
+
         // --- Read sync state ---
         const stateRef = db.doc("system/syncState");
         const stateSnap = await stateRef.get();
@@ -97,6 +100,7 @@ export async function processSyncBatch(params: {
         // --- Process batch (concurrent with limiter) ---
         let batchGenerated = 0;
         let batchFailed = 0;
+        const successfulVideoIds: string[] = [];
         const channelCoverage: Record<string, { packaging: number; visual: number }> = {};
         const limit = pLimit(10);
 
@@ -137,8 +141,12 @@ export async function processSyncBatch(params: {
 
             if (result.status === "generated") {
                 batchGenerated++;
+                successfulVideoIds.push(videoId);
             } else if (result.status === "failed") {
                 batchFailed++;
+            } else {
+                // alreadyCurrent — still successful, remove from queue
+                successfulVideoIds.push(videoId);
             }
 
             // Track per-channel coverage (generated + alreadyCurrent contribute)
@@ -148,6 +156,24 @@ export async function processSyncBatch(params: {
             if (result.hasPackaging) channelCoverage[youtubeChannelId].packaging++;
             if (result.hasVisual) channelCoverage[youtubeChannelId].visual++;
         })));
+
+        // --- Queue cleanup: remove successfully processed videos ---
+        if (successfulVideoIds.length > 0) {
+            try {
+                const cleanupBatch = db.batch();
+                for (const videoId of successfulVideoIds) {
+                    cleanupBatch.delete(db.doc(`${EMBEDDING_QUEUE_PATH}/${videoId}`));
+                }
+                await cleanupBatch.commit();
+                logger.info("embeddingSyncBatch:queueCleanup", {
+                    cleaned: successfulVideoIds.length,
+                    failed: batchFailed,
+                });
+            } catch (err) {
+                // Best-effort: videos stay in queue → retry next run → idempotent
+                logger.warn("embeddingSyncBatch:queueCleanupFailed", { error: err });
+            }
+        }
 
         // --- Record cost ---
         const batchEstimatedCost = batchGenerated * COST_PER_VIDEO;
@@ -174,9 +200,11 @@ export async function processSyncBatch(params: {
         await stateRef.update(stateUpdate);
 
         // --- Log batch summary ---
+        const batchAlreadyCurrent = batch.length - batchGenerated - batchFailed;
         const batchResult = {
             batch: batchNumber,
             batchGenerated,
+            batchAlreadyCurrent,
             batchFailed,
             totalProcessed: offset + batch.length,
             totalRemaining: state.totalVideos - offset - batch.length,
@@ -222,13 +250,36 @@ async function finalize(
     const finalSnap = await stateRef.get();
     const finalState = finalSnap.exists ? (finalSnap.data() as SyncState) : state;
 
-    // --- Write coverage stats from accumulated counters (zero extra reads) ---
+    // --- Resolve fresh `total` per channel from trendChannels docs ---
+    // Trends Sync writes `videoCount` on every sync — always fresh.
+    // Queue-based flow sets total=0 as placeholder; finalize resolves actual counts.
+    const channelVideoTotals = new Map<string, number>();
+    try {
+        const channelEntries = Object.entries(finalState.channelPaths);
+        if (channelEntries.length > 0) {
+            const channelRefs = channelEntries.map(([, cp]) =>
+                db.doc(`users/${cp.userId}/channels/${cp.channelId}/trendChannels/${cp.trendChannelId}`),
+            );
+            const channelDocs = await db.getAll(...channelRefs);
+            for (let i = 0; i < channelEntries.length; i++) {
+                const [channelId] = channelEntries[i];
+                const snap = channelDocs[i];
+                const videoCount = snap.exists ? (snap.data()?.videoCount as number ?? 0) : 0;
+                channelVideoTotals.set(channelId, videoCount);
+            }
+        }
+    } catch {
+        // Best-effort: fallback to syncState totals (may be 0 for queue-based)
+        logger.warn("embeddingSyncBatch:channelTotalsReadFailed");
+    }
+
+    // --- Write coverage stats ---
     const coverageStats: EmbeddingStats["byChannel"] = {};
     for (const [channelId, stats] of Object.entries(finalState.coverageByChannel)) {
         coverageStats[channelId] = {
             packaging: stats.packaging,
             visual: stats.visual,
-            total: stats.total,
+            total: channelVideoTotals.get(channelId) ?? stats.total,
         };
     }
 
@@ -237,6 +288,14 @@ async function finalize(
         updatedAt: Date.now(),
     };
     await db.doc("system/embeddingStats").set(statsDoc);
+
+    logger.info("embeddingSyncBatch:finalized", {
+        channels: Object.keys(coverageStats).length,
+        generated: finalState.totalGenerated,
+        failed: finalState.totalFailed,
+        skippedBudget: finalState.totalSkippedBudget,
+        estimatedCost: finalState.estimatedCost,
+    });
 
     // --- Anomaly detection ---
     const generated = finalState.totalGenerated;
