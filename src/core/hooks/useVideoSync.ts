@@ -62,7 +62,7 @@ export const useVideoSync = (userId: string, channelId: string) => {
 
             await Promise.all(
                 Array.from(videosByChannel.entries()).map(async ([trendChannelId, videos]) => {
-                    const videoIds = videos.map(v => v.id);
+                    const videoIds = videos.map(v => v.publishedVideoId || v.id);
                     const colRef = collection(db,
                         `users/${userId}/channels/${channelId}/trendChannels/${trendChannelId}/videos`
                     );
@@ -86,7 +86,7 @@ export const useVideoSync = (userId: string, channelId: string) => {
             const cacheUpdates: { videoId: string; data: Partial<VideoDetails> }[] = [];
 
             for (const video of overlapVideos) {
-                const td = trendDataMap.get(video.id);
+                const td = trendDataMap.get(video.publishedVideoId || video.id);
                 if (!td) {
                     apiOnlyVideos.push(video);
                     continue;
@@ -287,7 +287,7 @@ export const useVideoSync = (userId: string, channelId: string) => {
         try {
             const queryKey = ['videos', userId, channelId];
             const videos = queryClient.getQueryData<VideoDetails[]>(queryKey) || [];
-            const syncableVideos = videos.filter(v => !v.isCloned && (!v.isCustom || v.publishedVideoId));
+            const syncableVideos = videos.filter(v => !v.isCloned && (!v.isCustom || (v.publishedVideoId && v.fetchStatus !== 'failed')));
 
             if (syncableVideos.length === 0) return;
 
@@ -344,7 +344,7 @@ export const useVideoSync = (userId: string, channelId: string) => {
             const now = Date.now();
             const videosToUpdate = videos.filter(v => {
                 if (v.isCloned) return false;
-                if (v.isCustom && !v.publishedVideoId) return false;
+                if (v.isCustom && (!v.publishedVideoId || v.fetchStatus === 'failed')) return false;
                 const lastUpdated = v.lastUpdated || 0;
                 const hoursSinceUpdate = (now - lastUpdated) / (1000 * 60 * 60);
                 return hoursSinceUpdate >= syncFrequencyHours;

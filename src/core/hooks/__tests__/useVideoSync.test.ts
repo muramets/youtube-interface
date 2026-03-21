@@ -458,6 +458,51 @@ describe('useVideoSync', () => {
             // API should be called with the non-overlap video
             expect(mockFetchVideosBatch).toHaveBeenCalledWith(['vid-api'], API_KEY);
         });
+
+        it('uses publishedVideoId for Trends cache lookup (custom videos)', async () => {
+            const trendChannel = makeTrendChannel('UC-overlap');
+            mockFetchTrendChannels.mockResolvedValue([trendChannel]);
+
+            // Trend doc stored under YouTube ID, not internal custom ID
+            const trendData = {
+                title: 'Cached Custom',
+                thumbnail: 'cached-thumb.jpg',
+                viewCount: 3000,
+                lastUpdated: 9000,
+                channelTitle: 'Overlap Ch',
+                publishedAt: '2024-06-01T00:00:00Z',
+            };
+            mockGetDocs.mockResolvedValue(makeQuerySnapshot([{ id: 'yt-real-id', data: trendData }]));
+
+            const customVideo = makeVideo({
+                id: 'custom-internal-123',
+                channelId: 'UC-overlap',
+                isCustom: true,
+                publishedVideoId: 'yt-real-id',
+                lastUpdated: 1000,
+            });
+            setVideosInCache(queryClient, [customVideo]);
+
+            const { result } = renderHook(
+                () => useVideoSync(TEST_USER_ID, TEST_CHANNEL_ID),
+                { wrapper: createWrapper(queryClient) },
+            );
+
+            await act(async () => {
+                await result.current.syncAllVideos(API_KEY);
+            });
+
+            // Should use cache (not API) — query used publishedVideoId to find trend doc
+            expect(mockFetchVideosBatch).not.toHaveBeenCalled();
+
+            // batchUpdate should save under internal ID, not YouTube ID
+            expect(mockBatchUpdateVideos).toHaveBeenCalled();
+            const updates = (mockBatchUpdateVideos as Mock).mock.calls[0][2];
+            const update = updates.find((u: { videoId: string }) => u.videoId === 'custom-internal-123');
+            expect(update).toBeDefined();
+            expect(update!.data.title).toBe('Cached Custom');
+            expect(update!.data.viewCount).toBe('3000');
+        });
     });
 
     // =========================================================================
@@ -736,6 +781,32 @@ describe('useVideoSync', () => {
 
             // Normal video uses its own id, custom video uses publishedVideoId
             expect(mockFetchVideosBatch).toHaveBeenCalledWith(['vid-normal', 'yt-linked'], API_KEY);
+        });
+
+        it('skips custom videos with publishedVideoId when fetchStatus is failed', async () => {
+            mockFetchTrendChannels.mockResolvedValue([]);
+
+            const normalVideo = makeVideo({ id: 'vid-normal' });
+            const customFailed = makeVideo({ id: 'vid-failed', isCustom: true, publishedVideoId: 'yt-gone', fetchStatus: 'failed' });
+            const customSuccess = makeVideo({ id: 'vid-ok', isCustom: true, publishedVideoId: 'yt-ok', fetchStatus: 'success' });
+            setVideosInCache(queryClient, [normalVideo, customFailed, customSuccess]);
+
+            mockFetchVideosBatch.mockResolvedValue([
+                makeVideo({ id: 'vid-normal' }),
+                makeVideo({ id: 'yt-ok' }),
+            ]);
+
+            const { result } = renderHook(
+                () => useVideoSync(TEST_USER_ID, TEST_CHANNEL_ID),
+                { wrapper: createWrapper(queryClient) },
+            );
+
+            await act(async () => {
+                await result.current.syncAllVideos(API_KEY);
+            });
+
+            // Failed custom video should be excluded, only normal + successful custom synced
+            expect(mockFetchVideosBatch).toHaveBeenCalledWith(['vid-normal', 'yt-ok'], API_KEY);
         });
 
         it('maps YouTube ID back to internal ID for custom videos with publishedVideoId', async () => {
@@ -1057,6 +1128,31 @@ describe('useVideoSync', () => {
             });
 
             expect(mockFetchVideosBatch).toHaveBeenCalledWith(['vid-normal', 'yt-linked'], API_KEY);
+        });
+
+        it('skips custom videos with publishedVideoId when fetchStatus is failed', async () => {
+            mockFetchTrendChannels.mockResolvedValue([]);
+
+            const normal = makeVideo({ id: 'vid-normal', lastUpdated: 1000 });
+            const customFailed = makeVideo({ id: 'vid-fail', isCustom: true, publishedVideoId: 'yt-gone', fetchStatus: 'failed', lastUpdated: 1000 });
+            const customOk = makeVideo({ id: 'vid-ok', isCustom: true, publishedVideoId: 'yt-ok', fetchStatus: 'success', lastUpdated: 1000 });
+            setVideosInCache(queryClient, [normal, customFailed, customOk]);
+
+            mockFetchVideosBatch.mockResolvedValue([
+                makeVideo({ id: 'vid-normal' }),
+                makeVideo({ id: 'yt-ok' }),
+            ]);
+
+            const { result } = renderHook(
+                () => useVideoSync(TEST_USER_ID, TEST_CHANNEL_ID),
+                { wrapper: createWrapper(queryClient) },
+            );
+
+            await act(async () => {
+                await result.current.manualSync(API_KEY, 0);
+            });
+
+            expect(mockFetchVideosBatch).toHaveBeenCalledWith(['vid-normal', 'yt-ok'], API_KEY);
         });
 
         it('no notification when all from cache and 0 quota', async () => {

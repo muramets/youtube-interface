@@ -9,7 +9,8 @@
 - [x] Все пайплайны пишут одинаковый набор полей (field parity достигнут)
 - [x] `subscriberCount` обновляется при каждом Trends Sync (backend + frontend sidebar)
 - [x] Notification categories → `docs/features/notification-categories.md`
-- [x] Custom видео с `publishedVideoId` синхронизируются в Channel Sync (batch + ID mapping)
+- [x] Custom видео с `publishedVideoId` синхронизируются в Channel Sync (batch + ID mapping, включая cross-cache lookup)
+- [x] Custom видео с `fetchStatus: 'failed'` пропускаются (не тратят квоту на недоступные видео)
 - [x] Все 5 пайплайнов покрыты тестами
 - [x] YouTube API error handling: `fetchVideosBatch` и `fetchVideoDetails` проверяют `videoData.error`, различают quota/rateLimit vs private (403 reason parsing)
 - [x] Cross-cache оптимизирован: batch `getDocs` queries вместо N отдельных `getDoc` (30 IDs per query)
@@ -112,14 +113,20 @@
 **Как работает:**
 1. `fetchTrendChannels()` — один `getDocs` запрос (5-20 документов), работает всегда (не зависит от состояния UI)
 2. Overlap-видео группируются по `channelId`, и для каждой группы выполняется batch `getDocs` с `where(documentId(), 'in', [...30 IDs])` — вместо N отдельных `getDoc` вызовов
-3. **Freshness check:** `trendVideo.lastUpdated > video.lastUpdated` → использовать кэш. Иначе → fallback на YouTube API
-4. `subscriberCount` и `channelAvatar` берутся из родительского `TrendChannel` документа
-5. Конвертация типов: `viewCount: String(number)`, `likeCount: String(number)`
+3. **ID resolution:** для custom видео с `publishedVideoId` запрос в Trends идёт по `publishedVideoId` (YouTube ID), не по internal `custom-*` ID
+4. **Freshness check:** `trendVideo.lastUpdated > video.lastUpdated` → использовать кэш. Иначе → fallback на YouTube API
+5. `subscriberCount` и `channelAvatar` берутся из родительского `TrendChannel` документа
+6. Конвертация типов: `viewCount: String(number)`, `likeCount: String(number)`
 
 **Когда НЕ работает:**
-- Видео со своего канала (не трекается в Trends)
-- Видео с канала, не добавленного в Trends
+- Видео с канала, не добавленного в Trends (всегда API)
 - `syncVideo()` (single video) — всегда идёт в YouTube API (trade-off: 2 units vs сложность)
+- **После Channel Sync** — кэш становится "устаревшим" (`videoUpdated > trendUpdated`), следующие sync в этот день идут в API. Кэш снова работает после ночного Trends Sync (00:00 UTC)
+
+**Что пропускается (не синхронизируется):**
+- Cloned видео (`isCloned: true`)
+- Custom видео без `publishedVideoId` (нет привязки к YouTube)
+- Custom видео с `fetchStatus: 'failed'` (видео недоступно на YouTube — удалено или приватное)
 
 ### Smart Search Sync ← читает из Trends
 
