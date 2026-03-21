@@ -12,7 +12,8 @@ import { MenuBar } from './components/MenuBar'
 import { DebugPanel } from './components/DebugPanel'
 import { VideoRefContext } from './extensions/VideoRefContext'
 import { KiRefContext } from './extensions/KiRefContext'
-import { buildCatalogVideoMap, buildCatalogKiMap } from './utils/catalogMaps'
+import { buildCatalogVideoMap } from '../../../../features/Knowledge/utils/videoRefMap'
+import { buildCatalogKiMap } from './utils/catalogMaps'
 
 /**
  * RichTextEditor Component

@@ -206,7 +206,7 @@ Composite indexes deployed: idempotency guard (`conversationId + category + vide
 | `src/components/ui/organisms/RichTextEditor/__tests__/videoRefMark.test.ts` | `VideoRefMark` parseHTML/renderHTML, `inclusive: false` |
 | `src/components/ui/organisms/RichTextEditor/__tests__/videoMentionFilter.test.ts` | `@` autocomplete items filter: threshold, spaces, max results |
 | `src/features/Knowledge/utils/__tests__/markdownSections.test.ts` | `parseMarkdownSections`: hierarchy, preamble, nested headings, edge cases |
-| `src/features/Knowledge/utils/__tests__/videoRefMap.test.ts` | `buildVideoRefMap`: own videos, publishedVideoId indexing, competitor refs |
+| `src/features/Knowledge/utils/videoRefMap.ts` | `buildCatalogVideoMap`: dual-key video map (videoId + youtubeVideoId) from VideoPreviewData catalog |
 | `src/features/Knowledge/utils/__tests__/formatDate.test.ts` | `getOriginLabel`, `getEditLabel`, `getSourceLabel`, `formatVersionLabel` label function tests |
 | `src/features/Knowledge/utils/__tests__/allowCustomUrls.test.ts` | `allowCustomUrls` protocol allowlist: vid/mention/ki/http/https pass, javascript/data/vbscript blocked |
 | `functions/src/services/tools/handlers/knowledge/__tests__/editKnowledge.test.ts` | `editKnowledge` handler: happy path, validation, not found, content-changed early return, version provenance, video ref resolution |

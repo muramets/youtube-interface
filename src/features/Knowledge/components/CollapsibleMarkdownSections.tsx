@@ -10,6 +10,8 @@ import { parseMarkdownSections, type HierarchicalSection } from '../utils/markdo
 import type { VideoPreviewData } from '../../Video/types'
 import type { KiPreviewData } from '../../../components/ui/organisms/RichTextEditor/types'
 import { buildBodyComponents } from '../utils/bodyComponents'
+import { VID_RE, MENTION_RE } from '../../../core/config/referencePatterns'
+import { VideoReferenceTooltip } from '../../Chat/components/VideoReferenceTooltip'
 
 // =============================================================================
 // Shared section rendering for KnowledgeCard and KnowledgeViewer (Zen Mode).
@@ -126,6 +128,34 @@ export const CollapsibleMarkdownSections = React.memo(({
     const config = VARIANT_MAP[variant]
     const bodyComponents = useMemo(() => buildBodyComponents(videoMap, variant, kiMap), [videoMap, variant, kiMap])
 
+    // Extend header components with vid:// link support + pointer-events-auto
+    const headerComponents = useMemo((): Components => ({
+        ...config.headerComponents,
+        a({ href, children }) {
+            if (href && videoMap) {
+                const vidMatch = VID_RE.exec(href)
+                if (vidMatch) {
+                    const video = videoMap.get(vidMatch[1]) ?? null
+                    return (
+                        <span className="pointer-events-auto inline">
+                            <VideoReferenceTooltip label={String(children)} video={video} />
+                        </span>
+                    )
+                }
+                const mentionMatch = MENTION_RE.exec(href)
+                if (mentionMatch) {
+                    const video = videoMap.get(mentionMatch[1]) ?? null
+                    return (
+                        <span className="pointer-events-auto inline">
+                            <VideoReferenceTooltip label={String(children)} video={video} />
+                        </span>
+                    )
+                }
+            }
+            return <span>{children}</span>
+        },
+    }), [config.headerComponents, videoMap])
+
     const sections = useMemo(
         () => parseMarkdownSections(content),
         [content],
@@ -138,7 +168,7 @@ export const CollapsibleMarkdownSections = React.memo(({
             variant="mini"
             title={
                 <div className="inline-block pointer-events-none">
-                    <ReactMarkdown rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]} urlTransform={allowCustomUrls} components={config.headerComponents}>
+                    <ReactMarkdown rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]} urlTransform={allowCustomUrls} components={headerComponents}>
                         {section.title}
                     </ReactMarkdown>
                 </div>

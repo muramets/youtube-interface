@@ -135,6 +135,13 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
                         </h3>
                         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                             <button
+                                onClick={(e) => { e.stopPropagation(); setIsZenMode(true) }}
+                                className="p-1.5 rounded text-text-tertiary hover:text-accent hover:bg-hover-bg transition-all"
+                                title="Open in Zen Mode"
+                            >
+                                <Maximize size={13} />
+                            </button>
+                            <button
                                 onClick={handleEdit}
                                 className="p-1.5 rounded text-text-tertiary hover:text-text-primary hover:bg-hover-bg transition-all"
                                 title="Edit"
@@ -199,7 +206,7 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
                             className="overflow-hidden"
                             onClick={(e) => e.stopPropagation()}
                         >
-                            <div className="pb-4 relative group/content">
+                            <div className="pb-4 relative">
                                 <div className="mx-4 h-px bg-border" />
                                 {/* Meta row */}
                                 <div className="flex items-center gap-3 mt-3 mb-3 px-4 text-[10px] text-text-tertiary">
@@ -216,17 +223,6 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
                                     <Badge variant="neutral">
                                         {getOriginLabel(item.source)}
                                     </Badge>
-                                </div>
-
-                                {/* Maximize button */}
-                                <div className="absolute top-2 right-4 opacity-0 group-hover/content:opacity-100 transition-opacity z-10">
-                                    <button
-                                        onClick={() => setIsZenMode(true)}
-                                        className="p-1.5 bg-bg-secondary/80 backdrop-blur hover:bg-accent hover:text-white text-text-secondary border border-border rounded-md transition-all shadow-lg"
-                                        title="Open in Zen Mode"
-                                    >
-                                        <Maximize className="w-3.5 h-3.5" />
-                                    </button>
                                 </div>
 
                                 {/* Collapsible sections */}

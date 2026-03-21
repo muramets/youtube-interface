@@ -15,6 +15,7 @@ import type { VideoPreviewData } from '../../Video/types'
 import type { KiPreviewData } from '../../../components/ui/organisms/RichTextEditor/types'
 import { VideoLinkField } from '../components/VideoLinkField'
 import { formatKnowledgeDate, formatVersionLabel, getOriginLabel } from '../utils/formatDate'
+import { buildCatalogVideoMap } from '../utils/videoRefMap'
 import type { KnowledgeItemSaveUpdates } from '../hooks/useKnowledgeSaveHandler'
 
 interface KnowledgeItemModalProps {
@@ -65,15 +66,8 @@ export const KnowledgeItemModal = React.memo(({
 
     // Build videoMap from videoCatalog for diff panel vid:// link rendering
     const videoMap = useMemo(() => {
-        if (!videoCatalog?.length) return undefined
-        const map = new Map<string, VideoPreviewData>()
-        for (const v of videoCatalog) {
-            map.set(v.videoId, v)
-            if (v.youtubeVideoId && v.youtubeVideoId !== v.videoId) {
-                map.set(v.youtubeVideoId, v)
-            }
-        }
-        return map
+        const map = buildCatalogVideoMap(videoCatalog)
+        return map.size > 0 ? map : undefined
     }, [videoCatalog])
 
     const selectedVersion = selectedVersionId

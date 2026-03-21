@@ -5,6 +5,7 @@ import rehypeRaw from 'rehype-raw'
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
 import { computeDiffBlocks, allowCustomUrls, type DiffBlock } from '../utils/diffUtils'
 import { buildBodyComponents } from '../utils/bodyComponents'
+import { linkifyVideoIds } from '../../../core/utils/linkifyVideoIds'
 import type { VideoPreviewData } from '../../Video/types'
 
 /** Sanitize schema: allow vid://, details/summary, class on links/spans */
@@ -52,10 +53,11 @@ interface RenderedDiffViewerProps {
 export const RenderedDiffViewer = ({
     oldContent, newContent, oldLabel, newLabel, videoMap,
 }: RenderedDiffViewerProps) => {
-    const { left, right, stats } = useMemo(
-        () => computeDiffBlocks(oldContent, newContent),
-        [oldContent, newContent],
-    )
+    const { left, right, stats } = useMemo(() => {
+        const oldLinkified = videoMap ? linkifyVideoIds(oldContent, videoMap) : oldContent
+        const newLinkified = videoMap ? linkifyVideoIds(newContent, videoMap) : newContent
+        return computeDiffBlocks(oldLinkified, newLinkified)
+    }, [oldContent, newContent, videoMap])
 
     const mdComponents = useMemo(() => buildBodyComponents(videoMap), [videoMap])
 

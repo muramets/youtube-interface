@@ -6,11 +6,10 @@ import { useAuth } from '../../core/hooks/useAuth'
 import { useChannelStore } from '../../core/stores/channelStore'
 import { useAllKnowledgeItems, useUpdateKnowledgeItem, useCreateKnowledgeItem, useDeleteKnowledgeItem } from '../../core/hooks/useKnowledgeItems'
 import { useKnowledgeSaveHandler } from '../../features/Knowledge/hooks/useKnowledgeSaveHandler'
-import { useVideos } from '../../core/hooks/useVideos'
 import { useVideosCatalog } from '../../core/hooks/useVideosCatalog'
 import { useKnowledgeCatalog } from '../../core/hooks/useKnowledgeCatalog'
 import { useKnowledgeStore, type KnowledgeScopeFilter } from '../../core/stores/knowledgeStore'
-import { buildVideoRefMap } from '../../features/Knowledge/utils/videoRefMap'
+import { buildCatalogVideoMap } from '../../features/Knowledge/utils/videoRefMap'
 import { KnowledgeList } from '../../features/Knowledge/components/KnowledgeList'
 import { KnowledgeItemModal } from '../../features/Knowledge/modals/KnowledgeItemModal'
 import { CreateKnowledgeItemModal } from '../../features/Knowledge/modals/CreateKnowledgeItemModal'
@@ -40,13 +39,12 @@ export const KnowledgePage: React.FC = () => {
     const channelId = currentChannel?.id ?? ''
 
     const { items, isLoading, error } = useAllKnowledgeItems(userId, channelId)
-    const { videos } = useVideos(userId, channelId)
     const updateMutation = useUpdateKnowledgeItem(userId, channelId)
     const createMutation = useCreateKnowledgeItem(userId, channelId)
     const deleteMutation = useDeleteKnowledgeItem(userId, channelId)
 
-    const videoMap = useMemo(() => buildVideoRefMap(videos), [videos])
     const videoCatalog = useVideosCatalog()
+    const videoMap = useMemo(() => buildCatalogVideoMap(videoCatalog), [videoCatalog])
     const knowledgeCatalog = useKnowledgeCatalog()
 
     const { scopeFilter, selectedCategory, sortOrder, setScopeFilter, setCategory, setSortOrder } = useKnowledgeStore()

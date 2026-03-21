@@ -3,10 +3,9 @@ import { useAuth } from '../../../core/hooks/useAuth'
 import { useChannelStore } from '../../../core/stores/channelStore'
 import { useVideoKnowledgeItems, useUpdateKnowledgeItem, useDeleteKnowledgeItem } from '../../../core/hooks/useKnowledgeItems'
 import { useKnowledgeSaveHandler } from '../../Knowledge/hooks/useKnowledgeSaveHandler'
-import { useVideos } from '../../../core/hooks/useVideos'
 import { useVideosCatalog } from '../../../core/hooks/useVideosCatalog'
 import { useKnowledgeCatalog } from '../../../core/hooks/useKnowledgeCatalog'
-import { buildVideoRefMap } from '../../Knowledge/utils/videoRefMap'
+import { buildCatalogVideoMap } from '../../Knowledge/utils/videoRefMap'
 import { KnowledgeList } from '../../Knowledge/components/KnowledgeList'
 import { KnowledgeItemModal } from '../../Knowledge/modals/KnowledgeItemModal'
 import type { KnowledgeItem } from '../../../core/types/knowledge'
@@ -29,11 +28,10 @@ export const WatchPageKnowledge = React.memo(({ videoId }: WatchPageKnowledgePro
     const channelId = currentChannel?.id ?? ''
 
     const { items, isLoading, error } = useVideoKnowledgeItems(userId, channelId, videoId)
-    const { videos } = useVideos(userId, channelId)
     const updateMutation = useUpdateKnowledgeItem(userId, channelId)
     const deleteMutation = useDeleteKnowledgeItem(userId, channelId)
-    const videoMap = useMemo(() => buildVideoRefMap(videos), [videos])
     const videoCatalog = useVideosCatalog()
+    const videoMap = useMemo(() => buildCatalogVideoMap(videoCatalog), [videoCatalog])
     const knowledgeCatalog = useKnowledgeCatalog()
 
     const [editingItem, setEditingItem] = useState<KnowledgeItem | null>(null)

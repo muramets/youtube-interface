@@ -19,6 +19,7 @@ export interface DiffBlock {
  * - Indentation depth (2/3/4 spaces → normalized)
  */
 function normalizeLine(line: string): string {
+    if (line.trim() === '') return ''
     return line
         .trimEnd()
         .replace(/^\s*\d+\.\s+/, '* ')           // "  1. " → "* " (numbered → bullet)
@@ -68,13 +69,19 @@ function collapseDetailsBlocks(md: string): string {
 }
 
 /**
- * Split markdown into non-blank lines for comparison.
- * Collapses <details> blocks first, then filters blank lines
- * to ignore spacing differences between serializers.
+ * Split markdown into lines for comparison.
+ * Collapses <details> blocks first, then normalizes consecutive
+ * blank lines (3+ newlines → 2) to reduce false-positive diffs
+ * from serializer spacing differences.
+ * Blank lines are PRESERVED — they're critical for markdown rendering
+ * (tables, paragraph separation, list boundaries).
  */
 function splitContentLines(md: string): string[] {
     const collapsed = collapseDetailsBlocks(md)
-    return collapsed.replace(/\r\n/g, '\n').split('\n').filter(line => line.trim() !== '')
+    return collapsed
+        .replace(/\r\n/g, '\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .split('\n')
 }
 
 /**

@@ -17,7 +17,7 @@ import { hasRealVideoData } from '../../../shared/memory'
  * - Trend channel videos (from Firestore, one-time fetch, cached 5min)
  *
  * Returns VideoPreviewData[] sorted by title.
- * NOT for read-only rendering — use buildVideoRefMap + resolvedVideoRefs for that.
+ * Used for both editing (@-autocomplete) and read-only rendering (vid:// tooltips).
  */
 export function useVideosCatalog(): VideoPreviewData[] {
     const { user } = useAuth()

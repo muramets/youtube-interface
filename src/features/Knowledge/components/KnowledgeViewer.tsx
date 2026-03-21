@@ -58,6 +58,13 @@ export const KnowledgeViewer = React.memo(({
     const editSource = item.lastEditSource
     const currentModel = item.lastEditedBy ?? item.model
 
+    // Lock body scroll while Zen Mode is open
+    useEffect(() => {
+        const prev = document.body.style.overflow
+        document.body.style.overflow = 'hidden'
+        return () => { document.body.style.overflow = prev }
+    }, [])
+
     // ESC to close
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
