@@ -14,7 +14,7 @@
 //   pinned → idle   — streaming ends (P3)
 // =============================================================================
 
-import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useLayoutEffect, useReducer, useRef, useState, useCallback } from 'react';
 import { debug } from '../../../core/utils/debug';
 
 type ScrollIntent = 'idle' | 'pinned' | 'away';
@@ -77,6 +77,10 @@ export function useChatScroll({
     const [showScrollFab, setShowScrollFab] = useState(false);
     const [isPinned, setIsPinned] = useState(false);
 
+    // Force useLayoutEffect re-run when isPinned is already true (P3 lazy doesn't reset it).
+    // useReducer(x => x+1) always produces a new value → guaranteed re-render.
+    const [pinTrigger, forcePinRerender] = useReducer((x: number) => x + 1, 0);
+
     const intentRef = useRef<ScrollIntent>('idle');
     const prevMsgCountRef = useRef(messageCount);
     const prevStreamingRef = useRef(isStreaming);
@@ -118,10 +122,14 @@ export function useChatScroll({
 
         // --- P1: Pin-to-top when user sends a new message ---
         // Sets isPinned=true → React re-renders → useLayoutEffect positions zone before paint.
-        if (newCount > prevCount && prevCount > 0 && intentRef.current !== 'away') {
+        // Triggers for any new user message: prevCount > 0 (subsequent messages) OR
+        // prevCount === 0 && newCount === 1 (first message in a new conversation).
+        const isFirstMessage = prevCount === 0 && newCount === 1;
+        if (newCount > prevCount && (prevCount > 0 || isFirstMessage) && intentRef.current !== 'away') {
             if (lastMessageRole === 'user') {
                 needsPositionRef.current = true;
                 setIsPinned(true);
+                forcePinRerender(); // guaranteed re-render even if isPinned was already true
                 intentRef.current = 'pinned';
                 debug.scroll('P1: intent -> pinned');
                 return;
@@ -150,9 +158,11 @@ export function useChatScroll({
         }
 
         // --- P4: Initial history load — scroll to bottom ---
-        // Direct scrollTop set — useEffect runs after React commits DOM, so content is ready.
+        // Only for bulk loads (newCount > 1). Single first message (newCount === 1)
+        // is handled by P1 above. Direct scrollTop set — useEffect runs after React
+        // commits DOM, so content is ready.
         if (newCount > prevCount && intentRef.current === 'idle') {
-            if (prevCount === 0) {
+            if (prevCount === 0 && newCount > 1) {
                 container.scrollTop = container.scrollHeight - container.clientHeight;
                 debug.scroll('P4: initial load scroll to bottom');
             }
@@ -209,7 +219,7 @@ export function useChatScroll({
             }
             prevScrollHeightRef.current = container.scrollHeight;
         }
-    }, [isPinned, messageCount]);
+    }, [isPinned, messageCount, pinTrigger]);
 
     // Track scroll position for FAB + away detection
     const handleScroll = useCallback(() => {
