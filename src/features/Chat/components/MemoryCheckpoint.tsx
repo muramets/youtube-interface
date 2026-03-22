@@ -59,7 +59,7 @@ export const MemoryCheckpoint: React.FC<MemoryCheckpointProps> = ({ memory, onUp
     useEffect(() => {
         if (isExpanded && rootRef.current) {
             requestAnimationFrame(() => {
-                rootRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                rootRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             });
         }
     }, [isExpanded]);
