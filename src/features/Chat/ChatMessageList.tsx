@@ -2,7 +2,7 @@
 // AI CHAT: Message List Component
 // =============================================================================
 
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useMemo, useState } from 'react';
 import { useChatScroll } from './hooks/useChatScroll';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -58,14 +58,12 @@ import { MemoryCheckpoint } from './components/MemoryCheckpoint';
 import { useKnowledgeCatalog } from '../../core/hooks/useKnowledgeCatalog';
 import { FileAudio, FileVideo, File, Copy, Check, ArrowDown, RotateCcw, MessageCircle, Pencil, Square } from 'lucide-react';
 import { CopyButton } from '../../components/ui/atoms/CopyButton';
-import { Timestamp } from 'firebase/firestore';
 import { useChatStore } from '../../core/stores/chat/chatStore';
-import { VideoReferenceTooltip } from './components/VideoReferenceTooltip';
 import { VID_RE, KI_RE } from '../../core/config/referencePatterns';
 import { buildCatalogKiMap } from '../../components/ui/organisms/RichTextEditor/utils/catalogMaps';
-import { KiPreviewTooltipContent } from '../../components/ui/organisms/RichTextEditor/components/KiPreviewTooltipContent';
+import { ReferenceLink } from '../../components/ui/organisms/RichTextEditor/components/ReferenceLink';
 import type { KiPreviewData } from '../../components/ui/organisms/RichTextEditor/types';
-import { formatRelativeTime, STATIC_AGE } from './formatRelativeTime';
+import { useRelativeTime } from './useRelativeTime';
 import { normalizeMarkdown } from './utils/normalizeMarkdown';
 import { buildToolVideoMap } from './utils/buildToolVideoMap';
 import { linkifyVideoIds } from '../../core/utils/linkifyVideoIds';
@@ -162,48 +160,7 @@ const MarkdownMessage: React.FC<{ text: string; videoMap?: Map<string, VideoPrev
                     return <code {...props}>{children}</code>;
                 },
                 a({ href, children }) {
-                    const childText = String(children);
-
-                    // Video references: mention://ID (LLM-generated) or vid://ID (user @-mentions)
-                    if (href && videoMap) {
-                        const mentionMatch = MENTION_RE.exec(href);
-                        if (mentionMatch) {
-                            const videoId = mentionMatch[1];
-                            const video = videoMap.get(videoId) ?? null;
-                            const label = (video?.title && childText === videoId) ? video.title : childText;
-                            return <VideoReferenceTooltip label={label} video={video} refType="video" index={0} />;
-                        }
-                        const vidMatch = VID_RE.exec(href);
-                        if (vidMatch) {
-                            const video = videoMap.get(vidMatch[1]) ?? null;
-                            return <VideoReferenceTooltip label={childText} video={video} refType="video" index={0} />;
-                        }
-                    }
-
-                    // KI references: ki://ID (user @-mentions)
-                    if (href) {
-                        const kiMatch = KI_RE.exec(href);
-                        if (kiMatch) {
-                            const ki = kiMap?.get(kiMatch[1]) ?? null;
-                            if (ki) {
-                                return (
-                                    <PortalTooltip
-                                        content={<KiPreviewTooltipContent ki={ki} videoMap={videoMap} />}
-                                        side="top"
-                                        align="center"
-                                        variant="glass"
-                                        enterDelay={200}
-                                        inline
-                                    >
-                                        <span className="ki-reference-highlight cursor-pointer">{children}</span>
-                                    </PortalTooltip>
-                                );
-                            }
-                            return <span className="ki-reference-highlight">{children}</span>;
-                        }
-                    }
-
-                    return <a href={href} target="_blank" rel="noreferrer">{children}</a>;
+                    return <ReferenceLink href={href} videoMap={videoMap} kiMap={kiMap}>{children}</ReferenceLink>;
                 },
             }}
         >
@@ -212,16 +169,6 @@ const MarkdownMessage: React.FC<{ text: string; videoMap?: Map<string, VideoPrev
     );
 });
 MarkdownMessage.displayName = 'MarkdownMessage';
-
-// --- Adaptive timer intervals ---
-const TICK_RECENT = 60_000;       // < 1 hour: update every minute
-const TICK_HOURS = 600_000;       // 1h – 2 days: update every 10 min
-
-function getTickInterval(createdAt: Timestamp): number | null {
-    const age = Date.now() - createdAt.toMillis();
-    if (age >= STATIC_AGE) return null;
-    return age < 3_600_000 ? TICK_RECENT : TICK_HOURS;
-}
 
 // --- Shared bubble class constants (DRY) ---
 const MSG_BUBBLE_BASE = 'chat-message-bubble py-2 px-3.5 rounded-xl text-[13px] leading-normal break-words';
@@ -239,7 +186,7 @@ function useDebouncedMarkdown(text: string | null, delay: number): string | null
 }
 
 
-// --- Message Item (per-message timer + visibility tracking) ---
+// --- Message Item ---
 
 interface MessageItemProps {
     msg: ChatMessage;
@@ -256,32 +203,7 @@ interface MessageItemProps {
 
 const MessageItem: React.FC<MessageItemProps> = React.memo(({ msg, skipAnimation, isFailed, isStreaming, onRetry, onEdit, videoMap, kiMap, sessionThinking }) => {
     const itemRef = useRef<HTMLDivElement>(null);
-    const isVisibleRef = useRef(false);
-    const [timestamp, setTimestamp] = useState(() => formatRelativeTime(msg.createdAt));
-
-    // Track visibility via IntersectionObserver
-    useEffect(() => {
-        const el = itemRef.current;
-        if (!el) return;
-        const observer = new IntersectionObserver(
-            ([entry]) => { isVisibleRef.current = entry.isIntersecting; },
-            { threshold: 0 }
-        );
-        observer.observe(el);
-        return () => observer.disconnect();
-    }, []);
-
-    // Adaptive timer: only ticks when visible, frequency decreases with age
-    useEffect(() => {
-        const interval = getTickInterval(msg.createdAt);
-        if (interval === null) return; // Static date, no timer needed
-
-        const id = setInterval(() => {
-            if (!isVisibleRef.current) return; // Skip offscreen messages
-            setTimestamp(formatRelativeTime(msg.createdAt));
-        }, interval);
-        return () => clearInterval(id);
-    }, [msg.createdAt]);
+    const timestamp = useRelativeTime(msg.createdAt);
 
     // Pre-compute cache-aware cost for model messages (avoids IIFE in JSX)
     // Reads normalizedUsage (accurate, provider-agnostic) with fallback to legacy tokenUsage

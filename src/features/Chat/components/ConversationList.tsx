@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { MessageSquare, Pencil, ChevronDown, Download } from 'lucide-react';
 import { ConfirmDeleteButton } from '../../../components/ui/atoms/ConfirmDeleteButton';
-import { formatRelativeTime } from '../formatRelativeTime';
+import { useRelativeTime } from '../useRelativeTime';
 import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
 import type { ChatConversation } from '../../../core/types/chat/chat';
 
@@ -33,6 +33,7 @@ const ConversationItem: React.FC<{
 }> = ({ conv, isActive, isEditing, editingTitle, inputRef, onSelect, onDelete, onRename, onExport, onEditChange, onEditCommit, onEditCancel }) => {
     const nameRef = useRef<HTMLSpanElement>(null);
     const [isTruncated, setIsTruncated] = useState(false);
+    const relativeTime = useRelativeTime(conv.updatedAt);
 
     useEffect(() => {
         const el = nameRef.current;
@@ -86,7 +87,7 @@ const ConversationItem: React.FC<{
                 </div>
                 {/* Timestamp line */}
                 <span className={`text-xs text-text-tertiary select-none cursor-default group-hover:text-text-secondary transition-colors duration-150 ${isEditing ? 'opacity-0' : ''}`}>
-                    {formatRelativeTime(conv.updatedAt)}
+                    {relativeTime}
                 </span>
             </div>
 
