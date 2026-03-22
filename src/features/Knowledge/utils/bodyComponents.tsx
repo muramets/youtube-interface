@@ -1,10 +1,6 @@
 import type { Components } from 'react-markdown'
 import clsx from 'clsx'
-import { VID_RE, MENTION_RE } from '../../../core/config/referencePatterns'
-import { KI_RE } from '../../../core/config/referencePatterns'
-import { VideoReferenceTooltip } from '../../Chat/components/VideoReferenceTooltip'
-import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip'
-import { KiPreviewTooltipContent } from '../../../components/ui/organisms/RichTextEditor/components/KiPreviewTooltipContent'
+import { ReferenceLink } from '../../../components/ui/organisms/RichTextEditor/components/ReferenceLink'
 import type { VideoPreviewData } from '../../Video/types'
 import type { KiPreviewData } from '../../../components/ui/organisms/RichTextEditor/types'
 
@@ -125,40 +121,7 @@ export function buildBodyComponents(
             </summary>
         ),
         a({ href, children }) {
-            if (href && videoMap) {
-                const vidMatch = VID_RE.exec(href)
-                if (vidMatch) {
-                    const video = videoMap.get(vidMatch[1]) ?? null
-                    return <VideoReferenceTooltip label={String(children)} video={video} />
-                }
-                const mentionMatch = MENTION_RE.exec(href)
-                if (mentionMatch) {
-                    const video = videoMap.get(mentionMatch[1]) ?? null
-                    return <VideoReferenceTooltip label={String(children)} video={video} />
-                }
-            }
-            if (href) {
-                const kiMatch = KI_RE.exec(href)
-                if (kiMatch) {
-                    const ki = kiMap?.get(kiMatch[1]) ?? null
-                    if (ki) {
-                        return (
-                            <PortalTooltip
-                                content={<KiPreviewTooltipContent ki={ki} videoMap={videoMap} />}
-                                side="top"
-                                align="center"
-                                variant="glass"
-                                enterDelay={200}
-                                inline
-                            >
-                                <span className="ki-reference-highlight cursor-pointer">{children}</span>
-                            </PortalTooltip>
-                        )
-                    }
-                    return <span className="ki-reference-highlight">{children}</span>
-                }
-            }
-            return <a href={href} target="_blank" rel="noreferrer">{children}</a>
+            return <ReferenceLink href={href} videoMap={videoMap} kiMap={kiMap}>{children}</ReferenceLink>
         },
     }
 }

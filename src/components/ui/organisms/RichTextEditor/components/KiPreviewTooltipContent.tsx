@@ -17,12 +17,12 @@ export function KiPreviewTooltipContent({ ki, videoMap }: KiPreviewTooltipConten
     const thumbnailUrl = ki.videoId ? videoMap?.get(ki.videoId)?.thumbnailUrl : undefined
 
     return (
-        <div className="max-w-[280px]">
+        <div className="max-w-[280px] rounded-lg overflow-hidden">
             {thumbnailUrl && (
                 <img
                     src={thumbnailUrl}
                     alt=""
-                    className="w-full aspect-video object-cover rounded-t"
+                    className="w-full aspect-video object-cover"
                 />
             )}
             <div className="p-2.5">

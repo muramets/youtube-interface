@@ -10,8 +10,7 @@ import { parseMarkdownSections, type HierarchicalSection } from '../utils/markdo
 import type { VideoPreviewData } from '../../Video/types'
 import type { KiPreviewData } from '../../../components/ui/organisms/RichTextEditor/types'
 import { buildBodyComponents } from '../utils/bodyComponents'
-import { VID_RE, MENTION_RE } from '../../../core/config/referencePatterns'
-import { VideoReferenceTooltip } from '../../Chat/components/VideoReferenceTooltip'
+import { ReferenceLink } from '../../../components/ui/organisms/RichTextEditor/components/ReferenceLink'
 
 // =============================================================================
 // Shared section rendering for KnowledgeCard and KnowledgeViewer (Zen Mode).
@@ -102,29 +101,13 @@ export const CollapsibleMarkdownSections = React.memo(({
     const headerComponents = useMemo((): Components => ({
         ...HEADER_COMPONENTS,
         a({ href, children }) {
-            if (href && videoMap) {
-                const vidMatch = VID_RE.exec(href)
-                if (vidMatch) {
-                    const video = videoMap.get(vidMatch[1]) ?? null
-                    return (
-                        <span className="pointer-events-auto inline">
-                            <VideoReferenceTooltip label={String(children)} video={video} />
-                        </span>
-                    )
-                }
-                const mentionMatch = MENTION_RE.exec(href)
-                if (mentionMatch) {
-                    const video = videoMap.get(mentionMatch[1]) ?? null
-                    return (
-                        <span className="pointer-events-auto inline">
-                            <VideoReferenceTooltip label={String(children)} video={video} />
-                        </span>
-                    )
-                }
-            }
-            return <span>{children}</span>
+            return (
+                <span className="pointer-events-auto inline">
+                    <ReferenceLink href={href} videoMap={videoMap} kiMap={kiMap}>{children}</ReferenceLink>
+                </span>
+            )
         },
-    }), [videoMap])
+    }), [videoMap, kiMap])
 
     const sections = useMemo(
         () => parseMarkdownSections(content),
