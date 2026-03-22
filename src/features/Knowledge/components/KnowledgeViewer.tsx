@@ -76,8 +76,8 @@ export const KnowledgeViewer = React.memo(({
 
     // Container class: near-fullscreen when diff active, normal max-w-4xl otherwise
     const containerClass = isDiffActive
-        ? 'bg-bg-secondary w-full h-[90vh] rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col relative'
-        : 'bg-bg-secondary w-full max-w-4xl h-[90vh] rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col relative'
+        ? 'bg-bg-secondary w-full max-w-[100vw] h-[90vh] rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col relative transition-[max-width] duration-300 ease-out'
+        : 'bg-bg-secondary w-full max-w-4xl h-[90vh] rounded-xl shadow-2xl border border-border overflow-hidden flex flex-col relative transition-[max-width] duration-300 ease-out'
 
     // Backdrop always covers full viewport; padding on the inner flex container controls spacing
     const outerPadding = isDiffActive ? 'p-4 sm:p-8' : 'p-10'
@@ -95,7 +95,6 @@ export const KnowledgeViewer = React.memo(({
                     initial={{ scale: 0.95, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0.95, opacity: 0 }}
-                    layout
                     className={containerClass}
                     onClick={(e) => e.stopPropagation()}
                 >
