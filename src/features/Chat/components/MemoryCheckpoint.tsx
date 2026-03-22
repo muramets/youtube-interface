@@ -165,7 +165,7 @@ export const MemoryCheckpoint: React.FC<MemoryCheckpointProps> = ({ memory, onUp
                                 onDoubleClick={() => {
                                     setIsEditing(true);
                                     requestAnimationFrame(() => {
-                                        rootRef.current?.scrollIntoView({ behavior: 'instant', block: 'start' });
+                                        rootRef.current?.scrollIntoView({ behavior: 'instant', block: 'nearest' });
                                     });
                                 }}
                             >
@@ -184,7 +184,7 @@ export const MemoryCheckpoint: React.FC<MemoryCheckpointProps> = ({ memory, onUp
                                     onClick={() => {
                                         setIsEditing(true);
                                         requestAnimationFrame(() => {
-                                            rootRef.current?.scrollIntoView({ behavior: 'instant', block: 'start' });
+                                            rootRef.current?.scrollIntoView({ behavior: 'instant', block: 'nearest' });
                                         });
                                     }}
                                 >
