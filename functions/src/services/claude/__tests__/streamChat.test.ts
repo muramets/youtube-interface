@@ -1868,6 +1868,58 @@ describe("Claude streamChat — buildHistory tool reconstruction", () => {
         expect(blocks.every(b => b.type === "text")).toBe(true);
     });
 
+    it("toolCalls with mixed results (some defined, some undefined) → reconstruction with is_error fallback", async () => {
+        const mockStream = mockClientStreams({
+            events: [
+                ...textEvents("Reply"),
+                finalMessageEvent({ input_tokens: 100, output_tokens: 10 }),
+            ],
+        });
+
+        await streamChat(makeOpts({
+            history: [
+                { id: "u1", role: "user", text: "query" },
+                {
+                    id: "m1",
+                    role: "model",
+                    text: "Partial analysis before abort",
+                    toolCalls: [
+                        { name: "analyzeTraffic", args: { videoId: "v1" }, result: { views: 1000 } },
+                        { name: "analyzeSuggested", args: { videoId: "v1" } }, // no result — interrupted
+                    ],
+                },
+            ],
+            text: "continue",
+        }));
+
+        const messages = mockStream.mock.calls[0][0].messages as Array<{ role: string; content: unknown }>;
+
+        // Reconstruction: u1(user) → m1-tool_use(assistant) → m1-tool_result(user) → m1-text(assistant) → current(user)
+        expect(messages).toHaveLength(5);
+
+        // assistant message: both tool_use blocks present
+        const assistantBlocks = messages[1].content as Array<Record<string, unknown>>;
+        const toolUseBlocks = assistantBlocks.filter(b => b.type === "tool_use");
+        expect(toolUseBlocks).toHaveLength(2);
+
+        // user message: tool_result blocks — first with real result, second with is_error
+        const resultBlocks = messages[2].content as Array<Record<string, unknown>>;
+        expect(resultBlocks).toHaveLength(2);
+
+        // First tool: real result
+        expect(resultBlocks[0].is_error).toBeFalsy();
+        expect(resultBlocks[0].content).toBe(JSON.stringify({ views: 1000 }));
+
+        // Second tool: interrupted → is_error
+        expect(resultBlocks[1].is_error).toBe(true);
+        expect(resultBlocks[1].content).toBe("Tool execution was interrupted by user.");
+
+        // Third message: assistant text block
+        expect(messages[3].role).toBe("assistant");
+        const textBlocks = messages[3].content as Array<Record<string, unknown>>;
+        expect(textBlocks[0].text).toBe("Partial analysis before abort");
+    });
+
     it("empty text in model message with toolCalls → no empty text block added", async () => {
         const mockStream = mockClientStreams({
             events: [

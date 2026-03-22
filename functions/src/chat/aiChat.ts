@@ -153,10 +153,20 @@ export const aiChat = onRequest(
             ]);
             const allMessages = messagesSnap.docs
                 .filter(doc => {
-                    // Only complete and legacy (undefined) messages sent to AI.
-                    // Stopped/deleted/error messages excluded from history.
-                    const status = doc.data().status as string | undefined;
-                    return !status || status === 'complete';
+                    // Complete and legacy (undefined) messages always included.
+                    // Stopped messages included if they have content (text or tool calls)
+                    // so the model retains context from aborted responses.
+                    // Deleted/error messages always excluded.
+                    const data = doc.data();
+                    const status = data.status as string | undefined;
+                    if (!status || status === 'complete') return true;
+                    if (status === 'stopped') {
+                        const text = data.text as string | undefined;
+                        const toolCalls = data.toolCalls as unknown[] | undefined;
+                        return (text != null && text.length > 0)
+                            || (toolCalls != null && toolCalls.length > 0);
+                    }
+                    return false;
                 })
                 .map(doc => {
                     const data = doc.data();

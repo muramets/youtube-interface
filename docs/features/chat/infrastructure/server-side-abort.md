@@ -37,7 +37,14 @@ Server-side abort позволяет реально остановить Cloud F
 - [x] Atomic Firestore batch: message persist + conversation updatedAt + convUpdate
 - [x] Ghost clearing hardened: count-based (newModelCount > prevModelCount)
 
-### Стадия 3 — Production Hardening (backlog)
+### Стадия 3 — Stopped Message Context Preservation ✅ ← YOU ARE HERE
+- [x] `aiChat.ts`: stopped-сообщения с контентом (text или toolCalls) включаются в историю
+- [x] Пустые stopped-сообщения (safety-net abort, thinking timeout) исключаются — не тратят токены
+- [x] Claude `buildHistory()`: `.every()` → `.some()` для tool result validation; прерванные tool calls → `is_error: true`
+- [x] Gemini `buildHistory()`: `.every()` → `.some()`; прерванные tool calls → `{ error: "..." }` object fallback
+- [x] Тесты: mixed partial/complete tool results для обоих провайдеров
+
+### Стадия 4 — Production Hardening (backlog)
 - [ ] Metric: how many requests actually aborted vs completed before abort
 - [ ] Monitoring: alert if abort latency > 500ms
 
@@ -72,6 +79,21 @@ UI Stop → ChatService.requestAbort() → Firestore write {abortRequested: true
 - `src/features/Chat/components/ToolCallSummary.tsx` — stopped prop for cancelled tool display
 - `functions/src/services/claude/streamChat.ts` — abort handler in agentic loop catch
 - `functions/src/services/gemini/streamChat.ts` — signal.aborted checks in agentic loop
+
+### Stopped Message Context Preservation
+
+До Stage 3 stopped-сообщения полностью исключались из истории: `aiChat.ts` фильтровал по `status === 'complete'`. Модель теряла весь контекст (анализы, tool results) при abort — вынуждена была начинать заново.
+
+**Фикс:** stopped-сообщения с контентом включаются в историю. Обработка partial tool results:
+
+| Сценарий | Claude | Gemini |
+|---|---|---|
+| Все tool results есть | Полная реконструкция | Полная реконструкция |
+| Часть есть, часть прервана | `is_error: true` + string message | `{ error: "..." }` object fallback |
+| Все прерваны | Fallback на text-only | Fallback на text-only |
+| Пустое stopped (text="" + no tools) | Исключается фильтром | Исключается фильтром |
+
+`toolIterations` path (Claude) не требует изменений: он хранит только завершённые итерации — прерванная итерация не попадает в `allToolIterations`.
 
 ### Why Not HTTP-Level Detection
 Documented Cloud Run limitation: HTTP/1.1 does not propagate client disconnect events to the container. HTTP/2 requires h2c support which Express.js / Firebase Functions v2 cannot provide. Firestore realtime is the industry-standard side-channel for serverless abort.

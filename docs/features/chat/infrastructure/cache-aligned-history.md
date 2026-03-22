@@ -100,8 +100,10 @@ toolIterations: [
 
 ### Обратная совместимость
 
-Старые сообщения с `toolCalls` → `buildHistory()` использует текущую логику (fallback).
+Старые сообщения с `toolCalls` → `buildHistory()` использует legacy path (fallback).
 Новые сообщения с `toolIterations` → `buildHistory()` воспроизводит per-iteration структуру.
+
+Legacy path поддерживает partial tool results (stopped messages): `.some()` вместо `.every()` для проверки результатов. Прерванные tool calls получают error fallback (Claude: `is_error: true`; Gemini: `{ error: "..." }` object). См. [Server-Side Abort](./server-side-abort.md).
 
 ---
 

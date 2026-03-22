@@ -48,6 +48,8 @@ user:  [functionResponse_part(name, result)]
 model: [text_part(final response)]
 ```
 
+**Stopped messages (partial tool results):** если часть tool calls прервана (result undefined), реконструкция всё равно работает — прерванные tool calls получают error fallback. Требуется хотя бы один завершённый tool call (`.some()` check). Если все прерваны — fallback на text-only. См. [Server-Side Abort](../infrastructure/server-side-abort.md).
+
 ### Стоимость и кэширование
 
 Tool results (25K tokens за `browseTrendVideos` с 200 видео) кэшируются провайдерами:

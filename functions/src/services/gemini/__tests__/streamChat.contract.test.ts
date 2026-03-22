@@ -1152,6 +1152,59 @@ describe('streamChat — buildHistory tool reconstruction', () => {
         expect(contents).toHaveLength(3);
     });
 
+    it('toolCalls with mixed results (some defined, some undefined) → reconstruction with error fallback', async () => {
+        const mockApi = mockStreamResponse(
+            () => makeChunks(textChunk('Reply', {
+                promptTokenCount: 100, candidatesTokenCount: 10, totalTokenCount: 110,
+            })),
+        );
+
+        await streamChat(makeOpts({
+            history: [
+                { id: 'u1', role: 'user', text: 'query' },
+                {
+                    id: 'm1',
+                    role: 'model',
+                    text: 'Partial analysis before abort',
+                    toolCalls: [
+                        { name: 'analyzeTraffic', args: { videoId: 'v1' }, result: { views: 1000 } },
+                        { name: 'analyzeSuggested', args: { videoId: 'v1' } }, // no result — interrupted
+                    ],
+                },
+            ],
+            text: 'continue',
+        }));
+
+        const apiCall = mockApi.mock.calls[0][0];
+        const contents = apiCall.contents as Array<{ role: string; parts: Array<Record<string, unknown>> }>;
+
+        // Reconstruction: u1(user) → m1-functionCall(model) → m1-functionResponse(user) → m1-text(model) → current(user)
+        expect(contents).toHaveLength(5);
+
+        // model message: both functionCall parts
+        const fcParts = contents[1].parts;
+        expect(fcParts).toHaveLength(2);
+        expect(fcParts.every((p: Record<string, unknown>) => p.functionCall)).toBe(true);
+
+        // user message: functionResponse parts — first real, second error fallback
+        const frParts = contents[2].parts;
+        expect(frParts).toHaveLength(2);
+
+        // First tool: real result
+        const fr1 = frParts[0].functionResponse as Record<string, unknown>;
+        expect(fr1.name).toBe('analyzeTraffic');
+        expect(fr1.response).toEqual({ views: 1000 });
+
+        // Second tool: interrupted → error object fallback
+        const fr2 = frParts[1].functionResponse as Record<string, unknown>;
+        expect(fr2.name).toBe('analyzeSuggested');
+        expect(fr2.response).toEqual({ error: 'Tool execution was interrupted by user.' });
+
+        // model text part
+        expect(contents[3].role).toBe('model');
+        expect(contents[3].parts[0].text).toBe('Partial analysis before abort');
+    });
+
     it('toolCalls with undefined result → fallback to text only', async () => {
         const mockApi = mockStreamResponse(
             () => makeChunks(textChunk('Reply', {

@@ -106,11 +106,11 @@ async function buildHistory(
         messages.map(async (msg): Promise<Content[]> => {
             // --- Tool call reconstruction for model messages ---
             // Reconstruct native functionCall/functionResponse parts from Firestore toolCalls.
-            // Only when ALL results are defined (undefined result = stopped message → fallback to text).
+            // At least one result must exist; interrupted tool calls get error fallback.
             const hasToolCalls = msg.role === "model"
                 && msg.toolCalls
                 && msg.toolCalls.length > 0
-                && msg.toolCalls.every(tc => tc.result !== undefined);
+                && msg.toolCalls.some(tc => tc.result !== undefined);
 
             if (hasToolCalls) {
                 const result: Content[] = [];
@@ -122,8 +122,9 @@ async function buildHistory(
                 result.push({ role: "model", parts: fcParts });
 
                 // 2. user Content: functionResponse parts
+                // Interrupted tool calls (result undefined) get error fallback object.
                 const frParts: Part[] = msg.toolCalls!.map(tc =>
-                    createFR("", tc.name, tc.result!),
+                    createFR("", tc.name, tc.result ?? { error: "Tool execution was interrupted by user." }),
                 );
                 result.push({ role: "user", parts: frParts });
 
