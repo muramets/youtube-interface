@@ -494,8 +494,11 @@ const saveKnowledge: ToolDefinition = {
     name: TOOL_NAMES.SAVE_KNOWLEDGE,
     description:
         "Save a structured analysis result as a Knowledge Item. " +
-        "Call when the user asks to save analysis, or when you have a significant finding worth preserving " +
-        "for future conversations (traffic breakdown, packaging audit, suggested pool analysis, etc.). " +
+        "PROACTIVELY call when performing deep analysis (2+ analytical tools used: " +
+        "traffic breakdown, packaging audit, suggested pool analysis, competitive analysis, etc.) — " +
+        "do NOT present the full analysis in chat first and ask whether to save. " +
+        "Save the KI, then write a brief summary (3-5 key findings) in chat with a ki:// link. " +
+        "Also call when the user explicitly asks to save. " +
         "Each KI should focus on ONE topic/category. For video analysis, include videoId. " +
         "For channel-level insights (strategy, growth, journey), omit videoId. " +
         "Choose a category from the Knowledge Categories registry in the system prompt, " +
