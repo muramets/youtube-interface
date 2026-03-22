@@ -119,8 +119,10 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
         }
     }, [storeDeleteMemory]);
 
-    const [modelAnchorEl, setModelAnchorEl] = useState<HTMLElement | null>(null);
-    const [langAnchorEl, setLangAnchorEl] = useState<HTMLElement | null>(null);
+    const [isModelOpen, setIsModelOpen] = useState(false);
+    const [isLangOpen, setIsLangOpen] = useState(false);
+    const [modelBtnEl, setModelBtnEl] = useState<HTMLButtonElement | null>(null);
+    const [langBtnEl, setLangBtnEl] = useState<HTMLButtonElement | null>(null);
 
     const update = (patch: Partial<AiSettings>) => onChange({ ...settings, ...patch });
 
@@ -144,20 +146,21 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
                 <label className={`block text-xs ${theme.textSecondary} mb-1`}>Default Model</label>
                 <div className="relative w-64">
                     <button
-                        onClick={(e) => setModelAnchorEl(prev => prev ? null : e.currentTarget)}
-                        className={`w-full flex items-center justify-between ${inputBg} border ${inputBorder} ${modelAnchorEl ? 'rounded-t-md rounded-b-none border-b-transparent' : 'rounded-md'} px-3 py-2 hover:border-text-secondary transition-colors`}
+                        ref={setModelBtnEl}
+                        onClick={() => setIsModelOpen(prev => !prev)}
+                        className={`w-full flex items-center justify-between ${inputBg} border ${inputBorder} ${isModelOpen ? 'rounded-t-md rounded-b-none border-b-transparent' : 'rounded-md'} px-3 py-2 hover:border-text-secondary transition-colors`}
                     >
                         <span className="text-sm">{selectedModel?.label || settings.defaultModel}</span>
                         <ChevronDown
                             size={16}
-                            className={`${theme.textSecondary} transition-transform ${modelAnchorEl ? 'rotate-180' : ''}`}
+                            className={`${theme.textSecondary} transition-transform ${isModelOpen ? 'rotate-180' : ''}`}
                         />
                     </button>
 
                     <Dropdown
-                        isOpen={Boolean(modelAnchorEl)}
-                        anchorEl={modelAnchorEl}
-                        onClose={() => setModelAnchorEl(null)}
+                        isOpen={isModelOpen}
+                        anchorEl={modelBtnEl}
+                        onClose={() => setIsModelOpen(false)}
                         width={256}
                         className={`${dropdownBg}`}
                         zIndexClass="z-tooltip"
@@ -169,7 +172,7 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
                                 className={`px-4 py-2.5 text-sm cursor-pointer ${dropdownHover} transition-colors ${m.id === settings.defaultModel ? 'opacity-100 font-medium' : 'opacity-70'}`}
                                 onClick={() => {
                                     update({ defaultModel: m.id });
-                                    setModelAnchorEl(null);
+                                    setIsModelOpen(false);
                                 }}
                             >
                                 {m.label}
@@ -187,20 +190,21 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
                 <label className={`block text-xs ${theme.textSecondary} mb-1`}>Response Language</label>
                 <div className="relative w-64">
                     <button
-                        onClick={(e) => setLangAnchorEl(prev => prev ? null : e.currentTarget)}
-                        className={`w-full flex items-center justify-between ${inputBg} border ${inputBorder} ${langAnchorEl ? 'rounded-t-md rounded-b-none border-b-transparent' : 'rounded-md'} px-3 py-2 hover:border-text-secondary transition-colors`}
+                        ref={setLangBtnEl}
+                        onClick={() => setIsLangOpen(prev => !prev)}
+                        className={`w-full flex items-center justify-between ${inputBg} border ${inputBorder} ${isLangOpen ? 'rounded-t-md rounded-b-none border-b-transparent' : 'rounded-md'} px-3 py-2 hover:border-text-secondary transition-colors`}
                     >
                         <span className="text-sm">{selectedLang?.label || settings.responseLanguage}</span>
                         <ChevronDown
                             size={16}
-                            className={`${theme.textSecondary} transition-transform ${langAnchorEl ? 'rotate-180' : ''}`}
+                            className={`${theme.textSecondary} transition-transform ${isLangOpen ? 'rotate-180' : ''}`}
                         />
                     </button>
 
                     <Dropdown
-                        isOpen={Boolean(langAnchorEl)}
-                        anchorEl={langAnchorEl}
-                        onClose={() => setLangAnchorEl(null)}
+                        isOpen={isLangOpen}
+                        anchorEl={langBtnEl}
+                        onClose={() => setIsLangOpen(false)}
                         width={256}
                         className={`${dropdownBg}`}
                         zIndexClass="z-tooltip"
@@ -212,7 +216,7 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
                                 className={`px-4 py-2.5 text-sm cursor-pointer ${dropdownHover} transition-colors ${l.id === settings.responseLanguage ? 'opacity-100 font-medium' : 'opacity-70'}`}
                                 onClick={() => {
                                     update({ responseLanguage: l.id });
-                                    setLangAnchorEl(null);
+                                    setIsLangOpen(false);
                                 }}
                             >
                                 {l.label}

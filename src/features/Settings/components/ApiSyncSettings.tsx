@@ -19,7 +19,8 @@ interface ApiSyncSettingsProps {
 }
 
 export const ApiSyncSettings: React.FC<ApiSyncSettingsProps> = ({ generalSettings, syncSettings, onGeneralChange, onSyncChange, theme }) => {
-    const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+    const [isUnitOpen, setIsUnitOpen] = useState(false);
+    const [unitBtnEl, setUnitBtnEl] = useState<HTMLButtonElement | null>(null);
     const [showApiKey, setShowApiKey] = useState(true); // Default to visible
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
@@ -104,17 +105,18 @@ export const ApiSyncSettings: React.FC<ApiSyncSettingsProps> = ({ generalSetting
 
                         <div className="relative w-32">
                             <button
-                                onClick={(e) => setAnchorEl(e.currentTarget)}
-                                className={`w-full flex items-center justify-between ${inputBg} border ${inputBorder} ${anchorEl ? 'rounded-t-md rounded-b-none border-b-transparent' : 'rounded-md'} px-3 py-2 hover:border-text-secondary transition-colors`}
+                                ref={setUnitBtnEl}
+                                onClick={() => setIsUnitOpen(prev => !prev)}
+                                className={`w-full flex items-center justify-between ${inputBg} border ${inputBorder} ${isUnitOpen ? 'rounded-t-md rounded-b-none border-b-transparent' : 'rounded-md'} px-3 py-2 hover:border-text-secondary transition-colors`}
                             >
                                 <span className="text-sm">{currentUnit}</span>
-                                <ChevronDown size={16} className={`${theme.textSecondary} transition-transform ${anchorEl ? 'rotate-180' : ''}`} />
+                                <ChevronDown size={16} className={`${theme.textSecondary} transition-transform ${isUnitOpen ? 'rotate-180' : ''}`} />
                             </button>
 
                             <Dropdown
-                                isOpen={Boolean(anchorEl)}
-                                anchorEl={anchorEl}
-                                onClose={() => setAnchorEl(null)}
+                                isOpen={isUnitOpen}
+                                anchorEl={unitBtnEl}
+                                onClose={() => setIsUnitOpen(false)}
                                 width={128}
                                 className={`${dropdownBg}`}
                                 zIndexClass="z-tooltip"
@@ -126,7 +128,7 @@ export const ApiSyncSettings: React.FC<ApiSyncSettingsProps> = ({ generalSetting
                                         className={`px-4 py-2.5 text-sm cursor-pointer ${dropdownHover} transition-colors`}
                                         onClick={() => {
                                             updateFrequency(currentValue, unit as FrequencyUnit);
-                                            setAnchorEl(null);
+                                            setIsUnitOpen(false);
                                         }}
                                     >
                                         {unit}

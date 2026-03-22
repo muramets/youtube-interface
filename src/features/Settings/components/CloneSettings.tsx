@@ -12,7 +12,8 @@ interface CloneSettingsProps {
 }
 
 export const CloneSettings: React.FC<CloneSettingsProps> = ({ settings, onChange, theme }) => {
-    const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+    const [isUnitOpen, setIsUnitOpen] = useState(false);
+    const [unitBtnEl, setUnitBtnEl] = useState<HTMLButtonElement | null>(null);
 
     const updateDuration = (val: number, unit: DurationUnit) => {
         const newSeconds = durationToSeconds(val, unit);
@@ -52,17 +53,18 @@ export const CloneSettings: React.FC<CloneSettingsProps> = ({ settings, onChange
 
                     <div className="relative w-32">
                         <button
-                            onClick={(e) => setAnchorEl(prev => prev ? null : e.currentTarget)}
-                            className={`w-full flex items-center justify-between ${inputBg} border ${inputBorder} ${anchorEl ? 'rounded-t-md rounded-b-none border-b-transparent' : 'rounded-md'} px-3 py-2 hover:border-text-secondary transition-colors`}
+                            ref={setUnitBtnEl}
+                            onClick={() => setIsUnitOpen(prev => !prev)}
+                            className={`w-full flex items-center justify-between ${inputBg} border ${inputBorder} ${isUnitOpen ? 'rounded-t-md rounded-b-none border-b-transparent' : 'rounded-md'} px-3 py-2 hover:border-text-secondary transition-colors`}
                         >
                             <span className="text-sm">{currentUnit}</span>
-                            <ChevronDown size={16} className={`${theme.textSecondary} transition-transform ${anchorEl ? 'rotate-180' : ''}`} />
+                            <ChevronDown size={16} className={`${theme.textSecondary} transition-transform ${isUnitOpen ? 'rotate-180' : ''}`} />
                         </button>
 
                         <Dropdown
-                            isOpen={Boolean(anchorEl)}
-                            anchorEl={anchorEl}
-                            onClose={() => setAnchorEl(null)}
+                            isOpen={isUnitOpen}
+                            anchorEl={unitBtnEl}
+                            onClose={() => setIsUnitOpen(false)}
                             width={128}
                             className={`${dropdownBg}`}
                             zIndexClass="z-tooltip"
@@ -74,7 +76,7 @@ export const CloneSettings: React.FC<CloneSettingsProps> = ({ settings, onChange
                                     className={`px-4 py-2.5 text-sm cursor-pointer ${dropdownHover} transition-colors`}
                                     onClick={() => {
                                         updateDuration(currentValue, unit as DurationUnit);
-                                        setAnchorEl(null);
+                                        setIsUnitOpen(false);
                                     }}
                                 >
                                     {unit}
