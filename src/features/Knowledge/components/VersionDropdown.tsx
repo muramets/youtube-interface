@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { Clock, Check, RotateCcw } from 'lucide-react'
 import { Badge } from '../../../components/ui/atoms/Badge/Badge'
 import { ConfirmDeleteButton } from '../../../components/ui/atoms/ConfirmDeleteButton'
-import { getOriginLabel, getEditLabel } from '../utils/formatDate'
+import { getOriginLabel, getEditLabel, resolveVersionEditSource } from '../utils/formatDate'
 import type { KnowledgeVersionWithId, KnowledgeItem } from '../../../core/types/knowledge'
 
 interface VersionDropdownProps {
@@ -155,6 +155,8 @@ export const VersionDropdown = ({
                         <div className="max-h-60 overflow-y-auto">
                             {displayVersions.map((version) => {
                                 const isPending = pendingSet?.has(version.id) ?? false
+                                // Backwards compat: old versions lack lastEditSource (see resolveVersionEditSource)
+                                const versionEditLabel = getEditLabel(resolveVersionEditSource(version.lastEditSource, version.source) ?? '')
                                 return (
                                     <div
                                         key={version.id}
@@ -176,9 +178,7 @@ export const VersionDropdown = ({
                                                 </div>
                                                 <div className="text-[10px] text-text-tertiary flex items-center gap-1.5 whitespace-nowrap">
                                                     <Badge variant="neutral">{getOriginLabel(version.source)}</Badge>
-                                                    {version.lastEditSource && getEditLabel(version.lastEditSource) && (
-                                                        <span className="text-text-tertiary/70">· {getEditLabel(version.lastEditSource)}</span>
-                                                    )}
+                                                    {versionEditLabel && <span className="text-text-tertiary/70">· {versionEditLabel}</span>}
                                                     {version.model && <span className="truncate">· {version.model}</span>}
                                                 </div>
                                             </div>

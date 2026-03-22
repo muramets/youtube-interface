@@ -9,9 +9,8 @@ export interface KnowledgeItemSaveUpdates {
     content: string;
     videoId?: string;
     scope?: 'video' | 'channel';
-    skipVersioning?: boolean;
-    lastEditSource?: KnowledgeItem['lastEditSource'];
-    lastEditedBy?: string;
+    lastEditSource?: KnowledgeItem['lastEditSource'] | null;
+    lastEditedBy?: string | null;
     versionIdsToDelete?: string[];
 }
 
@@ -28,11 +27,11 @@ export function useKnowledgeSaveHandler(
 ) {
     return useCallback((updates: KnowledgeItemSaveUpdates) => {
         if (!editingItem) return
-        const { skipVersioning, versionIdsToDelete, ...firestoreUpdates } = updates
+        const { versionIdsToDelete, ...firestoreUpdates } = updates
         updateMutation.mutate({
             itemId: editingItem.id,
             updates: firestoreUpdates,
-            previousItem: skipVersioning ? undefined : editingItem,
+            previousItem: editingItem,
             versionIdsToDelete,
         })
     }, [editingItem, updateMutation])

@@ -126,17 +126,16 @@ export const useUpdateKnowledgeItem = (userId: string, channelId: string) => {
             versionIdsToDelete,
         }: {
             itemId: string;
-            updates: Partial<Pick<KnowledgeItem, 'title' | 'content' | 'summary' | 'videoId' | 'scope' | 'lastEditSource' | 'lastEditedBy'>>;
-            previousItem?: KnowledgeItem;
+            updates: Partial<Pick<KnowledgeItem, 'title' | 'content' | 'summary' | 'videoId' | 'scope'>> & {
+                lastEditSource?: KnowledgeItem['lastEditSource'] | null;
+                lastEditedBy?: string | null;
+            };
+            previousItem: KnowledgeItem;
             versionIdsToDelete?: string[];
         }) => {
-            if (previousItem) {
-                await KnowledgeService.updateKnowledgeItemWithVersion(
-                    userId, channelId, itemId, updates, previousItem, versionIdsToDelete,
-                );
-            } else {
-                await KnowledgeService.updateKnowledgeItem(userId, channelId, itemId, updates);
-            }
+            await KnowledgeService.updateKnowledgeItemWithVersion(
+                userId, channelId, itemId, updates, previousItem, versionIdsToDelete,
+            );
         },
         onSuccess: () => {
             // Invalidate KI queries + version queries for this channel

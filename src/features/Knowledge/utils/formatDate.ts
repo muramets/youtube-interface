@@ -37,6 +37,29 @@ export function getEditLabel(source: string): string | undefined {
 }
 
 /**
+ * Resolve edit source from a version snapshot, with backwards compatibility.
+ *
+ * Before provenance split (commit d191193, 2026-03-22), version snapshots stored
+ * a merged value in `source` (= lastEditSource ?? source). After the split,
+ * `source` = origin only, `lastEditSource` = edit provenance (separate field).
+ *
+ * For old versions without `lastEditSource`, falls back to `source` when the
+ * value is unambiguously an edit source ('chat-edit'). Safe to remove once
+ * all old version documents are superseded or deleted.
+ */
+type EditSource = 'chat-tool' | 'conclude' | 'manual' | 'chat-edit'
+
+export function resolveVersionEditSource(
+    lastEditSource: EditSource | undefined,
+    source: string,
+): EditSource | undefined {
+    if (lastEditSource) return lastEditSource
+    // Old format: 'chat-edit' in source field is unambiguously an edit
+    if (source === 'chat-edit') return 'chat-edit'
+    return undefined
+}
+
+/**
  * Combined source label for version entries — context for each historical snapshot.
  * Used by VersionDropdown version list and formatVersionLabel.
  */

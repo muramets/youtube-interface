@@ -228,7 +228,10 @@ export const KnowledgeService = {
         userId: string,
         channelId: string,
         itemId: string,
-        updates: Partial<Pick<KnowledgeItem, 'title' | 'content' | 'summary' | 'videoId' | 'scope' | 'lastEditSource' | 'lastEditedBy'>>,
+        updates: Partial<Pick<KnowledgeItem, 'title' | 'content' | 'summary' | 'videoId' | 'scope'>> & {
+            lastEditSource?: KnowledgeItem['lastEditSource'] | null;
+            lastEditedBy?: string | null;
+        },
         previousItem: KnowledgeItem,
         versionIdsToDelete?: string[],
     ): Promise<void> => {
@@ -243,8 +246,9 @@ export const KnowledgeService = {
             const batch = writeBatch(db);
             const versionsPath = `${getKnowledgeItemsPath(userId, channelId)}/${itemId}/versions`;
 
-            // Version snapshot (only if content changed)
-            if (contentChanged) {
+            // Version snapshot (only if content changed AND not a restore flow).
+            // Restore deletes newer versions — snapshotting the pre-restore content would be wrong.
+            if (contentChanged && !hasVersionDeletes) {
                 const versionId = `v-${Date.now()}`;
                 const versionRef = doc(db, versionsPath, versionId);
                 const contentTs = previousItem.updatedAt ?? previousItem.createdAt;
@@ -272,8 +276,14 @@ export const KnowledgeService = {
             const kiRef = doc(db, getKnowledgeItemsPath(userId, channelId), itemId);
             const kiPayload = buildKiUpdatePayload(baseUpdates);
             if (contentChanged) {
-                kiPayload.lastEditSource = lastEditSource ?? 'manual';
-                kiPayload.lastEditedBy = lastEditedBy ?? '';
+                if (lastEditSource === null) {
+                    // Restore to original unedited content — clear edit provenance
+                    kiPayload.lastEditSource = deleteField();
+                    kiPayload.lastEditedBy = deleteField();
+                } else {
+                    kiPayload.lastEditSource = lastEditSource ?? 'manual';
+                    kiPayload.lastEditedBy = lastEditedBy ?? '';
+                }
             }
             batch.update(kiRef, kiPayload);
 

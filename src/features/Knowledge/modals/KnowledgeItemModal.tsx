@@ -14,7 +14,7 @@ import type { KnowledgeItem, KnowledgeVersionWithId } from '../../../core/types/
 import type { VideoPreviewData } from '../../Video/types'
 import type { KiPreviewData } from '../../../components/ui/organisms/RichTextEditor/types'
 import { VideoLinkField } from '../components/VideoLinkField'
-import { formatKnowledgeDate, formatVersionLabel, getOriginLabel } from '../utils/formatDate'
+import { formatKnowledgeDate, formatVersionLabel, getOriginLabel, resolveVersionEditSource } from '../utils/formatDate'
 import { buildCatalogVideoMap } from '../utils/videoRefMap'
 import type { KnowledgeItemSaveUpdates } from '../hooks/useKnowledgeSaveHandler'
 
@@ -141,35 +141,29 @@ export const KnowledgeItemModal = React.memo(({
         setSelectedVersionId(null)
     }, [versions, content, item])
 
-    const isRestore = restoredVersion !== null
-
     const handleSave = useCallback(() => {
         const videoChanged = linkedVideoId !== item.videoId
         const updates: Parameters<typeof onSave>[0] = {
             title: title.trim(),
             summary: summary.trim(),
             content,
-            skipVersioning: isRestore,
         }
         if (videoChanged) {
             updates.videoId = linkedVideoId
             updates.scope = linkedVideoId ? 'video' : 'channel'
         }
-        if (isRestore && restoredVersion) {
-            const isPureRestore = content === restoredVersion.content
-            if (isPureRestore) {
-                updates.lastEditSource = restoredVersion.source
-                updates.lastEditedBy = restoredVersion.model ?? ''
-            } else {
-                updates.lastEditSource = 'manual'
-                updates.lastEditedBy = ''
-            }
+        if (restoredVersion) {
+            // Restore = use restored version's provenance. No content comparison needed —
+            // the user explicitly chose this version, provenance should reflect its source.
+            const editSrc = resolveVersionEditSource(restoredVersion.lastEditSource, restoredVersion.source)
+            updates.lastEditSource = editSrc ?? null  // null = clear field (original unedited content)
+            updates.lastEditedBy = editSrc ? (restoredVersion.lastEditedBy ?? restoredVersion.model ?? '') : null
             // Atomic: version cleanup happens in the same Firestore batch as save
             updates.versionIdsToDelete = [...pendingDeleteIds, restoredVersion.id]
         }
         onSave(updates)
         onClose()
-    }, [title, summary, content, linkedVideoId, item.videoId, onSave, onClose, isRestore, restoredVersion, pendingDeleteIds])
+    }, [title, summary, content, linkedVideoId, item.videoId, onSave, onClose, restoredVersion, pendingDeleteIds])
 
     const dateStr = formatKnowledgeDate(item.createdAt)
     const baseCurrentDate = formatKnowledgeDate(item.updatedAt ?? item.createdAt, true)
@@ -182,7 +176,10 @@ export const KnowledgeItemModal = React.memo(({
     // Origin is always the KI creation source (immutable)
     const originSource = item.source
     // Edit source: who last edited. undefined = never edited.
-    const editSource = restoredVersion ? restoredVersion.lastEditSource : item.lastEditSource
+    // resolveVersionEditSource handles backwards compat for old versions without lastEditSource.
+    const editSource = restoredVersion
+        ? resolveVersionEditSource(restoredVersion.lastEditSource, restoredVersion.source)
+        : item.lastEditSource
     const currentModel = restoredVersion ? (restoredVersion.model ?? '') : baseCurrentModel
 
     // --- Expanded mode slots ---
