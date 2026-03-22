@@ -7,50 +7,14 @@
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { Brain, ChevronDown, Pencil, Check, X } from 'lucide-react';
-import ReactMarkdown, { type Components } from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import rehypeRaw from 'rehype-raw';
-import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
-import clsx from 'clsx';
 import type { ConversationMemory } from '../../../core/types/chat/chat';
 import { RichTextEditor } from '../../../components/ui/organisms/RichTextEditor';
-import { CollapsibleSection } from '../../../components/ui/molecules/CollapsibleSection';
 import { ConfirmDeleteButton } from '../../../components/ui/atoms/ConfirmDeleteButton';
-import { parseMarkdownSections, type HierarchicalSection } from '../../Knowledge/utils/markdownSections';
-import { buildBodyComponents } from '../../Knowledge/utils/bodyComponents';
+import { CollapsibleMarkdownSections } from '../../Knowledge/components/CollapsibleMarkdownSections';
 import { linkifyVideoIds } from '../../../core/utils/linkifyVideoIds';
 import { useVideosCatalog } from '../../../core/hooks/useVideosCatalog';
 import type { KiPreviewData } from '../../../components/ui/organisms/RichTextEditor/types';
 import type { VideoPreviewData } from '../../Video/types';
-
-const sanitizeSchema = {
-    ...defaultSchema,
-    protocols: { ...defaultSchema.protocols, href: [...(defaultSchema.protocols?.href ?? []), 'vid', 'mention', 'ki'] },
-    attributes: { ...defaultSchema.attributes, a: [...(defaultSchema.attributes?.a ?? []), 'className', 'class'], span: [...(defaultSchema.attributes?.span ?? []), 'className', 'class'] },
-};
-
-const headerComponents: Components = {
-    h1: ({ className, style, children }) => <h1 className={clsx('text-sm font-bold text-inherit', className)} style={style}>{children}</h1>,
-    h2: ({ className, style, children }) => <h2 className={clsx('text-xs font-bold text-inherit', className)} style={style}>{children}</h2>,
-    h3: ({ className, style, children }) => <h3 className={clsx('text-[11px] font-bold text-inherit', className)} style={style}>{children}</h3>,
-    h4: ({ className, style, children }) => <h4 className={clsx('text-[10px] font-bold text-inherit', className)} style={style}>{children}</h4>,
-    p: ({ children }) => <span className="inline">{children}</span>,
-    strong: ({ children }) => <strong className="font-bold text-inherit">{children}</strong>,
-};
-
-const HEADER_SIZE: Record<number, string> = {
-    1: '[&_button]:text-sm',
-    2: '[&_button]:text-xs',
-    3: '[&_button]:text-[11px]',
-    4: '[&_button]:text-[10px]',
-};
-
-const INDENT: Record<number, string> = {
-    1: 'pl-0',
-    2: 'pl-5',
-    3: 'pl-5',
-    4: 'pl-5',
-};
 
 // --- Component ---
 
@@ -87,12 +51,10 @@ export const MemoryCheckpoint: React.FC<MemoryCheckpointProps> = ({ memory, onUp
         return map;
     }, [knowledgeCatalog]);
 
-    const bodyComponents = useMemo(() => buildBodyComponents(videoMap, 'compact', kiMap), [videoMap, kiMap]);
-
-    const sections = useMemo(() => {
-        const content = videoMap ? linkifyVideoIds(memory.content, videoMap) : memory.content
-        return parseMarkdownSections(content)
-    }, [memory.content, videoMap]);
+    const linkifiedContent = useMemo(
+        () => videoMap ? linkifyVideoIds(memory.content, videoMap) : memory.content,
+        [memory.content, videoMap],
+    );
 
     useEffect(() => {
         if (isExpanded && rootRef.current) {
@@ -136,37 +98,6 @@ export const MemoryCheckpoint: React.FC<MemoryCheckpointProps> = ({ memory, onUp
         setEditTitle(memory.conversationTitle);
     }, [memory.content, memory.conversationTitle]);
 
-    const renderSection = (section: HierarchicalSection, idx: number) => (
-        <CollapsibleSection
-            key={idx}
-            defaultOpen={false}
-            variant="mini"
-            title={
-                <div className="inline-block pointer-events-none">
-                    <ReactMarkdown rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]} components={headerComponents}>
-                        {section.title}
-                    </ReactMarkdown>
-                </div>
-            }
-            className={clsx(
-                'mb-3',
-                '[&_button]:items-start [&_button]:text-left [&_button_div:first-child]:mt-[5px]',
-                '[&>div:first-child]:!mb-0',
-                INDENT[section.level] ?? 'pl-5',
-                HEADER_SIZE[section.level] ?? '[&_button]:text-xs',
-            )}
-        >
-            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]} urlTransform={url => url} components={bodyComponents}>
-                {section.content.join('\n')}
-            </ReactMarkdown>
-            {section.children.length > 0 && (
-                <div className="mt-2">
-                    {section.children.map((child, i) => renderSection(child, i))}
-                </div>
-            )}
-        </CollapsibleSection>
-    );
-
     return (
         <div className="my-1" ref={rootRef}>
             {/* Divider line with checkpoint label */}
@@ -191,7 +122,7 @@ export const MemoryCheckpoint: React.FC<MemoryCheckpointProps> = ({ memory, onUp
             {/* Expandable content */}
             {isExpanded && (
                 <div
-                    className="mt-1.5 mx-auto max-w-[90%] rounded-lg p-3 animate-memory-expand bg-bg-secondary"
+                    className="mt-1.5 mx-auto max-w-[90%] rounded-lg p-3 animate-memory-expand bg-surface-secondary"
                 >
                     {isEditing ? (
                         <>
@@ -238,16 +169,13 @@ export const MemoryCheckpoint: React.FC<MemoryCheckpointProps> = ({ memory, onUp
                                     });
                                 }}
                             >
-                                {/* Collapsible sections — headers collapsed by default */}
                                 <div className="text-left">
-                                    {sections.preamble && (
-                                        <div className="mb-3">
-                                            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]} urlTransform={url => url} components={bodyComponents}>
-                                                {sections.preamble}
-                                            </ReactMarkdown>
-                                        </div>
-                                    )}
-                                    {sections.sections.map((section, idx) => renderSection(section, idx))}
+                                    <CollapsibleMarkdownSections
+                                        content={linkifiedContent}
+                                        videoMap={videoMap}
+                                        kiMap={kiMap}
+                                        defaultOpenLevel={0}
+                                    />
                                 </div>
                             </div>
                             <div className="flex items-center justify-end gap-1 mt-2">
