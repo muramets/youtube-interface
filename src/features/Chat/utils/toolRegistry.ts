@@ -25,6 +25,7 @@ import {
     SaveKnowledgeRecord,
     EditKnowledgeRecord,
     SaveMemoryRecord,
+    ListKnowledgeStats,
 } from '../components/toolStats';
 
 // --- Types ---
@@ -392,13 +393,22 @@ const TOOL_REGISTRY: Record<string, ToolConfig> = {
     listKnowledge: {
         icon: BookOpen,
         color: 'emerald',
-        hasExpandableContent: false,
+        StatsComponent: ListKnowledgeStats,
+        hasExpandableContent: true,
         labels: {
             error: "Couldn't load knowledge",
             loading: 'Loading knowledge...',
             done: (group) => {
-                const count = group.records[0]?.result?.count as number | undefined;
-                return count != null ? `${count} knowledge items found` : 'Knowledge loaded';
+                const result = group.records[0]?.result;
+                const count = (result?.count as number | undefined)
+                    ?? (result?.items as unknown[] | undefined)?.length;
+                if (count == null) return 'Knowledge checked';
+                if (count === 0) return 'No existing KI';
+                if (count === 1) {
+                    const title = (result?.items as Array<{ title: string }> | undefined)?.[0]?.title;
+                    return title ? `Loaded KI: "${title}"` : '1 existing KI';
+                }
+                return `Loaded ${count} existing KI`;
             },
         },
     },

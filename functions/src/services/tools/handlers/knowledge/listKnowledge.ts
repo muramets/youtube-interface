@@ -68,12 +68,14 @@ export async function handleListKnowledge(
                 : scope
                     ? `No ${scope}-level Knowledge Items found.`
                     : "No Knowledge Items found.",
+            count: 0,
             items: [],
         };
     }
 
     return {
-        content: JSON.stringify(items, null, 2),
+        content: `Found ${items.length} Knowledge Item${items.length > 1 ? "s" : ""}.`,
         count: items.length,
+        items,
     };
 }

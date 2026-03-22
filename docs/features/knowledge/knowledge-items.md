@@ -83,8 +83,12 @@ Sidebar: пункт **Knowledge** (иконка BookOpen). Route: `/knowledge`.
 
 ### Retrieval (on-demand)
 
-1. `listKnowledge` — summary + мета (~500 tokens). LLM видит оглавление.
+1. `listKnowledge` — structured items (id, title, category, summary) + count. LLM видит оглавление, UI рендерит expand-pill с KI titles. Response: `{ content: "Found N Knowledge Items.", count, items }`.
 2. `getKnowledge` — полный content (~3-5K tokens per KI). LLM запрашивает только нужные.
+
+### Proactive KI creation
+
+`saveKnowledge` вызывается проактивно при глубоком анализе (2+ analytical tools). LLM не спрашивает "Сохраняю KI?" — сохраняет сразу, в чат пишет краткое резюме с `ki://` ссылкой. См. правила в `AGENTIC_BEHAVIOR_RULES` (секция "Deep Analysis → Save KI First").
 
 ---
 
@@ -149,7 +153,7 @@ Composite indexes deployed: idempotency guard (`conversationId + category + vide
 | File | Role |
 |------|------|
 | `functions/src/services/tools/handlers/knowledge/saveKnowledge.ts` | Slug validation, idempotency guard (no auto-delete/supersede — each KI is a point-in-time snapshot), **custom video ID resolution** (`resolveVideosByIds` before batch — maps YouTube IDs to `custom-*` docs), atomic batch (KI doc + discovery flags), registry update, **video ref resolution** (regex extract from raw IDs + `vid://` links → `resolveVideosByIds` → `resolvedVideoRefs` snapshot with `hasRealVideoData` guard). `firebase-functions/v2` logger |
-| `functions/src/services/tools/handlers/knowledge/listKnowledge.ts` | Summary + meta (no content), `.limit(50)`. `firebase-functions/v2` logger |
+| `functions/src/services/tools/handlers/knowledge/listKnowledge.ts` | Structured items (id, title, category, summary) + count, `.limit(50)`. `content` = human-readable summary (not JSON). UI: expandable pill with KI titles. `firebase-functions/v2` logger |
 | `functions/src/services/tools/handlers/knowledge/getKnowledge.ts` | Full content by IDs (`db.getAll`) or filters, `.limit(20)`. `firebase-functions/v2` logger |
 | `functions/src/services/tools/handlers/knowledge/saveMemory.ts` | Always-available. Deterministic doc ID (`conversationId`), upsert: get → exists ? update : set. Orphan guard. KI referenced via `ki://` links in content, not structured field. `firebase-functions/v2` logger |
 | `functions/src/triggers/onKnowledgeItemDeleted.ts` | Firestore trigger: `FieldValue.increment(-1)` + conditional `arrayRemove` for discovery flags |

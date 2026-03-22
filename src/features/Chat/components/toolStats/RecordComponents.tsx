@@ -49,6 +49,37 @@ export const EditKnowledgeRecord: React.FC<{ record: ToolCallRecord }> = ({ reco
     );
 };
 
+/** Stats component for listKnowledge pill — renders KI list from result.items. */
+export const ListKnowledgeStats: React.FC<{ result: Record<string, unknown> }> = ({ result }) => {
+    const items = result.items as Array<{ id?: string; title: string; category: string; summary?: string }> | undefined;
+
+    if (!items || items.length === 0) {
+        return (
+            <div className="px-2 py-1.5 text-[11px] text-text-tertiary">
+                No existing KI — first analysis for this video
+            </div>
+        );
+    }
+
+    return (
+        <div className="flex flex-col gap-1">
+            {items.map((item, i) => (
+                <div key={item.id ?? i} className="px-2 py-1.5 rounded-md bg-white/[0.03] text-[11px] min-w-0">
+                    <div className="flex flex-col gap-0.5">
+                        {item.category && (
+                            <span className="text-[9px] font-medium text-accent uppercase tracking-wider">
+                                {item.category.replace(/-/g, ' ')}
+                            </span>
+                        )}
+                        <span className="text-text-primary truncate">{item.title}</span>
+                        {item.summary && <span className="text-text-tertiary leading-relaxed line-clamp-2">{item.summary}</span>}
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+};
+
 /** Per-record expanded content for saveMemory pill. */
 export const SaveMemoryRecord: React.FC<{ record: ToolCallRecord }> = ({ record }) => {
     const result = record.result as Record<string, unknown> | undefined;

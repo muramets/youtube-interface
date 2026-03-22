@@ -45,7 +45,7 @@ beforeEach(() => {
 });
 
 describe('handleListKnowledge', () => {
-    it('returns items with summary but not content', async () => {
+    it('returns structured items with summary but not full content', async () => {
         mockGet.mockResolvedValue({
             docs: [
                 makeDoc('ki-1', {
@@ -65,16 +65,20 @@ describe('handleListKnowledge', () => {
         const result = await handleListKnowledge({}, CTX);
 
         expect(result.count).toBe(1);
-        const parsed = JSON.parse(result.content as string);
-        expect(parsed[0].summary).toBe('Browse 45%, Suggested 35%');
-        expect(parsed[0]).not.toHaveProperty('content');
+        expect(result.content).toBe('Found 1 Knowledge Item.');
+        const items = result.items as Array<Record<string, unknown>>;
+        expect(items).toHaveLength(1);
+        expect(items[0].summary).toBe('Browse 45%, Suggested 35%');
+        expect(items[0].title).toBe('Traffic Analysis');
+        expect(items[0]).not.toHaveProperty('content');
     });
 
-    it('returns empty message when no items found', async () => {
+    it('returns empty message with count 0 when no items found', async () => {
         mockGet.mockResolvedValue({ docs: [] });
 
         const result = await handleListKnowledge({ videoId: 'vid-none' }, CTX);
 
+        expect(result.count).toBe(0);
         expect(result.items).toEqual([]);
         expect(result.content).toContain('No Knowledge Items found');
     });
