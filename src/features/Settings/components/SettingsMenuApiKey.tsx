@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft } from 'lucide-react';
+import { Button } from '../../../components/ui/atoms/Button/Button';
 import { useSettings } from '../../../core/hooks/useSettings';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
@@ -41,17 +42,19 @@ export const SettingsMenuApiKey: React.FC<SettingsMenuApiKeyProps> = ({ onBack }
                 </div>
                 <input
                     type="text"
-                    className="p-2 rounded border border-border bg-bg-primary text-text-primary w-full box-border focus:outline-none focus:border-text-primary"
+                    className="p-2 rounded border border-border bg-bg-primary text-text-primary w-full box-border focus:outline-none hover:border-text-secondary focus:border-text-primary transition-colors"
                     value={tempApiKey}
                     onChange={(e) => setTempApiKey(e.target.value)}
                     placeholder="AIzaSy..."
                 />
-                <button
-                    className="px-4 py-2 rounded-full border-none bg-[#3ea6ff] text-black font-bold cursor-pointer self-end hover:bg-[#3ea6ff]/90 transition-colors"
+                <Button
+                    variant="primary"
+                    size="sm"
                     onClick={handleSaveApiKey}
+                    className="self-end"
                 >
                     Save
-                </button>
+                </Button>
             </div>
         </>
     );

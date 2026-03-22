@@ -2,59 +2,30 @@ import React, { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { Dropdown } from '../../../components/ui/molecules/Dropdown';
 import type { CloneSettings as CloneSettingsType } from '../../../core/services/settingsService';
-
-interface ThemeProps {
-    isDark: boolean;
-    textSecondary: string;
-    hoverBg?: string;
-    activeItemBg?: string;
-    activeItemText?: string;
-    borderColor?: string;
-    bgMain?: string;
-    textPrimary?: string;
-}
+import { getDurationUnit, getDurationValue, durationToSeconds, type DurationUnit } from '../utils/unitConversion';
+import { type SettingsTheme, SETTINGS_STYLES } from '../types';
 
 interface CloneSettingsProps {
     settings: CloneSettingsType;
     onChange: (s: CloneSettingsType) => void;
-    theme: ThemeProps;
+    theme: SettingsTheme;
 }
 
 export const CloneSettings: React.FC<CloneSettingsProps> = ({ settings, onChange, theme }) => {
     const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
 
-    const getUnit = (seconds: number) => {
-        if (seconds % 3600 === 0) return 'Hours';
-        if (seconds % 60 === 0) return 'Minutes';
-        return 'Seconds';
-    };
-
-    const getValue = (seconds: number, unit: string) => {
-        if (unit === 'Hours') return seconds / 3600;
-        if (unit === 'Minutes') return seconds / 60;
-        return seconds;
-    };
-
-    const updateDuration = (val: number, unit: string) => {
-        let newSeconds = val;
-        if (unit === 'Hours') newSeconds = val * 3600;
-        else if (unit === 'Minutes') newSeconds = val * 60;
+    const updateDuration = (val: number, unit: DurationUnit) => {
+        const newSeconds = durationToSeconds(val, unit);
         onChange({ ...settings, cloneDurationSeconds: Math.max(10, newSeconds) });
     };
 
-    const currentUnit = getUnit(settings.cloneDurationSeconds);
-    const currentValue = getValue(settings.cloneDurationSeconds, currentUnit);
+    const currentUnit = getDurationUnit(settings.cloneDurationSeconds);
+    const currentValue = getDurationValue(settings.cloneDurationSeconds, currentUnit);
 
-    // Updated input styles to use CSS variables
-    const inputBg = 'bg-[var(--settings-input-bg)]';
-    const inputBorder = 'border-border';
-    const focusBorder = 'focus:border-text-primary';
-    // Dropdown specific styles using CSS variables
-    const dropdownBg = 'bg-[var(--settings-dropdown-bg)]';
-    const dropdownHover = 'hover:bg-[var(--settings-dropdown-hover)]';
+    const { inputBg, inputBorder, hoverBorder, focusBorder, dropdownBg, dropdownHover } = SETTINGS_STYLES;
 
     return (
-        <div className="space-y-8 animate-fade-in max-w-[600px]">
+        <div className="space-y-8 animate-fade-in max-w-[800px]">
             <section className="space-y-1">
                 <div className="flex items-center gap-2">
                     <h3 className="text-base font-medium">Clone Duration</h3>
@@ -75,14 +46,14 @@ export const CloneSettings: React.FC<CloneSettingsProps> = ({ settings, onChange
                                 const val = Math.max(1, parseInt(e.target.value) || 0);
                                 updateDuration(val, currentUnit);
                             }}
-                            className={`w-full ${inputBg} border ${inputBorder} rounded-md px-3 py-2 focus:outline-none ${focusBorder} transition-colors no-spinner`}
+                            className={`w-full ${inputBg} border ${inputBorder} rounded-md px-3 py-2 focus:outline-none ${hoverBorder} ${focusBorder} transition-colors no-spinner`}
                         />
                     </div>
 
                     <div className="relative w-32">
                         <button
                             onClick={(e) => setAnchorEl(prev => prev ? null : e.currentTarget)}
-                            className={`w-full flex items-center justify-between ${inputBg} border ${inputBorder} ${anchorEl ? 'rounded-t-md rounded-b-none border-b-transparent' : 'rounded-md'} px-3 py-2 hover:border-gray-400 transition-colors`}
+                            className={`w-full flex items-center justify-between ${inputBg} border ${inputBorder} ${anchorEl ? 'rounded-t-md rounded-b-none border-b-transparent' : 'rounded-md'} px-3 py-2 hover:border-text-secondary transition-colors`}
                         >
                             <span className="text-sm">{currentUnit}</span>
                             <ChevronDown size={16} className={`${theme.textSecondary} transition-transform ${anchorEl ? 'rotate-180' : ''}`} />
@@ -102,7 +73,7 @@ export const CloneSettings: React.FC<CloneSettingsProps> = ({ settings, onChange
                                     key={unit}
                                     className={`px-4 py-2.5 text-sm cursor-pointer ${dropdownHover} transition-colors`}
                                     onClick={() => {
-                                        updateDuration(currentValue, unit);
+                                        updateDuration(currentValue, unit as DurationUnit);
                                         setAnchorEl(null);
                                     }}
                                 >

@@ -4,12 +4,12 @@ import { useSettings } from '../../core/hooks/useSettings';
 import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
 import { useVideos } from '../../core/hooks/useVideos';
-import { VideoService } from '../../core/services/videoService';
-import { NotificationService } from '../../core/services/notificationService';
 import type { GeneralSettings, SyncSettings, CloneSettings as CloneSettingsType, PackagingSettings, UploadDefaults, PickerSettings } from '../../core/services/settingsService';
-import type { PackagingCheckin } from '../../core/types/versioning';
+import { cleanOrphanedCheckins } from './services/packagingCleanupService';
 import type { AiAssistantSettings as AiSettingsType } from '../../core/types/chat/chat';
 import { useChatStore } from '../../core/stores/chat/chatStore';
+import { logger } from '../../core/utils/logger';
+import { useUIStore } from '../../core/stores/uiStore';
 
 import { Button } from '../../components/ui/atoms/Button/Button';
 
@@ -40,6 +40,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     } = useSettings();
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
+    const { showToast } = useUIStore();
     useVideos(user?.uid || '', currentChannel?.id || '');
 
     const [activeCategory, setActiveCategory] = useState<Category>('api_sync');
@@ -93,131 +94,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         }, 200);
     };
 
-    // Extracted cleanup logic re-used by Save and Manual Cleanup
-    const cleanOrphanedCheckins = async (validRuleIds: Set<string>, silent = false) => {
-        if (!user || !currentChannel) return;
-
-        // Force fetch fresh data. 
-        // We MUST do this because local 'videos' might be stale (e.g. if a check-in was just created by scheduler in background).
-        // Without this, we might write back a 'clean' history that unknowingly overwrites/ignores the new check-in, or fails to see it to remove it.
-        if (!silent && !user?.uid) return;
-
-        const freshVideos = await VideoService.fetchVideos(user.uid, currentChannel.id);
-
-        // Helper to check if a check-in is empty
-        const isCheckinEmpty = (checkin: { metrics?: { impressions?: number | null; ctr?: number | null; views?: number | null; avdSeconds?: number | null } }) => {
-            const m = checkin.metrics;
-            if (!m) return true;
-            return (m.impressions === null || m.impressions === undefined) &&
-                (m.ctr === null || m.ctr === undefined) &&
-                (m.views === null || m.views === undefined) &&
-                (m.avdSeconds === null || m.avdSeconds === undefined);
-        };
-
-        const notificationIdsToDelete: string[] = [];
-        const cleanupPromises: Promise<void>[] = [];
-
-        for (const video of freshVideos) {
-            if (!video.packagingHistory || video.packagingHistory.length === 0) continue;
-
-            // 1. Identify Duplicates across ALL versions
-            const allCheckins: { checkin: PackagingCheckin, versionIndex: number }[] = [];
-            video.packagingHistory.forEach((v, vIdx) => {
-                v.checkins?.forEach((c: PackagingCheckin) => allCheckins.push({ checkin: c, versionIndex: vIdx }));
-            });
-
-            const checkinIdsToDelete = new Set<string>();
-
-            // Group by RuleId
-            const rulesMap = new Map<string, typeof allCheckins>();
-            allCheckins.forEach(item => {
-                if (!item.checkin.ruleId) return;
-                if (!rulesMap.has(item.checkin.ruleId)) rulesMap.set(item.checkin.ruleId, []);
-                rulesMap.get(item.checkin.ruleId)?.push(item);
-            });
-
-            // Resolve Duplicates
-            for (const [ruleId, items] of rulesMap) {
-                if (items.length > 1) {
-                    // Find best: has metrics?
-                    const withMetrics = items.filter(i => !isCheckinEmpty(i.checkin));
-
-                    let survivor;
-                    if (withMetrics.length > 0) {
-                        // Keep earliest with metrics
-                        withMetrics.sort((a, b) => a.checkin.date - b.checkin.date);
-                        survivor = withMetrics[0];
-                    } else {
-                        // Keep earliest overall
-                        items.sort((a, b) => a.checkin.date - b.checkin.date);
-                        survivor = items[0];
-                    }
-
-                    // Mark others for deletion
-                    items.forEach(i => {
-                        if (i.checkin.id !== survivor.checkin.id) {
-                            checkinIdsToDelete.add(i.checkin.id);
-                            if (!silent) console.log(`[Cleanup] Marking duplicate checkin for deletion: Video ${video.id}, Rule ${ruleId}, ID ${i.checkin.id}`);
-                        }
-                    });
-                }
-            }
-
-            let hasChanges = false;
-            const newHistory = video.packagingHistory.map((version) => {
-                const cleanedCheckins = (version.checkins || []).filter((checkin: PackagingCheckin) => {
-                    // If marked as duplicate, remove
-                    if (checkinIdsToDelete.has(checkin.id)) {
-                        hasChanges = true;
-                        return false;
-                    }
-
-                    // Manual check-ins (no ruleId) are always kept
-                    if (!checkin.ruleId) return true;
-
-                    // If rule exists in settings, keep it
-                    if (validRuleIds.has(checkin.ruleId)) return true;
-
-                    // Rule is MISSING from settings. Check if it's empty.
-                    const empty = isCheckinEmpty(checkin);
-
-                    // If it has data, keep it (safety)
-                    if (!empty) return true;
-
-                    // It is Orphaned AND Empty -> REMOVE
-                    if (checkin.ruleId) {
-                        notificationIdsToDelete.push(`checkin-due-${video.id}-${checkin.ruleId}`);
-                    }
-                    hasChanges = true;
-                    return false;
-                });
-                return { ...version, checkins: cleanedCheckins };
-            });
-
-            if (hasChanges) {
-                if (!silent) console.log('[Cleanup] Updating video history:', video.id);
-                // Use VideoService directly to update
-                cleanupPromises.push(
-                    VideoService.updateVideo(user.uid, currentChannel.id, video.id, { packagingHistory: newHistory })
-                        .then(() => {
-                            // Check updated
-                        })
-                );
-            }
-        }
-
-        await Promise.all(cleanupPromises);
-
-        if (notificationIdsToDelete.length > 0) {
-            try {
-                await NotificationService.removeNotifications(user.uid, currentChannel.id, notificationIdsToDelete);
-                if (!silent) console.log('[Cleanup] Removed notifications:', notificationIdsToDelete);
-            } catch (error) {
-                console.error('[Cleanup] Failed to remove notifications:', error);
-            }
-        }
-    };
-
     // Cleanup when closing the modal (unmounting)
     useEffect(() => {
         return () => {
@@ -240,11 +116,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         try {
             // Use current LOCAL settings for validation
             const validRuleIds = new Set(localPackaging.checkinRules.map(r => r.id));
-            await cleanOrphanedCheckins(validRuleIds, false);
-            alert('Cleanup process completed. Check console for details.');
-        } catch (error) {
-            console.error("Cleanup failed:", error);
-            alert('Cleanup failed. See console.');
+            await cleanOrphanedCheckins(user.uid, currentChannel.id, validRuleIds, false);
+            showToast('Cleanup completed successfully', 'success');
+        } catch (error: unknown) {
+            logger.error('[Cleanup] Cleanup failed:', { error });
+            showToast('Cleanup failed', 'error');
         } finally {
             setIsSaving(false);
         }
@@ -271,10 +147,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
             // Run cleanup AFTER saving settings to ensure no race conditions
             // (e.g. scheduler seeing old rules while we clean up)
-            await cleanOrphanedCheckins(validRuleIds, true); // Silent mode for auto-save
+            await cleanOrphanedCheckins(user.uid, currentChannel.id, validRuleIds, true);
             handleClose();
         } catch (error) {
-            console.error("Failed to save settings:", error);
+            logger.error('[Settings] Failed to save settings:', { error });
+            showToast('Failed to save settings', 'error');
         } finally {
             setIsSaving(false);
         }
@@ -293,7 +170,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     const isDirty =
         JSON.stringify(localGeneral) !== JSON.stringify(generalSettings) ||
         JSON.stringify(localSync) !== JSON.stringify(syncSettings) ||
-        JSON.stringify(localClone) !== JSON.stringify(cloneSettings) ||
         JSON.stringify(localClone) !== JSON.stringify(cloneSettings) ||
         JSON.stringify(localPackaging) !== JSON.stringify(packagingSettings) ||
         JSON.stringify(localUploadDefaults) !== JSON.stringify(uploadDefaults) ||
@@ -340,7 +216,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             onClick={handleClose}
         >
             <div
-                className={`relative w-full max-w-[960px] h-[618px] ${bgMain} rounded-xl shadow-2xl flex flex-col overflow-hidden ${isClosing ? 'animate-scale-out' : 'animate-scale-in'} transition-colors duration-200`}
+                className={`relative w-[60vw] h-[70vh] ${bgMain} rounded-xl shadow-2xl flex flex-col overflow-hidden ${isClosing ? 'animate-scale-out' : 'animate-scale-in'} transition-colors duration-200`}
                 onClick={e => e.stopPropagation()}
             >
                 {/* Header */}
@@ -349,12 +225,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 </div>
 
                 {/* Body */}
-                <div className="flex-1 flex min-h-0 h-[488px]">
+                <div className="flex-1 flex min-h-0">
                     {/* Sidebar */}
                     <SettingsSidebar
                         activeCategory={activeCategory}
                         onCategoryChange={(c) => setActiveCategory(c as Category)}
-                        theme={{ isDark, textSecondary, hoverBg, activeItemBg, activeItemText, borderColor, bgMain }}
+                        theme={{ isDark, textSecondary, textPrimary, hoverBg, activeItemBg, activeItemText, borderColor, bgMain }}
                     />
 
                     {/* Content */}
@@ -412,7 +288,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                 key={mountKey}
                                 settings={localAiSettings}
                                 onChange={setLocalAiSettings}
-                                theme={{ isDark, textSecondary, textPrimary, borderColor }}
+                                theme={{ isDark, textSecondary, textPrimary, borderColor, bgMain }}
                             />
                         )}
                     </div>
@@ -427,7 +303,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                         variant="primary"
                         onClick={handleSave}
                         disabled={!isDirty || isSaving || hasPackagingDuplicates}
-                        isLoading={isSaving && isDirty}
+                        isLoading={isSaving}
                     >
                         Save
                     </Button>

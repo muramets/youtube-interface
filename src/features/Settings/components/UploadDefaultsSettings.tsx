@@ -39,7 +39,7 @@ export const UploadDefaultsSettings: React.FC<UploadDefaultsSettingsProps> = ({ 
                         value={settings.title || ''}
                         onChange={(e) => handleChange('title', e.target.value)}
                         placeholder="Enter default title..."
-                        className="w-full px-3 py-2 bg-bg-secondary border border-border rounded-lg text-text-primary focus:outline-none focus:border-blue-500 transition-colors"
+                        className="w-full px-3 py-2 bg-bg-secondary border border-border rounded-lg text-text-primary focus:outline-none hover:border-text-secondary focus:border-text-primary transition-colors"
                     />
                 </div>
 
@@ -53,7 +53,7 @@ export const UploadDefaultsSettings: React.FC<UploadDefaultsSettingsProps> = ({ 
                         onChange={(e) => handleChange('description', e.target.value)}
                         placeholder="Enter default description..."
                         rows={4}
-                        className="w-full px-3 py-2 bg-bg-secondary border border-border rounded-lg text-text-primary focus:outline-none focus:border-blue-500 transition-colors resize-none"
+                        className="w-full px-3 py-2 bg-bg-secondary border border-border rounded-lg text-text-primary focus:outline-none hover:border-text-secondary focus:border-text-primary transition-colors resize-none"
                     />
                 </div>
 

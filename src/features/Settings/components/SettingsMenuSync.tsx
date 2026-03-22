@@ -1,10 +1,14 @@
 import React, { useState } from 'react';
 import { ArrowLeft, ChevronRight, RefreshCw } from 'lucide-react';
+import { Button } from '../../../components/ui/atoms/Button/Button';
+import { Toggle } from '../../../components/ui/atoms/Toggle/Toggle';
 import { useSettings } from '../../../core/hooks/useSettings';
 import { useVideoSync } from '../../../core/hooks/useVideoSync';
 
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
+import { useUIStore } from '../../../core/stores/uiStore';
+import { getFrequencyUnit, getFrequencyValue, frequencyToHours, type FrequencyUnit } from '../utils/unitConversion';
 
 interface SettingsMenuSyncProps {
     onBack: () => void;
@@ -16,36 +20,17 @@ export const SettingsMenuSync: React.FC<SettingsMenuSyncProps> = ({ onBack }) =>
     const { currentChannel } = useChannelStore();
     const { syncAllVideos, isSyncing } = useVideoSync(user?.uid || '', currentChannel?.id || '');
     const { generalSettings } = useSettings();
+    const { showToast } = useUIStore();
     const [isUnitDropdownOpen, setIsUnitDropdownOpen] = useState(false);
 
-    const getUnit = (hours: number) => {
-        if (hours % 168 === 0 && hours >= 168) return 'Weeks';
-        if (hours % 24 === 0 && hours >= 24) return 'Days';
-        if (hours >= 1 && Number.isInteger(hours)) return 'Hours';
-        return 'Minutes';
-    };
-
-    const getValue = (hours: number, unit: string) => {
-        if (unit === 'Weeks') return hours / 168;
-        if (unit === 'Days') return hours / 24;
-        if (unit === 'Minutes') return Math.round(hours * 60);
-        return hours;
-    };
-
-    const updateFrequency = (val: number, unit: string) => {
+    const updateFrequency = (val: number, unit: FrequencyUnit) => {
         if (!user || !currentChannel) return;
-        let newHours = val;
-        if (unit === 'Weeks') newHours = val * 168;
-        else if (unit === 'Days') newHours = val * 24;
-        else if (unit === 'Minutes') newHours = val / 60;
-
-        // Allow smaller minimum (e.g. 1 minute = 0.01666...)
+        const newHours = frequencyToHours(val, unit);
         updateSyncSettings(user.uid, currentChannel.id, { ...syncSettings, frequencyHours: Math.max(0.01, newHours) });
     };
 
-    const currentUnit = getUnit(syncSettings.frequencyHours);
-    const currentValue = getValue(syncSettings.frequencyHours, currentUnit);
-
+    const currentUnit = getFrequencyUnit(syncSettings.frequencyHours);
+    const currentValue = getFrequencyValue(syncSettings.frequencyHours, currentUnit);
     return (
         <>
             <div
@@ -59,19 +44,15 @@ export const SettingsMenuSync: React.FC<SettingsMenuSyncProps> = ({ onBack }) =>
             <div className="p-4 flex flex-col gap-4">
                 <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Auto-Sync</span>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                            type="checkbox"
-                            className="sr-only peer"
-                            checked={syncSettings.autoSync}
-                            onChange={(e) => {
-                                if (user && currentChannel) {
-                                    updateSyncSettings(user.uid, currentChannel.id, { ...syncSettings, autoSync: e.target.checked });
-                                }
-                            }}
-                        />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                    </label>
+                    <Toggle
+                        checked={syncSettings.autoSync}
+                        onChange={(checked) => {
+                            if (user && currentChannel) {
+                                updateSyncSettings(user.uid, currentChannel.id, { ...syncSettings, autoSync: checked });
+                            }
+                        }}
+                        size="md"
+                    />
                 </div>
 
                 {syncSettings.autoSync && (
@@ -123,7 +104,7 @@ export const SettingsMenuSync: React.FC<SettingsMenuSyncProps> = ({ onBack }) =>
                                                 key={unit}
                                                 className="px-3 py-2 text-sm cursor-pointer hover:bg-hover-bg text-text-primary"
                                                 onClick={() => {
-                                                    updateFrequency(getValue(syncSettings.frequencyHours, unit), unit);
+                                                    updateFrequency(getFrequencyValue(syncSettings.frequencyHours, unit as FrequencyUnit), unit as FrequencyUnit);
                                                     setIsUnitDropdownOpen(false);
                                                 }}
                                             >
@@ -139,20 +120,22 @@ export const SettingsMenuSync: React.FC<SettingsMenuSyncProps> = ({ onBack }) =>
 
 
                 <div className="border-t border-border pt-4">
-                    <button
+                    <Button
+                        variant="primary"
+                        size="md"
                         onClick={() => {
                             if (user && currentChannel && generalSettings.apiKey) {
                                 syncAllVideos(generalSettings.apiKey);
                             } else if (!generalSettings.apiKey) {
-                                alert("Please set API Key first");
+                                showToast('Please set API Key first', 'error');
                             }
                         }}
                         disabled={isSyncing}
-                        className={`w-full py-2 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-colors ${isSyncing ? 'bg-bg-secondary text-text-secondary cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer'}`}
+                        className="w-full"
+                        leftIcon={<RefreshCw size={16} className={isSyncing ? 'animate-spin' : ''} />}
                     >
-                        <RefreshCw size={16} className={isSyncing ? 'animate-spin' : ''} />
                         {isSyncing ? 'Syncing...' : 'Sync Now'}
-                    </button>
+                    </Button>
                     <p className="text-xs text-text-secondary mt-2 text-center">
                         Updates video stats (views, likes) from YouTube.
                     </p>

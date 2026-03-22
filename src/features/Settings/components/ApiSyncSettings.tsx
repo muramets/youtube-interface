@@ -1,29 +1,21 @@
 import React, { useState } from 'react';
 import { ChevronDown, Eye, EyeOff, RefreshCw } from 'lucide-react';
+import { Button } from '../../../components/ui/atoms/Button/Button';
 import { Dropdown } from '../../../components/ui/molecules/Dropdown';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
 import { useVideoSync } from '../../../core/hooks/useVideoSync';
 
 import type { GeneralSettings, SyncSettings } from '../../../core/services/settingsService';
-
-interface ThemeProps {
-    isDark: boolean;
-    textSecondary: string;
-    hoverBg?: string;
-    activeItemBg?: string;
-    activeItemText?: string;
-    borderColor?: string;
-    bgMain?: string;
-    textPrimary?: string;
-}
+import { getFrequencyUnit, getFrequencyValue, frequencyToHours, type FrequencyUnit } from '../utils/unitConversion';
+import { type SettingsTheme, SETTINGS_STYLES } from '../types';
 
 interface ApiSyncSettingsProps {
     generalSettings: GeneralSettings;
     syncSettings: SyncSettings;
     onGeneralChange: (s: GeneralSettings) => void;
     onSyncChange: (s: SyncSettings) => void;
-    theme: ThemeProps;
+    theme: SettingsTheme;
 }
 
 export const ApiSyncSettings: React.FC<ApiSyncSettingsProps> = ({ generalSettings, syncSettings, onGeneralChange, onSyncChange, theme }) => {
@@ -33,51 +25,28 @@ export const ApiSyncSettings: React.FC<ApiSyncSettingsProps> = ({ generalSetting
     const { currentChannel } = useChannelStore();
     const { syncAllVideos, isSyncing } = useVideoSync(user?.uid || '', currentChannel?.id || '');
 
-    const getUnit = (hours: number) => {
-        if (hours % 168 === 0 && hours >= 168) return 'Weeks';
-        if (hours % 24 === 0 && hours >= 24) return 'Days';
-        if (hours >= 1 && Number.isInteger(hours)) return 'Hours';
-        return 'Minutes';
-    };
-
-    const getValue = (hours: number, unit: string) => {
-        if (unit === 'Weeks') return hours / 168;
-        if (unit === 'Days') return hours / 24;
-        if (unit === 'Minutes') return Math.round(hours * 60);
-        return hours;
-    };
 
     // State for the currently selected unit
-    const [currentUnit, setCurrentUnit] = useState(() => getUnit(syncSettings.frequencyHours));
+    const [currentUnit, setCurrentUnit] = useState<FrequencyUnit>(() => getFrequencyUnit(syncSettings.frequencyHours));
 
     const [prevFreq, setPrevFreq] = useState(syncSettings.frequencyHours);
     if (syncSettings.frequencyHours !== prevFreq) {
         setPrevFreq(syncSettings.frequencyHours);
-        setCurrentUnit(getUnit(syncSettings.frequencyHours));
+        setCurrentUnit(getFrequencyUnit(syncSettings.frequencyHours));
     }
 
-    const updateFrequency = (val: number, unit: string) => {
-        let newHours = val;
-        if (unit === 'Weeks') newHours = val * 168;
-        else if (unit === 'Days') newHours = val * 24;
-        else if (unit === 'Minutes') newHours = val / 60;
-
+    const updateFrequency = (val: number, unit: FrequencyUnit) => {
+        const newHours = frequencyToHours(val, unit);
         onSyncChange({ ...syncSettings, frequencyHours: Math.max(0.01, newHours) });
         setCurrentUnit(unit);
     };
 
-    const currentValue = getValue(syncSettings.frequencyHours, currentUnit);
+    const currentValue = getFrequencyValue(syncSettings.frequencyHours, currentUnit);
 
-    // Updated input styles to use CSS variables
-    const inputBg = 'bg-[var(--settings-input-bg)]';
-    const inputBorder = 'border-border';
-    const focusBorder = 'focus:border-text-primary';
-    // Dropdown specific styles using CSS variables
-    const dropdownBg = 'bg-[var(--settings-dropdown-bg)]';
-    const dropdownHover = 'hover:bg-[var(--settings-dropdown-hover)]';
+    const { inputBg, inputBorder, hoverBorder, focusBorder, dropdownBg, dropdownHover } = SETTINGS_STYLES;
 
     return (
-        <div className="space-y-8 animate-fade-in max-w-[600px]">
+        <div className="space-y-8 animate-fade-in max-w-[800px]">
             {/* API Key Section */}
             <section className="space-y-4">
                 <h3 className="text-base font-medium">API Configuration</h3>
@@ -89,7 +58,7 @@ export const ApiSyncSettings: React.FC<ApiSyncSettingsProps> = ({ generalSetting
                             value={generalSettings.apiKey || ''}
                             onChange={(e) => onGeneralChange({ ...generalSettings, apiKey: e.target.value })}
                             placeholder="Enter your API key"
-                            className={`w-full ${inputBg} border ${inputBorder} rounded-md pl-3 pr-10 py-2 focus:outline-none ${focusBorder} transition-colors placeholder-text-secondary`}
+                            className={`w-full ${inputBg} border ${inputBorder} rounded-md pl-3 pr-10 py-2 focus:outline-none ${hoverBorder} ${focusBorder} transition-colors placeholder-text-secondary`}
                         />
                         <button
                             onClick={() => setShowApiKey(!showApiKey)}
@@ -129,14 +98,14 @@ export const ApiSyncSettings: React.FC<ApiSyncSettingsProps> = ({ generalSetting
                                     const val = parseFloat(e.target.value) || 0;
                                     updateFrequency(val, currentUnit);
                                 }}
-                                className={`w-full ${inputBg} border ${inputBorder} rounded-md px-3 py-2 focus:outline-none ${focusBorder} transition-colors no-spinner`}
+                                className={`w-full ${inputBg} border ${inputBorder} rounded-md px-3 py-2 focus:outline-none ${hoverBorder} ${focusBorder} transition-colors no-spinner`}
                             />
                         </div>
 
                         <div className="relative w-32">
                             <button
                                 onClick={(e) => setAnchorEl(e.currentTarget)}
-                                className={`w-full flex items-center justify-between ${inputBg} border ${inputBorder} ${anchorEl ? 'rounded-t-md rounded-b-none border-b-transparent' : 'rounded-md'} px-3 py-2 hover:border-gray-400 transition-colors`}
+                                className={`w-full flex items-center justify-between ${inputBg} border ${inputBorder} ${anchorEl ? 'rounded-t-md rounded-b-none border-b-transparent' : 'rounded-md'} px-3 py-2 hover:border-text-secondary transition-colors`}
                             >
                                 <span className="text-sm">{currentUnit}</span>
                                 <ChevronDown size={16} className={`${theme.textSecondary} transition-transform ${anchorEl ? 'rotate-180' : ''}`} />
@@ -156,7 +125,7 @@ export const ApiSyncSettings: React.FC<ApiSyncSettingsProps> = ({ generalSetting
                                         key={unit}
                                         className={`px-4 py-2.5 text-sm cursor-pointer ${dropdownHover} transition-colors`}
                                         onClick={() => {
-                                            updateFrequency(currentValue, unit);
+                                            updateFrequency(currentValue, unit as FrequencyUnit);
                                             setAnchorEl(null);
                                         }}
                                     >
@@ -180,22 +149,20 @@ export const ApiSyncSettings: React.FC<ApiSyncSettingsProps> = ({ generalSetting
                     </p>
                 </div>
 
-                <button
+                <Button
+                    variant="primary"
+                    size="md"
                     onClick={() => {
                         if (user && currentChannel && generalSettings.apiKey) {
                             syncAllVideos(generalSettings.apiKey);
-                        } else if (!generalSettings.apiKey) {
-                            // Ideally show a toast here, but alert is a quick fallback if no toast hook available in this file context yet
-                            // Actually we can just rely on the button incorrectly not disabling for now or just generic alert
-                            alert("Please set API Key first");
                         }
                     }}
                     disabled={isSyncing || !generalSettings.apiKey}
-                    className={`w-full py-2 rounded-md font-medium text-sm flex items-center justify-center gap-2 transition-colors ${isSyncing || !generalSettings.apiKey ? `${theme.activeItemBg} ${theme.textSecondary} cursor-not-allowed` : 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer'}`}
+                    className="w-full"
+                    leftIcon={<RefreshCw size={16} className={isSyncing ? 'animate-spin' : ''} />}
                 >
-                    <RefreshCw size={16} className={isSyncing ? 'animate-spin' : ''} />
                     {isSyncing ? 'Syncing...' : 'Sync Now'}
-                </button>
+                </Button>
             </section>
         </div>
     );

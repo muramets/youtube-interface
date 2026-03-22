@@ -1,20 +1,10 @@
 import React from 'react';
-
-interface ThemeProps {
-    isDark: boolean;
-    textSecondary: string;
-    hoverBg?: string;
-    activeItemBg?: string;
-    activeItemText?: string;
-    borderColor?: string;
-    bgMain?: string;
-    textPrimary?: string;
-}
+import type { SettingsTheme } from '../types';
 
 interface SettingsSidebarProps {
     activeCategory: string;
     onCategoryChange: (category: string) => void;
-    theme: ThemeProps;
+    theme: SettingsTheme;
 }
 
 export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({ activeCategory, onCategoryChange, theme }) => {
@@ -72,7 +62,7 @@ const SidebarItem: React.FC<{
     label: string;
     isActive: boolean;
     onClick: () => void;
-    theme: ThemeProps;
+    theme: SettingsTheme;
 }> = ({ label, isActive, onClick, theme }) => (
     <div className="px-2">
         <button

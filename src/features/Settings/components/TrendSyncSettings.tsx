@@ -4,17 +4,12 @@ import type { SyncSettings } from '../../../core/services/settingsService';
 import { useEffect, useState } from 'react';
 import { TrendService } from '../../../core/services/trendService';
 import { useTrendStore } from '../../../core/stores/trends/trendStore';
+import type { SettingsTheme } from '../types';
 
 interface TrendSyncSettingsProps {
     settings: SyncSettings;
     onChange: (settings: SyncSettings) => void;
-    theme: {
-        isDark: boolean;
-        borderColor: string;
-        textSecondary: string;
-        bgMain: string;
-        textPrimary: string;
-    };
+    theme: SettingsTheme;
 }
 
 export const TrendSyncSettings: React.FC<TrendSyncSettingsProps> = ({
@@ -65,7 +60,7 @@ export const TrendSyncSettings: React.FC<TrendSyncSettingsProps> = ({
                 </p>
             </div>
 
-            <div className={`p-4 rounded-xl border ${theme.borderColor} bg-white/5 space-y-4`}>
+            <div className="p-4 rounded-xl bg-modal-card-bg space-y-4">
                 <div className="flex items-center justify-between">
                     <div>
                         <div className={`font-medium ${theme.textPrimary}`}>Daily Background Sync</div>
@@ -81,20 +76,20 @@ export const TrendSyncSettings: React.FC<TrendSyncSettingsProps> = ({
                 </div>
 
                 {isEnabled && (
-                    <div className="pt-4 border-t border-dashed border-white/10 space-y-3">
-                        <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                            <Info size={16} className="text-blue-400 mt-0.5" />
-                            <div className="text-sm text-blue-200">
-                                <span className="font-semibold text-blue-100">Server-Side Execution:</span>
+                    <div className="pt-4 border-t border-dashed border-border space-y-3">
+                        <div className="flex items-start gap-3 p-3 rounded-lg bg-accent/10 border border-accent/20">
+                            <Info size={16} className="text-accent mt-0.5" />
+                            <div className="text-sm text-text-secondary">
+                                <span className="font-semibold text-text-primary">Server-Side Execution:</span>
                                 {' '}This setting enables the Cloud Function to run independently of your browser session.
                                 It ensures consistent 24h intervals for accurate analytics.
                             </div>
                         </div>
 
-                        <div className="flex items-start gap-3 p-3 rounded-lg bg-orange-500/10 border border-orange-500/20">
-                            <AlertTriangle size={16} className="text-orange-400 mt-0.5" />
-                            <div className="text-sm text-orange-200">
-                                <span className="font-semibold text-orange-100">Quota Usage:</span>
+                        <div className="flex items-start gap-3 p-3 rounded-lg bg-[var(--color-warning)]/10 border border-[var(--color-warning)]/20">
+                            <AlertTriangle size={16} className="text-[var(--color-warning)] mt-0.5" />
+                            <div className="text-sm text-text-secondary">
+                                <span className="font-semibold text-text-primary">Quota Usage:</span>
                                 {' '}Updates {visibleChannelsCount} visible channels.
                                 {totalVideos !== null ? (
                                     <>

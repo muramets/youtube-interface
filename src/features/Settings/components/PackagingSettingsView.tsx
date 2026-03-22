@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Trash2, ChevronDown } from 'lucide-react';
+import { Plus, Trash2, ChevronDown, Sparkles } from 'lucide-react';
+import { Button } from '../../../components/ui/atoms/Button/Button';
 import { Dropdown } from '../../../components/ui/molecules/Dropdown';
 import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
 import { type PackagingSettings, type CheckinRule } from '../../../core/services/settingsService';
@@ -30,8 +31,9 @@ const ColorSelect: React.FC<{ value: string; onChange: (color: string) => void }
             <button
                 ref={setAnchorEl}
                 onClick={() => setIsOpen(!isOpen)}
-                className="w-8 h-8 rounded-lg bg-[#2A2A2A] border border-transparent hover:border-white/20 flex items-center justify-center transition-colors"
+                className="w-8 h-8 rounded-lg bg-bg-primary border border-transparent hover:border-border flex items-center justify-center transition-colors"
                 style={{ backgroundColor: value }}
+                aria-label="Select badge color"
             >
                 <div className="w-3.5 h-3.5 rounded-full" style={{ backgroundColor: value }} />
             </button>
@@ -51,10 +53,11 @@ const ColorSelect: React.FC<{ value: string; onChange: (color: string) => void }
                                 onChange(color);
                                 setIsOpen(false);
                             }}
-                            className={`w-full h-8 flex items-center justify-center rounded hover:bg-white/10 transition-colors ${value === color ? 'bg-white/5' : ''}`}
+                            className={`w-full h-8 flex items-center justify-center rounded hover:bg-hover-bg transition-colors ${value === color ? 'bg-hover-bg/50' : ''}`}
+                            aria-label={`Color ${color}`}
                         >
                             <div
-                                className={`w-4 h-4 rounded-full transition-transform ${value === color ? 'ring-2 ring-white scale-110' : ''}`}
+                                className={`w-4 h-4 rounded-full transition-transform ${value === color ? 'ring-2 ring-text-primary scale-110' : ''}`}
                                 style={{ backgroundColor: color }}
                             />
                         </button>
@@ -84,7 +87,7 @@ const BadgePreview: React.FC<{ text: string; color: string }> = ({ text, color }
     const badge = (
         <span
             ref={textRef}
-            className="px-1.5 py-0.5 rounded text-[9px] font-medium text-white text-center leading-tight max-w-full line-clamp-2 break-words"
+            className="px-1.5 py-0.5 rounded text-[9px] font-medium text-text-primary text-center leading-tight max-w-full line-clamp-2 break-words"
             style={{ backgroundColor: color }}
         >
             {text}
@@ -93,7 +96,7 @@ const BadgePreview: React.FC<{ text: string; color: string }> = ({ text, color }
 
     const tooltipContent = (
         <div
-            className="px-2 py-1 rounded text-[11px] font-medium text-white"
+            className="px-2 py-1 rounded text-[11px] font-medium text-text-primary"
             style={{ backgroundColor: color }}
         >
             {text}
@@ -102,7 +105,7 @@ const BadgePreview: React.FC<{ text: string; color: string }> = ({ text, color }
 
     return (
         <div className="flex flex-col gap-1 w-[100px]">
-            <label className="text-[10px] text-[#AAAAAA] uppercase tracking-wider font-medium">Preview</label>
+            <label className="text-[10px] text-text-secondary uppercase tracking-wider font-medium">Preview</label>
             <div className="min-h-[34px] flex items-center justify-center">
                 {isTruncated ? (
                     <PortalTooltip
@@ -141,9 +144,9 @@ const RuleItem: React.FC<{
     };
 
     return (
-        <div className={`bg-[#1F1F1F] p-3 rounded-xl border ${isDuplicate ? 'border-red-500' : 'border-white/5'} flex items-start gap-3 transition-colors`}>
+        <div className={`bg-modal-card-bg p-3 rounded-xl border ${isDuplicate ? 'border-color-error' : 'border-border'} flex items-start gap-3 transition-colors`}>
             <div className="flex flex-col gap-1">
-                <label className="text-[10px] text-[#AAAAAA] uppercase tracking-wider font-medium">Time after publication</label>
+                <label className="text-[10px] text-text-secondary uppercase tracking-wider font-medium">Time after publication</label>
                 <div className="flex gap-2">
                     <div className="w-16">
                         <input
@@ -152,30 +155,30 @@ const RuleItem: React.FC<{
                             step="1"
                             value={currentValue}
                             onChange={(e) => handleTimeChange(Math.round(parseFloat(e.target.value)) || 1, currentUnit as 'days' | 'weeks')}
-                            className={`w-full bg-[#2A2A2A] border ${isDuplicate ? 'border-red-500' : 'border-transparent focus:border-white/20'} rounded px-2 py-1.5 text-sm text-white focus:outline-none transition-colors no-spinner`}
+                            className={`w-full bg-bg-primary border ${isDuplicate ? 'border-color-error' : 'border-transparent hover:border-text-secondary focus:border-text-primary'} rounded px-2 py-1.5 text-sm text-text-primary focus:outline-none transition-colors no-spinner`}
                             title={isDuplicate ? "This time duration is already used by another rule" : undefined}
                         />
                     </div>
                     <div className="relative w-24">
                         <button
                             onClick={(e) => setAnchorEl(e.currentTarget)}
-                            className={`w-full flex items-center justify-between bg-[#2A2A2A] border border-transparent hover:border-white/20 ${anchorEl ? 'rounded-t rounded-b-none' : 'rounded'} px-2 py-1.5 transition-colors`}
+                            className={`w-full flex items-center justify-between bg-bg-primary border border-transparent hover:border-text-secondary ${anchorEl ? 'rounded-t rounded-b-none' : 'rounded'} px-2 py-1.5 transition-colors`}
                         >
-                            <span className="text-sm text-white capitalize">{currentUnit}</span>
-                            <ChevronDown size={14} className="text-[#AAAAAA]" />
+                            <span className="text-sm text-text-primary capitalize">{currentUnit}</span>
+                            <ChevronDown size={14} className="text-text-secondary" />
                         </button>
                         <Dropdown
                             isOpen={Boolean(anchorEl)}
                             anchorEl={anchorEl}
                             onClose={() => setAnchorEl(null)}
                             width={96}
-                            className="bg-[#2A2A2A] border border-white/10"
+                            className="bg-bg-primary border border-border"
                             connected
                         >
                             {['days', 'weeks'].map((unit) => (
                                 <div
                                     key={unit}
-                                    className="px-3 py-2 text-sm text-white hover:bg-white/10 cursor-pointer capitalize"
+                                    className="px-3 py-2 text-sm text-text-primary hover:bg-hover-bg cursor-pointer capitalize"
                                     onClick={() => {
                                         handleTimeChange(currentValue, unit as 'days' | 'weeks');
                                         setAnchorEl(null);
@@ -190,18 +193,18 @@ const RuleItem: React.FC<{
             </div>
 
             <div className="flex flex-col gap-1 flex-1 min-w-[140px]">
-                <label className="text-[10px] text-[#AAAAAA] uppercase tracking-wider font-medium">Badge Text</label>
+                <label className="text-[10px] text-text-secondary uppercase tracking-wider font-medium">Badge Text</label>
                 <input
                     type="text"
                     value={rule.badgeText}
                     onChange={(e) => onUpdate(rule.id, { badgeText: e.target.value })}
-                    className="w-full bg-[#2A2A2A] border border-transparent focus:border-white/20 rounded px-2 py-1.5 text-sm text-white focus:outline-none transition-colors"
+                    className="w-full bg-bg-primary border border-transparent hover:border-text-secondary focus:border-text-primary rounded px-2 py-1.5 text-sm text-text-primary focus:outline-none transition-colors"
                     placeholder="e.g. First Check"
                 />
             </div>
 
             <div className="flex flex-col gap-1">
-                <label className="text-[10px] text-[#AAAAAA] uppercase tracking-wider font-medium">Color</label>
+                <label className="text-[10px] text-text-secondary uppercase tracking-wider font-medium">Color</label>
                 <div className="h-[34px] flex items-center">
                     <ColorSelect
                         value={rule.badgeColor}
@@ -215,7 +218,7 @@ const RuleItem: React.FC<{
             <div className="flex flex-col gap-1 pt-5">
                 <button
                     onClick={() => onDelete(rule.id)}
-                    className="p-1.5 text-[#555] hover:text-red-500 transition-colors rounded hover:bg-white/5"
+                    className="p-1.5 text-text-tertiary hover:text-color-error transition-colors rounded hover:bg-hover-bg/50"
                     title="Delete rule"
                 >
                     <Trash2 size={16} />
@@ -226,6 +229,17 @@ const RuleItem: React.FC<{
 };
 
 export const PackagingSettingsView: React.FC<PackagingSettingsViewProps> = ({ settings, onChange, onCleanup }) => {
+    const [isCleaning, setIsCleaning] = useState(false);
+
+    const handleCleanup = async () => {
+        setIsCleaning(true);
+        try {
+            await onCleanup();
+        } finally {
+            setIsCleaning(false);
+        }
+    };
+
     const addRule = () => {
         // Find the first color that isn't used
         const usedColors = new Set(settings.checkinRules.map(r => r.badgeColor));
@@ -276,27 +290,15 @@ export const PackagingSettingsView: React.FC<PackagingSettingsViewProps> = ({ se
 
     return (
         <div className="flex flex-col h-full">
-            <div className="flex justify-between items-center mb-6">
-                <div>
-                    <h2 className="text-lg font-medium text-white">Packaging Check-ins</h2>
-                    <p className="text-sm text-[#AAAAAA]">Configure mandatory check-ins for video packaging</p>
-                </div>
-                <button
-                    onClick={() => {
-                        if (confirm('Verify and cleanup all check-in data across videos? This will remove orphaned check-ins.')) {
-                            onCleanup();
-                        }
-                    }}
-                    className="text-xs text-[#555] hover:text-[#AAAAAA] underline transition-colors"
-                >
-                    Diff / Cleanup Data
-                </button>
+            <div className="mb-6">
+                <h2 className="text-lg font-medium text-text-primary">Packaging Check-ins</h2>
+                <p className="text-sm text-text-secondary">Configure mandatory check-ins for video packaging</p>
             </div>
 
             <div className="flex-1 overflow-y-auto custom-scrollbar">
                 {settings.checkinRules.length === 0 ? (
-                    <div className="bg-[#1F1F1F] p-4 rounded-xl border border-white/5 flex items-center justify-center text-[#555] text-sm">
-                        <span>No check-ins configured. <button onClick={addRule} className="text-[#AAAAAA] hover:text-white transition-colors hover:underline">Add one to get started</button></span>
+                    <div className="bg-modal-card-bg p-4 rounded-xl flex items-center justify-center text-text-tertiary text-sm">
+                        <span>No check-ins configured. <button onClick={addRule} className="text-text-secondary hover:text-text-primary transition-colors hover:underline">Add one to get started</button></span>
                     </div>
                 ) : (
                     <div className="space-y-3">
@@ -312,7 +314,7 @@ export const PackagingSettingsView: React.FC<PackagingSettingsViewProps> = ({ se
                         <div className="flex justify-end pt-1">
                             <button
                                 onClick={addRule}
-                                className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-xs text-[#AAAAAA] hover:text-white rounded transition-colors border border-white/10 hover:border-white/20"
+                                className="flex items-center gap-2 px-3 py-1.5 bg-hover-bg/50 hover:bg-hover-bg text-xs text-text-secondary hover:text-text-primary rounded transition-colors border border-border hover:border-border"
                             >
                                 <Plus size={12} />
                                 Add check-in
@@ -320,6 +322,27 @@ export const PackagingSettingsView: React.FC<PackagingSettingsViewProps> = ({ se
                         </div>
                     </div>
                 )}
+            </div>
+
+            {/* Data Cleanup */}
+            <div className="mt-6 pt-4 border-t border-border">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <p className="text-sm font-medium text-text-primary">Data Cleanup</p>
+                        <p className="text-xs text-text-secondary mt-0.5">
+                            Scan all videos and remove duplicate or orphaned check-ins. Your data stays safe.
+                        </p>
+                    </div>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleCleanup}
+                        disabled={isCleaning}
+                        leftIcon={<Sparkles size={14} className={isCleaning ? 'animate-spin' : ''} />}
+                    >
+                        {isCleaning ? 'Cleaning...' : 'Run Cleanup'}
+                    </Button>
+                </div>
             </div>
         </div>
     );

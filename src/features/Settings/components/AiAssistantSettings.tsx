@@ -10,6 +10,8 @@ import { linkifyVideoIds } from '../../../core/utils/linkifyVideoIds';
 import { RichTextEditor } from '../../../components/ui/organisms/RichTextEditor';
 import { Dropdown } from '../../../components/ui/molecules/Dropdown';
 import { SegmentedControl } from '../../../components/ui/molecules/SegmentedControl';
+import { logger } from '../../../core/utils/logger';
+import { useUIStore } from '../../../core/stores/uiStore';
 import { useVideosCatalog } from '../../../core/hooks/useVideosCatalog';
 import { useKnowledgeCatalog } from '../../../core/hooks/useKnowledgeCatalog';
 import type { VideoPreviewData } from '../../Video/types';
@@ -18,21 +20,18 @@ import { useChannelStore } from '../../../core/stores/channelStore';
 import { useChatStore } from '../../../core/stores/chat/chatStore';
 import { MODEL_REGISTRY, RESPONSE_LANGUAGES, RESPONSE_STYLES } from '../../../core/types/chat/chat';
 import type { AiAssistantSettings as AiSettings } from '../../../core/types/chat/chat';
+import { type SettingsTheme, SETTINGS_STYLES } from '../types';
 
 interface AiAssistantSettingsProps {
     settings: AiSettings;
     onChange: (settings: AiSettings) => void;
-    theme: {
-        isDark: boolean;
-        textSecondary: string;
-        textPrimary?: string;
-        borderColor?: string;
-    };
+    theme: SettingsTheme;
 }
 
 export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settings, onChange, theme }) => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
+    const { showToast } = useUIStore();
     const { setContext, subscribeToAiSettings, subscribeToMemories } = useChatStore();
 
     const userId = user?.uid;
@@ -105,10 +104,11 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
             setNewMemoryText('');
             setNewMemoryTitle('');
         } catch (err) {
-            console.error('[AiAssistantSettings] Failed to create memory:', err);
+            logger.error('[AiAssistantSettings] Failed to create memory:', { error: err });
+            showToast('Failed to create memory', 'error');
             setIsCreating(true); // re-open textarea so user can retry
         }
-    }, [newMemoryText, newMemoryTitle, storeCreateMemory]);
+    }, [newMemoryText, newMemoryTitle, storeCreateMemory, showToast]);
 
     const handleDelete = useCallback(async (memoryId: string) => {
         setSavingMemoryId(memoryId);
@@ -124,18 +124,14 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
 
     const update = (patch: Partial<AiSettings>) => onChange({ ...settings, ...patch });
 
-    // Styles using CSS variables (matches other settings views)
-    const inputBg = 'bg-[var(--settings-input-bg)]';
-    const inputBorder = 'border-border';
-    const dropdownBg = 'bg-[var(--settings-dropdown-bg)]';
-    const dropdownHover = 'hover:bg-[var(--settings-dropdown-hover)]';
+    const { inputBg, inputBorder, dropdownBg, dropdownHover } = SETTINGS_STYLES;
 
 
     const selectedModel = MODEL_REGISTRY.find(m => m.id === settings.defaultModel);
     const selectedLang = RESPONSE_LANGUAGES.find(l => l.id === settings.responseLanguage);
 
     return (
-        <div className="space-y-8 animate-fade-in max-w-[600px]">
+        <div className="space-y-8 animate-fade-in max-w-[800px]">
             <section className="space-y-1">
                 <h3 className="text-base font-medium">AI Assistant</h3>
                 <p className={`text-sm ${theme.textSecondary}`}>
@@ -149,7 +145,7 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
                 <div className="relative w-64">
                     <button
                         onClick={(e) => setModelAnchorEl(prev => prev ? null : e.currentTarget)}
-                        className={`w-full flex items-center justify-between ${inputBg} border ${inputBorder} ${modelAnchorEl ? 'rounded-t-md rounded-b-none border-b-transparent' : 'rounded-md'} px-3 py-2 hover:border-gray-400 transition-colors`}
+                        className={`w-full flex items-center justify-between ${inputBg} border ${inputBorder} ${modelAnchorEl ? 'rounded-t-md rounded-b-none border-b-transparent' : 'rounded-md'} px-3 py-2 hover:border-text-secondary transition-colors`}
                     >
                         <span className="text-sm">{selectedModel?.label || settings.defaultModel}</span>
                         <ChevronDown
@@ -192,7 +188,7 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
                 <div className="relative w-64">
                     <button
                         onClick={(e) => setLangAnchorEl(prev => prev ? null : e.currentTarget)}
-                        className={`w-full flex items-center justify-between ${inputBg} border ${inputBorder} ${langAnchorEl ? 'rounded-t-md rounded-b-none border-b-transparent' : 'rounded-md'} px-3 py-2 hover:border-gray-400 transition-colors`}
+                        className={`w-full flex items-center justify-between ${inputBg} border ${inputBorder} ${langAnchorEl ? 'rounded-t-md rounded-b-none border-b-transparent' : 'rounded-md'} px-3 py-2 hover:border-text-secondary transition-colors`}
                     >
                         <span className="text-sm">{selectedLang?.label || settings.responseLanguage}</span>
                         <ChevronDown
@@ -268,7 +264,7 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
                         {memories.length} {memories.length === 1 ? 'memory' : 'memories'}
                     </span>
                     <button
-                        className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] bg-transparent border-none cursor-pointer hover:bg-white/[0.05] transition-colors"
+                        className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] bg-transparent border-none cursor-pointer hover:bg-hover-bg transition-colors"
                         style={{ color: 'var(--accent)' }}
                         onClick={() => { setIsCreating(true); setNewMemoryTitle(''); setNewMemoryText(''); }}
                     >
@@ -286,7 +282,7 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
                             value={newMemoryTitle}
                             onChange={(e) => setNewMemoryTitle(e.target.value)}
                             placeholder="Title (optional)"
-                            className="w-full bg-transparent text-sm font-medium text-text-primary outline-none border border-border rounded-md px-2 py-1.5 mb-2 placeholder-modal-placeholder"
+                            className="w-full bg-transparent text-sm font-medium text-text-primary outline-none border border-border rounded-md px-2 py-1.5 mb-2 placeholder-modal-placeholder hover:border-text-secondary focus:border-text-primary transition-colors"
                             autoFocus
                         />
                         <div className="max-h-[400px] overflow-y-auto">
@@ -300,13 +296,13 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
                         </div>
                         <div className="flex items-center justify-end gap-1.5 mt-2">
                             <button
-                                className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] text-text-tertiary bg-transparent border-none cursor-pointer hover:text-text-secondary hover:bg-white/[0.05] transition-colors"
+                                className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] text-text-tertiary bg-transparent border-none cursor-pointer hover:text-text-secondary hover:bg-hover-bg transition-colors"
                                 onClick={() => setIsCreating(false)}
                             >
                                 <X size={12} /> Cancel
                             </button>
                             <button
-                                className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] bg-transparent border-none cursor-pointer hover:bg-white/[0.05] transition-colors disabled:opacity-50"
+                                className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] bg-transparent border-none cursor-pointer hover:bg-hover-bg transition-colors disabled:opacity-50"
                                 style={{ color: 'var(--accent)' }}
                                 onClick={handleCreateSave}
                                 disabled={!newMemoryText.trim()}
@@ -344,7 +340,7 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
                                                     value={editTitle}
                                                     onChange={(e) => setEditTitle(e.target.value)}
                                                     placeholder="Memory title"
-                                                    className="flex-1 min-w-0 bg-transparent text-sm font-medium text-text-primary outline-none border-b border-border px-0 py-0.5 placeholder-modal-placeholder focus:border-accent transition-colors"
+                                                    className="flex-1 min-w-0 bg-transparent text-sm font-medium text-text-primary outline-none border-b border-border px-0 py-0.5 placeholder-modal-placeholder hover:border-text-secondary focus:border-text-primary transition-colors"
                                                 />
                                             ) : (
                                                 <span className="text-sm font-medium text-text-primary truncate">
@@ -357,7 +353,7 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
                                         </div>
                                         <div className="flex items-center gap-0.5 shrink-0 ml-2">
                                             <button
-                                                className={`p-1.5 rounded-md transition-colors ${isEditing ? 'text-accent bg-accent/10' : 'text-text-tertiary hover:text-text-primary hover:bg-white/[0.05]'}`}
+                                                className={`p-1.5 rounded-md transition-colors ${isEditing ? 'text-accent bg-accent/10' : 'text-text-tertiary hover:text-text-primary hover:bg-hover-bg'}`}
                                                 onClick={() => isEditing ? setEditingMemoryId(null) : handleEditStart(mem)}
                                                 disabled={isSaving}
                                                 title={isEditing ? 'Cancel editing' : 'Edit'}
@@ -385,14 +381,14 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
                                             </div>
                                             <div className="flex items-center justify-end gap-1.5 mt-2">
                                                 <button
-                                                    className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] text-text-tertiary bg-transparent border-none cursor-pointer hover:text-text-secondary hover:bg-white/[0.05] transition-colors"
+                                                    className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] text-text-tertiary bg-transparent border-none cursor-pointer hover:text-text-secondary hover:bg-hover-bg transition-colors"
                                                     onClick={() => setEditingMemoryId(null)}
                                                     disabled={isSaving}
                                                 >
                                                     <X size={12} /> Cancel
                                                 </button>
                                                 <button
-                                                    className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] bg-transparent border-none cursor-pointer hover:bg-white/[0.05] transition-colors disabled:opacity-50"
+                                                    className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] bg-transparent border-none cursor-pointer hover:bg-hover-bg transition-colors disabled:opacity-50"
                                                     style={{ color: 'var(--accent)' }}
                                                     onClick={() => handleEditSave(mem.id, mem.conversationTitle)}
                                                     disabled={isSaving}

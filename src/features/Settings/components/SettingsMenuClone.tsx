@@ -3,6 +3,7 @@ import { ArrowLeft, ChevronRight } from 'lucide-react';
 import { useSettings } from '../../../core/hooks/useSettings';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
+import { getDurationUnit, getDurationValue, durationToSeconds, type DurationUnit } from '../utils/unitConversion';
 
 interface SettingsMenuCloneProps {
     onBack: () => void;
@@ -14,28 +15,14 @@ export const SettingsMenuClone: React.FC<SettingsMenuCloneProps> = ({ onBack }) 
     const { currentChannel } = useChannelStore();
     const [isUnitDropdownOpen, setIsUnitDropdownOpen] = useState(false);
 
-    const getUnit = (seconds: number) => {
-        if (seconds % 3600 === 0) return 'Hours';
-        if (seconds % 60 === 0) return 'Minutes';
-        return 'Seconds';
-    };
-
-    const getValue = (seconds: number, unit: string) => {
-        if (unit === 'Hours') return seconds / 3600;
-        if (unit === 'Minutes') return seconds / 60;
-        return seconds;
-    };
-
-    const updateDuration = (val: number, unit: string) => {
+    const updateDuration = (val: number, unit: DurationUnit) => {
         if (!user || !currentChannel) return;
-        let newSeconds = val;
-        if (unit === 'Hours') newSeconds = val * 3600;
-        else if (unit === 'Minutes') newSeconds = val * 60;
+        const newSeconds = durationToSeconds(val, unit);
         updateCloneSettings(user.uid, currentChannel.id, { cloneDurationSeconds: Math.max(10, newSeconds) });
     };
 
-    const currentUnit = getUnit(cloneSettings.cloneDurationSeconds);
-    const currentValue = getValue(cloneSettings.cloneDurationSeconds, currentUnit);
+    const currentUnit = getDurationUnit(cloneSettings.cloneDurationSeconds);
+    const currentValue = getDurationValue(cloneSettings.cloneDurationSeconds, currentUnit);
 
     return (
         <>
@@ -105,7 +92,7 @@ export const SettingsMenuClone: React.FC<SettingsMenuCloneProps> = ({ onBack }) 
                                                 key={unit}
                                                 className="px-3 py-2 text-sm cursor-pointer hover:bg-hover-bg text-text-primary"
                                                 onClick={() => {
-                                                    updateDuration(getValue(cloneSettings.cloneDurationSeconds, unit), unit);
+                                                    updateDuration(getDurationValue(cloneSettings.cloneDurationSeconds, unit as DurationUnit), unit as DurationUnit);
                                                     setIsUnitDropdownOpen(false);
                                                 }}
                                             >
