@@ -12,6 +12,8 @@ export interface KiPreviewData {
     category: string
     summary: string
     scope: 'video' | 'channel'
+    /** Owner video ID — present only for video-scoped KI (used for thumbnail resolution) */
+    videoId?: string
 }
 
 export interface RichTextEditorProps {

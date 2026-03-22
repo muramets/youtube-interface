@@ -188,7 +188,7 @@ const MarkdownMessage: React.FC<{ text: string; videoMap?: Map<string, VideoPrev
                             if (ki) {
                                 return (
                                     <PortalTooltip
-                                        content={<KiPreviewTooltipContent ki={ki} />}
+                                        content={<KiPreviewTooltipContent ki={ki} videoMap={videoMap} />}
                                         side="top"
                                         align="center"
                                         variant="glass"

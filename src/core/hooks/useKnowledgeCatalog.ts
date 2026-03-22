@@ -26,6 +26,7 @@ export function useKnowledgeCatalog(): KiPreviewData[] {
                 category: ki.category,
                 summary: ki.summary,
                 scope: ki.scope,
+                videoId: ki.videoId,
             }))
             .sort((a, b) => a.title.localeCompare(b.title)),
     [items])
