@@ -170,7 +170,7 @@ async function resumeSendFlow(
     isFirstExchange?: boolean,
     isConclude?: boolean,
 ): Promise<void> {
-    const { aiSettings, projects, activeProjectId, messages, memories } = get();
+    const { aiSettings, projects, activeProjectId, messages, memoriesSnapshot: memories } = get();
 
     // Re-activate streaming UI
     set({ isStreaming: true, streamingText: '' });

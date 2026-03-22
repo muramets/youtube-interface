@@ -618,7 +618,9 @@ const editKnowledge: ToolDefinition = {
         "IMPORTANT: Preserve the existing structure and wording — do NOT rephrase or " +
         "restructure existing analysis. Only modify specific sections that need updating " +
         "with new data. Add new findings at the end or within the most relevant existing " +
-        "section. Minimal changes produce clean version diffs for the user.",
+        "section. Minimal changes produce clean version diffs for the user. " +
+        "PARALLEL EDITING: When updating multiple KIs, call editKnowledge for each one " +
+        "in the same response — they execute in parallel, saving time and cost.",
     parametersJsonSchema: {
         type: "object",
         properties: {

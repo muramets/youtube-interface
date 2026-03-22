@@ -44,6 +44,8 @@ export interface ChatState {
     messages: ChatMessage[];
     aiSettings: AiAssistantSettings;
     memories: ConversationMemory[];
+    /** Frozen at conversation start — used for system prompt to avoid mid-conversation cache invalidation. */
+    memoriesSnapshot: ConversationMemory[];
 
     // UI state
     isOpen: boolean;

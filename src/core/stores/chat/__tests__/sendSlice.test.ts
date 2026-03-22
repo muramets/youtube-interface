@@ -108,6 +108,7 @@ function buildStore(overrides: Partial<ChatState> = {}) {
         messages: [],
         aiSettings: DEFAULT_AI_SETTINGS as AiAssistantSettings,
         memories: [],
+        memoriesSnapshot: [],
         isOpen: false,
         view: 'chat',
         activeProjectId: null,

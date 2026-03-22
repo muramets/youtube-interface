@@ -301,3 +301,4 @@ tokenUsage = {
 | Tool definitions | Статичные → внутри cache (Gemini) / breakpoint 2 (Claude) | Без изменений |
 | Memory summarization | `usedSummary = true` → cache disabled + Firestore fields cleared | Prevents semantic divergence |
 | Cross-provider switch | `historyLen` grew > expected (+2 per turn) → cache invalidated | Prevents stale cache from Gemini→Claude→Gemini |
+| L4 Memory (saveMemory) | `memoriesSnapshot` frozen at conversation start → system prompt stable mid-chat | Prevents cascade: prefix change in system prompt would invalidate ALL downstream breakpoints (tools, history, tool results). See [Memory System](./memory-system.md) |

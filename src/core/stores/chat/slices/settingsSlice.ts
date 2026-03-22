@@ -16,6 +16,7 @@ export function createSettingsSlice(
     ChatState,
     | 'aiSettings'
     | 'memories'
+    | 'memoriesSnapshot'
     | 'subscribeToAiSettings'
     | 'subscribeToMemories'
     | 'saveAiSettings'
@@ -28,6 +29,7 @@ export function createSettingsSlice(
         // State
         aiSettings: DEFAULT_AI_SETTINGS as AiAssistantSettings,
         memories: [] as ConversationMemory[],
+        memoriesSnapshot: [] as ConversationMemory[],
 
         // Actions
         subscribeToAiSettings: () => {
@@ -40,7 +42,12 @@ export function createSettingsSlice(
         subscribeToMemories: () => {
             const { userId, channelId } = requireContext(get);
             return ChatService.subscribeToMemories(userId, channelId, (memories) => {
-                set({ memories });
+                const update: Partial<ChatState> = { memories };
+                // Populate snapshot on first load (handles race: memories arrive after conversation is already active)
+                if (get().memoriesSnapshot.length === 0 && memories.length > 0) {
+                    update.memoriesSnapshot = memories;
+                }
+                set(update);
             });
         },
 

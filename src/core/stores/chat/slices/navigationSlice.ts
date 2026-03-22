@@ -55,6 +55,8 @@ export function createNavigationSlice(
                 error: null,
                 hasMoreMessages: false,
                 pendingLargePayloadConfirmation: null,
+                // Freeze memories for this conversation — prevents cache invalidation when saveMemory updates Firestore mid-chat
+                memoriesSnapshot: get().memories,
             });
         },
 
@@ -72,6 +74,8 @@ export function createNavigationSlice(
                 streamingText: '',
                 stoppedResponse: null,
                 pendingLargePayloadConfirmation: null,
+                // Freeze memories for this conversation — prevents cache invalidation when saveMemory updates Firestore mid-chat
+                memoriesSnapshot: get().memories,
             });
         },
     };
