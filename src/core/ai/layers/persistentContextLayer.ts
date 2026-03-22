@@ -157,12 +157,15 @@ function formatSingleVideo(lines: string[], v: VideoCardContext): void {
     const channel = v.channelTitle ? ` (Channel: ${v.channelTitle})` : '';
     const metrics: string[] = [];
     if (v.viewCount) metrics.push(`Views: ${v.viewCount}`);
-    // Delta views from trend snapshots (enriched by middleware)
+    // Delta views from trend snapshots (enriched by middleware) — rolling windows from today
     const deltas: string[] = [];
     if (v.delta24h != null) deltas.push(`24h: ${formatDeltaCompact(v.delta24h)}`);
     if (v.delta7d != null) deltas.push(`7d: ${formatDeltaCompact(v.delta7d)}`);
     if (v.delta30d != null) deltas.push(`30d: ${formatDeltaCompact(v.delta30d)}`);
-    if (deltas.length > 0) metrics.push(deltas.join(' / '));
+    if (deltas.length > 0) {
+        const today = new Date().toISOString().slice(0, 10);
+        metrics.push(`Deltas (as of ${today}): ${deltas.join(' / ')}`);
+    }
     if (v.publishedAt) metrics.push(`Published: ${v.publishedAt}`);
     if (v.duration) metrics.push(`Duration: ${v.duration}`);
     const metricsStr = metrics.length > 0 ? ` — ${metrics.join(' | ')}` : '';

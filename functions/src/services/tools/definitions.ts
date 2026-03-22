@@ -73,7 +73,8 @@ const getMultipleVideoDetails: ToolDefinition = {
         "The context only contains compact info (title + key metrics). Use this tool when " +
         "you need description, tags, or other detailed fields to answer the user's question. " +
         "Response includes view growth data (viewDelta24h/7d/30d) when the video's channel " +
-        "is tracked in Trends — use these to assess whether a video is actively growing or stagnating. " +
+        "is tracked in Trends. These are ROLLING WINDOWS from today backward (not from publishedAt) — " +
+        "use them to assess whether a video is actively growing or stagnating RIGHT NOW. " +
         "If you only know a video title but not its ID, pass the title in the 'titles' parameter — " +
         "the system will search Firestore (0 API cost). Never invent video IDs from titles. " +
         "You can request up to 20 videos in a single call.",
@@ -105,7 +106,8 @@ const analyzeSuggestedTraffic: ToolDefinition = {
         "builds per-video timeline trajectories across all snapshots with pre-computed deltas, " +
         "identifies pool transitions (new/dropped sources per period), and optionally analyzes " +
         "tag/keyword overlap. Each suggested video includes YouTube-wide view deltas " +
-        "(viewDelta24h/7d/30d) showing whether it is growing or stagnating on YouTube overall. " +
+        "(viewDelta24h/7d/30d) — rolling windows from today backward, NOT from publishedAt — " +
+        "showing whether it is growing or stagnating on YouTube RIGHT NOW. " +
         "Returns structured findings for strategic interpretation. " +
         "Use when the user asks about suggested traffic, algorithmic neighbors, " +
         "or alongside which videos YouTube shows theirs. " +
@@ -329,7 +331,7 @@ const browseTrendVideos: ToolDefinition = {
     description:
         "Browse and filter competitor videos from Trends data. " +
         "Supports filtering by channels, date range, and performance tier. " +
-        "Each video includes per-channel performance tier and view growth deltas (24h/7d/30d). " +
+        "Each video includes per-channel performance tier and view growth deltas (24h/7d/30d — rolling windows from today, not from publishedAt). " +
         "Default limit is 50 videos (~6K tokens), max 200. " +
         "Response always includes totalMatched — if truncated, narrow filters or increase limit. " +
         "Zero API cost (all data from Firestore). " +
@@ -423,7 +425,7 @@ const findSimilarVideos: ToolDefinition = {
         "'packaging' for topic similarity (title, tags, description), " +
         "'visual' for thumbnail/visual style similarity, " +
         "'both' for comprehensive match using Reciprocal Rank Fusion to combine results. " +
-        "Returns ranked results with similarity scores, performance data, and view growth metrics. " +
+        "Returns ranked results with similarity scores, performance data, and view growth deltas (rolling windows from today, not from publishedAt). " +
         "Use after browseTrendVideos or getMultipleVideoDetails when user asks about similar content, " +
         "competitive overlap, visual trends, or topic analysis. " +
         "Pass videoId from any previous tool result.",
@@ -458,7 +460,7 @@ const searchDatabase: ToolDefinition = {
         "Search the competitor video database using free-text semantic search. " +
         "Use when the user asks about topics, themes, or concepts across competitor videos " +
         "(e.g., 'what videos exist about AI?', 'find videos about cooking challenges'). " +
-        "Returns semantically relevant videos ranked by relevance with view deltas and performance tiers. " +
+        "Returns semantically relevant videos ranked by relevance with view deltas (rolling windows from today, not from publishedAt) and performance tiers. " +
         "Only searches videos from user's tracked trend channels. " +
         "For finding videos similar to a SPECIFIC video, use findSimilarVideos instead.",
     parametersJsonSchema: {
