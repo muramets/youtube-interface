@@ -17,11 +17,20 @@ export interface DiffBlock {
  * - Numbered list markers → common bullet
  * - Bullet characters (*, -, +) → common *
  * - Indentation depth (2/3/4 spaces → normalized)
+ * - Horizontal rules (---, * * *, ___) → canonical form
+ * - Table separator rows (|---|---| vs | --- | --- |) → canonical form
  */
 function normalizeLine(line: string): string {
-    if (line.trim() === '') return ''
-    return line
-        .trimEnd()
+    if (line.trim() === '' || line.trim() === '&nbsp;') return ''
+    const trimmed = line.trimEnd()
+
+    // Horizontal rules: "---", "***", "* * *", "___" etc → canonical "---"
+    if (/^[-*_\s]{3,}$/.test(trimmed) && /[-*_].*[-*_].*[-*_]/.test(trimmed)) return '---'
+
+    // Table separator rows: "|---|---|" or "| --- | --- |" → canonical form
+    if (/^\|[-:\s|]+\|$/.test(trimmed)) return trimmed.replace(/\s+/g, '')
+
+    return trimmed
         .replace(/^\s*\d+\.\s+/, '* ')           // "  1. " → "* " (numbered → bullet)
         .replace(/^(\s*)[-+]\s+/, '$1* ')         // "  - " → "  * " (normalize bullet char)
         .replace(/^(\s*)\*\s+/, '$1* ')           // "  *  " → "  * " (normalize bullet spacing)
@@ -73,10 +82,7 @@ function collapseDetailsBlocks(md: string): string {
 /**
  * Split markdown into lines for comparison.
  * Collapses <details> blocks first, then normalizes consecutive
- * blank lines (3+ newlines → 2) to reduce false-positive diffs
- * from serializer spacing differences.
- * Blank lines are PRESERVED — they're critical for markdown rendering
- * (tables, paragraph separation, list boundaries).
+ * blank lines (3+ newlines → 2) to reduce serializer spacing noise.
  */
 function splitContentLines(md: string): string[] {
     const collapsed = collapseDetailsBlocks(md)
@@ -87,11 +93,49 @@ function splitContentLines(md: string): string[] {
 }
 
 /**
+ * A content segment: one non-blank line + any trailing blank lines.
+ * Blank lines are "absorbed" into the preceding content line so they
+ * never produce standalone diffs (phantom "+1 line added" markers).
+ */
+interface Segment {
+    /** Normalized content for comparison */
+    key: string
+    /** Start index in the original lines array (inclusive) */
+    startIdx: number
+    /** End index in the original lines array (exclusive) */
+    endIdx: number
+}
+
+/**
+ * Group lines into segments. Each non-blank line absorbs any following
+ * blank lines into one segment. Comparison uses only the non-blank line's
+ * normalized content, while rendering includes the trailing blank lines.
+ *
+ * This eliminates ALL blank-line phantom diffs generically:
+ * LLM vs editor whitespace, loose vs compact lists, heading spacing, etc.
+ */
+function segmentize(lines: string[]): Segment[] {
+    const segments: Segment[] = []
+    for (let i = 0; i < lines.length; i++) {
+        const key = normalizeLine(lines[i])
+        if (key === '') continue
+
+        // Absorb trailing blank lines
+        let end = i + 1
+        while (end < lines.length && normalizeLine(lines[end]) === '') end++
+
+        segments.push({ key, startIdx: i, endIdx: end })
+        i = end - 1
+    }
+    return segments
+}
+
+/**
  * Compute diff blocks for left (old) and right (new) columns.
  *
- * Uses `diffArrays` with normalized comparator — ignores formatting
- * differences (whitespace, list renumbering, blank lines) but renders
- * ORIGINAL lines. Left always shows old content, right shows new content.
+ * Uses segment-based comparison: each content line absorbs its trailing
+ * blank lines, so blank-line differences never produce phantom diffs.
+ * Compares normalized content keys, renders ORIGINAL lines (with blanks).
  */
 export function computeDiffBlocks(oldContent: string, newContent: string): {
     left: DiffBlock[]
@@ -101,42 +145,53 @@ export function computeDiffBlocks(oldContent: string, newContent: string): {
     const oldLines = splitContentLines(oldContent)
     const newLines = splitContentLines(newContent)
 
-    // Pre-normalize for comparison — avoids calling normalizeLine per comparison pair
-    const oldNormalized = oldLines.map(normalizeLine)
-    const newNormalized = newLines.map(normalizeLine)
+    const oldSegments = segmentize(oldLines)
+    const newSegments = segmentize(newLines)
 
-    const changes = diffArrays(oldNormalized, newNormalized)
+    const changes = diffArrays(
+        oldSegments.map(s => s.key),
+        newSegments.map(s => s.key),
+    )
 
     const left: DiffBlock[] = []
     const right: DiffBlock[] = []
     let added = 0
     let removed = 0
-    let oldIdx = 0
-    let newIdx = 0
+    let osi = 0
+    let nsi = 0
 
     for (const change of changes) {
         const count = change.count ?? change.value.length
 
         if (change.added) {
             added += count
-            const content = newLines.slice(newIdx, newIdx + count).join('\n')
+            const start = newSegments[nsi].startIdx
+            const end = newSegments[nsi + count - 1].endIdx
+            const content = newLines.slice(start, end).join('\n')
             right.push({ content, type: 'added', lineCount: count })
             left.push({ content, type: 'added', lineCount: count })
-            newIdx += count
+            nsi += count
         } else if (change.removed) {
             removed += count
-            const content = oldLines.slice(oldIdx, oldIdx + count).join('\n')
+            const start = oldSegments[osi].startIdx
+            const end = oldSegments[osi + count - 1].endIdx
+            const content = oldLines.slice(start, end).join('\n')
             left.push({ content, type: 'removed', lineCount: count })
             right.push({ content, type: 'removed', lineCount: count })
-            oldIdx += count
+            osi += count
         } else {
             // Unchanged — left uses OLD lines, right uses NEW lines
-            const leftContent = oldLines.slice(oldIdx, oldIdx + count).join('\n')
-            const rightContent = newLines.slice(newIdx, newIdx + count).join('\n')
+            const oldStart = oldSegments[osi].startIdx
+            const oldEnd = oldSegments[osi + count - 1].endIdx
+            const newStart = newSegments[nsi].startIdx
+            const newEnd = newSegments[nsi + count - 1].endIdx
+
+            const leftContent = oldLines.slice(oldStart, oldEnd).join('\n')
+            const rightContent = newLines.slice(newStart, newEnd).join('\n')
             left.push({ content: leftContent, type: 'unchanged', lineCount: count })
             right.push({ content: rightContent, type: 'unchanged', lineCount: count })
-            oldIdx += count
-            newIdx += count
+            osi += count
+            nsi += count
         }
     }
 

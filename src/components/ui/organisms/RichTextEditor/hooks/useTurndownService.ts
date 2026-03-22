@@ -12,8 +12,47 @@ export function useTurndownService(): TurndownService {
     return useMemo(() => {
         const service = createBaseTurndownService()
 
-        // Preserve tables in HTML format (Markdown tables are limited)
-        service.keep(['table', 'thead', 'tbody', 'tr', 'th', 'td'])
+        /**
+         * Rule: Convert HTML tables to GFM pipe-format markdown
+         *
+         * Ensures stable round-trip: LLM writes pipe tables → editor parses
+         * to HTML → Turndown converts back to pipe format. Without this,
+         * tables stay as HTML on each save, bloating content 2x and breaking
+         * diff views with phantom changes.
+         */
+        service.addRule('gfm-table', {
+            filter: 'table',
+            replacement: function (_content, node) {
+                const table = node as HTMLElement
+                const rows = Array.from(table.querySelectorAll('tr'))
+                if (rows.length === 0) return ''
+
+                // Build matrix: each row → array of cell markdown
+                // Use service.turndown() per cell to preserve inline formatting
+                // (bold, italic, links) instead of losing it via textContent
+                const matrix = rows.map(row => {
+                    const cells = Array.from(row.querySelectorAll('th, td'))
+                    return cells.map(cell => {
+                        const cellMd = service.turndown(cell.innerHTML)
+                        return cellMd.trim()
+                            .replace(/\|/g, '\\|')
+                            .replace(/\n/g, ' ')
+                    })
+                })
+
+                const colCount = Math.max(...matrix.map(r => r.length))
+                const pad = (arr: string[]) =>
+                    Array.from({ length: colCount }, (_, i) => arr[i] || '')
+
+                const header = '| ' + pad(matrix[0] || []).join(' | ') + ' |'
+                const separator = '|' + Array.from({ length: colCount }, () => '---').join('|') + '|'
+                const body = matrix.slice(1).map(row =>
+                    '| ' + pad(row).join(' | ') + ' |'
+                )
+
+                return '\n\n' + [header, separator, ...body].join('\n') + '\n\n'
+            }
+        })
 
         /**
          * Rule: Compact list items

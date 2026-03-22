@@ -16,6 +16,7 @@ export function createBaseTurndownService(): TurndownService {
     const service = new TurndownService({
         headingStyle: 'atx',
         codeBlockStyle: 'fenced',
+        hr: '---',
     })
 
     service.keep(['span', 'br'])
