@@ -23,3 +23,4 @@
 | 15 | Chat | MemoryCheckpoint: save/delete ошибки молча проглатываются (нет toast feedback) | Low | `src/features/Chat/components/MemoryCheckpoint.tsx` |
 | 16 | Knowledge | headerComponents / HEADER_SIZE / INDENT дублированы между KnowledgeCard и MemoryCheckpoint | Low | `src/features/Knowledge/components/KnowledgeCard.tsx`, `src/features/Chat/components/MemoryCheckpoint.tsx` |
 | 17 | Chat / Tools | `channelBasePath(ctx)` — extract shared utility из 5 knowledge handlers | Low | `functions/src/services/tools/handlers/knowledge/` (saveMemory, saveKnowledge, editKnowledge, getKnowledge, listKnowledge) |
+| 18 | Sync | Multi-tab race condition: duplicate sync + notifications при нескольких открытых вкладках | Medium | [sync-architecture.md](features/sync-architecture.md#текущее-состояние) |
