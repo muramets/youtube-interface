@@ -17,24 +17,22 @@ export function KiPreviewTooltipContent({ ki, videoMap }: KiPreviewTooltipConten
     const thumbnailUrl = ki.videoId ? videoMap?.get(ki.videoId)?.thumbnailUrl : undefined
 
     return (
-        <div className="max-w-[280px] rounded-lg overflow-hidden">
+        <div className="max-w-[280px]">
             {thumbnailUrl && (
                 <img
                     src={thumbnailUrl}
                     alt=""
-                    className="w-full aspect-video object-cover"
+                    className="w-full aspect-video object-cover rounded-t-md mb-2"
                 />
             )}
-            <div className="p-2.5">
-                <div className="flex items-center gap-1.5 mb-1">
-                    <span className="text-[9px] uppercase tracking-wider text-accent bg-accent/10 px-1.5 py-0.5 rounded-full">
-                        {ki.category}
-                    </span>
-                    <span className="text-[9px] text-text-tertiary capitalize">{ki.scope}</span>
-                </div>
-                <div className="text-xs font-medium text-text-primary mb-1">{ki.title}</div>
-                <div className="text-[11px] text-text-secondary line-clamp-3">{ki.summary}</div>
+            <div className="flex items-center gap-1.5 mb-1">
+                <span className="text-[9px] uppercase tracking-wider text-accent bg-accent/10 px-1.5 py-0.5 rounded-full">
+                    {ki.category}
+                </span>
+                <span className="text-[9px] text-text-tertiary capitalize">{ki.scope}</span>
             </div>
+            <div className="text-xs font-medium text-text-primary mb-1">{ki.title}</div>
+            <div className="text-[11px] text-text-secondary line-clamp-3">{ki.summary}</div>
         </div>
     )
 }
