@@ -53,7 +53,7 @@ export const AnalysisStats: React.FC<{ result: Record<string, unknown> }> = ({ r
     ) : null;
 
     const statsContent = (
-        <div className="flex flex-col gap-1.5 px-2 py-1.5 rounded-md bg-white/[0.03] text-[11px] text-text-secondary">
+        <div className="flex flex-col gap-1.5 px-2 py-1.5 rounded-md bg-surface-primary dark:bg-white/[0.03] text-[11px] text-text-secondary">
             <span className="inline-flex items-center gap-1.5">
                 <BarChart3 size={11} className="shrink-0 opacity-60" />
                 {snapshotCount} {snapshotCount === 1 ? 'snapshot' : 'snapshots'}

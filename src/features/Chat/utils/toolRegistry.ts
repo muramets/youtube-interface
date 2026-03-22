@@ -11,6 +11,7 @@ import type { LucideIcon } from 'lucide-react';
 import { Images, Globe, PieChart, Users, TrendingUp, Telescope, Search, BarChart3, MessageSquare, BookOpen, Brain } from 'lucide-react';
 import type React from 'react';
 import type { ToolCallRecord } from '../../../core/types/chat/chat';
+import type { VideoPreviewData } from '../../Video/types';
 import type { ToolCallGroup } from './toolCallGrouping';
 import {
     AnalysisStats,
@@ -26,11 +27,12 @@ import {
     EditKnowledgeRecord,
     SaveMemoryRecord,
     ListKnowledgeStats,
+    GetKnowledgeStats,
 } from '../components/toolStats';
 
 // --- Types ---
 
-export type ToolColor = 'indigo' | 'amber' | 'emerald' | 'accent';
+export type ToolColor = 'indigo' | 'amber' | 'emerald' | 'accent' | 'muted';
 
 export interface ToolLabels {
     error: string;
@@ -42,14 +44,14 @@ export interface ToolLabels {
 export interface ToolConfig {
     /** Lucide icon component, or string literal (e.g. '@' for mentionVideo). */
     icon: LucideIcon | string;
-    /** Color scheme for the pill: indigo (references), amber (visual), emerald (data). */
-    color: ToolColor;
+    /** Color scheme for the pill. Static ToolColor or dynamic function based on group state. */
+    color: ToolColor | ((group: ToolCallGroup) => ToolColor);
     /** Label text for each pill state (error, loading, done). */
     labels: ToolLabels;
     /** Optional stats component rendered in expanded view (receives first record's result). */
-    StatsComponent?: React.FC<{ result: Record<string, unknown> }>;
+    StatsComponent?: React.FC<{ result: Record<string, unknown>; videoMap?: Map<string, VideoPreviewData> }>;
     /** Optional per-record component for expanded view (renders once per record in group). */
-    RecordComponent?: React.FC<{ record: ToolCallRecord }>;
+    RecordComponent?: React.FC<{ record: ToolCallRecord; videoMap?: Map<string, VideoPreviewData> }>;
     /** Whether this tool has expandable content (stats, records, or video list). */
     hasExpandableContent: boolean;
     /** Extract video IDs from tool call records for expanded preview list. */
@@ -110,6 +112,14 @@ function fromArgsArray(field: string): (records: ToolCallRecord[]) => string[] {
 
 function plural(count: number, singular: string, pluralForm: string): string {
     return count === 1 ? singular : pluralForm;
+}
+
+/** Dynamic color factory: returns base color when results present, 'muted' when empty. */
+function emptyAwareColor(
+    base: ToolColor,
+    isEmpty: (group: ToolCallGroup) => boolean,
+): (group: ToolCallGroup) => ToolColor {
+    return (group) => isEmpty(group) ? 'muted' : base;
 }
 
 // --- Registry ---
@@ -221,7 +231,10 @@ const TOOL_REGISTRY: Record<string, ToolConfig> = {
     },
     browseChannelVideos: {
         icon: Globe,
-        color: 'emerald',
+        color: emptyAwareColor('emerald', (g) => {
+            const r = g.records[g.records.length - 1]?.result;
+            return (r?.videos as unknown[] | undefined)?.length === 0;
+        }),
         StatsComponent: BrowseChannelStats,
         hasExpandableContent: true,
         labels: {
@@ -236,7 +249,7 @@ const TOOL_REGISTRY: Record<string, ToolConfig> = {
     },
     listTrendChannels: {
         icon: Users,
-        color: 'emerald',
+        color: emptyAwareColor('emerald', (g) => (g.records[0]?.result?.totalChannels as number) === 0),
         StatsComponent: TrendChannelsStats,
         hasExpandableContent: true,
         sortChannelsBy: 'averageViews',
@@ -251,7 +264,10 @@ const TOOL_REGISTRY: Record<string, ToolConfig> = {
     },
     browseTrendVideos: {
         icon: TrendingUp,
-        color: 'emerald',
+        color: emptyAwareColor('emerald', (g) => {
+            const r = g.records[g.records.length - 1]?.result;
+            return (r?.totalMatched as number) === 0;
+        }),
         StatsComponent: BrowseTrendStats,
         hasExpandableContent: true,
         extractVideoIds: fromResultField('videos'),
@@ -273,7 +289,10 @@ const TOOL_REGISTRY: Record<string, ToolConfig> = {
     },
     getNicheSnapshot: {
         icon: Telescope,
-        color: 'emerald',
+        color: emptyAwareColor('emerald', (g) => {
+            const agg = g.records[0]?.result?.aggregates as Record<string, unknown> | undefined;
+            return (agg?.totalVideosInWindow as number) === 0;
+        }),
         StatsComponent: NicheSnapshotStats,
         hasExpandableContent: true,
         sortVideosBy: 'views',
@@ -302,7 +321,7 @@ const TOOL_REGISTRY: Record<string, ToolConfig> = {
     },
     findSimilarVideos: {
         icon: Search,
-        color: 'emerald',
+        color: emptyAwareColor('emerald', (g) => (g.records[0]?.result?.similar as unknown[] | undefined)?.length === 0),
         StatsComponent: FindSimilarStats,
         hasExpandableContent: true,
         extractVideoIds: fromResultField('similar'),
@@ -322,7 +341,7 @@ const TOOL_REGISTRY: Record<string, ToolConfig> = {
     },
     searchDatabase: {
         icon: Search,
-        color: 'emerald',
+        color: emptyAwareColor('emerald', (g) => (g.records[0]?.result?.results as unknown[] | undefined)?.length === 0),
         StatsComponent: SearchDatabaseStats,
         hasExpandableContent: true,
         extractVideoIds: fromResultField('results'),
@@ -342,7 +361,7 @@ const TOOL_REGISTRY: Record<string, ToolConfig> = {
     },
     getVideoComments: {
         icon: MessageSquare,
-        color: 'emerald',
+        color: emptyAwareColor('emerald', (g) => (g.records[0]?.result?.fetchedCount as number) === 0),
         hasExpandableContent: false,
         extractVideoIds: fromArgsSingle('videoId'),
         labels: {
@@ -392,7 +411,10 @@ const TOOL_REGISTRY: Record<string, ToolConfig> = {
     },
     listKnowledge: {
         icon: BookOpen,
-        color: 'emerald',
+        color: emptyAwareColor('emerald', (g) => {
+            const r = g.records[0]?.result;
+            return (r?.count as number) === 0 || (r?.items as unknown[] | undefined)?.length === 0;
+        }),
         StatsComponent: ListKnowledgeStats,
         hasExpandableContent: true,
         labels: {
@@ -406,20 +428,36 @@ const TOOL_REGISTRY: Record<string, ToolConfig> = {
                 if (count === 0) return 'No existing KI';
                 if (count === 1) {
                     const title = (result?.items as Array<{ title: string }> | undefined)?.[0]?.title;
-                    return title ? `Loaded KI: "${title}"` : '1 existing KI';
+                    return title ? `Listed KI: "${title}"` : '1 existing KI';
                 }
-                return `Loaded ${count} existing KI`;
+                return `Listed ${count} existing KI`;
             },
         },
     },
     getKnowledge: {
         icon: BookOpen,
-        color: 'emerald',
-        hasExpandableContent: false,
+        color: emptyAwareColor('emerald', (g) => {
+            const r = g.records[0]?.result;
+            return (r?.count as number) === 0 || (r?.items as unknown[] | undefined)?.length === 0;
+        }),
+        StatsComponent: GetKnowledgeStats,
+        hasExpandableContent: true,
         labels: {
             error: "Couldn't read knowledge",
             loading: 'Reading knowledge...',
-            done: 'Knowledge loaded',
+            done: (group) => {
+                const result = group.records[0]?.result;
+                const count = result?.count as number | undefined;
+                const items = result?.items as Array<{ title: string }> | undefined;
+                if (count == null && !items?.length) return 'Knowledge read';
+                if (count === 0 || items?.length === 0) return 'No KI found';
+                const n = count ?? items?.length ?? 0;
+                if (n === 1) {
+                    const title = items?.[0]?.title;
+                    return title ? `Read KI: "${title}"` : 'Read 1 KI';
+                }
+                return `Read ${n} KI`;
+            },
         },
     },
     saveMemory: {

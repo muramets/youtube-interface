@@ -55,6 +55,7 @@ const COLOR_CLASSES: Record<string, string> = {
     amber: 'bg-amber-400/[0.08] text-amber-400',
     emerald: 'bg-emerald-500/[0.06] text-emerald-400',
     accent: 'text-accent',
+    muted: 'bg-slate-400/[0.08] text-slate-400',
 };
 
 /** Tailwind v4 supports opacity modifiers on CSS variable colors via native color-mix(). */
@@ -78,7 +79,10 @@ const GroupPill: React.FC<{
     const expandable = isExpandable(group);
 
     const config = getToolConfig(group.toolName);
-    const colorClass = config ? COLOR_CLASSES[config.color] ?? COLOR_CLASSES.emerald : COLOR_CLASSES.emerald;
+    const resolvedColor = config
+        ? (typeof config.color === 'function' ? config.color(group) : config.color)
+        : 'emerald';
+    const colorClass = COLOR_CLASSES[resolvedColor] ?? COLOR_CLASSES.emerald;
 
     const stateClasses = group.hasErrors
         ? 'bg-red-500/[0.06] text-red-400'
@@ -126,7 +130,7 @@ const GroupPill: React.FC<{
         <div className="flex flex-col items-start max-w-full">
             <button
                 type="button"
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] leading-tight max-w-full overflow-hidden transition-colors duration-200 ${stateClasses} ${expandable ? 'cursor-pointer hover:brightness-125' : 'cursor-default'} ${!group.allResolved && !stopped ? 'animate-stream-pulse' : ''} ${config?.color === 'accent' && group.allResolved && !group.hasErrors ? ACCENT_BG_CLASS : ''}`}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] leading-tight max-w-full overflow-hidden transition-colors duration-200 ${stateClasses} ${expandable ? 'cursor-pointer brightness-90 dark:brightness-100 hover:brightness-100 dark:hover:brightness-125' : 'cursor-default'} ${!group.allResolved && !stopped ? 'animate-stream-pulse' : ''} ${resolvedColor === 'accent' && group.allResolved && !group.hasErrors ? ACCENT_BG_CLASS : ''}`}
                 onClick={() => expandable && setExpanded(v => !v)}
                 disabled={!expandable}
             >
@@ -146,10 +150,10 @@ const GroupPill: React.FC<{
                 <div className="mt-1.5 flex flex-col gap-1 w-full">
                     {/* Per-record rendering (registry-driven) */}
                     {RecordComponent && group.records.map((rec, i) => (
-                        <RecordComponent key={i} record={rec} />
+                        <RecordComponent key={i} record={rec} videoMap={videoMap} />
                     ))}
                     {/* Stats component from registry (single-result view) */}
-                    {!RecordComponent && StatsComponent && statsResult && <StatsComponent result={statsResult} />}
+                    {!RecordComponent && StatsComponent && statsResult && <StatsComponent result={statsResult} videoMap={videoMap} />}
                     {/* Thumbnail tool: image grid */}
                     {isThumbnailTool(group) && <ThumbnailGrid group={group} />}
                     {/* Video-based tools: video preview list (skip for thumbnails — ThumbnailGrid above already shows them) */}
@@ -158,7 +162,7 @@ const GroupPill: React.FC<{
 
                         const row = (
                             <div
-                                className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-white/[0.03] text-[11px] cursor-default hover:bg-white/[0.06] transition-colors min-w-0 overflow-hidden"
+                                className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-surface-primary dark:bg-white/[0.03] text-[11px] cursor-default hover:bg-surface-secondary dark:hover:bg-white/[0.06] transition-colors min-w-0 overflow-hidden"
                             >
                                 {video?.thumbnailUrl ? (
                                     <img

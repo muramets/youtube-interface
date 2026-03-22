@@ -85,6 +85,7 @@ describe('handleEditKnowledge', () => {
         );
 
         expect(result.id).toBe('ki-123');
+        expect(result.videoId).toBe('vid-abc');
         expect(result.content).toContain('Traffic Analysis — March 2026');
         expect(result.content).toContain('updated');
 
@@ -264,6 +265,7 @@ describe('handleEditKnowledge', () => {
 
         expect(result.content).toContain('unchanged');
         expect(result.id).toBe('ki-123');
+        expect(result.videoId).toBe('vid-abc');
         // No batch operations — early return
         expect(mockBatchSet).not.toHaveBeenCalled();
         expect(mockBatchUpdate).not.toHaveBeenCalled();
@@ -281,6 +283,26 @@ describe('handleEditKnowledge', () => {
         expect(result.content).toContain('updated');
         expect(mockBatchSet).toHaveBeenCalledOnce();
         expect(mockBatchCommit).toHaveBeenCalledOnce();
+    });
+
+    it('returns undefined videoId when KI has no videoId', async () => {
+        mockDocGet.mockResolvedValue({
+            exists: true,
+            data: () => ({
+                content: 'Channel-level content',
+                title: 'Channel KI',
+                source: 'chat-tool',
+                model: 'claude-sonnet-4-6',
+                scope: 'channel',
+            }),
+        });
+
+        const result = await handleEditKnowledge(
+            { kiId: 'ki-channel', content: 'Updated channel content' },
+            CTX,
+        );
+
+        expect(result.videoId).toBeUndefined();
     });
 
     it('strips undefined from version data (model empty string)', async () => {

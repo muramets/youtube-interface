@@ -10,7 +10,7 @@ export const BrowseChannelStats: React.FC<{ result: Record<string, unknown> }> =
     const sync = result.ownChannelSync as { inApp: number; onYouTube: number; notInApp: number } | undefined;
 
     return (
-        <div className="flex flex-col gap-1 px-2 py-1.5 rounded-md bg-white/[0.03] text-[11px] text-text-secondary">
+        <div className="flex flex-col gap-1 px-2 py-1.5 rounded-md bg-surface-primary dark:bg-white/[0.03] text-[11px] text-text-secondary">
             <span className="text-[10px] text-text-tertiary">
                 {videos?.length ?? 0} videos returned
                 {totalOnYT != null && ` (${totalOnYT} on YouTube)`}

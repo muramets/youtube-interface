@@ -12,7 +12,7 @@ export const TrafficSourceStats: React.FC<{ result: Record<string, unknown> }> =
     const topSources = sources?.slice(0, 5) ?? [];
 
     return (
-        <div className="flex flex-col gap-1.5 px-2 py-1.5 rounded-md bg-white/[0.03] text-[11px] text-text-secondary">
+        <div className="flex flex-col gap-1.5 px-2 py-1.5 rounded-md bg-surface-primary dark:bg-white/[0.03] text-[11px] text-text-secondary">
             {sourceVideo?.title && (
                 <span className="text-text-primary text-[10px] font-medium truncate">{sourceVideo.title}</span>
             )}

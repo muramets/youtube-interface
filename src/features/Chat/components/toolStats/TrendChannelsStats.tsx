@@ -21,7 +21,7 @@ export const TrendChannelsStats: React.FC<{ result: Record<string, unknown> }> =
     }, [channels, config?.sortChannelsBy]);
 
     return (
-        <div className="flex flex-col gap-1 px-2 py-1.5 rounded-md bg-white/[0.03] text-[11px] text-text-secondary">
+        <div className="flex flex-col gap-1 px-2 py-1.5 rounded-md bg-surface-primary dark:bg-white/[0.03] text-[11px] text-text-secondary">
             <span className="inline-flex items-center gap-1.5">
                 <Users size={11} className="shrink-0 opacity-60" />
                 {totalChannels ?? 0} channels · {(totalVideos ?? 0).toLocaleString()} videos

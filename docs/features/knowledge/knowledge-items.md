@@ -84,7 +84,7 @@ Sidebar: пункт **Knowledge** (иконка BookOpen). Route: `/knowledge`.
 ### Retrieval (on-demand)
 
 1. `listKnowledge` — structured items (id, title, category, summary) + count. LLM видит оглавление, UI рендерит expand-pill с KI titles. Response: `{ content: "Found N Knowledge Items.", count, items }`.
-2. `getKnowledge` — полный content (~3-5K tokens per KI). LLM запрашивает только нужные.
+2. `getKnowledge` — полный content (~3-5K tokens per KI). LLM запрашивает только нужные. Response includes `items[]` (id, title, category, videoId, scope) for frontend pill expanded view.
 
 ### Proactive KI creation
 
@@ -154,7 +154,7 @@ Composite indexes deployed: idempotency guard (`conversationId + category + vide
 |------|------|
 | `functions/src/services/tools/handlers/knowledge/saveKnowledge.ts` | Slug validation, idempotency guard (no auto-delete/supersede — each KI is a point-in-time snapshot), **custom video ID resolution** (`resolveVideosByIds` before batch — maps YouTube IDs to `custom-*` docs), atomic batch (KI doc + discovery flags), registry update, **video ref resolution** (regex extract from raw IDs + `vid://` links → `resolveVideosByIds` → `resolvedVideoRefs` snapshot with `hasRealVideoData` guard). `firebase-functions/v2` logger |
 | `functions/src/services/tools/handlers/knowledge/listKnowledge.ts` | Structured items (id, title, category, summary) + count, `.limit(50)`. `content` = human-readable summary (not JSON). UI: expandable pill with KI titles. `firebase-functions/v2` logger |
-| `functions/src/services/tools/handlers/knowledge/getKnowledge.ts` | Full content by IDs (`db.getAll`) or filters, `.limit(20)`. `firebase-functions/v2` logger |
+| `functions/src/services/tools/handlers/knowledge/getKnowledge.ts` | Full content by IDs (`db.getAll`) or filters, `.limit(20)`. Returns `items[]` (id, title, category, videoId, scope) for frontend pill UI alongside `content` JSON string for LLM. `firebase-functions/v2` logger |
 | `functions/src/services/tools/handlers/knowledge/saveMemory.ts` | Always-available. Deterministic doc ID (`conversationId`), upsert: get → exists ? update : set. Orphan guard. KI referenced via `ki://` links in content, not structured field. `firebase-functions/v2` logger |
 | `functions/src/triggers/onKnowledgeItemDeleted.ts` | Firestore trigger: `FieldValue.increment(-1)` + conditional `arrayRemove` for discovery flags |
 | `functions/src/services/tools/definitions.ts` | Tool definitions. `saveMemory` always in `TOOL_DECLARATIONS`. `CONCLUDE_TOOL_DECLARATIONS` empty (deprecated) |
@@ -213,7 +213,8 @@ Composite indexes deployed: idempotency guard (`conversationId + category + vide
 | `src/features/Knowledge/utils/videoRefMap.ts` | `buildCatalogVideoMap`: dual-key video map (videoId + youtubeVideoId) from VideoPreviewData catalog |
 | `src/features/Knowledge/utils/__tests__/formatDate.test.ts` | `getOriginLabel`, `getEditLabel`, `getSourceLabel`, `formatVersionLabel` label function tests |
 | `src/features/Knowledge/utils/__tests__/allowCustomUrls.test.ts` | `allowCustomUrls` protocol allowlist: vid/mention/ki/http/https pass, javascript/data/vbscript blocked |
-| `functions/src/services/tools/handlers/knowledge/__tests__/editKnowledge.test.ts` | `editKnowledge` handler: happy path, validation, not found, content-changed early return, version provenance, video ref resolution |
+| `functions/src/services/tools/handlers/knowledge/__tests__/getKnowledge.test.ts` | `getKnowledge` handler: batch read by IDs, items[] structure (id, title, category, videoId, scope), empty result, count field |
+| `functions/src/services/tools/handlers/knowledge/__tests__/editKnowledge.test.ts` | `editKnowledge` handler: happy path, validation, not found, content-changed early return, version provenance, video ref resolution, videoId in response |
 
 ### Dependencies (added for KI)
 

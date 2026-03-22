@@ -18,7 +18,7 @@ export const SearchDatabaseStats: React.FC<SearchDatabaseStatsProps> = ({ result
     const resultCount = results?.length ?? 0;
 
     return (
-        <div className="flex flex-col gap-1 px-2 py-1.5 rounded-md bg-white/[0.03] text-[11px] text-text-secondary">
+        <div className="flex flex-col gap-1 px-2 py-1.5 rounded-md bg-surface-primary dark:bg-white/[0.03] text-[11px] text-text-secondary">
             {query && (
                 <span className="text-text-primary text-[10px] font-medium truncate">
                     Query: &quot;{query}&quot;

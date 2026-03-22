@@ -11,7 +11,7 @@ export const FindSimilarStats: React.FC<{ result: Record<string, unknown> }> = (
     const topMatch = similar?.[0];
 
     return (
-        <div className="flex flex-col gap-1 px-2 py-1.5 rounded-md bg-white/[0.03] text-[11px] text-text-secondary">
+        <div className="flex flex-col gap-1 px-2 py-1.5 rounded-md bg-surface-primary dark:bg-white/[0.03] text-[11px] text-text-secondary">
             {referenceVideo?.title && (
                 <span className="text-text-primary text-[10px] font-medium truncate">
                     Reference: {referenceVideo.title}

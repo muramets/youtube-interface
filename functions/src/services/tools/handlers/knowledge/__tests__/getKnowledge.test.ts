@@ -69,6 +69,17 @@ describe('handleGetKnowledge', () => {
         const parsed = JSON.parse(result.content as string);
         expect(parsed[0].content).toBe('## Full content here');
         expect(parsed[0].id).toBe('ki-1');
+
+        // Lightweight items[] for frontend pill
+        const items = result.items as Array<Record<string, unknown>>;
+        expect(items).toHaveLength(1);
+        expect(items[0]).toEqual({
+            id: 'ki-1',
+            title: 'Traffic Analysis',
+            category: 'traffic-analysis',
+            videoId: undefined,
+            scope: 'video',
+        });
     });
 
     it('fetches by filters (videoId + categories)', async () => {
@@ -96,6 +107,11 @@ describe('handleGetKnowledge', () => {
         expect(result.count).toBe(1);
         expect(mockWhere).toHaveBeenCalledWith('videoId', '==', 'vid-abc');
         expect(mockWhere).toHaveBeenCalledWith('category', 'in', ['packaging-audit']);
+
+        // items[] includes videoId when present
+        const items = result.items as Array<Record<string, unknown>>;
+        expect(items).toHaveLength(1);
+        expect(items[0].videoId).toBe('vid-abc');
     });
 
     it('returns error when no filters provided', async () => {
@@ -110,6 +126,7 @@ describe('handleGetKnowledge', () => {
         const result = await handleGetKnowledge({ ids: ['ki-x'] }, CTX);
 
         expect(result.items).toEqual([]);
+        expect(result.count).toBe(0);
         expect(result.content).toContain('No Knowledge Items found');
     });
 

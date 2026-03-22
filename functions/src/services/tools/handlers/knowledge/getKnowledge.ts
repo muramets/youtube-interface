@@ -77,6 +77,7 @@ export async function handleGetKnowledge(
     if (items.length === 0) {
         return {
             content: "No Knowledge Items found matching the criteria.",
+            count: 0,
             items: [],
         };
     }
@@ -84,5 +85,12 @@ export async function handleGetKnowledge(
     return {
         content: JSON.stringify(items, null, 2),
         count: items.length,
+        items: items.map(item => ({
+            id: item.id,
+            title: item.title,
+            category: item.category,
+            videoId: item.videoId,
+            scope: item.scope,
+        })),
     };
 }

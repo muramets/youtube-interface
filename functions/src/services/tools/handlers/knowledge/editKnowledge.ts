@@ -77,6 +77,7 @@ export async function handleEditKnowledge(
             id: kiId,
             title,
             category: (kiData.category as string) || undefined,
+            videoId: (kiData.videoId as string) || undefined,
             contentLength: content.length,
         };
     }
@@ -130,6 +131,7 @@ export async function handleEditKnowledge(
         id: kiId,
         title,
         category: (kiData.category as string) || undefined,
+        videoId: (kiData.videoId as string) || undefined,
         contentLength: content.length,
     };
 }

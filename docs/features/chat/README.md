@@ -74,7 +74,7 @@ Gemini ссылается на конкретные видео, пользова
 - [x] **Read-only Memory Bar** — `PersistedContextBar` больше не позволяет удалять контекст mid-conversation (предотвращает поломку mentions)
 - [x] **Token Optimization** — compact L1 prompt (description+tags убраны, ~75% экономии)
 - [x] Batch tool `getMultipleVideoDetails(videoIds[])` — on-demand fetch из двух коллекций (`videos/` + `cached_external_videos/`) + YouTube API fallback
-- [x] Consolidated ToolCallSummary — группировка pills по типу + expandable video preview
+- [x] Consolidated ToolCallSummary — группировка pills по типу + expandable video preview + dynamic muted color для empty results (9 tools) + video thumbnails в Knowledge pills
 - [x] `analyzeTrafficSources` — анализ источников трафика видео on-demand
 - [x] `analyzeSuggestedTraffic` — анализ suggested traffic с визуальным UI
 
@@ -166,7 +166,7 @@ Gemini ссылается на конкретные видео, пользова
 **Компоненты:** `ChatPanel.tsx`, `ChatInput.tsx`, `ChatMessageList.tsx`, `ChatBubble.tsx`
 **Chips:** `VideoCardChip.tsx`, `SuggestedTrafficChip.tsx`, `CanvasSelectionChip.tsx`
 **Hooks:** `features/Chat/hooks/` (7 hooks: useChatDerivedState, useChatDragDrop, useChatNavigation, useChatScroll, useCostAlerts, useFileAttachments, usePanelGeometry)
-**Utils:** `videoReferenceUtils.ts` (legacy utils), `toolCallGrouping.ts` (группировка tool calls по типу для ToolCallSummary), `normalizeMarkdown.ts` (нормализация LLM markdown — fix glued tables, code fence awareness), `buildToolVideoMap.ts` (video lookup из всех tool results — merge данных из browse/details/mention)
+**Utils:** `videoReferenceUtils.ts` (legacy utils), `toolCallGrouping.ts` (группировка tool calls по типу для ToolCallSummary), `toolRegistry.ts` (SSOT для pill presentation: icon, color, labels, stats components; поддержка dynamic color via `emptyAwareColor`, `muted` color для empty results), `normalizeMarkdown.ts` (нормализация LLM markdown — fix glued tables, code fence awareness), `buildToolVideoMap.ts` (video lookup из всех tool results — merge данных из browse/details/mention)
 **Stores:** `appContextStore.ts` (4 слота: playlist, traffic, canvas, trends), `chatStore` → `stoppedResponse` (ghost message, session-only)
 **Backend:** `functions/src/services/ai/` (provider router, retry, tool execution), `gemini/` (Gemini provider), `claude/` (Claude provider), `tools/` (definitions, executor, handlers), `memory.ts` (4 layers). Подробнее: [Multi-Provider Architecture](./infrastructure/multi-provider.md).
 **Types:** `appContext.ts` (VideoCardContext, SuggestedTrafficContext, CanvasSelectionContext)
