@@ -204,6 +204,7 @@ export const ChatService = {
             persistedContext: rebuiltContext.length > 0 ? rebuiltContext : deleteField(),
             summary: deleteField(),
             summarizedUpTo: deleteField(),
+            abortRequested: deleteField(),
             updatedAt: Timestamp.now(),
         });
     },

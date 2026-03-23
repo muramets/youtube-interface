@@ -120,8 +120,10 @@ export const aiChat = onRequest(
         const abortController = new AbortController();
         const convRef = db.doc(convPath);
 
-        // Clear stale abort flag from a previous Stop (fire-and-forget — non-blocking)
-        convRef.update({ abortRequested: admin.firestore.FieldValue.delete() })
+        // Clear stale abort flag from a previous Stop — MUST complete before onSnapshot
+        // listener is registered, otherwise the listener sees the stale flag and
+        // immediately aborts the new request (race condition on edit-after-abort).
+        await convRef.update({ abortRequested: admin.firestore.FieldValue.delete() })
             .catch(() => { /* conv doc may not exist yet for first message edge case */ });
 
         // Realtime listener: fires when client writes abortRequested=true
