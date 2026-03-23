@@ -116,7 +116,7 @@ Final verification — all test suites + lint + typecheck + docs
 
 ### Tasks
 
-- [ ] **T0.1** — Расширить `AiProvider` interface + добавить новые типы
+- [x] **T0.1** — Расширить `AiProvider` interface + добавить новые типы
   - File: `functions/src/services/ai/types.ts`
   - Добавить `GenerateTextOpts` interface:
     ```
@@ -134,7 +134,7 @@ Final verification — all test suites + lint + typecheck + docs
   - Добавить optional method в `AiProvider`: `generateText?(opts: GenerateTextOpts): Promise<GenerateTextResult>`
   - Export новые типы
 
-- [ ] **T0.2** — Gemini `generateText` implementation
+- [x] **T0.2** — Gemini `generateText` implementation
   - File: `functions/src/services/gemini/factory.ts`
   - Добавить `generateText` method в return object `geminiFactory`
   - Implementation:
@@ -145,7 +145,7 @@ Final verification — all test suites + lint + typecheck + docs
   - ⚠️ Gemini schema conversion: написать helper `toGeminiSchema(schema)` рекурсивно. `"object"` → `"OBJECT"`, `"string"` → `"STRING"`, `"array"` → `"ARRAY"`, `"boolean"` → `"BOOLEAN"`, `"number"` → `"NUMBER"`. Обработать `properties`, `items`, `required`. Поместить в `functions/src/services/gemini/schemaUtils.ts`.
   - ⚠️ Не забыть: `systemInstruction` (не `systemPrompt`) — так Gemini SDK называет системный prompt
 
-- [ ] **T0.3** — Claude `generateText` implementation
+- [x] **T0.3** — Claude `generateText` implementation
   - File: `functions/src/services/claude/factory.ts`
   - Добавить `generateText` method в return object `claudeFactory`
   - Implementation:
@@ -156,7 +156,7 @@ Final verification — all test suites + lint + typecheck + docs
     - Token usage: `response.usage` → `TokenUsage`
   - ⚠️ Claude tool_use response: `content` — массив blocks. `tool_use` block имеет `.input` (already parsed JSON, не string). Не нужен `JSON.parse()`.
 
-- [ ] **T0.4** — Provider Router: добавить `generateText` dispatch
+- [x] **T0.4** — Provider Router: добавить `generateText` dispatch
   - File: `functions/src/services/ai/providerRouter.ts`
   - Добавить `generateText` method в return object `createProviderRouter`:
     ```typescript
@@ -172,7 +172,7 @@ Final verification — all test suites + lint + typecheck + docs
     ```
   - ⚠️ **TypeScript return type caveat:** `createProviderRouter` возвращает `AiProvider`. `generateText` — optional на interface → caller должен проверять наличие (`router.generateText?.()` или `if (router.generateText)`). Router гарантирует что метод есть (он в return object literal), но type annotation скрывает это. Решение при имплементации: либо убрать explicit return type annotation (TypeScript infers literal type с non-optional `generateText`), либо создать `AiProviderWithGenerate` extended interface. Не решать заранее — зависит от того, что чище выглядит в реальном коде.
 
-- [ ] **T0.5** — Tests
+- [x] **T0.5** — Tests
   - **T0.5a** — `functions/src/services/gemini/__tests__/generateText.test.ts`
     - Mock: `getClient` → mock `ai.models.generateContent()`
     - Cases:
@@ -215,9 +215,9 @@ npm run check
 ```
 
 ### MANDATORY: Update this file before proceeding
-- [ ] Mark tasks ✅ in this section
-- [ ] Update Phase Status table: Phase 0 → DONE
-- [ ] Record test count from `npx vitest run --project frontend` + `npx vitest run --project functions`
+- [x] Mark tasks ✅ in this section
+- [x] Update Phase Status table: Phase 0 → DONE
+- [x] Record test count from `npx vitest run --project frontend` + `npx vitest run --project functions`
 
 ### Review Gate 0
 
@@ -261,7 +261,7 @@ Fix all findings before moving to Phase 1.
 
 ### Tasks
 
-- [ ] **T1.1** — Type changes
+- [x] **T1.1** — Type changes
   - File: `src/core/types/chat/chat.ts`
     - Расширить `ConversationMemory`:
       - `source?: 'chat' | 'manual' | 'consolidated'` (line ~117)
@@ -269,7 +269,7 @@ Fix all findings before moving to Phase 1.
   - File: `src/core/stores/chat/types.ts`
     - Добавить `toggleMemoryProtected: (memoryId: string) => Promise<void>` в `ChatState`
 
-- [ ] **T1.2** — ChatService: `toggleMemoryProtected` method
+- [x] **T1.2** — ChatService: `toggleMemoryProtected` method
   - File: `src/core/services/ai/chatService.ts`
   - Добавить в `ChatService` object:
     ```typescript
@@ -281,7 +281,7 @@ Fix all findings before moving to Phase 1.
     }
     ```
 
-- [ ] **T1.3** — settingsSlice: `toggleMemoryProtected` action
+- [x] **T1.3** — settingsSlice: `toggleMemoryProtected` action
   - File: `src/core/stores/chat/slices/settingsSlice.ts`
   - Добавить `toggleMemoryProtected` в Pick type и в return object:
     ```typescript
@@ -293,7 +293,7 @@ Fix all findings before moving to Phase 1.
     }
     ```
 
-- [ ] **T1.4** — UI: protected toggle на memory card
+- [x] **T1.4** — UI: protected toggle на memory card
   - File: `src/features/Settings/components/AiAssistantSettings.tsx`
   - На каждой memory card добавить кнопку с иконкой замка (Lock / Unlock из lucide-react):
     - Protected: `Lock` icon, accent color, tooltip "Unprotect — allow consolidation"
@@ -302,7 +302,7 @@ Fix all findings before moving to Phase 1.
   - Protected memories визуально: добавить subtle border или badge "Protected"
   - Расположение: рядом с Edit и Delete кнопками в header memory card
 
-- [ ] **T1.5** — Tests
+- [x] **T1.5** — Tests
   - **T1.5a** — `src/core/services/ai/__tests__/chatService.test.ts` (extend existing)
     - Add test: `toggleMemoryProtected` calls updateDocument with correct args
     - Mock target: `updateDocument` from `'../firestore'`
@@ -320,9 +320,9 @@ npm run check
 ```
 
 ### MANDATORY: Update this file before proceeding
-- [ ] Mark tasks ✅ in this section
-- [ ] Update Phase Status table: Phase 1 → DONE
-- [ ] Record test count
+- [x] Mark tasks ✅ in this section
+- [x] Update Phase Status table: Phase 1 → DONE
+- [x] Record test count
 
 ### Review Gate 1
 
@@ -365,7 +365,7 @@ Fix all findings before moving to Phase 2.
 
 ### Tasks
 
-- [ ] **T2.1** — Prompt, schema, validation utils
+- [x] **T2.1** — Prompt, schema, validation utils
   - Create: `functions/src/chat/consolidation/prompt.ts`
     - Export `CONSOLIDATION_SYSTEM_PROMPT` — полный system prompt из feature doc
     - Export `CONSOLIDATION_SCHEMA` — JSON Schema object (standard lowercase):
@@ -415,7 +415,7 @@ Fix all findings before moving to Phase 2.
     - Import `CHARS_PER_TOKEN` from `functions/src/services/memory.ts`
     - ⚠️ **Sub-task:** `CHARS_PER_TOKEN` в `memory.ts:14` сейчас `const` (не export). Сделать `export const CHARS_PER_TOKEN = 4;` — одна строка, не architectural change.
 
-- [ ] **T2.2** — CF `consolidateMemories`
+- [x] **T2.2** — CF `consolidateMemories`
   - Create: `functions/src/chat/consolidation/consolidateMemories.ts`
   - Pattern: `onCall` (like `generateChatTitle.ts`)
   - Config: `secrets: [geminiApiKey, anthropicApiKey]`, `timeoutSeconds: 300`, `memory: "512MiB"`, `maxInstances: 3`
@@ -449,7 +449,7 @@ Fix all findings before moving to Phase 2.
     - JSON parse failure (despite native enforcement) → HttpsError("internal", "Model returned invalid structure")
     - Wrap LLM call in try/catch
 
-- [ ] **T2.3** — Export CF + frontend caller + Firestore batch
+- [x] **T2.3** — Export CF + frontend caller + Firestore batch
   - File: `functions/src/index.ts`
     - Add: `export { consolidateMemories } from "./chat/consolidation/consolidateMemories.js";`
   - File: `src/core/services/ai/aiProxyService.ts` ← CF caller (consistent with `generateChatTitle`, `geminiUpload`)
@@ -503,7 +503,7 @@ Fix all findings before moving to Phase 2.
       ```
     - ⚠️ Auto-ID: `createMemory` использует `uuidv4()` + `setDocument` — тот же pattern для batch. НЕ использовать `doc(collection(...))` — inconsistent с existing code.
 
-- [ ] **T2.4** — Tests
+- [x] **T2.4** — Tests
   - **T2.4a** — `functions/src/chat/consolidation/__tests__/prompt.test.ts`
     - Test `buildUserPrompt`: format matches crossConversationLayer pattern, intention appended correctly, no intention → no section
     - Test `validateConsolidationResult`:
@@ -561,9 +561,9 @@ npm run check
 ```
 
 ### MANDATORY: Update this file before proceeding
-- [ ] Mark tasks ✅ in this section
-- [ ] Update Phase Status table: Phase 2 → DONE
-- [ ] Record test count
+- [x] Mark tasks ✅ in this section
+- [x] Update Phase Status table: Phase 2 → DONE
+- [x] Record test count
 
 ### Review Gate 2
 
@@ -615,7 +615,7 @@ Fix all findings before moving to Phase 3.
 
 ### Tasks
 
-- [ ] **T3.1** — ConsolidationModal: selection step
+- [x] **T3.1** — ConsolidationModal: selection step
   - Create: `src/features/Settings/components/ConsolidationModal.tsx`
   - Props: `isOpen: boolean`, `onClose: () => void`
   - State machine: `'selection' | 'loading' | 'preview' | 'noChanges' | 'error'`
@@ -632,7 +632,7 @@ Fix all findings before moving to Phase 3.
     - Counter: "N of M memories selected"
   - State: `selectedIds: Set<string>`, `model: string`, `intention: string`
 
-- [ ] **T3.2** — ConsolidationModal: preview/edit step
+- [x] **T3.2** — ConsolidationModal: preview/edit step
   - Extend `ConsolidationModal.tsx`
   - Loading step: spinner + "Analyzing N memories with {model}..."
   - noChanges step: message "These memories don't overlap enough to consolidate. They're already well-organized." + [Close]
@@ -650,7 +650,7 @@ Fix all findings before moving to Phase 3.
     4. On error: toast error + keep modal open
   - Error step: error message + [Try Again] (returns to selection) + [Close]
 
-- [ ] **T3.3** — Wiring: button + store action
+- [x] **T3.3** — Wiring: button + store action
   - File: `src/features/Settings/components/AiAssistantSettings.tsx`
     - Add [Consolidate] button next to [Add Memory] button:
       - Icon: `Combine` from lucide-react (или `Layers`)
@@ -661,7 +661,7 @@ Fix all findings before moving to Phase 3.
     - ⚠️ Consolidation button — рядом с Add Memory, не внутри каждой card
   - ⚠️ **No store action needed.** Modal — self-contained UI component. Вызывает `callConsolidation` (из `aiProxyService`) и `ChatService.applyConsolidation` напрямую. userId получает через `useAuth()`, channelId через `useChannelStore()` — стандартный Settings pattern. Firestore subscription на `conversationMemories` автоматически обновит `memories` в store после batch commit.
 
-- [ ] **T3.4** — Tests
+- [x] **T3.4** — Tests
   - **T3.4a** — `src/features/Settings/__tests__/ConsolidationModal.test.tsx` (create new) — **Selection step**
     - Test rendering: selection step shows memories with checkboxes
     - Test: protected memories have disabled checkboxes
@@ -695,9 +695,9 @@ npm run check
 ```
 
 ### MANDATORY: Update this file before proceeding
-- [ ] Mark tasks ✅ in this section
-- [ ] Update Phase Status table: Phase 3 → DONE
-- [ ] Record test count
+- [x] Mark tasks ✅ in this section
+- [x] Update Phase Status table: Phase 3 → DONE
+- [x] Record test count
 
 ### Review Gate 3
 
@@ -810,20 +810,20 @@ Fix all findings before moving to FINAL.
 
 ### After Both Reviews
 
-- [ ] Fix all R1 findings
-- [ ] Fix all R2 findings
-- [ ] Run full test suite:
+- [x] Fix all R1 findings
+- [x] Fix all R2 findings
+- [x] Run full test suite:
   ```bash
   npx vitest run --project frontend
   npx vitest run --project functions
   npm run check
   ```
-- [ ] Update feature doc: `docs/features/chat/context/memory-consolidation.md`
+- [x] Update feature doc: `docs/features/chat/context/memory-consolidation.md`
   - Move `← YOU ARE HERE` marker after Phase 3
   - Update "Текущее состояние"
   - Update Technical Implementation section with actual file paths
-- [ ] Record final test count in this doc
+- [x] Record final test count in this doc
 
 ### MANDATORY: Update this file
-- [ ] Update Phase Status table: FINAL → DONE
-- [ ] Record final test count
+- [x] Update Phase Status table: FINAL → DONE
+- [x] Record final test count
