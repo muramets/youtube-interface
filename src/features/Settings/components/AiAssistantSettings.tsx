@@ -3,7 +3,7 @@
 // =============================================================================
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { ChevronDown, Brain, Pencil, Check, X, Plus } from 'lucide-react';
+import { ChevronDown, Brain, Pencil, Check, X, Plus, Lock, Unlock, Layers } from 'lucide-react';
 import { ConfirmDeleteButton } from '../../../components/ui/atoms/ConfirmDeleteButton';
 import { CollapsibleMarkdownSections } from '../../Knowledge/components/CollapsibleMarkdownSections';
 import { linkifyVideoIds } from '../../../core/utils/linkifyVideoIds';
@@ -21,6 +21,7 @@ import { useChatStore } from '../../../core/stores/chat/chatStore';
 import { MODEL_REGISTRY, RESPONSE_LANGUAGES, RESPONSE_STYLES } from '../../../core/types/chat/chat';
 import type { AiAssistantSettings as AiSettings } from '../../../core/types/chat/chat';
 import { type SettingsTheme, SETTINGS_STYLES } from '../types';
+import { ConsolidationModal } from './ConsolidationModal';
 
 interface AiAssistantSettingsProps {
     settings: AiSettings;
@@ -69,6 +70,8 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
     const storeCreateMemory = useChatStore(s => s.createMemory);
     const storeUpdateMemory = useChatStore(s => s.updateMemory);
     const storeDeleteMemory = useChatStore(s => s.deleteMemory);
+    const storeToggleProtected = useChatStore(s => s.toggleMemoryProtected);
+    const [consolidationOpen, setConsolidationOpen] = useState(false);
     const [editingMemoryId, setEditingMemoryId] = useState<string | null>(null);
     const [editText, setEditText] = useState('');
     const [editTitle, setEditTitle] = useState('');
@@ -267,13 +270,23 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
                     <span className={`text-[10px] ${theme.textSecondary} ml-auto`}>
                         {memories.length} {memories.length === 1 ? 'memory' : 'memories'}
                     </span>
-                    <button
-                        className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] bg-transparent border-none cursor-pointer hover:bg-hover-bg transition-colors"
-                        style={{ color: 'var(--accent)' }}
-                        onClick={() => { setIsCreating(true); setNewMemoryTitle(''); setNewMemoryText(''); }}
-                    >
-                        <Plus size={12} /> Add Memory
-                    </button>
+                    <div className="flex items-center gap-1 ml-auto">
+                        <button
+                            className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] bg-transparent border-none cursor-pointer hover:bg-hover-bg transition-colors text-text-tertiary hover:text-text-primary disabled:opacity-40 disabled:cursor-not-allowed"
+                            onClick={() => setConsolidationOpen(true)}
+                            disabled={memories.length < 2}
+                            title={memories.length < 2 ? 'Need at least 2 memories to consolidate' : 'Consolidate memories'}
+                        >
+                            <Layers size={12} /> Consolidate
+                        </button>
+                        <button
+                            className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] bg-transparent border-none cursor-pointer hover:bg-hover-bg transition-colors"
+                            style={{ color: 'var(--accent)' }}
+                            onClick={() => { setIsCreating(true); setNewMemoryTitle(''); setNewMemoryText(''); }}
+                        >
+                            <Plus size={12} /> Add Memory
+                        </button>
+                    </div>
                 </div>
 
                 {isCreating && (
@@ -357,6 +370,14 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
                                         </div>
                                         <div className="flex items-center gap-0.5 shrink-0 ml-2">
                                             <button
+                                                className={`p-1.5 rounded-md transition-colors ${mem.protected ? 'text-accent' : 'text-text-tertiary hover:text-text-primary hover:bg-hover-bg'}`}
+                                                onClick={() => storeToggleProtected(mem.id)}
+                                                disabled={isSaving}
+                                                title={mem.protected ? 'Unprotect — allow consolidation' : 'Protect — exclude from consolidation'}
+                                            >
+                                                {mem.protected ? <Lock size={12} /> : <Unlock size={12} />}
+                                            </button>
+                                            <button
                                                 className={`p-1.5 rounded-md transition-colors ${isEditing ? 'text-accent bg-accent/10' : 'text-text-tertiary hover:text-text-primary hover:bg-hover-bg'}`}
                                                 onClick={() => isEditing ? setEditingMemoryId(null) : handleEditStart(mem)}
                                                 disabled={isSaving}
@@ -424,6 +445,10 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
                 </p>
             </div>
 
+            {/* ConsolidationModal — Phase 3 will add the full component here */}
+            {consolidationOpen && (
+                <ConsolidationModal isOpen={consolidationOpen} onClose={() => setConsolidationOpen(false)} />
+            )}
         </div>
     );
 };

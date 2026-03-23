@@ -27,16 +27,16 @@ export const Checkbox: React.FC<CheckboxProps> = ({
                 w-4 h-4 rounded border transition-all flex items-center justify-center
                 ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
                 ${checked || indeterminate
-                    ? 'bg-white border-white'
-                    : 'border-white/20 bg-transparent hover:border-white/40'
+                    ? 'bg-text-primary border-text-primary'
+                    : 'border-text-tertiary bg-transparent hover:border-text-secondary'
                 }
                 ${className}
             `}
         >
             {indeterminate ? (
-                <Minus size={12} className="text-black" strokeWidth={3} />
+                <Minus size={12} className="text-bg-primary" strokeWidth={3} />
             ) : checked ? (
-                <Check size={12} className="text-black" strokeWidth={3} />
+                <Check size={12} className="text-bg-primary" strokeWidth={3} />
             ) : null}
         </button>
     );

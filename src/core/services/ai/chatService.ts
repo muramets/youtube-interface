@@ -401,4 +401,35 @@ export const ChatService = {
     async deleteMemory(userId: string, channelId: string, memoryId: string) {
         await deleteDocument(memoriesPath(userId, channelId), memoryId);
     },
+
+    async toggleMemoryProtected(userId: string, channelId: string, memoryId: string, isProtected: boolean) {
+        await updateDocument(memoriesPath(userId, channelId), memoryId, {
+            protected: isProtected,
+            updatedAt: Timestamp.now(),
+        });
+    },
+
+    async applyConsolidation(
+        userId: string,
+        channelId: string,
+        toDelete: string[],
+        toCreate: Array<{ title: string; content: string }>,
+    ): Promise<void> {
+        const batch = writeBatch(db);
+        const memPath = memoriesPath(userId, channelId);
+        for (const id of toDelete) {
+            batch.delete(firestoreDoc(db, memPath, id));
+        }
+        for (const memory of toCreate) {
+            const id = uuidv4();
+            batch.set(firestoreDoc(db, memPath, id), {
+                conversationTitle: memory.title,
+                content: memory.content,
+                source: 'consolidated' as const,
+                createdAt: Timestamp.now(),
+                updatedAt: Timestamp.now(),
+            });
+        }
+        await batch.commit();
+    },
 };

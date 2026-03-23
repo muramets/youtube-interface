@@ -10,10 +10,11 @@
 //   const result = await provider.streamChat(opts);
 // =============================================================================
 
-import type { AiProvider, ProviderFactory, ProviderStreamOpts, StreamResult } from "../ai/types.js";
+import type { AiProvider, GenerateTextOpts, GenerateTextResult, ProviderFactory, ProviderStreamOpts, StreamResult } from "../ai/types.js";
 import type { GeminiProviderContext } from "./context.js";
 import type { StreamChatOpts } from "./streamChat.js";
 import { streamChat } from "./streamChat.js";
+import { toGeminiSchema } from "./schemaUtils.js";
 
 /**
  * Factory that creates a Gemini AiProvider from configuration.
@@ -93,6 +94,53 @@ export const geminiFactory: ProviderFactory = (config: Record<string, unknown>):
                 agenticImages: result.agenticImages,
                 partial: result.partial,
             };
+        },
+
+        async generateText(opts: GenerateTextOpts): Promise<GenerateTextResult> {
+            const { getClient } = await import("./index.js");
+            const ai = await getClient(apiKey);
+
+            // Build config: structured output + thinking
+            const config: Record<string, unknown> = {};
+            if (opts.systemPrompt) {
+                config.systemInstruction = opts.systemPrompt;
+            }
+            if (opts.responseSchema) {
+                config.responseMimeType = "application/json";
+                config.responseSchema = toGeminiSchema(opts.responseSchema);
+            }
+
+            const response = await ai.models.generateContent({
+                model: opts.model,
+                contents: [{ role: "user", parts: [{ text: opts.text }] }],
+                config,
+            });
+
+            const rawText = response.text?.trim() ?? "";
+            // Gemini: candidatesTokenCount EXCLUDES thinking, thoughtsTokenCount is separate
+            const candidates = response.usageMetadata?.candidatesTokenCount ?? 0;
+            const thoughts = (response.usageMetadata as Record<string, unknown>)?.thoughtsTokenCount as number ?? 0;
+            const tokenUsage = {
+                promptTokens: response.usageMetadata?.promptTokenCount ?? 0,
+                completionTokens: candidates + thoughts,
+                totalTokens: response.usageMetadata?.totalTokenCount ?? 0,
+                thinkingTokens: thoughts,
+            };
+
+            // Parse structured output when schema was provided
+            if (opts.responseSchema) {
+                try {
+                    const parsed: unknown = JSON.parse(rawText);
+                    return { text: rawText, tokenUsage, parsed };
+                } catch {
+                    throw new Error(
+                        `[gemini/generateText] JSON parse failed for structured output. ` +
+                        `Response preview: "${rawText.slice(0, 200)}"`,
+                    );
+                }
+            }
+
+            return { text: rawText, tokenUsage };
         },
     };
 };

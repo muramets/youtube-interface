@@ -19,6 +19,37 @@ import type { NormalizedTokenUsage } from "../../shared/models.js";
  */
 export interface AiProvider {
     streamChat(opts: ProviderStreamOpts): Promise<StreamResult>;
+    /** One-shot text generation (no streaming, no tools, no history). Optional — not all providers implement it. */
+    generateText?(opts: GenerateTextOpts): Promise<GenerateTextResult>;
+}
+
+// --- One-shot generation (non-streaming) ---
+
+/** Options for a one-shot text generation call (no streaming, no tools). */
+export interface GenerateTextOpts {
+    /** Model identifier (e.g. 'gemini-2.5-pro', 'claude-opus-4'). */
+    model: string;
+    /** System-level instructions. */
+    systemPrompt?: string;
+    /** User message text. */
+    text: string;
+    /**
+     * JSON Schema for structured output (standard lowercase types: "object", "string", etc.).
+     * Each provider enforces natively:
+     *   Gemini → responseMimeType + responseSchema
+     *   Claude → tool_use + tool_choice forced
+     */
+    responseSchema?: Record<string, unknown>;
+}
+
+/** Result of a one-shot text generation call. */
+export interface GenerateTextResult {
+    /** Raw text response. */
+    text: string;
+    /** Token usage statistics. */
+    tokenUsage?: TokenUsage;
+    /** Parsed structured output (when responseSchema was provided). */
+    parsed?: unknown;
 }
 
 // --- Input options ---
@@ -206,6 +237,11 @@ export interface ToolIteration {
     assistantContent: unknown[];
     /** Raw Anthropic tool_result blocks with matching tool_use_id references. */
     toolResults: unknown[];
+}
+
+/** AiProvider with guaranteed generateText support (returned by provider router). */
+export interface AiProviderWithGenerateText extends AiProvider {
+    generateText(opts: GenerateTextOpts): Promise<GenerateTextResult>;
 }
 
 // --- Factory ---

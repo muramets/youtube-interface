@@ -4,7 +4,7 @@
 
 ## Текущее состояние
 
-Не начато. Feature doc создан, ожидает ревью.
+Phases 0-3 реализованы + post-release polish. Полный user flow: Settings → AI Memory → Consolidate → выбор memories → модель → intention → Generate → preview/edit (с cost) → Save. Protected memories (lock toggle) исключены из consolidation. Cost tracking: CF вычисляет `costUsd` через `computeIterationCost` и возвращает в preview. Thinking не используется — structured JSON output (native enforcement per provider) несовместим с thinking у Claude. CF logging: `[consolidate]` теги с request/response/error метриками.
 
 ---
 
@@ -326,10 +326,10 @@ interface GenerateTextResult {
 
 ## Roadmap
 
-- [ ] Phase 0: `generateText()` in AiProvider — new method on core AI contract, implemented in Gemini + Claude factories, provider router dispatch
-- [ ] Phase 1: Protected flag — UI toggle + Firestore field + exclude from consolidation selection
-- [ ] Phase 2: Consolidation CF — Cloud Function `consolidateMemories`, prompt, `generateText()` call via provider router, JSON parsing
-- [ ] Phase 3: Consolidation UI — Modal (selection, model, intention, generate, preview/edit, save/cancel)
+- [x] Phase 0: `generateText()` in AiProvider — new method on core AI contract, implemented in Gemini + Claude factories, provider router dispatch
+- [x] Phase 1: Protected flag — UI toggle + Firestore field + exclude from consolidation selection
+- [x] Phase 2: Consolidation CF — Cloud Function `consolidateMemories`, prompt, `generateText()` call via provider router, JSON parsing
+- [x] Phase 3: Consolidation UI — Modal (selection, model, intention, generate, preview/edit, save/cancel)
 
 ← YOU ARE HERE
 
@@ -377,6 +377,37 @@ interface GenerateTextResult {
 ## Open Questions
 
 - **Consolidation history?** Стоит ли хранить "snapshot before consolidation" для возможности отката? Или достаточно Cancel в modal? Для MVP — достаточно Cancel; history можно добавить позже как market-ready feature.
+
+---
+
+## Technical Implementation
+
+### Core AI contract: `generateText()`
+- `GenerateTextOpts` / `GenerateTextResult` — `functions/src/services/ai/types.ts`
+- `AiProviderWithGenerateText` — extended interface (router return type)
+- Gemini impl: `functions/src/services/gemini/factory.ts` — `ai.models.generateContent()` + `toGeminiSchema()`
+- Claude impl: `functions/src/services/claude/factory.ts` — `client.messages.create()` + tool_use pattern + `buildThinkingConfig()`
+- Schema utils: `functions/src/services/gemini/schemaUtils.ts` — `toGeminiSchema()` (lowercase → uppercase recursive)
+- Router: `functions/src/services/ai/providerRouter.ts` — `generateText()` dispatch
+
+### Cloud Function
+- `functions/src/chat/consolidation/consolidateMemories.ts` — `onCall`, 300s timeout, 512MiB, both secrets
+- `functions/src/chat/consolidation/prompt.ts` — system prompt, schema, `buildUserPrompt()`, `validateConsolidationResult()`
+- `functions/src/chat/consolidation/validation.ts` — `validateContentLimits()` (uses `CHARS_PER_TOKEN` from `memory.ts`)
+- Cost: `computeIterationCost()` from `shared/models.ts`, returned as `costUsd` + `tokens`
+- Logging: `[consolidate]` tags — Request (user, model, count), Response (tokens, cost, duration), Error
+
+### Frontend
+- `src/core/services/ai/aiProxyService.ts` — `callConsolidation()` (CF caller via `httpsCallable`)
+- `src/core/services/ai/chatService.ts` — `applyConsolidation()` (atomic `writeBatch`), `toggleMemoryProtected()`
+- `src/core/stores/chat/slices/settingsSlice.ts` — `toggleMemoryProtected` action
+- `src/core/types/chat/chat.ts` — `ConversationMemory.protected`, `source: 'consolidated'`
+
+### UI
+- `src/features/Settings/components/ConsolidationModal.tsx` — multi-step modal (selection → loading → preview/edit → save)
+- `src/features/Settings/components/AiAssistantSettings.tsx` — Consolidate button + Lock/Unlock toggle
+- Design system atoms: `Button` (ghost/accent), `Checkbox`, `Dropdown` (portal-based model picker)
+- Thinking selector: inline pills below model picker, resets on model change
 
 ---
 

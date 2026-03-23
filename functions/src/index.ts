@@ -18,6 +18,7 @@ export { deleteRender } from "./render/deleteRender.js";
 export { aiChat } from "./chat/aiChat.js";
 export { geminiUpload } from "./chat/geminiUpload.js";
 export { generateChatTitle } from "./chat/generateChatTitle.js";
+export { consolidateMemories } from "./chat/consolidation/consolidateMemories.js";
 
 // ─── Firestore Triggers ────────────────────────────────────────────────
 export { onConversationDeleted } from "./triggers/onConversationDeleted.js";

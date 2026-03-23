@@ -9,7 +9,7 @@
 // passed via the registry parameter.
 // =============================================================================
 
-import type { AiProvider, ProviderFactory, ProviderStreamOpts, StreamResult } from "./types.js";
+import type { AiProvider, AiProviderWithGenerateText, GenerateTextOpts, GenerateTextResult, ProviderFactory, ProviderStreamOpts, StreamResult } from "./types.js";
 
 // --- Registry entry ---
 
@@ -47,7 +47,7 @@ export interface ProviderRouterOpts {
  * request for that provider, and the instance is reused for all
  * subsequent calls.
  */
-export function createProviderRouter(opts: ProviderRouterOpts): AiProvider {
+export function createProviderRouter(opts: ProviderRouterOpts): AiProviderWithGenerateText {
     const { registry, modelToProvider } = opts;
     const instances = new Map<string, AiProvider>();
 
@@ -104,6 +104,25 @@ export function createProviderRouter(opts: ProviderRouterOpts): AiProvider {
 
             const provider = getOrCreateProvider(providerName);
             return provider.streamChat(streamOpts);
+        },
+
+        async generateText(opts: GenerateTextOpts): Promise<GenerateTextResult> {
+            const providerName = resolveProvider(opts.model);
+            if (!providerName) {
+                throw new Error(
+                    `[providerRouter] Unknown model "${opts.model}" — ` +
+                    `no provider mapping found. Known prefixes: ` +
+                    `${Object.keys(modelToProvider).join(", ") || "(none)"}`,
+                );
+            }
+
+            const provider = getOrCreateProvider(providerName);
+            if (!provider.generateText) {
+                throw new Error(
+                    `[providerRouter] Provider "${providerName}" does not support generateText.`,
+                );
+            }
+            return provider.generateText(opts);
         },
     };
 }

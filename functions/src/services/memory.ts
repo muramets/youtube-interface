@@ -11,7 +11,7 @@ import { MODEL_CONTEXT_LIMITS, MODEL_HISTORY_RATIOS, HISTORY_BUDGET_RATIO } from
 // --- Token estimation ---
 
 /** Rough per-token char count: ~4 chars per token for mixed content. */
-const CHARS_PER_TOKEN = 4;
+export const CHARS_PER_TOKEN = 4;
 
 /** Tokens allocated to each file/image attachment in the estimate. */
 const ATTACHMENT_TOKEN_ESTIMATE = 1500;

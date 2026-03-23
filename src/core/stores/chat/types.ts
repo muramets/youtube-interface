@@ -129,6 +129,7 @@ export interface ChatState {
     createMemory: (content: string, title?: string) => Promise<void>;
     updateMemory: (memoryId: string, content: string, title?: string) => Promise<void>;
     deleteMemory: (memoryId: string) => Promise<void>;
+    toggleMemoryProtected: (memoryId: string) => Promise<void>;
 
     // Actions — Edit
     setEditingMessage: (msg: ChatMessage | null) => void;

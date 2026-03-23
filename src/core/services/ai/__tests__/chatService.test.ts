@@ -25,6 +25,23 @@ vi.mock('uuid', () => ({
     v4: () => 'test-uuid-1234',
 }));
 
+const mockBatchDelete = vi.fn();
+const mockBatchSet = vi.fn();
+const mockBatchCommit = vi.fn().mockResolvedValue(undefined);
+
+vi.mock('firebase/firestore', async () => {
+    const actual = await vi.importActual('firebase/firestore');
+    return {
+        ...actual,
+        writeBatch: () => ({
+            delete: mockBatchDelete,
+            set: mockBatchSet,
+            commit: mockBatchCommit,
+        }),
+        doc: vi.fn((_db: unknown, path: string, id: string) => ({ path: `${path}/${id}` })),
+    };
+});
+
 vi.mock('../../../../config/firebase', () => ({
     db: {},
 }));
@@ -104,5 +121,53 @@ describe('ChatService.createMemory', () => {
 
         const [, , data] = mockSetDocument.mock.calls[0];
         expect(data.conversationTitle).toBe('Manual note');
+    });
+});
+
+describe('ChatService.applyConsolidation', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it('creates batch with correct deletes and creates', async () => {
+        await ChatService.applyConsolidation(
+            'user-1',
+            'chan-1',
+            ['mem-old-1', 'mem-old-2'],
+            [{ title: 'Merged', content: 'Combined content' }],
+        );
+
+        // Verify deletes
+        expect(mockBatchDelete).toHaveBeenCalledTimes(2);
+        // Verify creates
+        expect(mockBatchSet).toHaveBeenCalledOnce();
+        const setArgs = mockBatchSet.mock.calls[0];
+        expect(setArgs[1]).toMatchObject({
+            conversationTitle: 'Merged',
+            content: 'Combined content',
+            source: 'consolidated',
+        });
+        // Verify commit
+        expect(mockBatchCommit).toHaveBeenCalledOnce();
+    });
+
+    it('sets source: consolidated on created docs', async () => {
+        await ChatService.applyConsolidation(
+            'user-1', 'chan-1',
+            ['mem-1'],
+            [{ title: 'T1', content: 'C1' }, { title: 'T2', content: 'C2' }],
+        );
+
+        expect(mockBatchSet).toHaveBeenCalledTimes(2);
+        for (const call of mockBatchSet.mock.calls) {
+            expect(call[1].source).toBe('consolidated');
+            expect(call[1].createdAt).toBeDefined();
+            expect(call[1].updatedAt).toBeDefined();
+        }
+    });
+
+    it('calls batch.commit() for atomic operation', async () => {
+        await ChatService.applyConsolidation('user-1', 'chan-1', ['m1'], [{ title: 'T', content: 'C' }]);
+        expect(mockBatchCommit).toHaveBeenCalledOnce();
     });
 });

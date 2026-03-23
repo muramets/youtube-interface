@@ -160,6 +160,7 @@ function buildStore(overrides: Partial<ChatState> = {}) {
         createMemory: vi.fn(),
         updateMemory: vi.fn(),
         deleteMemory: vi.fn(),
+        toggleMemoryProtected: vi.fn(),
         setEditingMessage: vi.fn(),
         startReferenceSelection: vi.fn(),
         cancelReferenceSelection: vi.fn(),

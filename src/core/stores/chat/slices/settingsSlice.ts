@@ -24,6 +24,7 @@ export function createSettingsSlice(
     | 'createMemory'
     | 'updateMemory'
     | 'deleteMemory'
+    | 'toggleMemoryProtected'
 > {
     return {
         // State
@@ -89,6 +90,13 @@ export function createSettingsSlice(
         deleteMemory: async (memoryId: string) => {
             const { userId, channelId } = requireContext(get);
             await ChatService.deleteMemory(userId, channelId, memoryId);
+        },
+
+        toggleMemoryProtected: async (memoryId: string) => {
+            const { userId, channelId } = requireContext(get);
+            const memory = get().memories.find(m => m.id === memoryId);
+            if (!memory) return;
+            await ChatService.toggleMemoryProtected(userId, channelId, memoryId, !memory.protected);
         },
     };
 }

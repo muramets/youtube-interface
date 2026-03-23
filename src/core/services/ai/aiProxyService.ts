@@ -317,3 +317,24 @@ export async function generateChatTitle(
     return result.data.title;
 }
 
+// --- Consolidate Memories (via CF) ---
+
+/** Mirrors CF response — defined inline, NOT imported from functions/ (separate TS project). */
+interface ConsolidationResponse {
+    memories: Array<{ title: string; content: string }>;
+    reasoning: string;
+    noChangesNeeded: boolean;
+    costUsd?: number;
+    tokens?: { input: number; output: number };
+}
+
+export async function callConsolidation(params: {
+    model: string;
+    memories: Array<{ id: string; title: string; content: string; createdAt: string }>;
+    intention?: string;
+}): Promise<ConsolidationResponse> {
+    const fn = httpsCallable<typeof params, ConsolidationResponse>(functions, 'consolidateMemories', { timeout: 300_000 });
+    const result = await fn(params);
+    return result.data;
+}
+

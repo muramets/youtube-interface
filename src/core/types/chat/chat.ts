@@ -114,7 +114,8 @@ export interface ConversationMemory {
     conversationTitle: string;
     content: string;           // generated summary (user-editable)
     guidance?: string;         // optional user guidance for focus
-    source?: 'chat' | 'manual'; // absent on legacy memories (treated as 'chat')
+    source?: 'chat' | 'manual' | 'consolidated'; // absent on legacy memories (treated as 'chat')
+    protected?: boolean; // exclude from consolidation when true
     videoRefs?: import('../../../../shared/memory').MemoryVideoRef[]; // video snapshots referenced by this insight
     createdAt: Timestamp;
     updatedAt: Timestamp;
