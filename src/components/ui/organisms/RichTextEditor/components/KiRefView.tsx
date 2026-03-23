@@ -37,6 +37,7 @@ export const KiRefView: React.FC<MarkViewProps> = ({ mark }) => {
             variant="glass"
             enterDelay={200}
             inline
+            cursorAnchor
         >
             <span className="ki-reference-highlight cursor-pointer">
                 <MarkViewContent as="span" />

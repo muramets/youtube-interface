@@ -53,6 +53,7 @@ export function ReferenceLink({ href, children, videoMap, kiMap }: ReferenceLink
                         variant="glass"
                         enterDelay={200}
                         inline
+                        cursorAnchor
                     >
                         <span className="ki-reference-highlight cursor-pointer">{children}</span>
                     </PortalTooltip>

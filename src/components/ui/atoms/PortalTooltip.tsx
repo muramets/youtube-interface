@@ -92,6 +92,9 @@ interface PortalTooltipProps {
     disabled?: boolean;
     /** Override the default max-width for auto sizeMode (default: 360px) */
     maxWidth?: number;
+    /** Anchor tooltip horizontally to cursor position instead of element center.
+     *  Useful for wide inline elements where element center is far from the cursor. */
+    cursorAnchor?: boolean;
 }
 
 interface TooltipPosition {
@@ -143,6 +146,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
     disabled,
     maxWidth,
     inline,
+    cursorAnchor,
 }) => {
     // =========================================================================
     // STATE
@@ -173,6 +177,9 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
 
     // Track hover state for re-showing after disabled state changes
     const isHoveredRef = useRef(false);
+
+    // Cursor X position for cursorAnchor mode
+    const cursorXRef = useRef(0);
 
     // Props ref for stable callbacks (avoids recreating updatePosition)
     const propsRef = useRef({ anchorRect, align, side });
@@ -273,9 +280,10 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                 actualHeight = undefined;
                 let autoMaxHeight: number | undefined;
 
-                const anchorLeft = rect.left;
-                const anchorRight = rect.right ?? rect.left + rect.width;
-                const anchorCenter = rect.left + rect.width / 2;
+                const useCursorX = cursorXRef.current > 0;
+                const anchorLeft = useCursorX ? cursorXRef.current : rect.left;
+                const anchorRight = useCursorX ? cursorXRef.current : (rect.right ?? rect.left + rect.width);
+                const anchorCenter = useCursorX ? cursorXRef.current : (rect.left + rect.width / 2);
                 const anchorMiddleY = rect.top + rect.height / 2;
 
                 let finalTransformX = '0';
@@ -323,7 +331,21 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                     // fall back to maxWidth estimate on first render.
                     const tooltipW = tooltipRef.current?.offsetWidth || (maxWidth ?? AUTO_MAX_WIDTH);
 
-                    if (effectiveAlign === 'left') {
+                    if (useCursorX) {
+                        // cursorAnchor: compute left EDGE directly, no translateX.
+                        // Fixed elements auto-shrink when `left` is far right and translateX
+                        // shifts them back — the browser constrains width before transform.
+                        // Setting `left` to the final edge avoids this CSS layout trap.
+                        if (effectiveAlign === 'center') {
+                            left = cursorXRef.current - tooltipW / 2;
+                        } else if (effectiveAlign === 'right') {
+                            left = cursorXRef.current - tooltipW;
+                        } else {
+                            left = cursorXRef.current;
+                        }
+                        left = Math.max(VIEWPORT_EDGE_PADDING, Math.min(left, viewportWidth - tooltipW - VIEWPORT_EDGE_PADDING));
+                        finalTransformX = '0';
+                    } else if (effectiveAlign === 'left') {
                         left = anchorLeft;
                         finalTransformX = '0';
                         // Clamp: tooltip expands rightward from `left`
@@ -487,9 +509,14 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
     // HOVER HANDLERS
     // =========================================================================
 
-    const handleMouseEnter = () => {
+    const handleMouseEnter = (e: React.PointerEvent<Element>) => {
         if (disabled) return;
         if (forceOpen !== undefined) return; // Ignore hover when externally controlled
+
+        // Capture cursor X for cursorAnchor mode (initial entry only)
+        if (cursorAnchor && !shouldRender) {
+            cursorXRef.current = e.clientX;
+        }
 
         isHoveredRef.current = true;
 
