@@ -24,3 +24,4 @@
 | 16 | Knowledge | headerComponents / HEADER_SIZE / INDENT дублированы между KnowledgeCard и MemoryCheckpoint | Low | `src/features/Knowledge/components/KnowledgeCard.tsx`, `src/features/Chat/components/MemoryCheckpoint.tsx` |
 | 17 | Chat / Tools | `channelBasePath(ctx)` — extract shared utility из 5 knowledge handlers | Low | `functions/src/services/tools/handlers/knowledge/` (saveMemory, saveKnowledge, editKnowledge, getKnowledge, listKnowledge) |
 | 18 | Sync | Multi-tab race condition: duplicate sync + notifications при нескольких открытых вкладках | Medium | [sync-architecture.md](features/sync-architecture.md#текущее-состояние) |
+| 19 | Chat / Memory | Удалить legacy `generateConcludeSummary` + `CONCLUDE_SYSTEM_PROMPT` из `memory.ts` (не используется в production, заменён tool-based Memorize через aiChat) | Low | [memory-system.md](features/chat/context/memory-system.md#technical-implementation) |
