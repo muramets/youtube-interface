@@ -144,12 +144,12 @@ export const TokenBreakdown: React.FC<TokenBreakdownProps> = ({
             )}
 
             {/* === Thinking tokens (if present) === */}
-            {normalizedUsage?.contextWindow?.thinkingTokens != null &&
-             normalizedUsage.contextWindow.thinkingTokens > 0 && (
+            {normalizedUsage?.billing?.output?.thinking != null &&
+             normalizedUsage.billing.output.thinking > 0 && (
                 <div className="text-[10px] text-text-secondary flex justify-between">
                     <span>Thinking tokens</span>
                     <span>
-                        {fmtTokens(normalizedUsage.contextWindow.thinkingTokens)}
+                        {fmtTokens(normalizedUsage.billing.output.thinking)}
                         {normalizedUsage.billing?.cost?.thinkingSubset != null &&
                          normalizedUsage.billing.cost.thinkingSubset > 0 && (
                             <span className="text-text-tertiary ml-1">
