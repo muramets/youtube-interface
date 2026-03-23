@@ -21,7 +21,7 @@ export const useTimelineHotkeys = ({ onAutoFit, onEscape, hasActiveDropdown = fa
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || (e.target instanceof HTMLElement && e.target.isContentEditable)) return;
             const key = e.key.toLowerCase();
             if (key === 'z' || key === 'я') {
                 e.preventDefault();
