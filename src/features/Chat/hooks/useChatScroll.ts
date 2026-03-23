@@ -85,9 +85,11 @@ export function useChatScroll({
     const prevMsgCountRef = useRef(messageCount);
     const prevStreamingRef = useRef(isStreaming);
 
-    // Ref mirror: lets stable callbacks (handleScroll, scrollToBottom) read current streaming state
+    // Ref mirrors: let stable callbacks (handleScroll, ResizeObserver) read current state
     const isStreamingRef = useRef(isStreaming);
     isStreamingRef.current = isStreaming;
+    const isPinnedRef = useRef(isPinned);
+    isPinnedRef.current = isPinned;
 
     // Flag: P1 sets this to trigger useLayoutEffect positioning on next render.
     // Prevents repositioning on non-P1 messageCount changes (e.g., model response arrival).
@@ -259,14 +261,24 @@ export function useChatScroll({
         }
     }, [setSpacer]);
 
-    // Auto-scroll when container height shrinks (e.g. context chips appear in ChatInput)
+    // Container resize handler — two modes:
+    // Pinned: update minHeight to match new viewport + re-flush zone to top.
+    // Normal: auto-scroll to bottom when container shrinks (e.g. context chips in ChatInput).
     useEffect(() => {
         const el = containerRef.current;
         if (!el) return;
         let prevHeight = el.clientHeight;
         const observer = new ResizeObserver(() => {
             const newHeight = el.clientHeight;
-            if (newHeight < prevHeight) {
+            if (newHeight === prevHeight) return;
+
+            const zone = stickyZoneRef.current;
+            if (isPinnedRef.current && zone) {
+                // Pinned mode: update minHeight + re-flush so pin survives resize
+                zone.style.minHeight = `${newHeight}px`;
+                flushZoneToTop(zone, el);
+            } else if (newHeight < prevHeight) {
+                // Normal mode: keep scroll at bottom when container shrinks
                 const distFromBottom = el.scrollHeight - el.scrollTop - prevHeight;
                 if (distFromBottom < AWAY_DISTANCE_THRESHOLD) {
                     el.scrollTop = el.scrollHeight - newHeight;
