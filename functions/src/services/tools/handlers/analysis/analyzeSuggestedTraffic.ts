@@ -7,9 +7,12 @@
 //   3. Download all CSVs from Cloud Storage in parallel
 //   4. Parse CSVs into VideoSnapshotEntry arrays
 //   5. buildVideoTimeline() — per-video trajectory across ALL snapshots
+//   5b. Single read of cached_external_videos for ALL topSources
+//       → channelId hints (view deltas), enriched flag, enrichedData (content analysis)
+//   5c. Enrich topSources with YouTube-wide view deltas
 //   6. Sort by impressions (last snapshot), take top N → attach timeline
 //   7. getTransitions() — new/dropped counts + top examples per period
-//   8. Optionally enrich with cached Firestore video data for content analysis
+//   8. Optionally run content analysis + self-channel stats + content trajectory
 //   9. Return structured JSON for LLM to interpret
 // =============================================================================
 
@@ -181,6 +184,46 @@ export async function handleAnalyzeSuggestedTraffic(
     // Sort by impressions in latest snapshot (descending)
     allTimelines.sort((a, b) => b.impressions - a.impressions);
 
+    // --- Step 5b: Read cached_external_videos for ALL topSources (single read) ---
+    // Used for: (a) view delta channelId hints, (b) enriched flag, (c) content analysis
+
+    const topVideoIds = allTimelines.slice(0, limit).map(t => t.videoId);
+    const enrichedData = new Map<string, EnrichedVideoData>();
+    const enrichedSet = new Set<string>();
+    const channelIdHints = new Set<string>();
+
+    if (topVideoIds.length > 0) {
+        const cacheRefs = topVideoIds.map(id =>
+            db.doc(`${basePath}/cached_external_videos/${id}`),
+        );
+        const cacheSnaps = await db.getAll(...cacheRefs);
+
+        for (let i = 0; i < topVideoIds.length; i++) {
+            const snap = cacheSnaps[i];
+            if (!snap.exists) continue;
+            const d = snap.data()!;
+
+            const tags = Array.isArray(d.tags) ? (d.tags as string[]) : [];
+            const channelTitle = String(d.channelTitle ?? "");
+            const channelId = typeof d.channelId === "string" ? d.channelId : "";
+
+            // enriched = has useful data (tags or channel info)
+            if (tags.length > 0 || channelTitle) {
+                enrichedSet.add(topVideoIds[i]);
+            }
+
+            enrichedData.set(topVideoIds[i], {
+                videoId: topVideoIds[i],
+                tags,
+                channelTitle,
+            });
+
+            if (channelId) {
+                channelIdHints.add(channelId);
+            }
+        }
+    }
+
     const topSources = allTimelines.slice(0, limit).map(t => ({
         videoId: t.videoId,
         sourceTitle: t.sourceTitle,
@@ -190,29 +233,19 @@ export async function handleAnalyzeSuggestedTraffic(
         avgViewDuration: t.avgViewDuration,
         watchTimeHours: t.watchTimeHours,
         timeline: t.timeline,
+        enriched: enrichedSet.has(t.videoId),
         viewDelta24h: null as number | null,
         viewDelta7d: null as number | null,
         viewDelta30d: null as number | null,
     }));
 
-    // --- Step 5b: Enrich topSources with YouTube-wide view deltas ---
+    const enrichmentCoverage = {
+        enriched: enrichedSet.size,
+        total: topSources.length,
+    };
+
+    // --- Step 5c: Enrich topSources with YouTube-wide view deltas ---
     try {
-        const topVideoIds = topSources.map(s => s.videoId);
-        const cacheRefs = topVideoIds.map(id =>
-            db.doc(`${basePath}/cached_external_videos/${id}`),
-        );
-        const cacheSnaps = await db.getAll(...cacheRefs);
-
-        const channelIdHints = new Set<string>();
-        for (const snap of cacheSnaps) {
-            if (snap.exists) {
-                const chId = snap.data()?.channelId;
-                if (typeof chId === "string" && chId) {
-                    channelIdHints.add(chId);
-                }
-            }
-        }
-
         const deltaMap = await getViewDeltas(
             ctx.userId, ctx.channelId, topVideoIds,
             channelIdHints.size > 0 ? channelIdHints : undefined,
@@ -253,25 +286,6 @@ export async function handleAnalyzeSuggestedTraffic(
     if (includeContentAnalysis && topSources.length > 0) {
         ctx.reportProgress?.("Analyzing tags and keywords...");
 
-        const topVideoIds = topSources.slice(0, 30).map((s) => s.videoId);
-        const cachedRefs = topVideoIds.map((id) =>
-            db.doc(`${basePath}/cached_external_videos/${id}`),
-        );
-        const cachedSnaps = await db.getAll(...cachedRefs);
-
-        const enrichedData = new Map<string, EnrichedVideoData>();
-        for (let i = 0; i < topVideoIds.length; i++) {
-            const snap = cachedSnaps[i];
-            if (snap.exists) {
-                const d = snap.data()!;
-                enrichedData.set(topVideoIds[i], {
-                    videoId: topVideoIds[i],
-                    tags: Array.isArray(d.tags) ? (d.tags as string[]) : [],
-                    channelTitle: String(d.channelTitle ?? ""),
-                });
-            }
-        }
-
         // Adapt topSources to TopSource interface expected by analyzeContent
         const topSourcesForAnalysis = topSources.map(s => ({
             videoId: s.videoId,
@@ -290,7 +304,7 @@ export async function handleAnalyzeSuggestedTraffic(
             enrichedData,
         );
 
-        // Enrich ALL unique videoIds across ALL snapshots (for timeline + trajectory)
+        // Enrich ALL unique videoIds across ALL snapshots (for trajectory + selfChannelStats)
         const allVideoIds = new Set<string>();
         for (const snap of parsedSnapshots) {
             for (const row of snap.rows) {
@@ -298,10 +312,9 @@ export async function handleAnalyzeSuggestedTraffic(
             }
         }
 
-        // Merge with already-enriched data (top-30 from content analysis)
+        // Read missing videoIds not already in enrichedData
         const missingIds = [...allVideoIds].filter(id => !enrichedData.has(id));
 
-        // Batch-read missing videoIds from cache (500 per Firestore getAll)
         if (missingIds.length > 0) {
             const BATCH_SIZE = 500;
             for (let b = 0; b < missingIds.length; b += BATCH_SIZE) {
@@ -362,14 +375,22 @@ export async function handleAnalyzeSuggestedTraffic(
 
 DIRECTION (read carefully): These source videos are the "shelves" — YouTube shows the user's video as a suggestion when viewers watch these source videos. Viewers come FROM source videos TO the user's video. When you describe a source video, say "YouTube shows your video alongside [source]" or "your video appears as a suggestion next to [source]" — NEVER "YouTube shows [source] next to yours" (that reverses the direction).
 
+ENRICHMENT COVERAGE:
+- "enrichmentCoverage" shows how many top sources have YouTube API metadata (tags, channel info).
+- Each source in topSources has an "enriched" flag. When enriched=false for a video:
+  • sharedTags is unknown (not empty) — do not conclude "no tag overlap"
+  • that video is excluded from topSourceChannels and selfChannelStats
+- Be precise: base tag and channel conclusions only on enriched=true videos. State which fraction of sources informed each conclusion.
+- If enrichmentCoverage.enriched is low relative to total, recommend the user enrich their CSV data in the Suggested Traffic tab.
+
 CRITICAL RULES:
 - All numbers are deterministic — calculated by code, never estimated.
 - Each video in topSources has a "timeline" array: raw metric values at each snapshot where the video was present, plus pre-computed deltas vs the previous point. Use timelines for trajectory analysis (growth/decline/stability over time).
 - "transitions" shows how the source pool changed between consecutive snapshots: newCount/droppedCount for scale, topNew/topDropped for notable examples. "returningCount" = how many of the "new" videos were actually seen in an earlier snapshot (they dropped out and came back). High returningCount/newCount ratio (e.g. 380/444 = 86%) means YouTube is re-testing the same pool; low ratio means it found entirely new content. IMPORTANT: check snapshotTimeline.totalSources across ALL snapshots — if the pool size spikes, retracts, then spikes again, these are SEPARATE algorithmic test waves. Describe each wave individually; do NOT collapse multiple expansions into one narrative.
 - "avgViewDuration" = how long viewers from this source watched YOUR video on average (format "H:MM:SS"). Compare with the source video's total duration for engagement depth insight.
-- "sharedTags" = exact tag match between your video and the suggested video.
+- "sharedTags" = exact tag match between your video and the suggested video. Only meaningful when the video's "enriched" flag in topSources is true.
 - "topKeywordsInSuggestedTitles" = most frequent words from ALL suggested video titles — useful for niche/topic discovery.
-- "channelDistribution" = which channels appear most in your suggested traffic.
+- "topSourceChannels" = which channels appear most among the top returned sources (enriched videos only). "snapshotChannels" in contentTrajectory = channel frequency across ALL sources in each snapshot. These are different scopes — do not compare their counts directly.
 - "contentTrajectory" (when present) = per-snapshot content evolution. Shows how keywords, channels, and shared tags shifted across ALL snapshots. Each snapshot (except the latest) includes topVideos (top 10 by impressions with pre-computed deltaImpressions) and tailImpressions. Use this to reconstruct the algorithm's journey:
   1. Identify PHASES: which keywords/channels dominated in early vs late snapshots?
   2. Compare topVideos across snapshots: which videos appeared, grew, or disappeared? deltaImpressions shows growth vs previous snapshot; null = video was not in the previous snapshot (new arrival). This reveals which specific videos the algorithm tested and settled on.
@@ -401,6 +422,7 @@ CRITICAL RULES:
     return {
         sourceVideo,
         snapshotTimeline,
+        enrichmentCoverage,
         topSources,
         transitions,
         tail,

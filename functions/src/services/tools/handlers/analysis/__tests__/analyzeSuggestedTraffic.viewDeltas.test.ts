@@ -116,10 +116,10 @@ describe("analyzeSuggestedTraffic — view deltas enrichment", () => {
     it("populates viewDelta fields when trend data is available", async () => {
         setupBaseMocks();
 
-        // cached_external_videos → channelId hints (2nd getAll call, after resolver)
+        // cached_external_videos (single read for enrichment + view delta hints)
         mockGetAll.mockResolvedValueOnce([
-            { exists: true, data: () => ({ channelId: "UCext1" }) },
-            { exists: true, data: () => ({ channelId: "UCext2" }) },
+            { exists: true, data: () => ({ channelId: "UCext1", tags: ["lofi"], channelTitle: "ChA" }) },
+            { exists: true, data: () => ({ channelId: "UCext2", tags: ["chill"], channelTitle: "ChB" }) },
         ]);
 
         mockGetViewDeltas.mockResolvedValue(
@@ -141,16 +141,21 @@ describe("analyzeSuggestedTraffic — view deltas enrichment", () => {
         expect(topSources[0].viewDelta24h).toBe(500);
         expect(topSources[0].viewDelta7d).toBe(3000);
         expect(topSources[0].viewDelta30d).toBe(12000);
+        expect(topSources[0].enriched).toBe(true);
 
         // Second video
         expect(topSources[1].viewDelta24h).toBe(100);
         expect(topSources[1].viewDelta30d).toBeNull();
+        expect(topSources[1].enriched).toBe(true);
+
+        // enrichmentCoverage
+        expect(result.enrichmentCoverage).toEqual({ enriched: 2, total: 2 });
     });
 
-    it("returns null viewDeltas when no trend data exists", async () => {
+    it("returns null viewDeltas and enriched=false when no cached data exists", async () => {
         setupBaseMocks();
 
-        // cached_external_videos → no channelId (2nd getAll call)
+        // cached_external_videos → no docs
         mockGetAll.mockResolvedValueOnce([
             { exists: false, data: () => ({}) },
             { exists: false, data: () => ({}) },
@@ -168,14 +173,19 @@ describe("analyzeSuggestedTraffic — view deltas enrichment", () => {
         expect(topSources[0].viewDelta24h).toBeNull();
         expect(topSources[0].viewDelta7d).toBeNull();
         expect(topSources[0].viewDelta30d).toBeNull();
+        expect(topSources[0].enriched).toBe(false);
+        expect(topSources[1].enriched).toBe(false);
+
+        expect(result.enrichmentCoverage).toEqual({ enriched: 0, total: 2 });
     });
 
     it("handles view delta enrichment failure gracefully", async () => {
         setupBaseMocks();
 
-        // cached_external_videos → channelId hints (2nd getAll call)
+        // cached_external_videos → has data but view deltas will fail
         mockGetAll.mockResolvedValueOnce([
-            { exists: true, data: () => ({ channelId: "UCext1" }) },
+            { exists: true, data: () => ({ channelId: "UCext1", tags: ["lofi"], channelTitle: "ChA" }) },
+            { exists: true, data: () => ({ channelId: "UCext2", tags: [], channelTitle: "" }) },
         ]);
 
         mockGetViewDeltas.mockRejectedValue(new Error("Firestore quota exceeded"));
@@ -191,6 +201,12 @@ describe("analyzeSuggestedTraffic — view deltas enrichment", () => {
         const topSources = result.topSources as Array<Record<string, unknown>>;
         expect(topSources).toHaveLength(2);
         expect(topSources[0].viewDelta24h).toBeNull();
+
+        // enriched flag still reflects cached data presence
+        expect(topSources[0].enriched).toBe(true);  // has tags + channelTitle
+        expect(topSources[1].enriched).toBe(false); // empty tags + empty channelTitle
+
+        expect(result.enrichmentCoverage).toEqual({ enriched: 1, total: 2 });
 
         expect(warnSpy).toHaveBeenCalled();
         warnSpy.mockRestore();

@@ -61,7 +61,7 @@ export interface ContentAnalysis {
         mostFrequentSharedTags: Array<{ tag: string; count: number }>;
         /** Most frequent words across all top source video TITLES (not shared with source video — use for niche/topic discovery) */
         topKeywordsInSuggestedTitles: Array<{ keyword: string; count: number }>;
-        channelDistribution: Array<{ channelTitle: string; count: number }>;
+        topSourceChannels: Array<{ channelTitle: string; count: number }>;
     };
 }
 
@@ -105,7 +105,7 @@ export interface ContentTrajectoryPoint {
     totalImpressions: number;
     topKeywords: Array<{ keyword: string; count: number }>;
     topSharedTags: Array<{ tag: string; count: number }>;
-    channelDistribution: Array<{ channelTitle: string; count: number }>;
+    snapshotChannels: Array<{ channelTitle: string; count: number }>;
     /** Top 10 videos by impressions in this specific snapshot (empty for latest — covered by topSources) */
     topVideos: Array<{ videoId: string; sourceTitle: string; impressions: number; views: number; ctr: number | null; avgViewDuration: string; deltaImpressions: number | null }>;
     /** Impressions from remaining videos not in topVideos */
@@ -364,7 +364,7 @@ export function analyzeContent(
         aggregate: {
             mostFrequentSharedTags: tagFreq.slice(0, 10).map(f => ({ tag: f.item, count: f.count })),
             topKeywordsInSuggestedTitles: kwFreq.slice(0, 20).map(f => ({ keyword: f.item, count: f.count })),
-            channelDistribution: chFreq.slice(0, 20).map(f => ({ channelTitle: f.item, count: f.count })),
+            topSourceChannels: chFreq.slice(0, 20).map(f => ({ channelTitle: f.item, count: f.count })),
         },
     };
 }
@@ -482,7 +482,7 @@ export function computeSelfChannelStats(
  * For each snapshot, aggregates:
  * - topKeywords: from CSV sourceTitle (free, no enrichment)
  * - topSharedTags: tags that overlap with source video (from enrichedData)
- * - channelDistribution: channel frequency (from enrichedData)
+ * - snapshotChannels: channel frequency (from enrichedData)
  *
  * Pure function — no async, no side effects.
  */
@@ -566,7 +566,7 @@ export function computeContentTrajectory(
             totalImpressions,
             topKeywords: kwFreq.slice(0, 10).map(f => ({ keyword: f.item, count: f.count })),
             topSharedTags: tagFreq.slice(0, 10).map(f => ({ tag: f.item, count: f.count })),
-            channelDistribution: chFreq.slice(0, 10).map(f => ({ channelTitle: f.item, count: f.count })),
+            snapshotChannels: chFreq.slice(0, 10).map(f => ({ channelTitle: f.item, count: f.count })),
             topVideos,
             tailImpressions,
             isLatest,

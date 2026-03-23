@@ -802,6 +802,269 @@
       gap: 8px;
     }
 
+    /* ========== Thinking Block ========== */
+    .thinking-block {
+      margin-bottom: 16px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .thinking-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      background: rgba(188,140,255,0.06);
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      user-select: none;
+      font-size: 12px;
+      transition: background 0.15s;
+    }
+    .thinking-header:hover { background: rgba(188,140,255,0.1); }
+
+    .thinking-label { color: var(--purple); font-weight: 600; font-family: var(--font-mono); }
+    .thinking-time { color: var(--text-tertiary); font-family: var(--font-mono); font-size: 11px; margin-left: auto; }
+    .thinking-chevron { font-size: 10px; color: var(--text-tertiary); transition: transform 0.2s; }
+    .thinking-block.open .thinking-chevron { transform: rotate(90deg); }
+
+    .thinking-body {
+      display: none;
+      padding: 12px 14px;
+      font-size: 12px;
+      color: var(--text-tertiary);
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 500px;
+      overflow-y: auto;
+      background: var(--bg-app);
+    }
+    .thinking-block.open .thinking-body { display: block; }
+
+    /* ========== App Context Cards ========== */
+    .app-context-section {
+      margin-top: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .app-context-card {
+      display: flex;
+      gap: 8px;
+      padding: 8px 10px;
+      background: var(--bg-section);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 11px;
+      max-width: 340px;
+    }
+
+    .app-context-thumb {
+      width: 80px;
+      height: 45px;
+      object-fit: cover;
+      border-radius: 3px;
+      flex-shrink: 0;
+      background: var(--bg-app);
+    }
+
+    .app-context-info { flex: 1; min-width: 0; }
+
+    .app-context-title {
+      font-weight: 600;
+      font-size: 11px;
+      color: var(--text-primary);
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      line-height: 1.3;
+    }
+
+    .app-context-meta {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-tertiary);
+      margin-top: 2px;
+    }
+
+    /* ========== Persisted Context Bar ========== */
+    #persisted-context-bar {
+      padding: 8px 20px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      display: none;
+    }
+
+    .persisted-label {
+      font-size: 10px;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .persisted-cards { display: flex; flex-wrap: wrap; gap: 8px; }
+
+    /* ========== Status Badge ========== */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      font-weight: 500;
+    }
+    .status-complete { background: var(--success-dim); color: var(--success); }
+    .status-stopped { background: var(--danger-dim); color: var(--danger); }
+
+    /* ========== Iteration Details ========== */
+    .iteration-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      margin-top: 8px;
+    }
+    .iteration-table th {
+      text-align: right;
+      padding: 3px 6px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-tertiary);
+      font-weight: 500;
+    }
+    .iteration-table th:first-child { text-align: left; }
+    .iteration-table td {
+      padding: 3px 6px;
+      border-bottom: 1px solid rgba(48,54,61,0.4);
+      text-align: right;
+      color: var(--text-secondary);
+    }
+    .iteration-table td:first-child { text-align: left; color: var(--text-primary); }
+
+    /* ========== KI / Knowledge Cards ========== */
+    .ki-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .ki-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      background: var(--bg-section);
+      flex-wrap: wrap;
+    }
+
+    .ki-title { font-weight: 600; font-size: 13px; color: var(--text-primary); flex: 1; }
+
+    .ki-category {
+      padding: 2px 10px;
+      background: rgba(188,140,255,0.12);
+      color: var(--purple);
+      border-radius: 10px;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      font-weight: 500;
+    }
+
+    .ki-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 8px 14px;
+      border-bottom: 1px solid rgba(48,54,61,0.4);
+    }
+
+    .ki-summary {
+      padding: 10px 14px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      border-bottom: 1px solid rgba(48,54,61,0.4);
+      background: rgba(88,166,255,0.03);
+    }
+
+    .ki-content {
+      padding: 14px;
+      font-size: 13px;
+      line-height: 1.7;
+      max-height: 600px;
+      overflow-y: auto;
+    }
+    .ki-content h1 { font-size: 18px; margin: 16px 0 8px; }
+    .ki-content h2 { font-size: 15px; margin: 20px 0 6px; color: var(--accent); }
+    .ki-content h3 { font-size: 13px; margin: 14px 0 4px; }
+    .ki-content p { margin: 6px 0; color: var(--text-secondary); }
+    .ki-content strong { color: var(--text-primary); }
+    .ki-content ul, .ki-content ol { padding-left: 20px; margin: 6px 0; }
+    .ki-content li { margin: 3px 0; color: var(--text-secondary); }
+    .ki-content table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 12px; font-family: var(--font-mono); }
+    .ki-content th { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--border); color: var(--text-tertiary); }
+    .ki-content td { padding: 4px 8px; border-bottom: 1px solid rgba(48,54,61,0.4); color: var(--text-secondary); }
+    .ki-content code { font-family: var(--font-mono); background: var(--bg-section); padding: 1px 5px; border-radius: 3px; font-size: 11px; }
+    .ki-content hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+    .ki-content a { color: var(--accent); text-decoration: none; }
+    .ki-content blockquote { border-left: 3px solid var(--border); padding-left: 10px; color: var(--text-tertiary); margin: 6px 0; }
+
+    /* ========== Mention Card ========== */
+    .mention-card {
+      display: flex;
+      gap: 10px;
+      padding: 10px 12px;
+      background: var(--bg-section);
+      border-radius: var(--radius-sm);
+      align-items: center;
+    }
+
+    .mention-thumb {
+      width: 80px;
+      height: 45px;
+      object-fit: cover;
+      border-radius: 3px;
+      flex-shrink: 0;
+      background: var(--bg-app);
+    }
+
+    .mention-info { flex: 1; min-width: 0; }
+
+    .mention-title {
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--text-primary);
+      text-decoration: none;
+    }
+    .mention-title:hover { color: var(--accent); }
+
+    .mention-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 3px;
+      font-size: 11px;
+    }
+
+    /* ========== Thumbnail Description ========== */
+    .thumb-desc {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      line-height: 1.5;
+      padding: 6px 10px;
+      background: var(--bg-app);
+      border-radius: var(--radius-sm);
+      margin-top: 6px;
+      font-style: italic;
+    }
+
     /* ========== Responsive ========== */
     @media (max-width: 1200px) {
       .split-view { flex-direction: column; height: auto; }
@@ -826,6 +1089,7 @@
 
     <div id="viewer" style="display:none">
       <div id="meta-bar"></div>
+      <div id="persisted-context-bar"></div>
       <div id="context-breakdown-section"></div>
       <div class="split-view">
         <div class="panel panel-left" id="tools-panel"></div>
@@ -1089,7 +1353,7 @@
       var container = el('div');
 
       /* section sizes for token budget */
-      var sectionKeys = ['topSources', 'contentTrajectory', 'transitions', 'contentAnalysis',
+      var sectionKeys = ['enrichmentCoverage', 'topSources', 'contentTrajectory', 'transitions', 'contentAnalysis',
         'analysisGuidance', 'selfChannelStats', 'snapshotTimeline', 'sourceVideo', 'tail'];
       var sections = [];
       sectionKeys.forEach(function(key) {
@@ -1220,8 +1484,12 @@
       topSources.forEach(function(src, i) {
         var barW = maxImp > 0 ? (src.impressions / maxImp * 100) : 0;
 
+        var enrichedDot = src.enriched === false
+          ? el('span', { title: 'not enriched', style: { display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', background: 'var(--text-tertiary)', opacity: '0.4', marginRight: '5px', verticalAlign: 'middle' } })
+          : el('span', { title: 'enriched', style: { display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', background: '#22c55e', marginRight: '5px', verticalAlign: 'middle' } });
         var videoCell = el('td', {},
             el('span', { className: 'inline-bar', style: { width: barW + '%', maxWidth: '80px', background: 'var(--accent)', opacity: '0.3' } }),
+            enrichedDot,
             truncate(src.sourceTitle, 45)
         );
         if (src.videoId) {
@@ -1414,25 +1682,33 @@
           container.appendChild(kwDiv);
         }
 
-        /* channel distribution */
-        if (agg.channelDistribution && agg.channelDistribution.length) {
-          var maxC = Math.max.apply(null, agg.channelDistribution.map(function(c) { return c.count; }));
-          var chDiv = el('div', { style: { marginBottom: '14px' } },
-            el('div', { style: { fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '6px', fontWeight: '500' } }, 'Channel Distribution')
-          );
-          var chBars = el('div', { className: 'h-bars' });
-          agg.channelDistribution.slice(0, 15).forEach(function(c) {
-            chBars.appendChild(el('div', { className: 'h-bar-row' },
-              el('span', { className: 'h-bar-label' }, truncate(c.channelTitle, 28)),
-              el('div', { className: 'h-bar-track' },
-                el('div', { className: 'h-bar-fill', style: { width: (c.count / maxC * 100) + '%' } })
-              ),
-              el('span', { className: 'h-bar-value' }, String(c.count))
-            ));
-          });
-          chDiv.appendChild(chBars);
-          container.appendChild(chDiv);
-        }
+      }
+
+      /* channel distribution — separate from tag-related sections above */
+      if (analysis.aggregate && analysis.aggregate.topSourceChannels && analysis.aggregate.topSourceChannels.length) {
+        var chDist = analysis.aggregate.topSourceChannels;
+        var maxC = Math.max.apply(null, chDist.map(function(c) { return c.count; }));
+        var chDiv = el('div', {
+          style: {
+            marginBottom: '14px', marginTop: '6px', paddingTop: '12px',
+            borderTop: '1px solid var(--border)'
+          }
+        });
+        chDiv.appendChild(el('div', {
+          style: { fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '6px', fontWeight: '500' }
+        }, 'Channel Distribution in Top Sources'));
+        var chBars = el('div', { className: 'h-bars' });
+        chDist.slice(0, 15).forEach(function(c) {
+          chBars.appendChild(el('div', { className: 'h-bar-row' },
+            el('span', { className: 'h-bar-label' }, truncate(c.channelTitle, 28)),
+            el('div', { className: 'h-bar-track' },
+              el('div', { className: 'h-bar-fill', style: { width: (c.count / maxC * 100) + '%', background: 'var(--purple)', opacity: '0.5' } })
+            ),
+            el('span', { className: 'h-bar-value' }, String(c.count))
+          ));
+        });
+        chDiv.appendChild(chBars);
+        container.appendChild(chDiv);
       }
 
       /* perVideoOverlap — collapsed summary */
@@ -1541,7 +1817,7 @@
 
       trajectory.forEach(function(snap) {
         var hasDetails = (snap.topVideos && snap.topVideos.length) ||
-                         (snap.channelDistribution && snap.channelDistribution.length);
+                         (snap.snapshotChannels && snap.snapshotChannels.length);
 
         var chevron = el('span', {
           style: { color: 'var(--text-tertiary)', fontSize: '10px', marginRight: '6px', display: 'inline-block', transition: 'transform 0.15s' }
@@ -1635,14 +1911,14 @@
           }
 
           /* channel distribution bars */
-          if (snap.channelDistribution && snap.channelDistribution.length) {
+          if (snap.snapshotChannels && snap.snapshotChannels.length) {
             details.appendChild(el('div', {
               style: { fontSize: '11px', color: 'var(--text-tertiary)', fontWeight: '500', marginTop: '10px', marginBottom: '4px' }
             }, 'Channel Distribution'));
 
-            var maxC = Math.max.apply(null, snap.channelDistribution.map(function(c) { return c.count; }));
+            var maxC = Math.max.apply(null, snap.snapshotChannels.map(function(c) { return c.count; }));
             var chBars = el('div', { className: 'h-bars' });
-            snap.channelDistribution.forEach(function(c) {
+            snap.snapshotChannels.forEach(function(c) {
               chBars.appendChild(el('div', { className: 'h-bar-row' },
                 el('span', { className: 'h-bar-label' }, truncate(c.channelTitle, 25)),
                 el('div', { className: 'h-bar-track' },
@@ -1760,7 +2036,7 @@
      *  META BAR
      * ========================================================== */
 
-    function renderMeta(meta, modelMsg) {
+    function renderMeta(meta, modelMsg, conversation) {
       var bar = document.getElementById('meta-bar');
       bar.innerHTML = '';
 
@@ -1773,27 +2049,40 @@
         ));
       }
 
-      if (modelMsg && modelMsg.normalizedUsage && modelMsg.normalizedUsage.billing) {
-        var bill = modelMsg.normalizedUsage.billing;
-        if (bill.cost && bill.cost.total != null) {
-          bar.appendChild(el('span', { className: 'meta-badge' },
-            el('span', { className: 'label' }, 'Cost '),
-            el('span', { className: 'value' }, fmtCost(bill.cost.total))
-          ));
+      /* aggregate cost across all model messages */
+      var totalCost = 0;
+      var totalIterations = 0;
+      var lastCw = null;
+      var messages = document.traceMessages || [];
+      messages.forEach(function(m) {
+        if (m.role === 'model' && m.normalizedUsage && m.normalizedUsage.billing) {
+          var bill = m.normalizedUsage.billing;
+          if (bill.cost && bill.cost.total != null) totalCost += bill.cost.total;
+          if (bill.iterations) totalIterations += bill.iterations;
         }
-        if (bill.iterations) {
-          bar.appendChild(el('span', { className: 'meta-badge' },
-            el('span', { className: 'label' }, 'Iter '),
-            el('span', { className: 'value' }, String(bill.iterations))
-          ));
+        if (m.role === 'model' && m.normalizedUsage && m.normalizedUsage.contextWindow) {
+          lastCw = m.normalizedUsage.contextWindow;
         }
+      });
+
+      if (totalCost > 0) {
+        bar.appendChild(el('span', { className: 'meta-badge' },
+          el('span', { className: 'label' }, 'Cost '),
+          el('span', { className: 'value' }, fmtCost(totalCost))
+        ));
       }
 
-      if (modelMsg && modelMsg.normalizedUsage && modelMsg.normalizedUsage.contextWindow) {
-        var cw = modelMsg.normalizedUsage.contextWindow;
+      if (totalIterations > 0) {
+        bar.appendChild(el('span', { className: 'meta-badge' },
+          el('span', { className: 'label' }, 'Iter '),
+          el('span', { className: 'value' }, String(totalIterations))
+        ));
+      }
+
+      if (lastCw) {
         bar.appendChild(el('span', { className: 'meta-badge' },
           el('span', { className: 'label' }, 'Context '),
-          el('span', { className: 'value' }, cw.percent + '% of ' + fmtNum(cw.limit))
+          el('span', { className: 'value' }, lastCw.percent + '% of ' + fmtNum(lastCw.limit))
         ));
       }
 
@@ -1804,10 +2093,24 @@
         ));
       }
 
+      if (meta.messageCount) {
+        bar.appendChild(el('span', { className: 'meta-badge' },
+          el('span', { className: 'label' }, 'Msgs '),
+          el('span', { className: 'value' }, String(meta.messageCount))
+        ));
+      }
+
       if (meta.exportedAt) {
         bar.appendChild(el('span', { className: 'meta-badge' },
-          el('span', { className: 'label' }, 'Date '),
+          el('span', { className: 'label' }, 'Exported '),
           el('span', { className: 'value' }, new Date(meta.exportedAt).toLocaleDateString())
+        ));
+      }
+
+      if (conversation && conversation.createdAt) {
+        bar.appendChild(el('span', { className: 'meta-badge' },
+          el('span', { className: 'label' }, 'Created '),
+          el('span', { className: 'value' }, new Date(conversation.createdAt).toLocaleString())
         ));
       }
     }
@@ -2160,6 +2463,12 @@
           card.appendChild(descSection);
         }
 
+        /* thumbnailDescription */
+        if (video.thumbnailDescription) {
+          card.appendChild(el('div', { className: 'thumb-desc' },
+            '\uD83D\uDDBC ' + video.thumbnailDescription));
+        }
+
         /* youtubeVideoId for custom videos */
         if (video.youtubeVideoId) {
           card.appendChild(el('div', {
@@ -2449,6 +2758,434 @@
     }
 
     /* ==========================================================
+     *  mentionVideo RENDERER
+     * ========================================================== */
+
+    function renderMentionVideo(result, totalTokens, args) {
+      var container = el('div');
+      if (!result || !result.found) {
+        var notFoundMsg = result && result.videoId ? 'Video not found: ' + result.videoId : 'Video not found';
+        container.appendChild(el('div', {
+          style: { color: 'var(--danger)', fontSize: '13px', padding: '8px 12px', background: 'var(--danger-dim)', borderRadius: 'var(--radius-sm)' }
+        }, notFoundMsg));
+        return container;
+      }
+
+      var card = el('div', { className: 'mention-card' });
+      if (result.thumbnailUrl) {
+        card.appendChild(el('img', { className: 'mention-thumb', src: result.thumbnailUrl, alt: '' }));
+      }
+      var info = el('div', { className: 'mention-info' });
+      var ytId = result.youtubeVideoId || result.videoId;
+      info.appendChild(el('a', {
+        className: 'mention-title',
+        href: 'https://www.youtube.com/watch?v=' + ytId,
+        target: '_blank'
+      }, result.title || result.videoId));
+
+      var meta = el('div', { className: 'mention-meta' });
+      if (result.channelTitle) meta.appendChild(el('span', { style: { color: 'var(--text-secondary)' } }, result.channelTitle));
+      if (result.ownership) {
+        meta.appendChild(el('span', {
+          className: 'ownership-badge ownership-' + result.ownership
+        }, result.ownership));
+      }
+      meta.appendChild(el('span', {
+        style: { fontFamily: 'var(--font-mono)', fontSize: '10px', color: 'var(--text-tertiary)' }
+      }, result.videoId));
+      info.appendChild(meta);
+      card.appendChild(info);
+      container.appendChild(card);
+      return container;
+    }
+
+    /* ==========================================================
+     *  saveKnowledge RENDERER (args-centric)
+     * ========================================================== */
+
+    function renderSaveKnowledge(result, totalTokens, args) {
+      var container = el('div');
+
+      /* result confirmation */
+      if (result && result.id) {
+        var confirmBar = el('div', {
+          style: {
+            display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px',
+            background: result.skipped ? 'var(--warning-dim)' : 'var(--success-dim)',
+            borderRadius: 'var(--radius-sm)', marginBottom: '12px', fontSize: '12px',
+            fontFamily: 'var(--font-mono)'
+          }
+        });
+        confirmBar.appendChild(el('span', {
+          style: { color: result.skipped ? 'var(--warning)' : 'var(--success)' }
+        }, result.skipped ? 'Skipped (duplicate)' : 'Saved'));
+        confirmBar.appendChild(el('span', { style: { color: 'var(--text-tertiary)' } }, 'id: ' + result.id));
+        container.appendChild(confirmBar);
+      }
+
+      if (!args) {
+        container.appendChild(el('pre', { className: 'json-raw' }, JSON.stringify(result, null, 2)));
+        return container;
+      }
+
+      /* KI card from args */
+      var card = el('div', { className: 'ki-card' });
+
+      /* header: title + category */
+      var header = el('div', { className: 'ki-header' });
+      header.appendChild(el('span', { className: 'ki-title' }, args.title || 'Untitled'));
+      if (args.category) header.appendChild(el('span', { className: 'ki-category' }, args.category));
+      card.appendChild(header);
+
+      /* meta pills */
+      var meta = el('div', { className: 'ki-meta' });
+      if (args.videoId) meta.appendChild(metricPill('videoId', args.videoId));
+      if (args.toolsUsed && args.toolsUsed.length) {
+        args.toolsUsed.forEach(function(t) {
+          meta.appendChild(el('span', { className: 'tag-pill' }, t));
+        });
+      }
+      if (args.videoRefs && args.videoRefs.length) {
+        meta.appendChild(el('span', { style: { fontSize: '11px', color: 'var(--text-tertiary)' } },
+          args.videoRefs.length + ' video ref' + (args.videoRefs.length !== 1 ? 's' : '')));
+      }
+      card.appendChild(meta);
+
+      /* summary */
+      if (args.summary) {
+        card.appendChild(el('div', { className: 'ki-summary' }, args.summary));
+      }
+
+      /* content — markdown rendered */
+      if (args.content) {
+        var contentDiv = el('div', { className: 'ki-content' });
+        if (typeof marked !== 'undefined' && marked.parse) {
+          contentDiv.innerHTML = marked.parse(args.content);
+        } else {
+          contentDiv.appendChild(el('pre', { style: { whiteSpace: 'pre-wrap', color: 'var(--text-secondary)' } }, args.content));
+        }
+        card.appendChild(contentDiv);
+      }
+
+      /* videoRefs as pills */
+      if (args.videoRefs && args.videoRefs.length) {
+        var refsDiv = el('div', { style: { padding: '8px 14px', borderTop: '1px solid var(--border)' } });
+        refsDiv.appendChild(el('div', {
+          style: { fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '4px', fontWeight: '500' }
+        }, 'Video References'));
+        var pills = el('div', { className: 'tag-pills' });
+        args.videoRefs.forEach(function(id) {
+          var link = el('a', {
+            className: 'tag-pill',
+            href: 'https://www.youtube.com/watch?v=' + id,
+            target: '_blank',
+            style: { textDecoration: 'none' }
+          }, id);
+          pills.appendChild(link);
+        });
+        refsDiv.appendChild(pills);
+        card.appendChild(refsDiv);
+      }
+
+      container.appendChild(card);
+      return container;
+    }
+
+    /* ==========================================================
+     *  getKnowledge RENDERER
+     * ========================================================== */
+
+    function renderGetKnowledge(result, totalTokens, args) {
+      var container = el('div');
+
+      container.appendChild(el('div', {
+        style: { fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '10px' }
+      }, (result.count || 0) + ' Knowledge Item' + ((result.count || 0) !== 1 ? 's' : '') + ' retrieved'));
+
+      /* parse content — it's a JSON string with full items */
+      var items = [];
+      if (result.content) {
+        try { items = JSON.parse(result.content); } catch(e) { /* not JSON, show as-is */ }
+      }
+
+      if (Array.isArray(items) && items.length > 0) {
+        items.forEach(function(item) {
+          var card = el('div', { className: 'ki-card', style: { marginBottom: '12px' } });
+
+          var header = el('div', { className: 'ki-header' });
+          header.appendChild(el('span', { className: 'ki-title' }, item.title || 'Untitled'));
+          if (item.category) header.appendChild(el('span', { className: 'ki-category' }, item.category));
+          card.appendChild(header);
+
+          if (item.summary) {
+            card.appendChild(el('div', { className: 'ki-summary' }, item.summary));
+          }
+
+          if (item.content) {
+            var contentDiv = el('div', { className: 'ki-content' });
+            if (typeof marked !== 'undefined' && marked.parse) {
+              contentDiv.innerHTML = marked.parse(item.content);
+            } else {
+              contentDiv.appendChild(el('pre', { style: { whiteSpace: 'pre-wrap' } }, item.content));
+            }
+            card.appendChild(contentDiv);
+          }
+
+          container.appendChild(card);
+        });
+      } else if (result.content && !items.length) {
+        /* content wasn't parseable as JSON array — show as raw markdown */
+        var contentDiv = el('div', { className: 'ki-content' });
+        if (typeof marked !== 'undefined' && marked.parse) {
+          contentDiv.innerHTML = marked.parse(result.content);
+        } else {
+          contentDiv.appendChild(el('pre', { className: 'json-raw' }, result.content));
+        }
+        container.appendChild(contentDiv);
+      }
+
+      /* lightweight items list from result.items */
+      if (result.items && result.items.length && (!items || !items.length)) {
+        result.items.forEach(function(item) {
+          container.appendChild(el('div', { style: { padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: '12px' } },
+            el('span', { className: 'ki-category', style: { marginRight: '8px' } }, item.category || ''),
+            el('span', { style: { fontWeight: '500' } }, item.title || item.id),
+            item.videoId ? el('span', { style: { color: 'var(--text-tertiary)', marginLeft: '8px', fontFamily: 'var(--font-mono)', fontSize: '10px' } }, item.videoId) : el('span')
+          ));
+        });
+      }
+
+      return container;
+    }
+
+    /* ==========================================================
+     *  listKnowledge RENDERER
+     * ========================================================== */
+
+    function renderListKnowledge(result, totalTokens, args) {
+      var container = el('div');
+
+      container.appendChild(el('div', {
+        style: { fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '10px' }
+      }, (result.count || 0) + ' Knowledge Item' + ((result.count || 0) !== 1 ? 's' : '')));
+
+      if (!result.items || !result.items.length) {
+        container.appendChild(el('div', { style: { color: 'var(--text-tertiary)', fontSize: '13px' } }, result.content || 'No items found'));
+        return container;
+      }
+
+      var table = el('table', { className: 'data-table' });
+      table.appendChild(el('thead', {},
+        el('tr', {},
+          el('th', {}, 'Title'),
+          el('th', {}, 'Category'),
+          el('th', {}, 'Scope'),
+          el('th', {}, 'Source'),
+          el('th', {}, 'Date')
+        )
+      ));
+
+      var tbody = el('tbody');
+      result.items.forEach(function(item) {
+        var titleCell = el('td', {});
+        titleCell.appendChild(el('div', { style: { fontWeight: '500', fontSize: '12px' } }, truncate(item.title, 45)));
+        if (item.summary) {
+          titleCell.appendChild(el('div', { style: { color: 'var(--text-tertiary)', fontSize: '11px', marginTop: '2px' } }, truncate(item.summary, 80)));
+        }
+
+        tbody.appendChild(el('tr', {},
+          titleCell,
+          el('td', {}, el('span', { className: 'ki-category' }, item.category || '\u2014')),
+          el('td', {}, item.scope || '\u2014'),
+          el('td', {}, item.source || '\u2014'),
+          el('td', {}, formatDate(item.createdAt))
+        ));
+      });
+
+      table.appendChild(tbody);
+      container.appendChild(table);
+      return container;
+    }
+
+    /* ==========================================================
+     *  editKnowledge RENDERER (args-centric)
+     * ========================================================== */
+
+    function renderEditKnowledge(result, totalTokens, args) {
+      var container = el('div');
+
+      /* result confirmation */
+      if (result && result.id) {
+        var meta = el('div', { className: 'ki-meta' });
+        meta.appendChild(metricPill('id', result.id));
+        if (result.title) meta.appendChild(metricPill('title', truncate(result.title, 40)));
+        if (result.category) meta.appendChild(el('span', { className: 'ki-category' }, result.category));
+        if (result.contentLength) meta.appendChild(metricPill('length', fmtNum(result.contentLength) + ' chars'));
+        container.appendChild(meta);
+      }
+
+      /* args.content — the updated content */
+      if (args && args.content) {
+        var contentDiv = el('div', { className: 'ki-content', style: { marginTop: '10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' } });
+        if (typeof marked !== 'undefined' && marked.parse) {
+          contentDiv.innerHTML = marked.parse(args.content);
+        } else {
+          contentDiv.appendChild(el('pre', { style: { whiteSpace: 'pre-wrap' } }, args.content));
+        }
+        container.appendChild(contentDiv);
+      }
+
+      return container;
+    }
+
+    /* ==========================================================
+     *  saveMemory RENDERER (args-centric)
+     * ========================================================== */
+
+    function renderSaveMemory(result, totalTokens, args) {
+      var container = el('div');
+
+      /* result confirmation */
+      if (result) {
+        var confirmBar = el('div', {
+          style: {
+            display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px',
+            background: 'var(--success-dim)', borderRadius: 'var(--radius-sm)',
+            marginBottom: '10px', fontSize: '12px', fontFamily: 'var(--font-mono)'
+          }
+        });
+        confirmBar.appendChild(el('span', { style: { color: 'var(--success)' } },
+          result.updated ? 'Updated' : 'Saved'));
+        if (result.memoryId) confirmBar.appendChild(el('span', { style: { color: 'var(--text-tertiary)' } }, 'id: ' + result.memoryId));
+        container.appendChild(confirmBar);
+      }
+
+      /* args.content — markdown */
+      if (args && args.content) {
+        var contentDiv = el('div', { className: 'ki-content', style: { border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' } });
+        if (typeof marked !== 'undefined' && marked.parse) {
+          contentDiv.innerHTML = marked.parse(args.content);
+        } else {
+          contentDiv.appendChild(el('pre', { style: { whiteSpace: 'pre-wrap' } }, args.content));
+        }
+        container.appendChild(contentDiv);
+      }
+
+      return container;
+    }
+
+    /* ==========================================================
+     *  Helper: render app context video cards
+     * ========================================================== */
+
+    function renderAppContextCards(appContext) {
+      var section = el('div', { className: 'app-context-section' });
+      appContext.forEach(function(ctx) {
+        if (ctx.type !== 'video-card') return;
+        var card = el('div', { className: 'app-context-card' });
+        if (ctx.thumbnailUrl) {
+          card.appendChild(el('img', { className: 'app-context-thumb', src: ctx.thumbnailUrl, alt: '' }));
+        }
+        var info = el('div', { className: 'app-context-info' });
+        info.appendChild(el('div', { className: 'app-context-title' }, ctx.title || ctx.videoId));
+        var metaLine = [];
+        if (ctx.channelTitle) metaLine.push(ctx.channelTitle);
+        if (ctx.ownership) metaLine.push(ctx.ownership);
+        if (ctx.viewCount) metaLine.push(fmtNum(Number(ctx.viewCount)) + ' views');
+        info.appendChild(el('div', { className: 'app-context-meta' }, metaLine.join(' · ')));
+        card.appendChild(info);
+        section.appendChild(card);
+      });
+      return section;
+    }
+
+    /* ==========================================================
+     *  Helper: render thinking block
+     * ========================================================== */
+
+    function renderThinkingBlock(thinking, elapsedMs) {
+      var block = el('div', { className: 'thinking-block' });
+      var timeStr = elapsedMs ? (elapsedMs / 1000).toFixed(1) + 's' : '';
+
+      var header = el('div', { className: 'thinking-header' },
+        el('span', { className: 'thinking-chevron' }, '\u25B6'),
+        el('span', { className: 'thinking-label' }, 'Thinking'),
+        el('span', { className: 'thinking-time' }, timeStr),
+        el('span', { style: { color: 'var(--text-tertiary)', fontSize: '11px', fontFamily: 'var(--font-mono)' } },
+          '~' + fmtNum(estimateTokens(thinking)) + ' tok')
+      );
+
+      var body = el('div', { className: 'thinking-body' }, thinking);
+
+      header.addEventListener('click', function() {
+        block.classList.toggle('open');
+      });
+
+      block.appendChild(header);
+      block.appendChild(body);
+      return block;
+    }
+
+    /* ==========================================================
+     *  Helper: render iteration details table
+     * ========================================================== */
+
+    function renderIterationDetails(iterationDetails, billing) {
+      var container = el('div');
+
+      if (billing && billing.cost) {
+        var summaryRow = el('div', {
+          style: { display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '8px' }
+        });
+        summaryRow.appendChild(metricPill('total cost', fmtCost(billing.cost.total)));
+        summaryRow.appendChild(metricPill('iterations', String(billing.iterations || iterationDetails.length)));
+        summaryRow.appendChild(metricPill('input tokens', fmtNum(billing.input ? billing.input.total : 0)));
+        summaryRow.appendChild(metricPill('output tokens', fmtNum(billing.output ? billing.output.total : 0)));
+        if (billing.input && billing.input.cached) {
+          summaryRow.appendChild(metricPill('cached', fmtNum(billing.input.cached)));
+        }
+        if (billing.cost.withoutCache != null) {
+          summaryRow.appendChild(metricPill('without cache', fmtCost(billing.cost.withoutCache)));
+        }
+        container.appendChild(summaryRow);
+      }
+
+      if (!iterationDetails || !iterationDetails.length) return container;
+
+      var table = el('table', { className: 'iteration-table' });
+      table.appendChild(el('thead', {},
+        el('tr', {},
+          el('th', {}, '#'),
+          el('th', {}, 'Input'),
+          el('th', {}, 'Cached'),
+          el('th', {}, 'CacheWrite'),
+          el('th', {}, 'Output'),
+          el('th', {}, 'Thinking'),
+          el('th', {}, 'Cost')
+        )
+      ));
+
+      var tbody = el('tbody');
+      iterationDetails.forEach(function(iter, i) {
+        var inp = iter.input || {};
+        var out = iter.output || {};
+        var cost = iter.cost || {};
+        tbody.appendChild(el('tr', {},
+          el('td', {}, String(i + 1)),
+          el('td', {}, fmtNum(inp.total || 0)),
+          el('td', {}, fmtNum(inp.cached || 0)),
+          el('td', {}, fmtNum(inp.cacheWrite || 0)),
+          el('td', {}, fmtNum(out.total || 0)),
+          el('td', {}, fmtNum(out.thinking || 0)),
+          el('td', {}, fmtCost(cost.total))
+        ));
+      });
+      table.appendChild(tbody);
+      container.appendChild(table);
+      return container;
+    }
+
+    /* ==========================================================
      *  MAIN RENDER
      * ========================================================== */
 
@@ -2457,11 +3194,18 @@
       'analyzeSuggestedTraffic': renderSuggestedTraffic,
       'getMultipleVideoDetails': renderVideoDetails,
       'viewThumbnails': renderViewThumbnails,
-      'getVideoComments': renderVideoComments
+      'getVideoComments': renderVideoComments,
+      'mentionVideo': renderMentionVideo,
+      'saveKnowledge': renderSaveKnowledge,
+      'getKnowledge': renderGetKnowledge,
+      'listKnowledge': renderListKnowledge,
+      'editKnowledge': renderEditKnowledge,
+      'saveMemory': renderSaveMemory
     };
 
     function renderTrace(trace) {
       var meta = trace.meta || {};
+      var conversation = trace.conversation || {};
       var messages = trace.messages || [];
 
       var modelMessages = [];
@@ -2470,24 +3214,78 @@
       });
       var lastModelMsg = modelMessages[modelMessages.length - 1] || null;
 
-      /* meta bar */
-      renderMeta(meta, lastModelMsg);
+      /* store messages globally for meta aggregation */
+      document.traceMessages = messages;
 
-      /* context breakdown — scale chars → tokens */
+      /* meta bar */
+      renderMeta(meta, lastModelMsg, conversation);
+
+      /* persisted context bar */
+      var persistedBar = document.getElementById('persisted-context-bar');
+      persistedBar.innerHTML = '';
+      persistedBar.style.display = 'none';
+      if (conversation.persistedContext && conversation.persistedContext.length > 0) {
+        persistedBar.style.display = '';
+        persistedBar.appendChild(el('div', { className: 'persisted-label' }, 'Pinned Context (' + conversation.persistedContext.length + ')'));
+        var cards = el('div', { className: 'persisted-cards' });
+        conversation.persistedContext.forEach(function(ctx) {
+          var card = el('div', { className: 'app-context-card' });
+          if (ctx.thumbnailUrl) {
+            card.appendChild(el('img', { className: 'app-context-thumb', src: ctx.thumbnailUrl, alt: '' }));
+          }
+          var info = el('div', { className: 'app-context-info' });
+          info.appendChild(el('div', { className: 'app-context-title' }, ctx.title || ctx.videoId || '\u2014'));
+          var metaLine = [];
+          if (ctx.channelTitle) metaLine.push(ctx.channelTitle);
+          if (ctx.ownership) metaLine.push(ctx.ownership);
+          if (ctx.viewCount) metaLine.push(fmtNum(Number(ctx.viewCount)) + ' views');
+          info.appendChild(el('div', { className: 'app-context-meta' }, metaLine.join(' \u00B7 ')));
+          card.appendChild(info);
+          cards.appendChild(card);
+        });
+        persistedBar.appendChild(cards);
+      }
+
+      /* context breakdown — scale chars → tokens, pick the richest one */
       var breakdownSection = document.getElementById('context-breakdown-section');
       breakdownSection.innerHTML = '';
-      if (lastModelMsg && lastModelMsg.contextBreakdown) {
-        var inputTokens = lastModelMsg.normalizedUsage &&
-          lastModelMsg.normalizedUsage.contextWindow &&
-          lastModelMsg.normalizedUsage.contextWindow.inputTokens;
+      var breakdownMsg = null;
+      modelMessages.forEach(function(m) {
+        if (m.contextBreakdown) breakdownMsg = m;
+      });
+      if (breakdownMsg && breakdownMsg.contextBreakdown) {
+        var inputTokens = breakdownMsg.normalizedUsage &&
+          breakdownMsg.normalizedUsage.contextWindow &&
+          breakdownMsg.normalizedUsage.contextWindow.inputTokens;
         var scaledBreakdown = inputTokens
-          ? scaleBreakdown(lastModelMsg.contextBreakdown, inputTokens)
-          : lastModelMsg.contextBreakdown;
+          ? scaleBreakdown(breakdownMsg.contextBreakdown, inputTokens)
+          : breakdownMsg.contextBreakdown;
 
         breakdownSection.appendChild(el('div', {
           style: { fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '600' }
         }, 'Context Breakdown (estimated tokens)'));
         breakdownSection.appendChild(renderContextBreakdown(scaledBreakdown));
+
+        /* iteration details — collapsible */
+        if (breakdownMsg.normalizedUsage) {
+          var nu = breakdownMsg.normalizedUsage;
+          if (nu.iterationDetails || nu.billing) {
+            var iterSection = el('div', { style: { marginTop: '10px' } });
+            var iterHeader = el('div', {
+              style: { fontSize: '11px', color: 'var(--text-tertiary)', cursor: 'pointer', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '600' }
+            }, '\u25B6 Iteration Details (' + (nu.billing && nu.billing.iterations || (nu.iterationDetails && nu.iterationDetails.length) || '?') + ' iterations)');
+            var iterBody = el('div', { style: { display: 'none' } });
+            iterBody.appendChild(renderIterationDetails(nu.iterationDetails, nu.billing));
+            iterHeader.addEventListener('click', function() {
+              var open = iterBody.style.display !== 'none';
+              iterBody.style.display = open ? 'none' : 'block';
+              iterHeader.textContent = (open ? '\u25B6' : '\u25BC') + ' Iteration Details (' + (nu.billing && nu.billing.iterations || (nu.iterationDetails && nu.iterationDetails.length) || '?') + ' iterations)';
+            });
+            iterSection.appendChild(iterHeader);
+            iterSection.appendChild(iterBody);
+            breakdownSection.appendChild(iterSection);
+          }
+        }
       }
 
       /* tools panel — render ALL messages in conversation order */
@@ -2496,53 +3294,76 @@
 
       messages.forEach(function(msg) {
         if (msg.role === 'user') {
-          toolsPanel.appendChild(el('div', {
+          var userBlock = el('div', {
             style: {
               padding: '10px 16px', background: 'var(--bg-card)', borderRadius: 'var(--radius)',
               marginBottom: '16px', borderLeft: '3px solid var(--accent)'
             }
-          },
-            el('div', { style: { fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '1px' } }, 'User Message'),
-            el('div', { style: { color: 'var(--text-secondary)' } }, msg.text || '')
-          ));
-        } else if (msg.role === 'model' && msg.toolCalls) {
-          msg.toolCalls.forEach(function(tc) {
-            var totalTokens = estimateTokens(tc.result);
-            var card = el('div', { className: 'tool-card' });
-
-            var chevron = el('span', { style: { fontSize: '10px', color: 'var(--text-tertiary)' } }, '\u25BC');
-            var header = el('div', { className: 'tool-header' },
-              chevron,
-              el('span', { className: 'tool-name' }, tc.name),
-              el('span', { className: 'tool-tokens' }, '~' + fmtNum(totalTokens) + ' tokens')
-            );
-
-            var args = el('div', { className: 'tool-args' },
-              el('span', { style: { color: 'var(--text-tertiary)' } }, 'args: '),
-              JSON.stringify(tc.args)
-            );
-
-            var body = el('div', { className: 'tool-body' });
-            var renderer = TOOL_RENDERERS[tc.name];
-            if (renderer) {
-              body.appendChild(renderer(tc.result, totalTokens));
-            } else {
-              body.appendChild(renderGenericResult(tc.result, totalTokens));
-            }
-
-            var bodyVisible = true;
-            header.addEventListener('click', function() {
-              bodyVisible = !bodyVisible;
-              body.style.display = bodyVisible ? '' : 'none';
-              args.style.display = bodyVisible ? '' : 'none';
-              chevron.textContent = bodyVisible ? '\u25BC' : '\u25B6';
-            });
-
-            card.appendChild(header);
-            card.appendChild(args);
-            card.appendChild(body);
-            toolsPanel.appendChild(card);
           });
+          userBlock.appendChild(el('div', {
+            style: { fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '1px' }
+          }, 'User Message'));
+          userBlock.appendChild(el('div', { style: { color: 'var(--text-secondary)' } }, msg.text || ''));
+
+          /* appContext video cards */
+          if (msg.appContext && msg.appContext.length > 0) {
+            userBlock.appendChild(renderAppContextCards(msg.appContext));
+          }
+
+          toolsPanel.appendChild(userBlock);
+        } else if (msg.role === 'model') {
+          /* thinking block */
+          if (msg.thinking) {
+            toolsPanel.appendChild(renderThinkingBlock(msg.thinking, msg.thinkingElapsedMs));
+          }
+
+          /* tool calls */
+          if (msg.toolCalls) {
+            msg.toolCalls.forEach(function(tc) {
+              var resultTokens = estimateTokens(tc.result);
+              var argsTokens = estimateTokens(tc.args);
+              var totalTokens = resultTokens + argsTokens;
+              var card = el('div', { className: 'tool-card' });
+
+              var chevron = el('span', { style: { fontSize: '10px', color: 'var(--text-tertiary)' } }, '\u25BC');
+              var header = el('div', { className: 'tool-header' },
+                chevron,
+                el('span', { className: 'tool-name' }, tc.name),
+                el('span', { className: 'tool-tokens' },
+                  'result ~' + fmtNum(resultTokens) + ' tok' +
+                  (argsTokens > 100 ? ' \u00B7 args ~' + fmtNum(argsTokens) + ' tok' : ''))
+              );
+
+              /* args row — truncate huge args (e.g. saveKnowledge content) */
+              var argsStr = JSON.stringify(tc.args);
+              var argsDisplay = argsStr.length > 300 ? argsStr.slice(0, 300) + '\u2026' : argsStr;
+              var argsRow = el('div', { className: 'tool-args' },
+                el('span', { style: { color: 'var(--text-tertiary)' } }, 'args: '),
+                argsDisplay
+              );
+
+              var body = el('div', { className: 'tool-body' });
+              var renderer = TOOL_RENDERERS[tc.name];
+              if (renderer) {
+                body.appendChild(renderer(tc.result, totalTokens, tc.args));
+              } else {
+                body.appendChild(renderGenericResult(tc.result, totalTokens));
+              }
+
+              var bodyVisible = true;
+              header.addEventListener('click', function() {
+                bodyVisible = !bodyVisible;
+                body.style.display = bodyVisible ? '' : 'none';
+                argsRow.style.display = bodyVisible ? '' : 'none';
+                chevron.textContent = bodyVisible ? '\u25BC' : '\u25B6';
+              });
+
+              card.appendChild(header);
+              card.appendChild(argsRow);
+              card.appendChild(body);
+              toolsPanel.appendChild(card);
+            });
+          }
         }
       });
 
@@ -2556,15 +3377,42 @@
             borderRadius: 'var(--radius)', padding: '16px', marginBottom: '16px'
           }
         });
-        card.appendChild(el('div', { className: 'response-label' },
+
+        /* header: label + status + model + token usage */
+        var headerRow = el('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' } });
+        headerRow.appendChild(el('div', { className: 'response-label', style: { margin: '0' } },
           'Model Response' + (modelMessages.length > 1 ? ' #' + (idx + 1) : '')));
-        var content = el('div');
-        if (typeof marked !== 'undefined' && marked.parse) {
-          content.innerHTML = marked.parse(msg.text || '');
-        } else {
-          content.appendChild(el('pre', { style: { whiteSpace: 'pre-wrap', color: 'var(--text-secondary)' } }, msg.text || ''));
+
+        if (msg.status) {
+          headerRow.appendChild(el('span', {
+            className: 'status-badge status-' + msg.status
+          }, msg.status));
         }
-        card.appendChild(content);
+        if (msg.model) {
+          headerRow.appendChild(el('span', { className: 'meta-badge' },
+            el('span', { className: 'value' }, msg.model)));
+        }
+        if (msg.tokenUsage) {
+          var tu = msg.tokenUsage;
+          if (tu.promptTokens) headerRow.appendChild(metricPill('in', fmtNum(tu.promptTokens)));
+          if (tu.completionTokens) headerRow.appendChild(metricPill('out', fmtNum(tu.completionTokens)));
+          if (tu.cachedTokens) headerRow.appendChild(metricPill('cached', fmtNum(tu.cachedTokens)));
+        }
+        card.appendChild(headerRow);
+
+        /* text content */
+        if (msg.text) {
+          var content = el('div');
+          if (typeof marked !== 'undefined' && marked.parse) {
+            content.innerHTML = marked.parse(msg.text);
+          } else {
+            content.appendChild(el('pre', { style: { whiteSpace: 'pre-wrap', color: 'var(--text-secondary)' } }, msg.text));
+          }
+          card.appendChild(content);
+        } else if (msg.status === 'stopped') {
+          card.appendChild(el('div', { style: { color: 'var(--text-tertiary)', fontStyle: 'italic', fontSize: '13px' } }, '(no response — stopped)'));
+        }
+
         responsePanel.appendChild(card);
       });
 

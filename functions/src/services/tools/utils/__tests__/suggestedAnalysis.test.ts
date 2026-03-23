@@ -307,9 +307,9 @@ describe('analyzeContent', () => {
         expect(v1.sharedKeywords).toContain('lofi');
     });
 
-    it('builds channelDistribution correctly', () => {
+    it('builds topSourceChannels correctly', () => {
         const result = analyzeContent(sourceVideoTags, sourceVideoTitle, topSources, enrichedData);
-        const ch = result.aggregate.channelDistribution;
+        const ch = result.aggregate.topSourceChannels;
         const chillBeats = ch.find(c => c.channelTitle === 'ChillBeats');
         expect(chillBeats?.count).toBe(2); // v1 and v3
         const piano = ch.find(c => c.channelTitle === 'PianoStudio');
@@ -585,13 +585,13 @@ describe('computeContentTrajectory', () => {
         const result = computeContentTrajectory([], snapshotRows, dates, enriched);
 
         // Snapshot 1: CompetitorA + CompetitorB
-        expect(result[0].channelDistribution).toEqual([
+        expect(result[0].snapshotChannels).toEqual([
             { channelTitle: 'CompetitorA', count: 1 },
             { channelTitle: 'CompetitorB', count: 1 },
         ]);
 
         // Snapshot 2: MyChannel ×2, CompetitorA ×1
-        expect(result[1].channelDistribution[0]).toEqual({ channelTitle: 'MyChannel', count: 2 });
+        expect(result[1].snapshotChannels[0]).toEqual({ channelTitle: 'MyChannel', count: 2 });
     });
 
     it('includes topVideos for non-latest snapshots, skips for latest', () => {
