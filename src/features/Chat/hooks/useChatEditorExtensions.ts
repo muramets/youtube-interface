@@ -48,7 +48,7 @@ export function useChatEditorExtensions(
                         return true
                     },
                     'Shift-Enter': ({ editor }) => {
-                        editor.commands.setHardBreak()
+                        editor.chain().setHardBreak().scrollIntoView().run()
                         return true
                     },
                 }
