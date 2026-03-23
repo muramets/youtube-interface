@@ -104,16 +104,15 @@
     cursor: nwse-resize;
 }
 
-/* --- Sticky zone: pin-to-top during streaming (compositor-native, no JS jitter) --- */
+/* --- Pin zone: visual wrapper for the pinned user message + response.
+       NO position:sticky — zone stays at its P1 scroll position naturally.
+       User can scroll freely at any time (during and after streaming). --- */
 .chat-sticky-zone {
-    position: sticky;
-    top: 0;
     z-index: 1;
     background: var(--card-bg);
     padding-top: 12px;
-    /* top: 0 + padding-top: 12px = zone sticks flush to scrollport, padding provides
-       visible gap covered by --card-bg (prevents pre-zone content peeking through). */
-    /* min-height set via DOM in useChatScroll (CSS 100% unreliable in scroll containers) */
+    /* min-height set via DOM in useChatScroll — ensures enough scroll room
+       for scrollIntoView to position zone at viewport top. */
 }
 
 /* --- Context accordion (ChatInput) - uses design tokens for consistency --- */
