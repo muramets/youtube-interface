@@ -22,11 +22,12 @@ export const DEBUG_ENABLED = {
     chat: true,          // AI chat: system prompt, app context, token usage
     rawChatOutput: false, // Bypass markdown reference injection to view raw Gemini output
     scroll: false,       // ChatMessageList scroll state machine
-    traffic: false,      // Traffic tab: unenriched calculation, repair flows
+    traffic: false,      // Traffic tab: Smart Assistant hooks, viewer type classification
+    enrichment: false,   // Enrichment gate: classifySources breakdown, cache hits/misses, YouTube API fetch, CSV persistence
     trends: false,       // Trends table: snapshot loading, delta calculations
     canvas: false,       // Canvas: node re-renders, drag frame timing, memo hits
-    context: true,       // App context: slot mutations, bridge pushes, consume/clear
-    firestore: true,     // Firestore read tracking: document counts per collection
+    context: false,       // App context: slot mutations, bridge pushes, consume/clear
+    firestore: false,     // Firestore read tracking: document counts per collection
 } as const;
 
 type DebugCategory = keyof typeof DEBUG_ENABLED;
@@ -163,6 +164,7 @@ export const debug = {
     chat: createLogger('chat'),
     scroll: createLogger('scroll'),
     traffic: createLogger('traffic'),
+    enrichment: createLogger('enrichment'),
     trends: createLogger('trends'),
     canvas: createLogger('canvas'),
     context: createLogger('context'),
@@ -171,6 +173,7 @@ export const debug = {
     // Grouped logging for complex debugging sessions
     tooltipGroup: createGroupLogger('tooltip'),
     chatGroup: createGroupLogger('chat'),
+    enrichmentGroup: createGroupLogger('enrichment'),
     trendsGroup: createGroupLogger('trends'),
     canvasGroup: createGroupLogger('canvas'),
     contextGroup: createGroupLogger('context'),

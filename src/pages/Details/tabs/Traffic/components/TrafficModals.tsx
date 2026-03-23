@@ -1,9 +1,10 @@
 import React from 'react';
 import { ColumnMapperModal } from '../modals/ColumnMapperModal';
-import { DataRepairModal } from '../modals/DataRepairModal';
+import { EnrichmentModal } from '../modals/EnrichmentModal';
 import { parseTrafficCsv } from '../utils/csvParser';
 import type { TrafficSource } from '../../../../../core/types/suggestedTraffic/traffic';
 import type { CsvMapping } from '../utils/csvParser';
+import { useUIStore } from '../../../../../core/stores/uiStore';
 
 interface TrafficModalsProps {
     // Column Mapper Modal
@@ -12,19 +13,18 @@ interface TrafficModalsProps {
     onMapperClose: () => void;
     onCsvUpload: (sources: TrafficSource[], totalRow?: TrafficSource, file?: File) => Promise<string | null>;
 
-    // Missing Titles Modal
-    isMissingTitlesOpen: boolean;
-    missingTitlesCount: number;
+    // Enrichment Modal
+    isEnrichmentOpen: boolean;
+    missingCount: number;
+    unenrichedCount: number;
     estimatedQuota: number;
-    onMissingTitlesConfirm: () => void;
-    onMissingTitlesClose: () => void;
-    isRestoringTitles: boolean;
-    missingTitlesVariant?: 'sync' | 'assistant';
+    onEnrichmentConfirm: () => void;
+    onEnrichmentClose: () => void;
+    isEnriching: boolean;
 }
 
 /**
- * Группирует все модальные окна Traffic Tab в одном компоненте.
- * Упрощает управление состоянием модалок в основном компоненте.
+ * Groups all Traffic Tab modal windows into a single component.
  */
 export const TrafficModals: React.FC<TrafficModalsProps> = ({
     isMapperOpen,
@@ -32,15 +32,16 @@ export const TrafficModals: React.FC<TrafficModalsProps> = ({
     onMapperClose,
     onCsvUpload,
 
-    // Missing Titles Props
-    isMissingTitlesOpen,
-    missingTitlesCount,
+    isEnrichmentOpen,
+    missingCount,
+    unenrichedCount,
     estimatedQuota,
-    onMissingTitlesConfirm,
-    onMissingTitlesClose,
-    isRestoringTitles,
-    missingTitlesVariant = 'sync'
+    onEnrichmentConfirm,
+    onEnrichmentClose,
+    isEnriching,
 }) => {
+    const { showToast } = useUIStore();
+
     const handleMapperConfirm = async (mapping: CsvMapping) => {
         if (!failedFile) return;
 
@@ -49,7 +50,7 @@ export const TrafficModals: React.FC<TrafficModalsProps> = ({
             await onCsvUpload(sources, totalRow, failedFile);
             onMapperClose();
         } catch {
-            alert("Mapping failed to produce valid data.");
+            showToast('Mapping failed to produce valid data.', 'error');
         }
     };
 
@@ -62,14 +63,14 @@ export const TrafficModals: React.FC<TrafficModalsProps> = ({
                 onConfirm={handleMapperConfirm}
             />
 
-            <DataRepairModal
-                isOpen={isMissingTitlesOpen}
-                missingCount={missingTitlesCount}
+            <EnrichmentModal
+                isOpen={isEnrichmentOpen}
+                missingCount={missingCount}
+                unenrichedCount={unenrichedCount}
                 estimatedQuota={estimatedQuota}
-                onConfirm={onMissingTitlesConfirm}
-                onClose={onMissingTitlesClose}
-                isRestoring={isRestoringTitles}
-                variant={missingTitlesVariant}
+                onConfirm={onEnrichmentConfirm}
+                onClose={onEnrichmentClose}
+                isEnriching={isEnriching}
             />
         </>
     );

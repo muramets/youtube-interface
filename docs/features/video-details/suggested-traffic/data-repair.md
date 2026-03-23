@@ -1,18 +1,16 @@
-# Data Repair & Smart Assistant Gate
+# Data Enrichment
 
 ## Текущее состояние
 
-**Реализовано.** CSV enrichment через YouTube API, cache-first архитектура, gatekeeper-модалка блокирует Smart Assistant при неполных данных. Два варианта модалки: "Update missing data" (sync) и "Smart Assistant Needs Data" (assistant). Unfindable видео (YouTube API не возвращает) сохраняются как stubs и не блокируют ассистента. Broken thumbnails показывают placeholder.
-
-**Известное ограничение:** авто-открытие модалки при загрузке данных срабатывает только для missing titles, не для unenriched видео (missing channelId). Пользователь узнаёт о необогащённых видео только при попытке включить Smart Assistant.
+**Реализовано.** CSV enrichment через YouTube API, cache-first архитектура. Единая модалка "Enrich Video Data" открывается при загрузке CSV с бедными данными (missing titles или unenriched) И при попытке включить Smart Assistant. Модалка объясняет, зачем нужны данные: Smart Assistant (ниши, типы трафика) и AI Analysis (теги, каналы, self-channel detection). Unfindable видео сохраняются как stubs и не блокируют функциональность.
 
 ---
 
 ## Что это
 
-CSV из YouTube Analytics содержит только базовые метрики (views, impressions, CTR) и video ID. Без обогащения через YouTube API — нет channelId, channelTitle, thumbnail, tags, description. Smart Assistant не может классифицировать ниши без channelId (Harmonic Decay Scoring считает частоту каналов). Поэтому система блокирует активацию ассистента, пока данные не обогащены.
+CSV из YouTube Analytics содержит только базовые метрики (views, impressions, CTR) и video ID. Без обогащения через YouTube API — нет channelId, channelTitle, thumbnail, tags, description. Smart Assistant не может классифицировать ниши без channelId (Harmonic Decay Scoring считает частоту каналов). AI Analysis tool (`analyzeSuggestedTraffic`) без enrichment не может делать content analysis и channel grouping.
 
-**Аналогия:** представь, что у тебя есть список номеров телефонов, но без имён контактов. Ты можешь их видеть, но не можешь понять "кто мне чаще всего звонит". Data Repair — это как синхронизация контактов: по номеру (videoId) система узнаёт имя канала (channelId) и всё остальное.
+**Аналогия:** представь, что у тебя есть список номеров телефонов, но без имён контактов. Ты можешь их видеть, но не можешь понять "кто мне чаще всего звонит". Enrichment — это как синхронизация контактов: по номеру (videoId) система узнаёт имя канала (channelId) и всё остальное.
 
 ---
 
@@ -21,69 +19,60 @@ CSV из YouTube Analytics содержит только базовые метр
 | Тип | Признак | Критичность | Когда появляется |
 |-----|---------|-------------|------------------|
 | **Missing Title** | Пустой `sourceTitle` | Высокая — видео не отображается нормально в таблице | Старый/кривой CSV формат |
-| **Unenriched** | Есть title, но нет `channelId` ни в CSV, ни в кэше | Средняя — таблица работает, но Smart Assistant не может классифицировать | Свежий CSV, ещё не прошёл enrichment |
+| **Unenriched** | Есть title, но нет `channelId` ни в CSV, ни в кэше | Средняя — таблица работает, но Smart Assistant и AI Analysis ограничены | Свежий CSV, ещё не прошёл enrichment |
 
-Missing Title подразумевает Unenriched (если нет даже заголовка — channelId тем более нет). Но подсчёт `unenrichedCount` исключает видео, уже посчитанные в `missingCount`, чтобы не дублировать.
+Missing Title подразумевает Unenriched (если нет даже заголовка — channelId тем более нет). `classifySources()` — SSOT для классификации: categories missing/unenriched/enriched/unresolvable.
 
 ---
 
 ## User flow
 
 ```
-CSV загружен / данные загружены из Firestore
+CSV загружен (upload) / данные загружены из Firestore
     |
     v
-useMissingTitles: проверяет каждый videoId
+computeEnrichmentStats(): classifySources() → stats
     |
-    +-- missingCount: нет sourceTitle?
-    +-- unenrichedCount: есть title, но нет channelId ни в CSV, ни в cached_external_videos?
-    |
-    v
-[missingCount > 0?] --YES--> Модалка "Update missing data" (авто-открытие)
-    |                                      |
-    NO                                     v
-    |                              User: Skip / Sync
-    v
-[User включает Smart Assistant]
+    +-- needsEnrichment: missingCount > 0 OR unenrichedCount > 0
     |
     v
-[missingCount > 0 OR unenrichedCount > 0?]
-    |                   |
-    YES                 NO
-    |                   |
-    v                   v
-Модалка               Smart Assistant
-"Smart Assistant      активируется
- Needs Data"
+[needsEnrichment?]
+    |           |
+    YES         NO
+    |           |
+    v           v
+EnrichmentModal    CSV uploaded / data displayed
+"Enrich Video Data"
+    |
+    +-- "X videos are missing titles and channel info"
+    +-- "Required for: Smart Assistant + AI Analysis"
+    +-- "Without enrichment, these features will have limited or no results"
+    +-- Estimated API quota cost
     |
     v
-User: Skip / Sync
+User: Skip / Enrich
     |
-    v (Sync)
-repairTrafficSources()
+    v (Enrich)
+enrichSources()
     |
-    +-- 1. Собрать все видео без title ИЛИ без channelId
-    +-- 2. Дедупликация videoId
-    +-- 3. Проверить кэш (cached_external_videos) -> пропустить уже обогащённые
-    +-- 4. Остальные -> YouTube API batch (до 50 за раз, 2 units на batch)
-    +-- 5. Сохранить в Firestore кэш (cached_external_videos)
-    +-- 6. Merge: fetched > cached > original
+    +-- 1. filterIdsToFetch() — cache-first, skip enriched + unfindable
+    +-- 2. fetchVideosBatch() — YouTube API batch (50 per request)
+    +-- 3. persistEnrichmentToCache() — Firestore cached_external_videos
+    +-- 4. mergeSources() — priority: fetched > cached > original
     |
     v
-Обновлённый CSV -> Cloud Storage + Firestore snapshot metadata
-    |
-    v
-Smart Assistant разблокирован -> хуки авто-классификации запускаются
+Enriched CSV → Cloud Storage + Firestore snapshot metadata
 ```
 
-### Два варианта модалки (DataRepairModal)
+### Триггеры модалки
 
-| Вариант | Заголовок | Когда показывается | Блокирует? |
-|---------|-----------|-------------------|------------|
-| `'sync'` | "Update missing data" | Авто-открытие при `missingCount > 0` | Нет — можно Skip |
-| `'assistant'` | "Smart Assistant Needs Data" | При toggle Smart Assistant, если есть missing/unenriched | Да — ассистент не включится до Sync или Skip |
+| Триггер | Когда | Можно Skip? |
+|---------|-------|-------------|
+| **CSV upload** | При загрузке CSV с бедными данными (pre-upload check) | Да — CSV загружается as-is |
+| **Existing data load** | При открытии snapshot с бедными данными (auto-open) | Да — модалка закрывается |
+| **Smart Assistant toggle** | При попытке включить, если `needsEnrichment` | Да — ассистент не включится |
 
-Оба варианта показывают estimated API quota cost и кнопки Skip / Sync.
+Одна модалка, одно сообщение, три точки входа.
 
 ---
 
@@ -97,26 +86,20 @@ displayedSources (videoIds из CSV)
     v
 useExternalVideoLookup
     |-- Для каждого videoId: Firestore GET cached_external_videos/{videoId}
-    |-- React Query cache: staleTime = Infinity (раз загрузили — не дёргаем)
+    |-- React Query cache: staleTime = Infinity
     |-- Результат: suggestedVideoMap
     |
     v
 allVideos = homeVideos + suggestedVideoMap
     |
     v
-Передаётся как cachedVideos в useMissingTitles
+classifySources(sources, allVideos) → classification
     |
     v
-repairTrafficSources:
-    |-- cachedMap = Map(cachedVideos)
-    |-- videoIdsToFetch = uniqueVideoIds.filter(id => {
-    |       const cached = cachedMap.get(id);
-    |       if (!cached) return true;       // нет в кэше -> фетчим
-    |       return !cached.channelId;        // в кэше, но без channelId -> фетчим
-    |   })
+filterIdsToFetch(uniqueIds, allVideos) → cache misses only
     |
     v
-YouTube API вызывается ТОЛЬКО для videoIdsToFetch (промахи кэша)
+YouTube API вызывается ТОЛЬКО для cache misses
 ```
 
 **Экономия:** если видео X появилось в снапшоте #1 и было обогащено — в снапшоте #2 оно подтянется из кэша бесплатно (0 API units).
@@ -126,18 +109,16 @@ YouTube API вызывается ТОЛЬКО для videoIdsToFetch (прома
 ## Roadmap
 
 ### Текущее состояние ← YOU ARE HERE
-- [x] Missing Titles detection + modal (variant `'sync'`)
-- [x] Unenriched detection + modal (variant `'assistant'`)
-- [x] `repairTrafficSources()` — batch YouTube API fetch
-- [x] Cache-first: `useExternalVideoLookup` → `cached_external_videos`
-- [x] CSV regeneration после repair
+- [x] `classifySources()` — SSOT pure function для классификации sources
+- [x] `computeEnrichmentStats()` — SSOT для detection + quota estimation
+- [x] `enrichSources()` — SRP orchestrator (fetch + persist + merge)
+- [x] `EnrichmentModal` — единая модалка без variant hack
+- [x] Enrichment trigger при CSV upload (pre-upload check)
+- [x] Enrichment trigger при загрузке existing data (auto-open)
 - [x] Smart Assistant gatekeeper (блокировка активации)
-- [x] Unfindable video stubs — видео, которые YouTube API не возвращает (удалённые, приватные), сохраняются в кэш с `notFoundInApi: true` и не блокируют Smart Assistant
-- [x] Thumbnail error fallback — `onError` на `<img>` показывает placeholder иконку вместо битой картинки
-
-### Доработки
-- [ ] `missingCount` должен проверять кэш перед подсчётом — если title есть в `cached_external_videos`, видео не считается "missing" (сейчас `unenrichedCount` проверяет кэш, а `missingCount` нет — несимметричная логика)
-- [ ] Авто-открытие модалки для unenriched видео (не только missing titles)
+- [x] Cache-first: `useExternalVideoLookup` → `cached_external_videos`
+- [x] Unfindable video stubs (`notFoundInApi: true` в `VideoDetails` interface)
+- [x] Thumbnail error fallback
 
 ---
 
@@ -154,40 +135,36 @@ YouTube API вызывается ТОЛЬКО для videoIdsToFetch (прома
 
 | Файл | Назначение |
 |------|-----------|
-| `pages/Details/tabs/Traffic/hooks/useMissingTitles.ts` | Детекция (missingCount, unenrichedCount) + repair action |
+| `pages/Details/tabs/Traffic/utils/enrichment.ts` | Pure functions: `classifySources()`, `computeEnrichmentStats()`, `mergeSources()`, `filterIdsToFetch()`, `isTitleMissing()` |
+| `pages/Details/tabs/Traffic/hooks/useEnrichmentGate.ts` | Hook: detection (via `computeEnrichmentStats`) + `enrichSources()` orchestrator |
 | `pages/Details/tabs/Traffic/hooks/useExternalVideoLookup.ts` | Per-document Firestore lookup + React Query cache |
-| `pages/Details/tabs/Traffic/modals/DataRepairModal.tsx` | Модалка с двумя вариантами (sync / assistant) |
-| `pages/Details/tabs/Traffic/TrafficTab.tsx:233-241` | Авто-открытие модалки (useEffect) |
-| `pages/Details/tabs/Traffic/TrafficTab.tsx:1201-1210` | Gatekeeper: блокировка Smart Assistant |
+| `pages/Details/tabs/Traffic/modals/EnrichmentModal.tsx` | Unified modal: explains Smart Assistant + AI Analysis benefits |
+| `pages/Details/tabs/Traffic/components/TrafficModals.tsx` | Modal orchestrator (ColumnMapper + Enrichment) |
 | `core/services/videoService.ts` | `batchUpdateExternalVideos()` — запись в кэш |
-| `core/utils/youtubeApi.ts` | `fetchVideosBatch()` — YouTube API batch call |
+| `core/utils/youtubeApi.ts` | `fetchVideosBatch()` — YouTube API batch call, `VideoDetails.notFoundInApi` field |
 
-### Детекция (useMissingTitles.ts)
+### Architecture: Pure Functions + I/O Orchestrator
 
 ```
-missingCount (строка 131-133):
-  displayedSources.filter(s => s.videoId && (!s.sourceTitle || s.sourceTitle.trim() === ''))
+enrichment.ts (pure — no I/O, no side effects):
+  classifySources(sources, cache) → { missing[], unenriched[], enriched[], unresolvable[] }
+  computeEnrichmentStats(sources, cache) → { missingCount, unenrichedCount, needsEnrichment, toFetchCount, estimatedQuota }
+  mergeSources(sources, fetchedMap, cache) → TrafficSource[]
+  filterIdsToFetch(videoIds, cache) → string[]
+  isTitleMissing(source) → boolean
 
-unenrichedCount (строка 140-154):
-  displayedSources.filter(s => {
-    if (!s.videoId) return false;
-    if (!s.sourceTitle || s.sourceTitle.trim() === '') return false;  // уже в missingCount
-    const hasSourceChannelId = !!s.channelId;
-    const hasCachedChannelId = cachedMap.has(s.videoId) && !!cachedMap.get(s.videoId)?.channelId;
-    return !hasSourceChannelId && !hasCachedChannelId;
-  })
+useEnrichmentGate.ts (I/O orchestrator):
+  batchLookupCachedVideos(videoIds, userId, channelId) → VideoDetails[]
+    └── Firestore batch read (chunks of 100) before modal for accurate quota count
+  enrichSources(sources, userId, channelId, apiKey, cache) → TrafficSource[]
+    └── filterIdsToFetch() → fetchVideosBatch() → persistEnrichmentToCache() → mergeSources()
+  useEnrichmentGate(props) → { ...stats, runEnrichment, isEnriching }
 ```
 
-### Авто-открытие модалки (TrafficTab.tsx:233-241)
-
-```typescript
-useEffect(() => {
-    if (!pendingUpload && existingMissingCount > 0 && !isRestoringExisting) {
-        setIsMissingTitlesModalOpen(true);
-    }
-}, [existingMissingCount, isRestoringExisting, pendingUpload]);
-// NOTE: existingUnenrichedCount НЕ проверяется — модалка не откроется для unenriched
-```
+### Tests
+| Файл | Кейсов |
+|------|--------|
+| `pages/Details/tabs/Traffic/utils/__tests__/enrichment.test.ts` | 33 (classifySources: 10, computeEnrichmentStats: 10, mergeSources: 8, filterIdsToFetch: 5) |
 
 ### Data paths
 

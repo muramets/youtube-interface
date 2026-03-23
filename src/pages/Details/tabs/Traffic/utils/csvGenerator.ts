@@ -14,7 +14,8 @@ export const generateTrafficCsv = (sources: TrafficSource[], totalRow?: TrafficS
         "Views",
         "Average view duration",
         "Watch time (hours)",
-        "Channel ID"
+        "Channel ID",
+        "Not Found"
     ];
 
     const rows = [];
@@ -31,6 +32,7 @@ export const generateTrafficCsv = (sources: TrafficSource[], totalRow?: TrafficS
             totalRow.views,
             totalRow.avgViewDuration,
             totalRow.watchTimeHours,
+            "",
             ""
         ].join(','));
     }
@@ -57,7 +59,8 @@ export const generateTrafficCsv = (sources: TrafficSource[], totalRow?: TrafficS
             source.views,
             source.avgViewDuration || '0:00:00',
             source.watchTimeHours,
-            source.channelId || ''
+            source.channelId || '',
+            source.notFoundInApi ? 'true' : ''
         ];
         rows.push(row.join(','));
     });

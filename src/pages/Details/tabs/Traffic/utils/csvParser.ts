@@ -13,6 +13,7 @@ export interface CsvMapping {
     avgDuration: number;
     watchTime: number;
     channelId?: number; // Optional, added for Smart Assistant enrichment persistence
+    notFound?: number;  // Optional, marks videos confirmed as unfindable by YouTube API
 }
 
 // Default mapping based on standard YouTube Analytics export
@@ -26,7 +27,8 @@ export const DEFAULT_MAPPING: CsvMapping = {
     views: 5,          // "Views"
     avgDuration: 6,    // "Average view duration"
     watchTime: 7,      // "Watch time (hours)"
-    channelId: 8       // "Channel ID" (Custom enriched column)
+    channelId: 8,      // "Channel ID" (Custom enriched column)
+    notFound: 9        // "Not Found" (unfindable video marker)
 };
 
 // Known headers for auto-detection
@@ -39,7 +41,8 @@ const HEADER_KEYWORDS: Record<keyof CsvMapping, string[]> = {
     views: ['Views'],
     avgDuration: ['Average view duration', 'Duration'],
     watchTime: ['Watch time (hours)', 'Watch time', 'Hours'],
-    channelId: ['Channel ID', 'Channel Id', 'channel_id']
+    channelId: ['Channel ID', 'Channel Id', 'channel_id'],
+    notFound: ['Not Found', 'not_found', 'NotFound']
 };
 
 /**
@@ -137,6 +140,11 @@ export const parseTrafficCsv = async (
                         channelId = clean(cols[activeMapping.channelId] || '');
                     }
 
+                    let notFoundInApi = false;
+                    if (activeMapping.notFound !== undefined && activeMapping.notFound !== -1) {
+                        notFoundInApi = clean(cols[activeMapping.notFound] || '') === 'true';
+                    }
+
                     const source: TrafficSource = {
                         sourceType: clean(cols[activeMapping!.sourceType] || ''),
                         sourceTitle: clean(cols[activeMapping!.sourceTitle] || ''),
@@ -146,7 +154,8 @@ export const parseTrafficCsv = async (
                         views: parseInt(clean(cols[activeMapping!.views] || '0').replace(/[^0-9]/g, '') || '0'),
                         avgViewDuration: clean(cols[activeMapping!.avgDuration] || ''),
                         watchTimeHours: parseFloat(clean(cols[activeMapping!.watchTime] || '0').replace(/[^0-9.]/g, '') || '0'),
-                        channelId: channelId || undefined
+                        channelId: channelId || undefined,
+                        notFoundInApi: notFoundInApi || undefined,
                     };
 
                     // 3. Row Classification / Strict Validation

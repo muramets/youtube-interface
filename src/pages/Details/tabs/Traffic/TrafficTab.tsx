@@ -7,10 +7,10 @@ import { TrafficModals } from './components/TrafficModals';
 import { TrafficFilterChips } from './components/TrafficFilterChips';
 import { TrafficErrorState } from './components/TrafficErrorState';
 import { TrafficFloatingBar } from './components/TrafficFloatingBar';
-// MissingTitlesModal is now wrapped in TrafficModals
-import { useMissingTitles, repairTrafficSources } from './hooks/useMissingTitles';
+import { useEnrichmentGate, enrichSources, batchLookupCachedVideos } from './hooks/useEnrichmentGate';
 import { findPreviousSnapshot } from './hooks/useTrafficDataLoader';
 import { generateTrafficCsv } from './utils/csvGenerator';
+import { computeEnrichmentStats, mergeSources } from './utils/enrichment';
 import { exportTrafficCsv, downloadCsv, generateExportFilename, generateDiscrepancyReport } from './utils/exportTrafficCsv';
 import { useApiKey } from '../../../../core/hooks/useApiKey';
 import { useExternalVideoLookup } from './hooks/useExternalVideoLookup';
@@ -34,7 +34,7 @@ import { useAuth } from '../../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../../core/stores/channelStore';
 import { useVideos } from '../../../../core/hooks/useVideos';
 import { useSmartNicheSuggestions } from './hooks/useSmartNicheSuggestions';
-import { assistantLogger } from '../../../../core/utils/logger';
+import { logger } from '../../../../core/utils/logger';
 import { useTrafficTypeStore } from '../../../../core/stores/suggestedTraffic/useTrafficTypeStore';
 import { useSmartTrafficAutoApply } from './hooks/useSmartTrafficAutoApply';
 import { useViewerTypeStore } from '../../../../core/stores/suggestedTraffic/useViewerTypeStore';
@@ -61,6 +61,8 @@ interface TrafficTabProps {
     packagingHistory?: import('../../../../core/types/versioning').PackagingVersion[]; // Passed to resolve version aliases
     // Lifted Props
     displayedSources: TrafficSource[];
+    /** Full cumulative sources — independent of viewMode (delta/total). Used by enrichment gate. */
+    allSnapshotSources: TrafficSource[];
     viewMode: 'cumulative' | 'delta';
     onViewModeChange: (mode: 'cumulative' | 'delta') => void;
     isLoadingSnapshot: boolean;
@@ -96,6 +98,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     packagingHistory = [],
     // Lifted props
     displayedSources,
+    allSnapshotSources,
     viewMode,
     onViewModeChange: setViewMode,
     isLoadingSnapshot,
@@ -121,14 +124,15 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     // Modals State
     const [isMapperOpen, setIsMapperOpen] = useState(false);
     const [failedFile, setFailedFile] = useState<File | null>(null);
-    const [isMissingTitlesModalOpen, setIsMissingTitlesModalOpen] = useState(false);
-    const [missingTitlesVariant, setMissingTitlesVariant] = useState<'sync' | 'assistant'>('sync');
+    const [isEnrichmentModalOpen, setIsEnrichmentModalOpen] = useState(false);
 
     // Pending Upload State (for Pre-Upload Checks)
     const [pendingUpload, setPendingUpload] = useState<{
         sources: TrafficSource[],
         totalRow?: TrafficSource,
-        file?: File
+        file?: File,
+        /** Accurate cache including batch-looked-up external videos */
+        resolvedCache?: VideoDetails[]
     } | null>(null);
 
     // Version-targeted upload state — default to active version (shown in sidebar)
@@ -158,12 +162,14 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     const addNodeToPage = useCanvasStore((s) => s.addNodeToPage);
     const { showToast } = useUIStore();
 
-    // Extract video IDs from displayedSources for on-demand Firestore queries
+    // Extract video IDs from allSnapshotSources (not displayedSources) so that
+    // cache is loaded for ALL sources regardless of view mode (delta/cumulative).
+    // This ensures enrichment gate and Smart Assistant see the full picture.
     const sourceVideoIds = useMemo(() => {
-        return displayedSources
+        return allSnapshotSources
             .map(s => s.videoId)
             .filter((id): id is string => !!id);
-    }, [displayedSources]);
+    }, [allSnapshotSources]);
 
     // Fetch only the needed external videos (not the entire collection)
     const { videoMap: suggestedVideoMap, isLoading: isExternalCacheLoading } = useExternalVideoLookup(
@@ -177,15 +183,16 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         return [...homeVideos, ...Array.from(suggestedVideoMap.values())];
     }, [homeVideos, suggestedVideoMap]);
 
-    // 1. Existing/Post-Load Missing Titles Logic
+    // Enrichment gate — SSOT for enrichment detection + action
     const {
         missingCount: existingMissingCount,
         unenrichedCount: existingUnenrichedCount,
+        needsEnrichment,
         estimatedQuota: existingEstimatedQuota,
-        fetchMissingTitles: fetchExistingMissingTitles,
-        isRestoring: isRestoringExisting
-    } = useMissingTitles({
-        displayedSources,
+        runEnrichment,
+        isEnriching: isEnrichingExisting,
+    } = useEnrichmentGate({
+        displayedSources: allSnapshotSources,
         userId: user?.uid || '',
         channelId: currentChannel?.id || '',
         trafficVideoId: _video.id,
@@ -194,51 +201,39 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         currentSnapshotId: selectedSnapshot,
         cachedVideos: allVideos,
         onDataRestored: (_newSources, newSnapshotId) => {
-            assistantLogger.debug('[DEBUG-MODAL] onDataRestored called', {
-                newSnapshotId,
-                newSourcesCount: _newSources.length,
-                newSourcesWithChannelId: _newSources.filter(s => !!s.channelId).length,
-                newSourcesWithoutChannelId: _newSources.filter(s => s.videoId && !s.channelId).length
-            });
-            setIsMissingTitlesModalOpen(false);
-
-            // Force reload of traffic data (CSV) because in-place update won't change ID
-            if (retry) {
-                retry();
-            }
-
-            if (onSnapshotClick) {
-                onSnapshotClick(newSnapshotId); // Reload with new snapshot
-            }
+            setIsEnrichmentModalOpen(false);
+            if (retry) retry();
+            if (onSnapshotClick) onSnapshotClick(newSnapshotId);
         },
-        trafficData
+        trafficData,
     });
 
-    // 2. Pre-Upload Pending Logic
-    const pendingMissingCount = useMemo(() => {
-        if (!pendingUpload) return 0;
-        return pendingUpload.sources.filter(s => s.videoId && (!s.sourceTitle || s.sourceTitle.trim() === '')).length;
-    }, [pendingUpload]);
+    // Pre-upload enrichment stats — uses resolvedCache (batch-looked-up) for accurate count
+    const pendingEnrichmentStats = useMemo(() => {
+        if (!pendingUpload) return null;
+        return computeEnrichmentStats(pendingUpload.sources, pendingUpload.resolvedCache ?? allVideos);
+    }, [pendingUpload, allVideos]);
 
-    const pendingEstimatedQuota = Math.ceil(pendingMissingCount / 50) * 2;
-    const [isRestoringPending, setIsRestoringPending] = useState(false);
+    const [isEnrichingPending, setIsEnrichingPending] = useState(false);
 
-    // Determines which "mode" the modal is in
     const isPendingMode = !!pendingUpload;
-    const estimatedQuota = isPendingMode ? pendingEstimatedQuota : existingEstimatedQuota;
-    const isRestoring = isPendingMode ? isRestoringPending : isRestoringExisting;
+    const estimatedQuota = isPendingMode
+        ? (pendingEnrichmentStats?.estimatedQuota ?? 0)
+        : existingEstimatedQuota;
+    const isEnriching = isPendingMode ? isEnrichingPending : isEnrichingExisting;
 
-    // Auto-open modal if missing titles detected in displayed data (only if not pending)
-    // AND if user has not explicitly dismissed/handled it (could add flag, but current logic is fine)
+    // Auto-open enrichment modal when needsEnrichment transitions false→true.
+    // Guards: wait for cache to load, don't re-open after user dismisses.
+    const enrichmentDismissedRef = useRef(false);
     useEffect(() => {
-        if (!pendingUpload && existingMissingCount > 0 && !isRestoringExisting) {
-            assistantLogger.debug('[DEBUG-MODAL] Auto-open: missing titles detected', {
-                existingMissingCount,
-                isRestoringExisting
-            });
-            setIsMissingTitlesModalOpen(true);
+        if (!needsEnrichment) {
+            enrichmentDismissedRef.current = false;
+            return;
         }
-    }, [existingMissingCount, isRestoringExisting, pendingUpload]);
+        if (!pendingUpload && !isEnrichingExisting && !isExternalCacheLoading && !enrichmentDismissedRef.current) {
+            setIsEnrichmentModalOpen(true);
+        }
+    }, [needsEnrichment, isEnrichingExisting, isExternalCacheLoading, pendingUpload]);
 
 
     // Filter Logic and Selection...
@@ -823,132 +818,111 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
 
     const [isSkipping, setIsSkipping] = useState(false);
 
-    // Wrapper to catch upload errors and open mapper - memoized to prevent re-renders
+    // Upload handler — patches from cache, checks enrichment, uploads
     const handleUploadWithErrorTracking = React.useCallback(async (sources: TrafficSource[], totalRow?: TrafficSource, file?: File) => {
-        // If sources is empty and we have a file, it means parsing failed
+        // Parse failure → open column mapper
         if (sources.length === 0 && file) {
             setFailedFile(file);
             setIsMapperOpen(true);
             return;
         }
 
-        let wasPatched = false;
+        // Patch from cache using mergeSources (O(1) Map lookup, not O(n) find)
+        const patchedSources = mergeSources(sources, new Map(), allVideos);
+        const wasPatched = sources.some((s, i) => s.sourceTitle !== patchedSources[i].sourceTitle);
 
-        // OPTIMIZATION: Try to patch missing titles from cache (allVideos) before checking
-        // This prevents the assistant modal from appearing if we already know the data
-        const patchedSources = sources.map(s => {
-            if (s.videoId && (!s.sourceTitle || s.sourceTitle.trim() === '')) {
-                const cachedVideo = allVideos.find(v => v.id === s.videoId);
-                if (cachedVideo) {
-                    wasPatched = true;
-                    return {
-                        ...s,
-                        sourceTitle: cachedVideo.title || s.sourceTitle,
-                        channelId: cachedVideo.channelId || s.channelId,
-                        // We can also patch other fields if needed
-                    };
-                }
-            }
-            return s;
-        });
+        // Batch-lookup new video IDs in Firestore cache for accurate enrichment count.
+        // Without this, allVideos only has cache for the CURRENT snapshot's IDs — new CSV
+        // may contain hundreds of IDs already cached from previous enrichments.
+        const knownIds = new Set(allVideos.map(v => v.id));
+        const unknownIds = patchedSources
+            .filter(s => s.videoId && !s.channelId && !s.notFoundInApi && !knownIds.has(s.videoId))
+            .map(s => s.videoId!);
+        const extraCached = unknownIds.length > 0
+            ? await batchLookupCachedVideos(unknownIds, user?.uid || '', currentChannel?.id || '')
+            : [];
+        const fullCache = extraCached.length > 0 ? [...allVideos, ...extraCached] : allVideos;
 
-        // PRE-CHECK: Missing Titles (on patched data)
-        const hasMissingTitles = patchedSources.some((s: TrafficSource) => s.videoId && (!s.sourceTitle || s.sourceTitle.trim() === ''));
-
-        if (hasMissingTitles && file) {
-            setPendingUpload({ sources: patchedSources, totalRow, file });
-            setIsMissingTitlesModalOpen(true);
+        // Check enrichment with accurate cache
+        const uploadStats = computeEnrichmentStats(patchedSources, fullCache);
+        if (uploadStats.needsEnrichment && file) {
+            setPendingUpload({ sources: patchedSources, totalRow, file, resolvedCache: fullCache });
+            setIsEnrichmentModalOpen(true);
             return;
         }
 
+        // All good — upload directly
         try {
             let finalFile = file;
-
-            // If we patched any data, we MUST regenerate the CSV file so that the
-            // patches are persisted in Storage (the source of truth)
             if (wasPatched && file) {
                 const newCsvContent = generateTrafficCsv(patchedSources, totalRow);
-                finalFile = new File([newCsvContent], file.name, { type: "text/csv" });
-                assistantLogger.info('Regenerated CSV with patched titles from cache');
+                finalFile = new File([newCsvContent], file.name, { type: 'text/csv' });
             }
 
-            // Upload the patched sources and potentially regenerated file
             const newSnapshotId = await handleCsvUpload(patchedSources, totalRow, finalFile, uploadTargetVersion);
-            if (newSnapshotId && onSnapshotClick) {
-                onSnapshotClick(newSnapshotId);
-            }
-            // Auto-switch to uploaded version if different from current view
+            if (newSnapshotId && onSnapshotClick) onSnapshotClick(newSnapshotId);
             if (typeof viewingVersion === 'number' && uploadTargetVersion !== viewingVersion && onSwitchToVersion) {
                 onSwitchToVersion(uploadTargetVersion);
             }
-        } catch (error) {
-            console.error('Upload failed:', error);
+        } catch (error: unknown) {
+            logger.error('Upload failed', { error });
         }
-    }, [handleCsvUpload, onSnapshotClick, allVideos, uploadTargetVersion, viewingVersion, onSwitchToVersion]);
+    }, [handleCsvUpload, onSnapshotClick, allVideos, uploadTargetVersion, viewingVersion, onSwitchToVersion, user?.uid, currentChannel?.id]);
 
-    // Handler for Syncing Pending Upload
-    const handleConfirmPendingSync = async () => {
+    // Enrichment confirm for pending upload (pre-upload enrichment)
+    const handleConfirmPendingEnrichment = async () => {
         if (!pendingUpload) return;
-        setIsRestoringPending(true);
+        setIsEnrichingPending(true);
         try {
-            // Repair sources
-            const repairedSources = await repairTrafficSources(
+            const enrichedSources = await enrichSources(
                 pendingUpload.sources,
                 user?.uid || '',
                 currentChannel?.id || '',
                 apiKey || '',
-                allVideos
+                pendingUpload.resolvedCache ?? allVideos,
             );
 
-            // Generate new CSV from repaired sources
-            const newCsvContent = generateTrafficCsv(repairedSources, pendingUpload.totalRow);
-            const repairedFile = new File([newCsvContent], pendingUpload.file?.name || 'traffic_data.csv', { type: "text/csv" });
+            const newCsvContent = generateTrafficCsv(enrichedSources, pendingUpload.totalRow);
+            const enrichedFile = new File([newCsvContent], pendingUpload.file?.name || 'traffic_data.csv', { type: 'text/csv' });
 
-            // Proceed with upload
-            const newSnapshotId = await handleCsvUpload(repairedSources, pendingUpload.totalRow, repairedFile);
+            const newSnapshotId = await handleCsvUpload(enrichedSources, pendingUpload.totalRow, enrichedFile);
+            if (newSnapshotId && onSnapshotClick) onSnapshotClick(newSnapshotId);
 
-            if (newSnapshotId && onSnapshotClick) {
-                onSnapshotClick(newSnapshotId);
-            }
-
-            // Cleanup
             setPendingUpload(null);
-            setIsMissingTitlesModalOpen(false);
-
-        } catch (err) {
-            console.error("Failed to repair pending upload:", err);
-            // Optionally show error toast
+            enrichmentDismissedRef.current = true;
+            setIsEnrichmentModalOpen(false);
+        } catch (error: unknown) {
+            logger.error('Failed to enrich pending upload', { error });
+            showToast('Enrichment failed. Try again.', 'error');
         } finally {
-            setIsRestoringPending(false);
+            setIsEnrichingPending(false);
         }
     };
 
-    const handleRepairConfirm = async () => {
-        await fetchExistingMissingTitles();
-        setIsMissingTitlesModalOpen(false);
-        // If we were prompted by the Assistant, auto-enable it after successful sync
-        if (missingTitlesVariant === 'assistant') {
-            setIsAssistantEnabled(true);
+    // Enrichment confirm for existing snapshot
+    const handleEnrichExisting = async () => {
+        const success = await runEnrichment();
+        if (success) {
+            enrichmentDismissedRef.current = true;
+            setIsEnrichmentModalOpen(false);
+        } else {
+            showToast('Enrichment failed. Try again.', 'error');
         }
     };
 
-    // Handler for Skipping Pending Sync (Upload as is)
-    const handleSkipPendingSync = async () => {
-        if (!pendingUpload || isSkipping || isRestoringPending) return;
+    // Skip enrichment — upload as-is
+    const handleSkipEnrichment = async () => {
+        if (!pendingUpload || isSkipping || isEnrichingPending) return;
 
         setIsSkipping(true);
         try {
-            // Upload original data (or whatever was patched before determining it was still incomplete)
             const newSnapshotId = await handleCsvUpload(pendingUpload.sources, pendingUpload.totalRow, pendingUpload.file);
-
-            if (newSnapshotId && onSnapshotClick) {
-                onSnapshotClick(newSnapshotId);
-            }
-        } catch (err) {
-            console.error('Upload failed:', err);
+            if (newSnapshotId && onSnapshotClick) onSnapshotClick(newSnapshotId);
+        } catch (error: unknown) {
+            logger.error('Upload failed', { error });
         } finally {
             setPendingUpload(null);
-            setIsMissingTitlesModalOpen(false);
+            setIsEnrichmentModalOpen(false);
             setIsSkipping(false);
         }
     };
@@ -1182,41 +1156,19 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                 onRemoveFilter={removeFilter}
                 groups={groups}
                 trafficSources={displayedSources}
-                missingTitlesCount={existingMissingCount}
-                onOpenMissingTitles={() => {
-                    setMissingTitlesVariant('sync');
-                    setIsMissingTitlesModalOpen(true);
-                }}
+                missingTitlesCount={existingMissingCount + existingUnenrichedCount}
+                onOpenMissingTitles={() => setIsEnrichmentModalOpen(true)}
                 isAssistantEnabled={isAssistantEnabled}
                 isAssistantLoading={isExternalCacheLoading}
                 onToggleAssistant={() => {
-                    assistantLogger.debug('[DEBUG-MODAL] onToggleAssistant clicked', {
-                        currentEnabled: isAssistantEnabled,
-                        missingCount: existingMissingCount,
-                        unenrichedCount: existingUnenrichedCount,
-                        willBlock: !isAssistantEnabled && (existingMissingCount > 0 || existingUnenrichedCount > 0),
-                        cachedVideosCount: allVideos.length,
-                        displayedSourcesCount: displayedSources.length
-                    });
+                    // Wait for external cache to load before deciding
+                    if (!isAssistantEnabled && isExternalCacheLoading) return;
 
-                    // Wait for external cache to load before deciding — avoids false "needs sync" modal
-                    if (!isAssistantEnabled && isExternalCacheLoading) {
-                        assistantLogger.debug('[DEBUG-MODAL] External cache still loading, skipping check');
+                    // If data needs enrichment, show enrichment modal instead of toggling
+                    if (!isAssistantEnabled && needsEnrichment) {
+                        setIsEnrichmentModalOpen(true);
                         return;
                     }
-
-                    // Smart Check: If we have missing titles OR unenriched data, prompt to sync first
-                    if (!isAssistantEnabled && (existingMissingCount > 0 || existingUnenrichedCount > 0)) {
-                        assistantLogger.info('[DEBUG-MODAL] Blocking assistant activation', {
-                            missingCount: existingMissingCount,
-                            unenrichedCount: existingUnenrichedCount,
-                            reason: existingMissingCount > 0 ? 'missingTitles' : 'unenriched'
-                        });
-                        setMissingTitlesVariant('assistant');
-                        setIsMissingTitlesModalOpen(true);
-                        return;
-                    }
-                    assistantLogger.debug('[DEBUG-MODAL] Toggling assistant state');
                     setIsAssistantEnabled(prev => !prev);
                 }}
                 onExport={handleExport}
@@ -1302,20 +1254,24 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                 onMapperClose={() => setIsMapperOpen(false)}
                 onCsvUpload={handleCsvUpload}
 
-                // Missing Titles Props
-                isMissingTitlesOpen={isMissingTitlesModalOpen}
-                missingTitlesCount={isPendingMode ? pendingMissingCount : (existingMissingCount + existingUnenrichedCount)}
+                isEnrichmentOpen={isEnrichmentModalOpen}
+                missingCount={isPendingMode
+                    ? (pendingEnrichmentStats?.missingCount ?? 0)
+                    : existingMissingCount}
+                unenrichedCount={isPendingMode
+                    ? (pendingEnrichmentStats?.unenrichedCount ?? 0)
+                    : existingUnenrichedCount}
                 estimatedQuota={estimatedQuota}
-                onMissingTitlesConfirm={isPendingMode ? handleConfirmPendingSync : handleRepairConfirm}
-                onMissingTitlesClose={() => {
+                onEnrichmentConfirm={isPendingMode ? handleConfirmPendingEnrichment : handleEnrichExisting}
+                onEnrichmentClose={() => {
                     if (isPendingMode) {
-                        handleSkipPendingSync();
+                        handleSkipEnrichment();
                     } else {
-                        setIsMissingTitlesModalOpen(false);
+                        enrichmentDismissedRef.current = true;
+                        setIsEnrichmentModalOpen(false);
                     }
                 }}
-                isRestoringTitles={isRestoring}
-                missingTitlesVariant={missingTitlesVariant}
+                isEnriching={isEnriching}
             />
         </div>
     );

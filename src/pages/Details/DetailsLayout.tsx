@@ -827,6 +827,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
                             packagingHistory={memoizedPackagingHistory}
                             // Lifted props
                             displayedSources={trafficLoader.displayedSources}
+                            allSnapshotSources={trafficLoader.allSnapshotSources}
                             viewMode={trafficViewMode}
                             onViewModeChange={setTrafficViewMode}
                             isLoadingSnapshot={trafficLoader.isLoadingSnapshot}

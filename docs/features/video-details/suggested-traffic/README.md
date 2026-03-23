@@ -53,7 +53,7 @@ YT_RELATED.kJQP7kiw5Fk,Luis Fonsi - Despacito,280,52.1,0:11:09,8500,3.29
 
 > Enrichment делает 2 API-вызова на batch (до 50 видео): `videos.list` (title, description, tags, viewCount, duration) + `channels.list` (subscriberCount, channelAvatar). Квота: 2 units на batch. Результат кэшируется в `cached_external_videos` — shared коллекция, доступная всем фичам.
 >
-> Подробнее о процессе обогащения и блокировке Smart Assistant: [Data Repair & Smart Assistant Gate](./data-repair.md)
+> Подробнее о процессе обогащения и блокировке Smart Assistant: [Data Enrichment](./data-repair.md)
 
 ---
 
@@ -132,10 +132,11 @@ Canvas ноды содержат enrichment data (description, tags) — они 
 - [x] Delta mode (прирост между снапшотами)
 - [x] Packaging snapshot preservation (если version удалена)
 
-### Stage 3 — Enrichment ✅ → [Data Repair doc](./data-repair.md)
+### Stage 3 — Enrichment ✅ → [Data Enrichment doc](./data-repair.md)
 - [x] Pre-upload: patch titles из кэша (`cached_external_videos`)
-- [x] Missing Titles modal + `repairTrafficSources` (YouTube API)
-- [x] CSV regeneration после repair
+- [x] Unified EnrichmentModal — triggers on CSV upload AND existing data load AND Smart Assistant toggle
+- [x] `classifySources()` SSOT + `enrichSources()` SRP orchestrator
+- [x] CSV regeneration после enrichment
 - [x] Enrichment cache (React Query, per-channel)
 
 ### Stage 4 — Smart Assistant ✅
@@ -181,7 +182,7 @@ Bridge передаёт только IDs вместо полных данных.
 
 ## Связанные фичи
 - [Traffic Sources](../traffic-sources.md) — агрегированные метрики по источникам. `analyzeTrafficSources` = gateway, `analyzeSuggestedTraffic` = drill-down
-- [Data Repair & Smart Assistant Gate](./data-repair.md) — enrichment flow, gatekeeper pattern, cache-first архитектура
+- [Data Enrichment](./data-repair.md) — enrichment flow, gatekeeper pattern, cache-first архитектура
 - [Telescope Pattern Overview](../../chat/tools/README.md) — `analyzeSuggestedTraffic` входит в Telescope Pattern (Layer 3 — drill-down tool)
 - [analyzeSuggestedTraffic Tool Doc](../../chat/tools/layer-3-analysis/2-analyze-suggested-traffic-tool.md) — подробная документация AI-тула (параметры, output, stages)
 - Chat — Chat Bridge передаёт `SuggestedTrafficContext` через `appContextStore`; `SuggestedTrafficChip` в chat UI
@@ -225,7 +226,7 @@ Bridge передаёт только IDs вместо полных данных.
 | Файл | Назначение |
 |------|-----------|
 | `pages/Details/tabs/Traffic/modals/ColumnMapperModal.tsx` | Fallback column mapping |
-| `pages/Details/tabs/Traffic/modals/DataRepairModal.tsx` | Missing titles repair via YouTube API |
+| `pages/Details/tabs/Traffic/modals/EnrichmentModal.tsx` | Unified enrichment modal (Smart Assistant + AI Analysis benefits) |
 | `pages/Details/tabs/Traffic/modals/SnapshotRequestModal.tsx` | Snapshot request UI |
 | `pages/Details/tabs/Traffic/modals/VersionFreezeModal.tsx` | Version freeze confirmation |
 
@@ -245,7 +246,7 @@ Bridge передаёт только IDs вместо полных данных.
 | `pages/Details/tabs/Traffic/hooks/useTrafficData.ts` | Firestore fetch, save, upload |
 | `pages/Details/tabs/Traffic/hooks/useTrafficDataLoader.ts` | Snapshot load + delta calc |
 | `pages/Details/tabs/Traffic/hooks/useExternalVideoLookup.ts` | YouTube API enrichment (React Query cache) |
-| `pages/Details/tabs/Traffic/hooks/useMissingTitles.ts` | Pre-upload title patch + API repair |
+| `pages/Details/tabs/Traffic/hooks/useEnrichmentGate.ts` | Enrichment detection (via `computeEnrichmentStats`) + `enrichSources()` orchestrator |
 | `pages/Details/tabs/Traffic/hooks/useSmartTrafficAutoApply.ts` | Auto-classify traffic type |
 | `pages/Details/tabs/Traffic/hooks/useSmartViewerTypeAutoApply.ts` | Auto-classify viewer type |
 | `pages/Details/tabs/Traffic/hooks/useSmartNicheSuggestions.ts` | Niche suggestions (Harmonic Decay Scoring) |
@@ -256,6 +257,7 @@ Bridge передаёт только IDs вместо полных данных.
 ### Frontend — Utils
 | Файл | Назначение |
 |------|-----------|
+| `pages/Details/tabs/Traffic/utils/enrichment.ts` | Pure functions: `classifySources()`, `computeEnrichmentStats()`, `mergeSources()`, `filterIdsToFetch()`, `isTitleMissing()` |
 | `pages/Details/tabs/Traffic/utils/csvParser.ts` | Client-side CSV parser (auto-detect EN + RU headers) |
 | `pages/Details/tabs/Traffic/utils/csvGenerator.ts` | CSV generation (re-export after enrichment) |
 | `pages/Details/tabs/Traffic/utils/exportTrafficCsv.ts` | Export с discrepancy report |
@@ -281,7 +283,7 @@ Bridge передаёт только IDs вместо полных данных.
 ### Frontend — Types & Stores
 | Файл | Назначение |
 |------|-----------|
-| `core/types/suggestedTraffic/traffic.ts` | `TrafficSource`, `EnrichedTrafficSource`, `TrafficSnapshot`, `TrafficData` |
+| `core/types/suggestedTraffic/traffic.ts` | `TrafficSource` (incl. `notFoundInApi`), `EnrichedTrafficSource`, `TrafficSnapshot`, `TrafficData` |
 | `core/types/appContext.ts` | `SuggestedTrafficContext`, `SuggestedVideoItem`, `TrafficSourceCardData` |
 | `core/types/suggestedTraffic/suggestedTrafficNiches.ts` | Niche taxonomy |
 | `core/types/suggestedTraffic/videoTrafficType.ts` | `TrafficType` enum |
@@ -325,9 +327,9 @@ Tab union:  'packaging' | 'trafficSource' | 'traffic' | 'gallery' | 'editing'
 ```
 Upload:
   User drags CSV → csvParser.ts (auto-detect headers)
-    → useMissingTitles (patch from cached_external_videos)
-    → DataRepairModal (YouTube API batch if still missing)
-    → csvGenerator.ts (regenerate CSV with patched titles)
+    → computeEnrichmentStats (check if data needs enrichment)
+    → EnrichmentModal (YouTube API batch if still missing)
+    → enrichSources() → mergeSources() → csvGenerator.ts
     → Cloud Storage upload + Firestore snapshot metadata
 
 View:
@@ -350,6 +352,7 @@ AI Analysis (on-demand):
 ### Tests
 | Файл | Кейсов |
 |------|--------|
+| `pages/Details/tabs/Traffic/utils/__tests__/enrichment.test.ts` | 33 (classifySources, computeEnrichmentStats, mergeSources, filterIdsToFetch) |
 | `functions/src/services/tools/utils/__tests__/csvParser.test.ts` | 12 (RFC 4180, Total Row, edge cases) |
 | `functions/src/services/tools/utils/__tests__/delta.test.ts` | 17 (timelines, transitions, new/dropped) |
 | `functions/src/services/tools/utils/__tests__/suggestedAnalysis.test.ts` | 46 (content analysis, self-channel, trajectory, tokenizer) |

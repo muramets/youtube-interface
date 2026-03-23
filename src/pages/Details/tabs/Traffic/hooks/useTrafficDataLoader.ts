@@ -44,10 +44,20 @@ export const useTrafficDataLoader = ({
     groups = []
 }: UseTrafficDataLoaderProps) => {
     const [displayedSources, _setDisplayedSources] = useState<TrafficSource[]>([]);
+    // Full cumulative sources — always contains ALL sources regardless of viewMode.
+    // Used by enrichment gate to count sources independently of delta filtering.
+    const [allSnapshotSources, _setAllSnapshotSources] = useState<TrafficSource[]>([]);
 
     // Stable setter to prevent unnecessary re-renders (especially [] -> [])
     const setDisplayedSources = useCallback((newSources: TrafficSource[]) => {
         _setDisplayedSources(prev => {
+            if (prev === newSources) return prev;
+            if (prev.length === 0 && newSources.length === 0) return prev;
+            return newSources;
+        });
+    }, []);
+    const setAllSnapshotSources = useCallback((newSources: TrafficSource[]) => {
+        _setAllSnapshotSources(prev => {
             if (prev === newSources) return prev;
             if (prev.length === 0 && newSources.length === 0) return prev;
             return newSources;
@@ -119,6 +129,7 @@ export const useTrafficDataLoader = ({
 
             if (!trafficData?.sources) {
                 setDisplayedSources([]);
+                setAllSnapshotSources([]);
                 setActualTotalRow(undefined);
                 setTrashMetrics({ impressions: 0, views: 0 });
                 lastLoadedKeyRef.current = loadKey;
@@ -136,16 +147,19 @@ export const useTrafficDataLoader = ({
                             const result = await loadDeltaParallel(snapshot, trafficData.snapshots || []);
                             if (result) {
                                 setDisplayedSources(result.sources);
+                                setAllSnapshotSources(result.cumulativeSources);
                                 setActualTotalRow(result.totalRow);
                                 setDeltaContext(result.deltaContext);
                             } else {
                                 setDisplayedSources([]);
+                                setAllSnapshotSources([]);
                                 setActualTotalRow(undefined);
                                 setDeltaContext(undefined);
                             }
                         } else {
                             const { sources: currentSources, totalRow: currentTotal } = await loadSnapshotSources(snapshot);
                             setDisplayedSources(currentSources);
+                            setAllSnapshotSources(currentSources);
                             setActualTotalRow(currentTotal || trafficData.totalRow);
                             setDeltaContext(undefined);
                         }
@@ -153,6 +167,7 @@ export const useTrafficDataLoader = ({
                         lastLoadContextRef.current = currentContext;
                     } else {
                         setDisplayedSources([]);
+                        setAllSnapshotSources([]);
                         setActualTotalRow(undefined);
                         setTrashMetrics({ impressions: 0, views: 0 });
                         lastLoadedKeyRef.current = loadKey;
@@ -183,10 +198,12 @@ export const useTrafficDataLoader = ({
                         const result = await loadDeltaParallel(latestSnap, trafficData.snapshots || []);
                         if (result) {
                             setDisplayedSources(result.sources);
+                            setAllSnapshotSources(result.cumulativeSources);
                             setActualTotalRow(result.totalRow);
                             setDeltaContext(result.deltaContext);
                         } else {
                             setDisplayedSources([]);
+                            setAllSnapshotSources([]);
                             setActualTotalRow(undefined);
                             setDeltaContext(undefined);
                         }
@@ -196,6 +213,7 @@ export const useTrafficDataLoader = ({
                             trafficData.snapshots || []
                         );
                         setDisplayedSources(sources);
+                        setAllSnapshotSources(sources);
                         setActualTotalRow(currentTotal || trafficData.totalRow);
                         setDeltaContext(undefined);
                     }
@@ -205,6 +223,7 @@ export const useTrafficDataLoader = ({
                     logger.error('Failed to load version sources', { component: 'useTrafficDataLoader', error: err, viewingVersion });
                     setError(err instanceof Error ? err : new Error('Unknown error loading version'));
                     setDisplayedSources(trafficData.sources || []);
+                    setAllSnapshotSources(trafficData.sources || []);
                     setActualTotalRow(trafficData.totalRow);
                 } finally {
                     if (!isSoftUpdate) setIsLoadingSnapshot(false);
@@ -214,6 +233,7 @@ export const useTrafficDataLoader = ({
 
             // Fallback: no snapshots for this version
             setDisplayedSources([]);
+            setAllSnapshotSources([]);
             setActualTotalRow(undefined);
             setDeltaContext(undefined);
             lastLoadedKeyRef.current = loadKey;
@@ -231,7 +251,8 @@ export const useTrafficDataLoader = ({
         trafficData?.sources,
         trafficData?.totalRow,
         displayedSources.length,
-        setDisplayedSources
+        setDisplayedSources,
+        setAllSnapshotSources
     ]);
 
     // Separate Effect for Trash Metrics to prevent Loading Loop
@@ -247,13 +268,14 @@ export const useTrafficDataLoader = ({
 
     return useMemo(() => ({
         displayedSources,
+        allSnapshotSources,
         actualTotalRow,
         trashMetrics,
         isLoadingSnapshot: isLoadingSnapshot || isLoadPending,
         error,
         retry,
         deltaContext
-    }), [displayedSources, actualTotalRow, trashMetrics, isLoadingSnapshot, isLoadPending, error, deltaContext, retry]);
+    }), [displayedSources, allSnapshotSources, actualTotalRow, trashMetrics, isLoadingSnapshot, isLoadPending, error, deltaContext, retry]);
 };
 
 /**
@@ -382,7 +404,7 @@ const buildCachedPrevTotal = (prevSnapshot: TrafficSnapshot): TrafficSource | un
 const loadDeltaParallel = async (
     currentSnapshot: TrafficSnapshot,
     allSnapshots: TrafficSnapshot[]
-): Promise<{ sources: TrafficSource[], totalRow?: TrafficSource, deltaContext?: DeltaContext } | null> => {
+): Promise<{ sources: TrafficSource[], cumulativeSources: TrafficSource[], totalRow?: TrafficSource, deltaContext?: DeltaContext } | null> => {
     const prevSnapshot = findPreviousSnapshot(currentSnapshot.id, allSnapshots);
     if (!prevSnapshot) return null;
 
@@ -395,10 +417,12 @@ const loadDeltaParallel = async (
 
     const prevTotal = buildCachedPrevTotal(prevSnapshot) ?? prevResult.totalRow;
 
-    return calculateSnapshotDelta(
+    const delta = calculateSnapshotDelta(
         currentResult.sources,
         currentResult.totalRow,
         prevResult.sources,
         prevTotal
     );
+
+    return { ...delta, cumulativeSources: currentResult.sources };
 };

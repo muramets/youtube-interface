@@ -65,6 +65,8 @@ export interface VideoDetails {
     suggestedTrafficSnapshotCount?: number;
     // Knowledge Items discovery flags (written by saveKnowledge handler)
     knowledgeItemCount?: number;
+    // Enrichment: YouTube API confirmed this video as unfindable (deleted, private, etc.)
+    notFoundInApi?: boolean;
 }
 
 

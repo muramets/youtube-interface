@@ -17,6 +17,8 @@ export interface TrafficSource {
     channelId?: string;
     channelTitle?: string;
     publishedAt?: string;
+    // YouTube API confirmed this video as unfindable (deleted, private, etc.)
+    notFoundInApi?: boolean;
 }
 
 export interface EnrichedTrafficSource extends TrafficSource {
