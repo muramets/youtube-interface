@@ -18,11 +18,16 @@ export function positionSuggestionPopup(
     const VIEWPORT_MARGIN = 8
     const MIN_HEIGHT = 100
 
+    // Horizontal clamping — prevent overflow on right edge
+    const popupWidth = rendererElement.offsetWidth || 320
+    const maxLeft = window.innerWidth - VIEWPORT_MARGIN - popupWidth
+    const clampedLeft = Math.max(VIEWPORT_MARGIN, Math.min(rect.left, maxLeft))
+
     if (direction === 'up') {
         // Chat input: fixed position — input itself is pinned to viewport bottom.
         // clientRect() returns viewport coords which match `position: fixed` directly.
         popup.style.position = 'fixed'
-        popup.style.left = `${rect.left}px`
+        popup.style.left = `${clampedLeft}px`
         popup.style.top = 'auto'
         popup.style.bottom = `${window.innerHeight - rect.top + GAP}px`
 
@@ -37,7 +42,7 @@ export function positionSuggestionPopup(
         // RTE: fixed position — repositioned on scroll via listener in the extension.
         // clientRect() returns viewport coords which match `position: fixed` directly.
         popup.style.position = 'fixed'
-        popup.style.left = `${rect.left}px`
+        popup.style.left = `${clampedLeft}px`
         popup.style.bottom = 'auto'
         const top = rect.bottom + GAP
         popup.style.top = `${top}px`
