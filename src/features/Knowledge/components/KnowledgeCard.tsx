@@ -111,10 +111,10 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
             <div
                 ref={cardRef}
                 className={clsx(
-                    'group relative rounded-lg hover-trail cursor-pointer select-none',
+                    'group relative rounded-lg hover-trail-lift cursor-pointer select-none scale-100 shadow-none',
                     isExpanded
                         ? 'bg-black/[0.04] dark:bg-white/[0.06]'
-                        : 'bg-black/[0.02] hover:bg-black/[0.04] dark:bg-white/[0.03] dark:hover:bg-white/[0.06]'
+                        : 'bg-black/[0.02] hover:bg-black/[0.04] hover:scale-[1.012] hover:shadow-lg dark:bg-white/[0.03] dark:hover:bg-white/[0.06] dark:hover:shadow-black/30'
                 )}
                 onClick={handleToggle}
             >
@@ -154,44 +154,52 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
                         </div>
                     </div>
 
-                    {/* Linked video — video-scoped KI only, hidden on Watch Page */}
-                    {showLinkedVideo && linkedVideo && (
-                        <div className="group/linked flex items-center gap-2 mt-1.5 cursor-default">
+                    {/* Linked video + summary — video-scoped KI on Knowledge Page */}
+                    {showLinkedVideo && linkedVideo ? (
+                        <div className="flex items-center gap-3 mt-2 cursor-default">
                             {linkedVideo.thumbnailUrl && (
                                 <img
                                     src={linkedVideo.thumbnailUrl}
                                     alt=""
-                                    className="w-8 aspect-video object-cover rounded flex-shrink-0 transition-transform group-hover/linked:scale-110"
+                                    className="w-20 aspect-video object-cover rounded flex-shrink-0 transition-transform hover:scale-105"
                                 />
                             )}
-                            <PortalTooltip
-                                content={<VideoPreviewTooltip video={linkedVideo} mode="mini" />}
-                                variant="glass"
-                                side="top"
-                                align="center"
-                                sizeMode="fixed"
-                                fixedDimensions={PREVIEW_DIMENSIONS.mini}
-                                enterDelay={200}
-                                inline
-                            >
-                                <span className="text-[10px] text-text-tertiary truncate transition-colors group-hover/linked:text-text-secondary">
-                                    {linkedVideo.title}
-                                    {linkedVideo.channelTitle && (
-                                        <span className="text-text-tertiary/50 transition-colors group-hover/linked:text-text-tertiary ml-1">
-                                            {linkedVideo.channelTitle}
-                                        </span>
-                                    )}
-                                </span>
-                            </PortalTooltip>
+                            <div className="flex-1 min-w-0">
+                                <PortalTooltip
+                                    content={<VideoPreviewTooltip video={linkedVideo} mode="mini" />}
+                                    variant="glass"
+                                    side="top"
+                                    align="center"
+                                    sizeMode="fixed"
+                                    fixedDimensions={PREVIEW_DIMENSIONS.mini}
+                                    enterDelay={200}
+                                    cursorAnchor
+                                    inline
+                                >
+                                    <span className="text-[10px] text-text-tertiary truncate inline transition-colors hover:text-text-secondary">
+                                        {linkedVideo.title}
+                                        {linkedVideo.channelTitle && (
+                                            <span className="text-text-tertiary/50 ml-1">
+                                                {linkedVideo.channelTitle}
+                                            </span>
+                                        )}
+                                    </span>
+                                </PortalTooltip>
+                                <div className="mt-1 text-xs text-text-secondary line-clamp-2 leading-relaxed [&_p]:m-0 [&_p]:inline">
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]} urlTransform={allowCustomUrls} components={bodyComponents}>
+                                        {videoMap ? linkifyVideoIds(item.summary, videoMap) : item.summary}
+                                    </ReactMarkdown>
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        /* Summary — non-video KI or hidden linked video */
+                        <div className="mt-1.5 text-xs text-text-secondary line-clamp-2 leading-relaxed [&_p]:m-0 [&_p]:inline">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]} urlTransform={allowCustomUrls} components={bodyComponents}>
+                                {videoMap ? linkifyVideoIds(item.summary, videoMap) : item.summary}
+                            </ReactMarkdown>
                         </div>
                     )}
-
-                    {/* Summary — always visible */}
-                    <div className="mt-1.5 text-xs text-text-secondary line-clamp-2 leading-relaxed [&_p]:m-0 [&_p]:inline">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]} urlTransform={allowCustomUrls} components={bodyComponents}>
-                            {videoMap ? linkifyVideoIds(item.summary, videoMap) : item.summary}
-                        </ReactMarkdown>
-                    </div>
                 </div>
 
 

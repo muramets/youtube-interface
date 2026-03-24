@@ -122,8 +122,8 @@ export const KnowledgePage: React.FC = () => {
     }
 
     return (
-        <div className="flex flex-col min-h-[calc(100vh-56px)]">
-            {/* Header */}
+        <div className="flex flex-col h-[calc(100vh-56px)]">
+            {/* Header — fixed, outside scroll area */}
             <div className="flex-shrink-0 px-6 pt-6 pb-4">
                 <div className="flex items-center justify-between mb-5">
                     <div className="flex items-center gap-3">
@@ -219,7 +219,7 @@ export const KnowledgePage: React.FC = () => {
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto px-6 pb-6">
+            <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6">
                 <KnowledgeList
                     items={displayItems}
                     onEdit={handleEdit}

@@ -679,6 +679,18 @@ html:hover {
    transition-duration: 75ms;
 }
 
+/* Hover trail + lift: adds scale & shadow to the decay pattern.
+   Tailwind v4 uses native CSS `scale` property (not `transform`). */
+.hover-trail-lift {
+   transition-property: color, background-color, border-color, opacity, scale, box-shadow;
+   transition-duration: 400ms;
+   transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+.hover-trail-lift:hover {
+   transition-duration: 200ms;
+   transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
 /* =============================================================================
    VIDEO REFERENCE HIGHLIGHT (global — used in Chat + Knowledge cards)
    ============================================================================= */

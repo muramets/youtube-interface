@@ -237,8 +237,9 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                     viewportWidth - VIEWPORT_EDGE_PADDING * 2
                 );
 
-                // Center on anchor, then clamp to viewport edges
-                left = anchorCenterX - actualWidth / 2;
+                // Center on anchor (or cursor when cursorAnchor), then clamp to viewport edges
+                const fixedCenterX = (cursorAnchor && cursorXRef.current > 0) ? cursorXRef.current : anchorCenterX;
+                left = fixedCenterX - actualWidth / 2;
                 left = Math.max(
                     VIEWPORT_EDGE_PADDING,
                     Math.min(left, viewportWidth - actualWidth - VIEWPORT_EDGE_PADDING)
@@ -421,7 +422,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
 
             positionRafRef.current = null;
         });
-    }, [sizeMode, maxWidth, fixedDimensions]);
+    }, [sizeMode, maxWidth, fixedDimensions, cursorAnchor]);
 
 
     // =========================================================================
