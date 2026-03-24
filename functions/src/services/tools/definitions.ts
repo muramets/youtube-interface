@@ -653,8 +653,9 @@ const editKnowledge: ToolDefinition = {
             category: {
                 type: "string",
                 description:
-                    "New category slug (kebab-case). Choose from existing categories " +
-                    "or propose a new one. Omit to keep current category.",
+                    "New category slug (kebab-case). Choose from the Knowledge Categories " +
+                    "registry in the system prompt, or propose a new slug if none fits. " +
+                    "Omit to keep current category.",
             },
         },
         required: ["kiId"],
