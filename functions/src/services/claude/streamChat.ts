@@ -100,10 +100,10 @@ export interface ClaudeStreamChatResult {
 /** Inactivity timeout: abort if no event arrives within this window. */
 const STREAM_INACTIVITY_TIMEOUT_MS = 90_000;
 
-/** Escalated inactivity timeout during tool input streaming (3 minutes).
+/** Escalated inactivity timeout during tool input streaming (4 minutes).
  *  API can stall for 90+ seconds on large tool inputs (editKnowledge, saveKnowledge)
  *  with heavy context (200K+ tokens) and thinking compression. */
-const TOOL_INPUT_INACTIVITY_TIMEOUT_MS = 180_000;
+const TOOL_INPUT_INACTIVITY_TIMEOUT_MS = 240_000;
 
 /** Escalated inactivity timeout during extended thinking (10 minutes). */
 const THINKING_INACTIVITY_TIMEOUT_MS = 600_000;

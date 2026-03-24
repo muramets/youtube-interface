@@ -162,9 +162,10 @@ export async function streamChat(opts: StreamChatOpts): Promise<AiChatResult> {
 
     // --- Inactivity timeout: abort reader if no data arrives.
     // Must exceed server-side timeouts to let the server handle stalls and send proper
-    // partial results. Server timeouts: 90s (text), 180s (tool input), 600s (thinking).
-    // Client adds 30s buffer over the highest non-thinking timeout (180s + 30s = 210s). ---
-    const STREAM_TIMEOUT_MS = 210_000;
+    // partial results. Server timeouts: 90s (text), 240s (tool input), 600s (thinking).
+    // Client adds 30s buffer over each server-side tier. ---
+    const STREAM_TIMEOUT_MS = 120_000;          // 90s text + 30s buffer
+    const TOOL_STREAM_TIMEOUT_MS = 270_000;     // 240s tool input + 30s buffer
     const THINKING_STREAM_TIMEOUT_MS = 660_000; // 600s thinking + 60s buffer
     let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
     let currentStreamTimeout = STREAM_TIMEOUT_MS;
@@ -223,6 +224,7 @@ export async function streamChat(opts: StreamChatOpts): Promise<AiChatResult> {
                         onStream(sseEvent.text);
                         break;
                     case 'toolCallStart':
+                        currentStreamTimeout = TOOL_STREAM_TIMEOUT_MS;
                         onToolCallStart?.(sseEvent.name, sseEvent.toolCallIndex);
                         break;
                     case 'toolCall':
