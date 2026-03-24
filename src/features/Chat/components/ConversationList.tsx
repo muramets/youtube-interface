@@ -1,9 +1,11 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { MessageSquare, Pencil, ChevronDown, Download } from 'lucide-react';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { MessageSquare, Pencil, ChevronDown, Download, Search, X } from 'lucide-react';
 import { ConfirmDeleteButton } from '../../../components/ui/atoms/ConfirmDeleteButton';
 import { useRelativeTime } from '../useRelativeTime';
 import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
 import type { ChatConversation } from '../../../core/types/chat/chat';
+
+const SEARCH_BAR_HEIGHT = 44;
 
 interface ConversationListProps {
     conversations: ChatConversation[];
@@ -136,7 +138,58 @@ export const ConversationList: React.FC<ConversationListProps> = ({
 }) => {
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editingTitle, setEditingTitle] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchRevealed, setSearchRevealed] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
+    const searchInputRef = useRef<HTMLInputElement>(null);
+    const scrollRef = useRef<HTMLDivElement>(null);
+
+    // Reveal on scroll-up at top; hide on scroll-down when query is empty
+    // Cmd+F opens search instead of browser find
+    useEffect(() => {
+        const el = scrollRef.current;
+        if (!el) return;
+
+        const handleWheel = (e: WheelEvent) => {
+            if (el.scrollTop <= 0 && e.deltaY < 0) {
+                setSearchRevealed(true);
+            } else if (e.deltaY > 0 && !searchInputRef.current?.value.trim()) {
+                setSearchRevealed(false);
+            }
+        };
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+                e.preventDefault();
+                setSearchRevealed(true);
+            }
+        };
+
+        el.addEventListener('wheel', handleWheel, { passive: true });
+        document.addEventListener('keydown', handleKeyDown);
+        return () => {
+            el.removeEventListener('wheel', handleWheel);
+            document.removeEventListener('keydown', handleKeyDown);
+        };
+    }, []);
+
+    // Auto-focus search input when revealed
+    useEffect(() => {
+        if (searchRevealed) {
+            requestAnimationFrame(() => searchInputRef.current?.focus());
+        }
+    }, [searchRevealed]);
+
+    const clearSearch = useCallback(() => {
+        setSearchQuery('');
+        setSearchRevealed(false);
+    }, []);
+
+    const filteredConversations = useMemo(() => {
+        if (!searchQuery.trim()) return conversations;
+        const q = searchQuery.trim().toLowerCase();
+        return conversations.filter(c => c.title.toLowerCase().includes(q));
+    }, [conversations, searchQuery]);
 
     const startEditing = useCallback((conv: ChatConversation) => {
         setEditingId(conv.id);
@@ -155,9 +208,43 @@ export const ConversationList: React.FC<ConversationListProps> = ({
         setEditingId(null);
     }, []);
 
+    const isSearchActive = searchQuery.trim().length > 0;
+
     return (
-        <div className="flex-1 overflow-y-auto overscroll-y-contain p-1.5 flex flex-col chat-list-container">
-            {conversations.map((conv) => (
+        <div
+            ref={scrollRef}
+            className="flex-1 overflow-y-auto overscroll-y-contain p-1.5 flex flex-col chat-list-container"
+        >
+            {/* Pull-to-reveal search bar */}
+            <div
+                className="shrink-0 overflow-hidden transition-all duration-200 ease-out"
+                style={{ maxHeight: searchRevealed ? SEARCH_BAR_HEIGHT : 0, opacity: searchRevealed ? 1 : 0 }}
+            >
+                <div className="px-1 pb-1.5" style={{ height: SEARCH_BAR_HEIGHT }}>
+                    <div className="relative flex items-center h-8">
+                        <Search size={14} className="absolute left-2.5 text-text-tertiary pointer-events-none" />
+                        <input
+                            ref={searchInputRef}
+                            type="text"
+                            placeholder="Search conversations..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Escape') clearSearch(); }}
+                            className="w-full h-full pl-8 pr-7 rounded-lg bg-hover-bg border-none text-text-primary text-xs placeholder:text-text-tertiary outline-none transition-colors duration-150"
+                        />
+                        {isSearchActive && (
+                            <button
+                                onClick={clearSearch}
+                                className="absolute right-1.5 p-0.5 rounded text-text-tertiary hover:text-text-primary bg-transparent border-none cursor-pointer transition-colors duration-100"
+                            >
+                                <X size={14} />
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {filteredConversations.map((conv) => (
                 <ConversationItem
                     key={conv.id}
                     conv={conv}
@@ -175,13 +262,20 @@ export const ConversationList: React.FC<ConversationListProps> = ({
                 />
             ))}
 
-            {hasMore && onLoadMore && (
+            {isSearchActive && filteredConversations.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-8 gap-2 text-text-tertiary text-[13px] text-center">
+                    <Search size={24} className="opacity-35" />
+                    <span className="select-none">No matching conversations</span>
+                </div>
+            )}
+
+            {!isSearchActive && hasMore && onLoadMore && (
                 <button className="flex items-center justify-center gap-1.5 p-2 bg-transparent border-none text-text-tertiary text-xs cursor-pointer transition-colors duration-100 shrink-0 hover:text-text-primary" onClick={onLoadMore}>
                     <ChevronDown size={14} /> Load older conversations
                 </button>
             )}
 
-            {conversations.length === 0 && (
+            {!isSearchActive && conversations.length === 0 && (
                 <div className="flex flex-col items-center justify-center h-full gap-2.5 text-text-tertiary text-[13px] text-center p-6">
                     <MessageSquare size={32} className="opacity-35" />
                     <span className="select-none">No conversations yet.<br />Click + to start one.</span>

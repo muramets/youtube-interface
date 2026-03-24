@@ -89,7 +89,25 @@ export function createConversationSlice(
 
         renameConversation: async (conversationId, title) => {
             const { userId, channelId } = requireContext(get);
-            await ChatService.updateConversation(userId, channelId, conversationId, { title });
+            const previousTitle = get().conversations.find(c => c.id === conversationId)?.title;
+            // Optimistic update — show new title immediately, before Firestore roundtrip
+            set({
+                conversations: get().conversations.map(c =>
+                    c.id === conversationId ? { ...c, title } : c
+                ),
+            });
+            try {
+                await ChatService.updateConversation(userId, channelId, conversationId, { title }, { preserveTimestamp: true });
+            } catch {
+                // Rollback on failure — subscription won't fire since nothing changed in Firestore
+                if (previousTitle !== undefined) {
+                    set({
+                        conversations: get().conversations.map(c =>
+                            c.id === conversationId ? { ...c, title: previousTitle } : c
+                        ),
+                    });
+                }
+            }
         },
 
         moveConversation: async (conversationId, projectId) => {
