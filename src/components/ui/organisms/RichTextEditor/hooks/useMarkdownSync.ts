@@ -69,7 +69,12 @@ export function useMarkdownSync(
             // This prevents infinite loops and unnecessary re-renders
             if (markdown !== lastValueRef.current) {
                 lastValueRef.current = markdown
-                onChange(markdown)
+                // Skip propagation when editor is not focused — the change is from
+                // internal normalization (e.g. setOptions on Zen toggle), not user input.
+                // All toolbar buttons use onMouseDown+preventDefault so isFocused stays true.
+                if (editor.isFocused) {
+                    onChange(markdown)
+                }
             }
         }
 
