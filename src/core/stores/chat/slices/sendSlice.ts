@@ -212,6 +212,8 @@ async function resumeSendFlow(
         if (session.streamingNonce === nonce) set(partial);
     };
 
+    maybeAutoTitle(userId, channelId, convId, text, model, isFirstExchange ?? false);
+
     const { usedSummary, messageId } = await streamAiResponse(
         channelId, convId, model, systemPrompt,
         text, attachments, thumbnailUrls, contextMeta, scopedSet, get, abortController.signal,
@@ -238,7 +240,6 @@ async function resumeSendFlow(
         });
     }
 
-    maybeAutoTitle(userId, channelId, convId, text, model, isFirstExchange ?? false);
 }
 
 // =============================================================================

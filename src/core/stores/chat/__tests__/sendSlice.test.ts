@@ -344,6 +344,7 @@ describe('retryLastMessage', () => {
     it('restores lastFailedRequest and sets error when retry fails', async () => {
         mockChatService.clearLastError.mockResolvedValue(undefined);
         mockChatService.setLastError.mockResolvedValue(undefined);
+        mockAiService.generateTitle.mockResolvedValueOnce('Chat');
         mockAiService.sendMessage.mockRejectedValueOnce(new Error('Network error'));
 
         const store = buildStore({
@@ -386,6 +387,7 @@ describe('sendMessage — abort creates ghost (no client persist)', () => {
             .mockResolvedValueOnce({ id: 'msg-user-1', role: 'user', text: 'hi', createdAt: Timestamp.now() });
 
         mockPrepareContext.mockResolvedValueOnce({ appContext: [], persistedContext: [] });
+        mockAiService.generateTitle.mockResolvedValueOnce('Chat');
 
         // Simulate abort: mock calls onStream with partial text, then throws AbortError
         mockAiService.sendMessage.mockImplementationOnce(async (params: Record<string, unknown>) => {
