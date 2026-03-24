@@ -1,24 +1,24 @@
-# 🔁 Chat Resilience — Stream Retry & Progressive Status
+# 🔁 Chat Resilience — Stream Retry, Progressive Status & Page Reload Recovery
 
 ## Текущее состояние ← YOU ARE HERE
 
-**Реализовано (v1).** Preview-модели (Gemini, Claude) могут зависнуть посреди стрима — перестать отправлять чанки на 90+ секунд без явной ошибки. Без защиты Cloud Function просто висит до таймаута в 300 секунд, пользователь видит вечный спиннер.
+**Реализовано (v2).** Три уровня защиты стриминга:
 
-**Два уровня защиты:**
+**1. Server-side retry (`withStreamRetry()`):** каждая итерация agentic loop обёрнута в `withStreamRetry()` (`services/ai/retry.ts`). Таймер 90 секунд сбрасывается на каждом чанке. Нет чанков 90с → таймаут → retry (до 2 раз). Оба провайдера (Gemini, Claude).
 
-1. **Server-side retry (`withStreamRetry()` — shared utility):** каждая итерация agentic loop обёрнута в `withStreamRetry()` (файл `services/ai/retry.ts`). Таймер 90 секунд сбрасывается на каждом чанке. Нет чанков 90 секунд → таймаут → попытка повторяется автоматически (до 2 раз). Используется обоими провайдерами (Gemini и Claude). Если пользователь сам отменил запрос — retry не происходит.
+**2. Client-side inactivity guard:** 120-секундный таймер в браузере (30с буфер сверх серверных 90с).
 
-2. **Client-side inactivity guard:** 120-секундный таймер на стороне браузера (30с буфер сверх серверных 90с, чтобы сервер успел отправить retry SSE-событие до клиентского таймаута).
+**3. Page reload recovery (`activeStream` indicator):** сервер пишет `activeStream: { startedAt, model }` в conversation doc при старте генерации, удаляет при завершении/ошибке. Если страница перезагружается во время стриминга — клиент видит индикатор через Firestore `onSnapshot`, блокирует повторную отправку и ждёт ответ. Пользователь может нажать Stop (Firestore abort channel работает без HTTP-соединения). Staleness guard: 10 минут.
 
-**Frontend progressive status (src/features/Chat/components/StreamingStatusMessage.tsx):**
-- 0–10 сек: ничего не показываем (большинство запросов завершается раньше)
+**Frontend progressive status (`StreamingStatusMessage.tsx`):**
+- 0–10 сек: ничего
 - 10–30 сек: "Processing your request..."
 - 30–60 сек: "Complex request — model is taking longer than usual..."
 - 60+ сек: "Still thinking, this may take a moment longer..."
-- При retry: счётчик `retryAttempt` в `chatStore` → "Reconnecting (attempt N)..."
-- На retry: `streamingText` и `thinkingText` сбрасываются (чистый старт отображения)
+- При retry: "Reconnecting (attempt N)..."
+- При page reload recovery: прогрессивный — "Picking up response..." → "Model is still working..." → "Complex request..." → "Still processing..."
 
-**После исчерпания retries:** ошибка всплывает к пользователю в стандартном `ChatErrorBanner`.
+**После исчерпания retries:** ошибка в `ChatErrorBanner`.
 
 ---
 
@@ -77,6 +77,38 @@ User sends message
   ─ useEffect на retryAttempt → сбрасывает elapsedSecs = 0
 ```
 
+```
+[Page Reload Recovery — activeStream indicator]
+
+aiChat start
+       │
+       ▼
+[convRef.update({ activeStream: { startedAt, model } })]
+       │
+       ▼                                       Page reload!
+[SSE streaming...]                                  │
+       │                                            ▼
+       │                              [subscribeToConversations delivers
+       │                               conv with activeStream present]
+       │                                            │
+       │                                            ▼
+       │                              [subscribeToMessages — first load]
+       │                              conv.activeStream.startedAt < 10min?
+       │                                 ─ yes → isWaitingForServerResponse = true
+       │                                         → dots + "Reconnecting to response..."
+       │                                         → send blocked, stop button visible
+       │                                 ─ no  → stale, clear activeStream
+       │
+       ▼
+[aiChat finish — batch write]
+  msg + convUpdate: { activeStream: delete }
+       │
+       ▼
+[onSnapshot fires — new model message]
+  → isWaitingForServerResponse = false
+  → message appears in chat
+```
+
 ---
 
 ## Константы
@@ -111,21 +143,32 @@ functions/src/
         retry.test.ts                     ← unit tests (retry logic, cancel, exhaustion, delay timing)
 
   chat/
-    aiChat.ts                             ← onRetry → writeSSE({ type: "retry", attempt })
+    aiChat.ts                             ← activeStream write/clear, onRetry → SSE retry event
     sseWriter.ts                          ← SSEEvent types (SSERetryEvent)
 
 src/
   core/
     types/
+      chat/chat.ts                        ← ChatConversation.activeStream type
       sseEvents.ts                        ← SSERetryEvent type (client-side mirror)
     services/
+      ai/
+        chatService.ts                    ← clearActiveStream() — stale cleanup
       aiProxyService.ts                   ← inactivity guard + SSE 'retry' handler
     stores/
-      chat/chatStore.ts                    ← aggregator (re-exports retryAttempt; defined in types.ts line 45, initial value in slices/streamingSlice.ts line 22)
+      chat/
+        types.ts                          ← ChatState.isWaitingForServerResponse
+        slices/
+          streamingSlice.ts               ← initial value + stopGeneration clears waiting state
+          messageSlice.ts                 ← detects activeStream on first load, clears on new model msg
+          sendSlice.ts                    ← guard: blocks send when isWaitingForServerResponse
+          navigationSlice.ts              ← clears on conversation switch
   features/
     Chat/
+      ChatInput.tsx                       ← stop button visible during page-reload recovery
+      ChatMessageList.tsx                 ← streaming bubble shown during recovery
       components/
-        StreamingStatusMessage.tsx        ← progressive status + "Reconnecting (attempt N)..."
+        StreamingStatusMessage.tsx         ← "Reconnecting to response..." + progressive status
         ChatErrorBanner.tsx               ← shown when all retries exhausted
 ```
 
@@ -157,6 +200,18 @@ Server-side inactivity timeout + per-iteration retry loop + frontend progressive
 - [x] Unit tests для retry logic
 
 **Расширение:** [Thinking Timeout Resilience](./thinking-timeout-resilience.md) — dynamic timeout 90s→600s при extended thinking, SSE heartbeat, partial thinking persistence.
+
+### Стадия 1.5 — Page Reload Recovery ✅
+
+**Бизнес-цель:** если пользователь перезагружает страницу во время стриминга — не терять ответ и не допускать дубликатов.
+
+- [x] Server пишет `activeStream: { startedAt, model }` в conversation doc при старте `aiChat`
+- [x] Server удаляет `activeStream` во всех путях завершения (success, abort, timeout, error)
+- [x] Client детектит `activeStream` при загрузке conversation → `isWaitingForServerResponse: true`
+- [x] Streaming bubble + "Reconnecting to response..." + stop-кнопка (Firestore abort channel)
+- [x] Guard: `sendMessage` заблокирован при `isWaitingForServerResponse` — дубликаты невозможны
+- [x] Staleness guard: `activeStream` старше 10 минут → очистка (сервер умер без cleanup)
+- [x] `onSnapshot` доставляет финальное сообщение → `isWaitingForServerResponse: false`
 
 ### Стадия 2 — Telemetry & Alerting
 

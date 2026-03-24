@@ -123,8 +123,12 @@ export const aiChat = onRequest(
         // Clear stale abort flag from a previous Stop — MUST complete before onSnapshot
         // listener is registered, otherwise the listener sees the stale flag and
         // immediately aborts the new request (race condition on edit-after-abort).
-        await convRef.update({ abortRequested: admin.firestore.FieldValue.delete() })
-            .catch(() => { /* conv doc may not exist yet for first message edge case */ });
+        // Also set activeStream — tells the client "a response is being generated"
+        // so it can recover on page reload instead of showing an empty chat.
+        await convRef.update({
+            abortRequested: admin.firestore.FieldValue.delete(),
+            activeStream: { startedAt: admin.firestore.FieldValue.serverTimestamp(), model },
+        }).catch(() => { /* conv doc may not exist yet for first message edge case */ });
 
         // Realtime listener: fires when client writes abortRequested=true
         const unsubscribeAbort = convRef.onSnapshot(snap => {
@@ -530,6 +534,7 @@ export const aiChat = onRequest(
             // Conversation doc update — merge ALL fields into one batch.update()
             const convUpdate: Record<string, unknown> = {
                 lastError: admin.firestore.FieldValue.delete(),
+                activeStream: admin.firestore.FieldValue.delete(),
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             };
             if (memory.newSummary && memory.summarizedUpTo) {
@@ -629,7 +634,7 @@ export const aiChat = onRequest(
                 try {
                     const abortBatch = db.batch();
                     abortBatch.set(abortMsgRef, stoppedMsg);
-                    abortBatch.update(convRef, { updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+                    abortBatch.update(convRef, { updatedAt: admin.firestore.FieldValue.serverTimestamp(), activeStream: admin.firestore.FieldValue.delete() });
                     await abortBatch.commit();
                 } catch (persistErr) {
                     console.warn('[aiChat] Failed to persist abort stopped message', persistErr);
@@ -675,7 +680,7 @@ export const aiChat = onRequest(
                     if (partialTokenUsage) stoppedMsg.tokenUsage = partialTokenUsage;
                     const timeoutBatch = db.batch();
                     timeoutBatch.set(timeoutMsgRef, stoppedMsg);
-                    timeoutBatch.update(convRef, { updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+                    timeoutBatch.update(convRef, { updatedAt: admin.firestore.FieldValue.serverTimestamp(), activeStream: admin.firestore.FieldValue.delete() });
                     await timeoutBatch.commit();
                     console.info(`[aiChat] Persisted thinking-timeout stopped message ${timeoutMsgRef.id} for conv=${body.conversationId}`);
                 } catch (persistErr) {
@@ -703,6 +708,7 @@ export const aiChat = onRequest(
                 if (lastUserMsgId) {
                     await db.doc(convPath).update({
                         lastError: { messageId: lastUserMsgId, error: message },
+                        activeStream: admin.firestore.FieldValue.delete(),
                     });
                 }
             } catch (persistErr) {

@@ -73,6 +73,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     videoCatalog, knowledgeCatalog,
 }) => {
     const isStreaming = useChatStore(s => s.isStreaming);
+    const isWaitingForServerResponse = useChatStore(s => s.isWaitingForServerResponse);
     const contextItems = useAppContextStore(useShallow(selectAllItems));
     const removeContextItem = useAppContextStore(s => s.removeItem);
     const clearAllContext = useAppContextStore(s => s.clearAll);
@@ -451,7 +452,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                 <Check size={16} />
                             )}
                         </button>
-                    ) : isStreaming ? (
+                    ) : (isStreaming || isWaitingForServerResponse) ? (
                         <button
                             className={`${actionBtnClass} !text-[var(--danger-color,#cc0000)] hover:!bg-red-500/10`}
                             onClick={onStop}

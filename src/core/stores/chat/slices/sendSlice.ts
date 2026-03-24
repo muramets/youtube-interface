@@ -274,7 +274,7 @@ export function createSendSlice(
             const { activeConversationId, pendingConversationId, activeProjectId, messages, aiSettings, projects, isStreaming } = get();
             let convId = conversationId || activeConversationId;
 
-            if (isStreaming) return;
+            if (isStreaming || get().isWaitingForServerResponse) return;
 
             // Lock immediately — before any await — prevents double-send
             const { nonce: myNonce, controller: myAbortController } = startStreamingSession(set);

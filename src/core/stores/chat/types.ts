@@ -67,6 +67,8 @@ export interface ChatState {
     lastFailedRequest: { text: string; attachments?: ReadyAttachment[]; messageId?: string; sendOptions?: SendOptions } | null;
     pendingModel: string | null; // model override for not-yet-created conversations
     pendingThinkingOptionId: string | null; // thinking depth override (resets on model change)
+    /** True when page reload detected an in-flight server response (activeStream on conversation doc). */
+    isWaitingForServerResponse: boolean;
     editingMessage: ChatMessage | null; // message being edited (user clicks pencil)
     referenceSelectionMode: { active: boolean; messageId: string | null; originalNum: string | null }; // Tier 3: Manual override selection state
     /**

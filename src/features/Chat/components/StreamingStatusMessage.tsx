@@ -18,8 +18,16 @@ function getProgressiveMessage(elapsedSecs: number): string | null {
     return 'Still thinking, this may take a moment longer...';
 }
 
+function getRecoveryMessage(elapsedSecs: number): string {
+    if (elapsedSecs < 10) return 'Picking up response...';
+    if (elapsedSecs < 30) return 'Model is still working on your response...';
+    if (elapsedSecs < 60) return 'Complex request — this may take a moment...';
+    return 'Still processing, this may take a moment longer...';
+}
+
 export const StreamingStatusMessage: React.FC = () => {
     const isStreaming = useChatStore(s => s.isStreaming);
+    const isWaitingForServerResponse = useChatStore(s => s.isWaitingForServerResponse);
     const streamingText = useChatStore(s => s.streamingText);
     const thinkingText = useChatStore(s => s.thinkingText);
     const retryAttempt = useChatStore(s => s.retryAttempt);
@@ -28,11 +36,13 @@ export const StreamingStatusMessage: React.FC = () => {
     // Timestamp written inside the effect when the interval starts — never read during render.
     const startTimeRef = useRef(0);
 
+    const isActive = isStreaming || isWaitingForServerResponse;
+
     // Subscribe to a 1-second tick whenever the component is in its "waiting" state.
     // retryAttempt in deps causes the effect to restart (and startTimeRef to reset) on
     // each new connection attempt so elapsed is always relative to the current attempt.
     useEffect(() => {
-        if (!isStreaming || streamingText || thinkingText) return;
+        if (!isActive || streamingText || thinkingText) return;
 
         startTimeRef.current = Date.now();
 
@@ -41,13 +51,14 @@ export const StreamingStatusMessage: React.FC = () => {
         }, 1000);
 
         return () => clearInterval(interval);
-    }, [isStreaming, streamingText, thinkingText, retryAttempt]);
+    }, [isActive, streamingText, thinkingText, retryAttempt]);
 
     // Hide when not streaming or when content is already flowing
-    if (!isStreaming || streamingText || thinkingText) return null;
+    if (!isActive || streamingText || thinkingText) return null;
 
-    const message =
-        retryAttempt > 0
+    const message = isWaitingForServerResponse
+        ? getRecoveryMessage(elapsedSecs)
+        : retryAttempt > 0
             ? `Reconnecting (attempt ${retryAttempt})...`
             : getProgressiveMessage(elapsedSecs);
 

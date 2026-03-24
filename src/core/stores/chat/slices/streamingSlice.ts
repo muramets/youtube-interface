@@ -7,6 +7,7 @@ import { session } from '../session';
 import { ChatService } from '../../../services/ai/chatService';
 
 export function createStreamingSlice(
+    set: (partial: Partial<ChatState>) => void,
     get: () => ChatState,
 ): Pick<
     ChatState,
@@ -16,6 +17,7 @@ export function createStreamingSlice(
     | 'activeToolCalls'
     | 'thinkingText'
     | 'stoppedResponse'
+    | 'isWaitingForServerResponse'
     | 'stopGeneration'
 > {
     return {
@@ -26,6 +28,7 @@ export function createStreamingSlice(
         activeToolCalls: [],
         thinkingText: '',
         stoppedResponse: null,
+        isWaitingForServerResponse: false,
 
         // Actions
         stopGeneration: () => {
@@ -42,6 +45,12 @@ export function createStreamingSlice(
             if (session.activeAbortController) {
                 session.activeAbortController.abort();
                 session.activeAbortController = null;
+            }
+
+            // 3. Clear waiting state (page-reload recovery: no fetch to abort,
+            //    but Firestore side-channel abort still reaches the server)
+            if (get().isWaitingForServerResponse) {
+                set({ isWaitingForServerResponse: false });
             }
         },
     };

@@ -189,6 +189,13 @@ export const ChatService = {
         });
     },
 
+    /** Clear stale activeStream marker (e.g. server died without cleanup). */
+    async clearActiveStream(userId: string, channelId: string, conversationId: string) {
+        await updateDocument(conversationsPath(userId, channelId), conversationId, {
+            activeStream: deleteField(),
+        });
+    },
+
     async clearPersistedContext(userId: string, channelId: string, conversationId: string) {
         await updateDocument(conversationsPath(userId, channelId), conversationId, {
             persistedContext: deleteField(),

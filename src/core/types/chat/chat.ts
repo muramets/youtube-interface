@@ -33,6 +33,12 @@ export interface ChatConversation {
         error: string;
         failedText?: string;      // present for client-side write failures (text preserved for retry)
     } | null;
+    /** Server writes this when AI generation starts; clears on completion/error.
+     *  Client uses it after page reload to detect an in-flight response. */
+    activeStream?: {
+        startedAt: Timestamp;
+        model: string;
+    } | null;
     createdAt: Timestamp;
     updatedAt: Timestamp;
 }

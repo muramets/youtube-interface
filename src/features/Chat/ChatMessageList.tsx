@@ -359,6 +359,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
 }) => {
     const streamingText = useChatStore(s => s.streamingText);
     const isStreaming = useChatStore(s => s.isStreaming);
+    const isWaitingForServerResponse = useChatStore(s => s.isWaitingForServerResponse);
     const activeToolCalls = useChatStore(s => s.activeToolCalls);
     const thinkingText = useChatStore(s => s.thinkingText);
     const stoppedResponse = useChatStore(s => s.stoppedResponse);
@@ -619,8 +620,9 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                 ))}
 
                 {/* Streaming message — suppressed when Firestore model message already arrived
-                   (race: Firestore write can land before SSE stream ends → prevents 2-3 frame duplication) */}
-                {isStreaming && visibleMessages[visibleMessages.length - 1]?.role !== 'model' && (
+                   (race: Firestore write can land before SSE stream ends → prevents 2-3 frame duplication).
+                   Also shown when recovering from page reload (isWaitingForServerResponse). */}
+                {(isStreaming || isWaitingForServerResponse) && visibleMessages[visibleMessages.length - 1]?.role !== 'model' && (
                     <div className="chat-message flex flex-col max-w-[85%] self-start animate-message-in mb-2">
                         <div className={MSG_BUBBLE_MODEL}>
                             {/* Progressive status — shown when no text or thinking has arrived yet */}

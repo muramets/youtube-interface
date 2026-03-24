@@ -126,6 +126,7 @@ function buildStore(overrides: Partial<ChatState> = {}) {
         pendingModel: null,
         pendingThinkingOptionId: null,
         editingMessage: null,
+        isWaitingForServerResponse: false,
         referenceSelectionMode: { active: false, messageId: null, originalNum: null },
 
         // Stub actions not under test

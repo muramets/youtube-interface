@@ -27,7 +27,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     ...createProjectSlice(set, get),
     ...createConversationSlice(set, get),
     ...createMessageSlice(set, get),
-    ...createStreamingSlice(get),
+    ...createStreamingSlice(set, get),
     ...createSettingsSlice(set, get),
     ...createEditSlice(set, get),
     ...createSendSlice(set, get),

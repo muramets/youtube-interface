@@ -52,6 +52,7 @@ export function createNavigationSlice(
                 activeToolCalls: [],
                 thinkingText: '',
                 stoppedResponse: null,
+                isWaitingForServerResponse: false,
                 error: null,
                 hasMoreMessages: false,
                 pendingLargePayloadConfirmation: null,

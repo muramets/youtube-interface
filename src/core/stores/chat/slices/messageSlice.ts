@@ -6,6 +6,9 @@ import { ChatService, MESSAGE_PAGE_SIZE } from '../../../services/ai/chatService
 import type { ChatState } from '../types';
 import { requireContext } from '../helpers';
 
+/** Staleness threshold for activeStream — if older than this, treat as stale (server died). */
+const ACTIVE_STREAM_STALE_MS = 10 * 60 * 1000; // 10 minutes
+
 export function createMessageSlice(
     set: (partial: Partial<ChatState>) => void,
     get: () => ChatState,
@@ -59,10 +62,23 @@ export function createMessageSlice(
                             lastFailedRequest: { text: conv.lastError.failedText || '', messageId: conv.lastError.messageId },
                         });
                     } else {
+                        // Detect in-flight server response surviving page reload
+                        let waitingForServer = false;
+                        if (conv?.activeStream?.startedAt && !get().isStreaming) {
+                            const startedMs = conv.activeStream.startedAt.toMillis();
+                            if (Date.now() - startedMs < ACTIVE_STREAM_STALE_MS) {
+                                waitingForServer = true;
+                            } else {
+                                // Stale — server likely died without cleanup
+                                ChatService.clearActiveStream(userId, channelId, conversationId)
+                                    .catch(() => { /* best-effort */ });
+                            }
+                        }
                         set({
                             messages: merged,
                             isLoading: false,
                             hasMoreMessages: hasMore,
+                            ...(waitingForServer ? { isWaitingForServerResponse: true } : {}),
                         });
                     }
                 } else {
@@ -82,11 +98,13 @@ export function createMessageSlice(
                     // still active, clear streaming state atomically — prevents a flash of
                     // duplicate content (streaming bubble + persisted message both visible).
                     const shouldClearStreaming = get().isStreaming && hasNewModelMessage;
+                    const shouldClearWaiting = get().isWaitingForServerResponse && hasNewModelMessage;
                     set({
                         messages: merged,
                         isLoading: false,
                         ...(shouldClearGhost ? { stoppedResponse: null } : {}),
                         ...(shouldClearStreaming ? { isStreaming: false, streamingText: '', activeToolCalls: [], thinkingText: '' } : {}),
+                        ...(shouldClearWaiting ? { isWaitingForServerResponse: false } : {}),
                     });
                 }
             });
