@@ -52,6 +52,8 @@ export const AGENTIC_BEHAVIOR_RULES = [
     '',
     'videoIds: extract from `[id: ...]` annotations in attached context, tool results, or conversation history. Never invent IDs.',
     '',
+    'In KI content (`saveKnowledge`): every video title → `[title](vid://VIDEO_ID)`, no exceptions — prose, tables, lists.',
+    '',
     '### Knowledge Item References',
     'How to reference a Knowledge Item:',
     'Write `[KI Title](ki://kiId)` in your text — creates an interactive link with tooltip showing KI metadata.',

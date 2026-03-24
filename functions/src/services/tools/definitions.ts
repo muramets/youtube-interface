@@ -526,9 +526,9 @@ const saveKnowledge: ToolDefinition = {
                     "For video-scoped KI, MUST include a 'Thumbnail & Visual Identity' section near the top — " +
                     "call viewThumbnails for the primary video and include thumbnailDescription " +
                     "(available in getMultipleVideoDetails and browseTrendVideos results) for key referenced videos. " +
-                    "When referencing specific videos, use markdown link format: " +
-                    "[video title](vid://VIDEO_ID). Use the exact title from your analysis. " +
-                    "Do NOT write video IDs as plain text — always wrap in a vid:// link.",
+                    "EVERY video mentioned by name MUST use [title](vid://VIDEO_ID) format — " +
+                    "in prose, tables, lists, comparisons. " +
+                    "If you don't have the videoId, call getMultipleVideoDetails with the titles parameter to resolve it before writing.",
             },
             summary: {
                 type: "string",
