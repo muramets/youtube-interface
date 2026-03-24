@@ -1110,8 +1110,8 @@ async function streamIteration(
 
             // "message" fires BEFORE content generation — contains usage.input_tokens.
             // Available even on immediate abort. Used for partial usage on stopped messages.
+            // Liveness: covered by streamEvent — no resetTimer() needed here.
             stream.on("message", (message) => {
-                resetTimer();
                 if (message.usage) {
                     earlyInputTokens = message.usage.input_tokens;
                     // Cache fields available in message.usage but not in SDK types
@@ -1121,15 +1121,16 @@ async function streamIteration(
                 }
             });
 
-            // "streamEvent" fires for every raw SSE event — we catch content_block_start
-            // for tool_use blocks to emit onToolCallStart BEFORE the JSON is generated.
-            // This eliminates the 2+ min UI gap between thinking and tool pill.
+            // "streamEvent" fires for every raw SSE event — universal liveness detector.
+            // ANY event from the API (text_delta, thinking_delta, input_json_delta,
+            // content_block_start/stop, message_start/stop) means the stream is alive.
+            // Timeout policy (escalation/de-escalation) is handled by specific handlers.
             stream.on("streamEvent", (event) => {
+                resetTimer();
                 if (
                     event.type === "content_block_start" &&
                     event.content_block.type === "tool_use"
                 ) {
-                    resetTimer();
                     callbacks.onToolCallStart?.(
                         event.content_block.name,
                         toolCallStartIndex + localToolCount,
@@ -1139,39 +1140,40 @@ async function streamIteration(
             });
 
             stream.on("text", (textDelta) => {
-                // De-escalate timeout after thinking → text transition
+                // Policy: de-escalate timeout after thinking → text transition.
+                // Heartbeat keeps running until stream ends (finally block).
+                // Liveness: covered by streamEvent — resetTimer() only on policy change.
                 if (hadThinkingEvents) {
                     currentTimeoutMs = STREAM_INACTIVITY_TIMEOUT_MS;
-                    if (heartbeatInterval) {
-                        clearInterval(heartbeatInterval);
-                        heartbeatInterval = null;
-                    }
+                    resetTimer();
                 }
-                resetTimer();
                 iterationText += textDelta;
                 fullText += textDelta;
                 callbacks.onChunk(fullText);
             });
 
             stream.on("thinking", (thinkingDelta) => {
-                // Escalate timeout on first thinking event
+                // Policy: escalate timeout on first thinking event.
+                // Liveness: covered by streamEvent — resetTimer() only on policy change.
                 if (!hadThinkingEvents) {
                     hadThinkingEvents = true;
                     currentTimeoutMs = THINKING_INACTIVITY_TIMEOUT_MS;
+                    resetTimer();
                 }
-                // Start heartbeat if not already running
+                // Start heartbeat if not already running — keeps frontend alive
+                // during thinking silence AND subsequent tool input streaming.
+                // Cleared in finally block when stream ends.
                 if (!heartbeatInterval) {
                     heartbeatInterval = setInterval(() => callbacks.onHeartbeat?.(), HEARTBEAT_INTERVAL_MS);
                 }
-                resetTimer();
                 // Count thinking chars for approximate token estimation (chars / 4, ~±15%)
                 thinkingChars += (thinkingDelta as string).length;
                 // Thinking tokens — emit via callback but DO NOT include in response text
                 callbacks.onThought?.(thinkingDelta);
             });
 
+            // Liveness: covered by streamEvent (content_block_stop fires streamEvent first).
             stream.on("contentBlock", (block) => {
-                resetTimer();
                 if (block.type === "tool_use") {
                     toolUseBlocks.push({
                         id: block.id,
@@ -1208,8 +1210,8 @@ async function streamIteration(
                 }
             });
 
+            // Liveness: covered by streamEvent (message_stop fires streamEvent first).
             stream.on("finalMessage", (message) => {
-                resetTimer();
                 // Extract token usage from the final message
                 if (message.usage) {
                     const cacheRead = message.usage.cache_read_input_tokens ?? 0;
