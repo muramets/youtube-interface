@@ -520,6 +520,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     const skipAnimateLastModel = (recentlyStreamed || isStreaming) && visibleMessages[lastMsgIndex]?.role === 'model';
 
     return (
+        <div className="relative flex-1 min-h-0 flex flex-col">
         <div className="chat-messages flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-3.5 pt-3.5 pb-1 flex flex-col gap-3" ref={containerRef} onScroll={handleScroll}>
             {/* Pre-zone messages: everything before the last user message */}
             {visibleMessages.slice(0, splitIndex).map((msg, idx) => {
@@ -688,17 +689,16 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                 <div ref={bottomRef} className="-mt-3" />
             </div>
 
-            {/* Scroll-to-bottom FAB */}
-            {
-                showScrollFab && (
-                    <button className="sticky bottom-2 self-center bg-card-bg border border-border rounded-full w-8 h-8 flex items-center justify-center cursor-pointer text-text-secondary shadow-md transition-colors duration-100 z-5 hover:bg-hover hover:text-text-primary" onClick={scrollToBottom} title="Scroll to bottom">
-                        <ArrowDown size={16} />
-                    </button>
-                )
-            }
-
             {/* Selection toolbar for Save to Video/Canvas */}
             <SelectionToolbar messages={messages} scrollContainerRef={containerRef} />
+        </div>
+
+        {/* Scroll-to-bottom FAB — outside scroll container, positioned over it */}
+        {showScrollFab && (
+            <button className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-card-bg border border-border rounded-full w-8 h-8 flex items-center justify-center cursor-pointer text-text-secondary shadow-md transition-colors duration-100 z-5 hover:bg-hover hover:text-text-primary" onClick={scrollToBottom} title="Scroll to bottom">
+                <ArrowDown size={16} />
+            </button>
+        )}
         </div>
     );
 };
