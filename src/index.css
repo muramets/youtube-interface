@@ -729,6 +729,10 @@ a:has(.ki-reference-highlight) {
    padding: 6px 14px;
 }
 
+.memorize-mode .chat-tiptap-editor .ProseMirror {
+   color: var(--accent);
+}
+
 .chat-tiptap-editor .ProseMirror p {
    margin: 0;
 }

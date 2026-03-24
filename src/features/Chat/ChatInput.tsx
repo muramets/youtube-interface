@@ -307,9 +307,26 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
             {/* Unified input container */}
             <div
-                className={`border rounded-xl transition-colors duration-200 ${isMemorizing ? 'border-accent' : 'border-border bg-input-bg focus-within:border-text-tertiary'}`}
+                className={`border rounded-xl transition-colors duration-200 ${isMemorizing ? 'memorize-mode border-accent' : 'border-border bg-input-bg focus-within:border-text-tertiary'}`}
                 style={isMemorizing ? { backgroundColor: 'color-mix(in srgb, var(--accent) 15%, var(--input-bg))' } : undefined}
             >
+                {/* Memorize mode banner */}
+                {isMemorizing && (
+                    <div className="flex items-center justify-between px-3 py-1.5 text-xs text-accent border-b border-accent/20">
+                        <div className="flex items-center gap-1.5 font-medium">
+                            <Brain size={13} />
+                            <span>Memorize</span>
+                        </div>
+                        <button
+                            className="bg-transparent border-none text-accent/60 cursor-pointer p-0.5 rounded hover:text-accent hover:bg-accent/10 transition-colors"
+                            onClick={handleCancelMemorize}
+                            title="Cancel memorize"
+                        >
+                            <X size={13} />
+                        </button>
+                    </div>
+                )}
+
                 {/* Tiptap editor — top part */}
                 <ChatTiptapEditor
                     ref={editorRef}

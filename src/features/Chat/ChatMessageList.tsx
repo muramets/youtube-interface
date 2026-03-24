@@ -56,7 +56,7 @@ import { EXPENSIVE_MESSAGE_THRESHOLD } from './hooks/useCostAlerts';
 import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
 import { MemoryCheckpoint } from './components/MemoryCheckpoint';
 import { useKnowledgeCatalog } from '../../core/hooks/useKnowledgeCatalog';
-import { FileAudio, FileVideo, File, Copy, Check, ArrowDown, RotateCcw, MessageCircle, Pencil, Square } from 'lucide-react';
+import { FileAudio, FileVideo, File, Copy, Check, ArrowDown, RotateCcw, MessageCircle, Pencil, Square, Brain } from 'lucide-react';
 import { CopyButton } from '../../components/ui/atoms/CopyButton';
 import { useChatStore } from '../../core/stores/chat/chatStore';
 import { VID_RE, KI_RE } from '../../core/config/referencePatterns';
@@ -301,7 +301,23 @@ const MessageItem: React.FC<MessageItemProps> = React.memo(({ msg, skipAnimation
                 {msg.role === 'model' && msg.toolCalls && msg.toolCalls.length > 0 && (
                     <ToolCallSummary toolCalls={msg.toolCalls} videoMap={videoMap} stopped={msg.status === 'stopped'} />
                 )}
-                <MarkdownMessage text={msg.text} videoMap={videoMap} kiMap={kiMap} />
+                {/* Memorize badge for conclude messages */}
+                {msg.role === 'user' && msg.text.startsWith('Memorize') && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 mb-1.5 rounded-md bg-accent/15 text-accent text-[11px] font-medium">
+                        <Brain size={11} />
+                        Memorize
+                    </span>
+                )}
+                {/* Strip "Memorize: " prefix or hide "Memorize this conversation" (badge is enough) */}
+                {!(msg.role === 'user' && msg.text === 'Memorize this conversation') && (
+                    <MarkdownMessage
+                        text={msg.role === 'user' && msg.text.startsWith('Memorize: ')
+                            ? msg.text.slice('Memorize: '.length)
+                            : msg.text}
+                        videoMap={videoMap}
+                        kiMap={kiMap}
+                    />
+                )}
             </div>
 
             {/* Failed message indicator */}
