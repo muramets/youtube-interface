@@ -86,6 +86,19 @@ export const RichTextEditor = ({
             const prevOverflow = document.body.style.overflow
             document.body.style.overflow = 'hidden'
 
+            // Hide ancestor modal CONTENT (if any) to prevent visual overlap during Zen.
+            // Must query BEFORE moving the card out of the modal DOM subtree.
+            // Hide children (modal card), not the .z-modal itself — preserves the backdrop.
+            const parentModal = card.closest('.z-modal') as HTMLElement | null
+            const hiddenModalChildren: HTMLElement[] = []
+            if (parentModal) {
+                for (const child of Array.from(parentModal.children)) {
+                    const el = child as HTMLElement
+                    el.style.visibility = 'hidden'
+                    hiddenModalChildren.push(el)
+                }
+            }
+
             // Create fullscreen overlay
             const overlay = document.createElement('div')
             overlay.className = 'fixed inset-0 z-tooltip bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 sm:p-8 animate-fade-in'
@@ -100,9 +113,12 @@ export const RichTextEditor = ({
             card.parentNode?.insertBefore(ph, card)
             placeholderRef.current = ph
 
-            // Move editor card into overlay (no React unmount)
+            // Move editor card into overlay (no React unmount).
+            // Append to #root (not body) so the card stays inside React's event
+            // delegation tree — otherwise all synthetic events (onClick etc.) break.
             overlay.appendChild(card)
-            document.body.appendChild(overlay)
+            const reactRoot = document.getElementById('root') ?? document.body
+            reactRoot.appendChild(overlay)
 
             // Apply expanded styles — wider when side panel is present
             card.className = hasSidePanel ? EXPANDED_WIDE_CLASSES : EXPANDED_CLASSES
@@ -131,6 +147,9 @@ export const RichTextEditor = ({
                 // Remove overlay
                 overlay.remove()
                 overlayRef.current = null
+
+                // Restore ancestor modal content visibility
+                for (const el of hiddenModalChildren) el.style.visibility = ''
 
                 // Restore compact styles
                 card.className = clsx(COMPACT_CLASSES, className)
