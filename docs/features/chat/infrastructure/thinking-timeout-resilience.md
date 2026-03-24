@@ -2,7 +2,9 @@
 
 ## Текущее состояние
 
-**Стадия 1 реализована.** Thinking-aware dynamic timeout защищает extended thinking сессии от преждевременного обрыва. При thinking events таймаут эскалируется 90s → 600s, SSE heartbeat каждые 30s поддерживает соединение, retry блокируется если thinking шёл. При таймауте partial thinking сохраняется как `stopped` message. Cloud Function timeout увеличен до 1200s, client-side timeout адаптивный (120s → 660s при thinking).
+**Стадия 1 реализована + архитектурный фикс liveness.** Thinking-aware dynamic timeout защищает extended thinking сессии от преждевременного обрыва. При thinking events таймаут эскалируется 90s → 600s, SSE heartbeat каждые 30s поддерживает соединение, retry блокируется если thinking шёл. При таймауте partial thinking сохраняется как `stopped` message. Cloud Function timeout увеличен до 1200s, client-side timeout адаптивный (120s → 660s при thinking).
+
+**Liveness architecture:** `streamEvent` — единственный детектор жизни стрима (`resetTimer()` на каждый raw API event). `thinking` и `text` хендлеры управляют только timeout policy (escalation/de-escalation). Heartbeat стартует при thinking и работает до конца стрима (не гасится на thinking→text переходе), что покрывает и tool input streaming (`input_json_delta`).
 
 ---
 
@@ -16,7 +18,7 @@
 2. **Эскалировать таймаут во время thinking.** 90s → 600s (10 мин) пока идут thinking events, обратно на 90s когда начинается текстовый вывод.
 3. **Сохранять partial thinking при таймауте.** Если таймаут всё же произошёл — сохранить накопленный thinking как `status: 'stopped'` сообщение.
 
-**Дополнительно:** SSE heartbeat каждые 30s во время thinking silence (предотвращает timeout браузерного EventSource).
+**Дополнительно:** SSE heartbeat каждые 30s стартует при thinking и работает до конца стрима (предотвращает timeout браузерного EventSource во время thinking silence и tool input streaming).
 
 ---
 
@@ -40,7 +42,8 @@
 - [x] Динамический таймаут: 90s → 600s (thinking) → 90s (text output)
 - [x] Persist partial thinking на таймаут (catch block в `aiChat.ts`)
 - [x] Enrich timeout error с `earlyInputTokens` для partial usage
-- [x] SSE heartbeat каждые 30s во время thinking silence
+- [x] SSE heartbeat каждые 30s (стартует при thinking, работает до конца стрима)
+- [x] Centralized liveness: `streamEvent` = единственный `resetTimer()`, покрывает все event types вкл. `input_json_delta`
 - [x] Cloud Function timeout: 540s → 1200s
 - [x] Client-side timeout: 120s → adaptive (думающий стрим допускает дольше)
 - [x] Тесты для всех новых путей

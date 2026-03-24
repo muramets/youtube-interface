@@ -43,7 +43,7 @@ User sends message
   ─ стартует inactivity timer (90s)
   ─ вызывает ai.models.generateContentStream()
        │
-       ├─── чанк пришёл → resetTimer() → продолжаем
+       ├─── любой streamEvent (чанк, delta, content_block_*) → resetTimer() → продолжаем
        │
        ├─── GeminiTimeoutError / AiStreamTimeoutError (90s без чанков)
        │         │
@@ -145,7 +145,7 @@ src/
 Server-side inactivity timeout + per-iteration retry loop + frontend progressive status.
 
 - [x] `AiStreamTimeoutError` custom error class (shared, provider-agnostic)
-- [x] 90-секундный inactivity timer per attempt (сбрасывается на каждом чанке)
+- [x] 90-секундный inactivity timer per attempt (сбрасывается на каждом `streamEvent` — покрывает все типы событий вкл. `input_json_delta`)
 - [x] `MAX_STREAM_RETRIES = 2` — до 3 попыток total
 - [x] Caller cancel пропускает retry (нет retry на `signal.aborted`)
 - [x] SSE event `{ type: "retry", attempt }` → frontend знает о каждой попытке
