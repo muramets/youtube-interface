@@ -613,15 +613,13 @@ const getKnowledge: ToolDefinition = {
 const editKnowledge: ToolDefinition = {
     name: TOOL_NAMES.EDIT_KNOWLEDGE,
     description:
-        "Update the content of an existing Knowledge Item. Use when you have new data " +
-        "that complements or replaces the existing analysis. The old version is automatically " +
-        "preserved in version history. Call getKnowledge first to read the current content, " +
-        "then call editKnowledge with the updated content. Only the content field is editable " +
-        "— title and category remain unchanged. " +
-        "IMPORTANT: Preserve the existing structure and wording — do NOT rephrase or " +
-        "restructure existing analysis. Only modify specific sections that need updating " +
-        "with new data. Add new findings at the end or within the most relevant existing " +
-        "section. Minimal changes produce clean version diffs for the user. " +
+        "Update an existing Knowledge Item. Pass only the fields you want to change — " +
+        "omitted fields stay unchanged. Set videoId to null to unlink from a video " +
+        "(converts to channel-level). Scope is derived automatically from videoId. " +
+        "Content changes are versioned (old content preserved in history). " +
+        "Call getKnowledge first to read the current state. " +
+        "CONTENT EDITING: Preserve existing structure and wording — only modify sections " +
+        "that need updating with new data. Minimal changes produce clean version diffs. " +
         "PARALLEL EDITING: When updating multiple KIs, call editKnowledge for each one " +
         "in the same response — they execute in parallel, saving time and cost.",
     parametersJsonSchema: {
@@ -638,8 +636,28 @@ const editKnowledge: ToolDefinition = {
                     "modify, or remove specific parts. Do not rewrite unchanged sections. " +
                     "When referencing videos, use [video title](vid://VIDEO_ID) links.",
             },
+            title: {
+                type: "string",
+                description: "New title for the Knowledge Item.",
+            },
+            summary: {
+                type: "string",
+                description: "Updated 2-3 sentence summary for card display.",
+            },
+            videoId: {
+                type: ["string", "null"],
+                description:
+                    "Link to a video (string ID) or unlink (null → channel-level). " +
+                    "Omit to keep current association unchanged.",
+            },
+            category: {
+                type: "string",
+                description:
+                    "New category slug (kebab-case). Choose from existing categories " +
+                    "or propose a new one. Omit to keep current category.",
+            },
         },
-        required: ["kiId", "content"],
+        required: ["kiId"],
     },
 };
 

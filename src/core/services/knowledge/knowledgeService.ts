@@ -66,10 +66,12 @@ function addDiscoveryFlagUpdates(
     batch: WriteBatch,
     basePath: string,
     previousItem: KnowledgeItem,
-    updates: Partial<Pick<KnowledgeItem, 'videoId' | 'scope'>>,
+    updates: Partial<Pick<KnowledgeItem, 'videoId' | 'scope' | 'category'>>,
 ): void {
     const newScope = updates.scope ?? previousItem.scope;
     const newVideoId = updates.videoId ?? previousItem.videoId;
+    // Use effective category — important when both scope and category change simultaneously
+    const effectiveCategory = updates.category ?? previousItem.category;
 
     const oldRef = getEntityRef(basePath, previousItem.scope, previousItem.videoId);
     const newRef = getEntityRef(basePath, newScope, newVideoId);
@@ -85,7 +87,7 @@ function addDiscoveryFlagUpdates(
     // Increment new entity
     batch.update(newRef, {
         knowledgeItemCount: increment(1),
-        knowledgeCategories: arrayUnion(previousItem.category),
+        knowledgeCategories: arrayUnion(effectiveCategory),
         lastAnalyzedAt: serverTimestamp(),
     });
 }

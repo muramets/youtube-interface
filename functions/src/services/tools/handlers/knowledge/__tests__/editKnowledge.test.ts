@@ -9,6 +9,7 @@ const mockBatchCommit = vi.fn().mockResolvedValue(undefined);
 
 const mockDocGet = vi.fn();
 const mockDocUpdate = vi.fn().mockResolvedValue(undefined);
+const mockDocSet = vi.fn().mockResolvedValue(undefined);
 const mockCollectionDoc = vi.fn().mockReturnValue({ id: 'version-id-1' });
 
 vi.mock('../../../../../shared/db.js', () => ({
@@ -18,6 +19,7 @@ vi.mock('../../../../../shared/db.js', () => ({
             id: path.split('/').pop(),
             get: mockDocGet,
             update: mockDocUpdate,
+            set: mockDocSet,
         }),
         collection: (path: string) => ({
             doc: () => mockCollectionDoc(path),
@@ -33,6 +35,9 @@ vi.mock('../../../../../shared/db.js', () => ({
 vi.mock('firebase-admin/firestore', () => ({
     FieldValue: {
         serverTimestamp: () => 'SERVER_TIMESTAMP',
+        increment: (n: number) => `INCREMENT(${n})`,
+        arrayUnion: (...vals: unknown[]) => `ARRAY_UNION(${vals.join(',')})`,
+        delete: () => 'DELETE_FIELD',
     },
 }));
 
@@ -44,9 +49,21 @@ vi.mock('firebase-functions/v2', () => ({
     },
 }));
 
+vi.mock('../../../../../shared/knowledge.js', () => ({
+    SLUG_PATTERN: /^[a-z0-9]+(-[a-z0-9]+)*$/,
+}));
+
 const mockResolveContentVideoRefs = vi.fn().mockResolvedValue(undefined);
 vi.mock('../../../utils/resolveContentVideoRefs.js', () => ({
     resolveContentVideoRefs: (...args: unknown[]) => mockResolveContentVideoRefs(...args),
+}));
+
+const mockResolveVideosByIds = vi.fn().mockResolvedValue({
+    resolved: new Map(),
+    missing: [],
+});
+vi.mock('../../../utils/resolveVideos.js', () => ({
+    resolveVideosByIds: (...args: unknown[]) => mockResolveVideosByIds(...args),
 }));
 
 // Import after mocks
@@ -62,6 +79,8 @@ const CTX: ToolContext = {
 const EXISTING_KI = {
     content: '## Old Traffic Analysis\nBrowse 45%...',
     title: 'Traffic Analysis — March 2026',
+    summary: 'Original summary of traffic patterns.',
+    category: 'traffic-analysis',
     source: 'chat-tool',
     model: 'claude-sonnet-4-6',
     scope: 'video',
@@ -70,14 +89,18 @@ const EXISTING_KI = {
 
 beforeEach(() => {
     vi.clearAllMocks();
-    // Default: KI exists
+    // Default: KI exists with video scope
     mockDocGet.mockResolvedValue({
         exists: true,
-        data: () => EXISTING_KI,
+        data: () => ({ ...EXISTING_KI }),
     });
 });
 
 describe('handleEditKnowledge', () => {
+    // =========================================================================
+    // Content editing (existing behavior, preserved)
+    // =========================================================================
+
     it('creates version snapshot + updates main doc in atomic batch', async () => {
         const result = await handleEditKnowledge(
             { kiId: 'ki-123', content: '## Updated Analysis\nBrowse 50%...' },
@@ -112,39 +135,6 @@ describe('handleEditKnowledge', () => {
         expect(updateData.lastEditSource).toBe('chat-edit');
     });
 
-    it('returns error when kiId is missing', async () => {
-        const result = await handleEditKnowledge(
-            { content: 'some content' },
-            CTX,
-        );
-
-        expect(result.error).toContain('Required fields');
-        expect(mockBatchCommit).not.toHaveBeenCalled();
-    });
-
-    it('returns error when content is missing', async () => {
-        const result = await handleEditKnowledge(
-            { kiId: 'ki-123' },
-            CTX,
-        );
-
-        expect(result.error).toContain('Required fields');
-        expect(mockBatchCommit).not.toHaveBeenCalled();
-    });
-
-    it('returns error when KI not found', async () => {
-        mockDocGet.mockResolvedValue({ exists: false });
-
-        const result = await handleEditKnowledge(
-            { kiId: 'ki-nonexistent', content: 'new content' },
-            CTX,
-        );
-
-        expect(result.error).toContain('Knowledge Item not found');
-        expect(result.error).toContain('ki-nonexistent');
-        expect(mockBatchCommit).not.toHaveBeenCalled();
-    });
-
     it('calls resolveContentVideoRefs on new content', async () => {
         await handleEditKnowledge(
             { kiId: 'ki-123', content: 'Check [Video](vid://A4SkhlJ2mK8)' },
@@ -177,6 +167,7 @@ describe('handleEditKnowledge', () => {
         mockDocGet.mockResolvedValue({
             exists: true,
             data: () => ({
+                ...EXISTING_KI,
                 content: 'Old content',
                 title: 'Old Title',
                 source: 'conclude',
@@ -198,6 +189,7 @@ describe('handleEditKnowledge', () => {
         mockDocGet.mockResolvedValue({
             exists: true,
             data: () => ({
+                ...EXISTING_KI,
                 content: 'Edited content',
                 title: 'Title',
                 source: 'chat-tool',
@@ -257,23 +249,6 @@ describe('handleEditKnowledge', () => {
         expect(updateData.updatedAt).toBe('SERVER_TIMESTAMP');
     });
 
-    it('skips version snapshot when content is unchanged (trimmed comparison)', async () => {
-        const result = await handleEditKnowledge(
-            { kiId: 'ki-123', content: '## Old Traffic Analysis\nBrowse 45%...  ' }, // trailing spaces
-            CTX,
-        );
-
-        expect(result.content).toContain('unchanged');
-        expect(result.id).toBe('ki-123');
-        expect(result.videoId).toBe('vid-abc');
-        // No batch operations — early return
-        expect(mockBatchSet).not.toHaveBeenCalled();
-        expect(mockBatchUpdate).not.toHaveBeenCalled();
-        expect(mockBatchCommit).not.toHaveBeenCalled();
-        // No video ref resolution either
-        expect(mockResolveContentVideoRefs).not.toHaveBeenCalled();
-    });
-
     it('creates version when content differs only in non-whitespace', async () => {
         const result = await handleEditKnowledge(
             { kiId: 'ki-123', content: '## Old Traffic Analysis\nBrowse 50%...' }, // 50% instead of 45%
@@ -285,30 +260,11 @@ describe('handleEditKnowledge', () => {
         expect(mockBatchCommit).toHaveBeenCalledOnce();
     });
 
-    it('returns undefined videoId when KI has no videoId', async () => {
-        mockDocGet.mockResolvedValue({
-            exists: true,
-            data: () => ({
-                content: 'Channel-level content',
-                title: 'Channel KI',
-                source: 'chat-tool',
-                model: 'claude-sonnet-4-6',
-                scope: 'channel',
-            }),
-        });
-
-        const result = await handleEditKnowledge(
-            { kiId: 'ki-channel', content: 'Updated channel content' },
-            CTX,
-        );
-
-        expect(result.videoId).toBeUndefined();
-    });
-
     it('strips undefined from version data (model empty string)', async () => {
         mockDocGet.mockResolvedValue({
             exists: true,
             data: () => ({
+                ...EXISTING_KI,
                 content: 'Old content',
                 title: '',
                 source: 'manual',
@@ -326,5 +282,591 @@ describe('handleEditKnowledge', () => {
         expect(versionData).not.toHaveProperty('model');
         // Empty title → undefined → stripped
         expect(versionData).not.toHaveProperty('title');
+    });
+
+    it('does not call resolveContentVideoRefs when only metadata changes', async () => {
+        await handleEditKnowledge(
+            { kiId: 'ki-123', title: 'New Title' },
+            CTX,
+        );
+
+        expect(mockResolveContentVideoRefs).not.toHaveBeenCalled();
+    });
+
+    // =========================================================================
+    // Validation
+    // =========================================================================
+
+    it('returns error when kiId is missing', async () => {
+        const result = await handleEditKnowledge(
+            { content: 'some content' },
+            CTX,
+        );
+
+        expect(result.error).toContain('kiId');
+        expect(mockBatchCommit).not.toHaveBeenCalled();
+    });
+
+    it('returns error when no update fields are provided', async () => {
+        const result = await handleEditKnowledge(
+            { kiId: 'ki-123' },
+            CTX,
+        );
+
+        expect(result.error).toContain('At least one field');
+        expect(mockBatchCommit).not.toHaveBeenCalled();
+    });
+
+    it('returns error when KI not found', async () => {
+        mockDocGet.mockResolvedValue({ exists: false });
+
+        const result = await handleEditKnowledge(
+            { kiId: 'ki-nonexistent', content: 'new content' },
+            CTX,
+        );
+
+        expect(result.error).toContain('Knowledge Item not found');
+        expect(result.error).toContain('ki-nonexistent');
+        expect(mockBatchCommit).not.toHaveBeenCalled();
+    });
+
+    it('returns error for invalid category slug', async () => {
+        const result = await handleEditKnowledge(
+            { kiId: 'ki-123', category: 'Invalid Category!' },
+            CTX,
+        );
+
+        expect(result.error).toContain('Invalid category slug');
+        expect(mockBatchCommit).not.toHaveBeenCalled();
+    });
+
+    it('returns error when context is missing userId or channelId', async () => {
+        const result = await handleEditKnowledge(
+            { kiId: 'ki-123', title: 'New Title' },
+            { ...CTX, userId: '', channelId: 'ch1' },
+        );
+
+        expect(result.error).toContain('userId and channelId');
+    });
+
+    // =========================================================================
+    // Early return: nothing changed
+    // =========================================================================
+
+    it('skips update when content is unchanged (trimmed comparison)', async () => {
+        const result = await handleEditKnowledge(
+            { kiId: 'ki-123', content: '## Old Traffic Analysis\nBrowse 45%...  ' }, // trailing spaces
+            CTX,
+        );
+
+        expect(result.content).toContain('unchanged');
+        expect(result.id).toBe('ki-123');
+        expect(result.videoId).toBe('vid-abc');
+        // No batch operations — early return
+        expect(mockBatchSet).not.toHaveBeenCalled();
+        expect(mockBatchUpdate).not.toHaveBeenCalled();
+        expect(mockBatchCommit).not.toHaveBeenCalled();
+        expect(mockResolveContentVideoRefs).not.toHaveBeenCalled();
+    });
+
+    it('skips update when title is same as current', async () => {
+        const result = await handleEditKnowledge(
+            { kiId: 'ki-123', title: 'Traffic Analysis — March 2026' }, // same as EXISTING_KI
+            CTX,
+        );
+
+        expect(result.content).toContain('unchanged');
+        expect(mockBatchCommit).not.toHaveBeenCalled();
+    });
+
+    it('skips update when all provided fields match current values', async () => {
+        const result = await handleEditKnowledge(
+            {
+                kiId: 'ki-123',
+                title: EXISTING_KI.title,
+                summary: EXISTING_KI.summary,
+                category: EXISTING_KI.category,
+            },
+            CTX,
+        );
+
+        expect(result.content).toContain('unchanged');
+        expect(mockBatchCommit).not.toHaveBeenCalled();
+    });
+
+    // =========================================================================
+    // Title editing
+    // =========================================================================
+
+    it('updates title without creating version snapshot', async () => {
+        const result = await handleEditKnowledge(
+            { kiId: 'ki-123', title: 'Packaging Hypotheses Home' },
+            CTX,
+        );
+
+        expect(result.title).toBe('Packaging Hypotheses Home');
+        expect(result.content).toContain('updated');
+
+        // No version snapshot (content didn't change)
+        expect(mockBatchSet).not.toHaveBeenCalled();
+
+        // Main doc update contains title
+        expect(mockBatchUpdate).toHaveBeenCalledOnce();
+        const updateData = mockBatchUpdate.mock.calls[0][1];
+        expect(updateData.title).toBe('Packaging Hypotheses Home');
+        expect(updateData).not.toHaveProperty('content');
+        expect(updateData.updatedAt).toBe('SERVER_TIMESTAMP');
+    });
+
+    // =========================================================================
+    // Summary editing
+    // =========================================================================
+
+    it('updates summary without creating version snapshot', async () => {
+        const result = await handleEditKnowledge(
+            { kiId: 'ki-123', summary: 'Updated summary of the analysis.' },
+            CTX,
+        );
+
+        expect(result.summary).toBe('Updated summary of the analysis.');
+        expect(mockBatchSet).not.toHaveBeenCalled();
+
+        const updateData = mockBatchUpdate.mock.calls[0][1];
+        expect(updateData.summary).toBe('Updated summary of the analysis.');
+        expect(updateData).not.toHaveProperty('content');
+    });
+
+    // =========================================================================
+    // Title + summary together
+    // =========================================================================
+
+    it('updates title and summary together', async () => {
+        const result = await handleEditKnowledge(
+            { kiId: 'ki-123', title: 'New Title', summary: 'New summary.' },
+            CTX,
+        );
+
+        expect(result.title).toBe('New Title');
+        expect(result.summary).toBe('New summary.');
+        expect(mockBatchSet).not.toHaveBeenCalled(); // no version snapshot
+
+        const updateData = mockBatchUpdate.mock.calls[0][1];
+        expect(updateData.title).toBe('New Title');
+        expect(updateData.summary).toBe('New summary.');
+    });
+
+    // =========================================================================
+    // VideoId: unlink (null → channel scope)
+    // =========================================================================
+
+    it('unlinks video when videoId is null — scope becomes channel', async () => {
+        // First get(): KI doc. Second get(): old entity existence check.
+        mockDocGet
+            .mockResolvedValueOnce({ exists: true, data: () => ({ ...EXISTING_KI }) })
+            .mockResolvedValueOnce({ exists: true }); // old entity exists
+
+        const result = await handleEditKnowledge(
+            { kiId: 'ki-123', videoId: null },
+            CTX,
+        );
+
+        expect(result.scope).toBe('channel');
+        expect(result.videoId).toBeUndefined();
+        expect(result.content).toContain('updated');
+
+        // batch.update calls: main doc + old entity (decrement) + new entity (increment)
+        expect(mockBatchUpdate).toHaveBeenCalledTimes(3);
+
+        // Main doc: scope + videoId deleted
+        const mainUpdate = mockBatchUpdate.mock.calls[0][1];
+        expect(mainUpdate.scope).toBe('channel');
+        expect(mainUpdate.videoId).toBe('DELETE_FIELD');
+
+        // Old entity (video doc): decrement
+        const oldEntityRef = mockBatchUpdate.mock.calls[1][0];
+        expect(oldEntityRef.path).toBe('users/user1/channels/ch1/videos/vid-abc');
+        expect(mockBatchUpdate.mock.calls[1][1].knowledgeItemCount).toBe('INCREMENT(-1)');
+
+        // New entity (channel doc): increment
+        const newEntityRef = mockBatchUpdate.mock.calls[2][0];
+        expect(newEntityRef.path).toBe('users/user1/channels/ch1');
+        expect(mockBatchUpdate.mock.calls[2][1].knowledgeItemCount).toBe('INCREMENT(1)');
+        expect(mockBatchUpdate.mock.calls[2][1].knowledgeCategories).toBe('ARRAY_UNION(traffic-analysis)');
+        expect(mockBatchUpdate.mock.calls[2][1].lastAnalyzedAt).toBe('SERVER_TIMESTAMP');
+    });
+
+    it('skips discovery flags when unlinking a channel-scoped KI (already channel)', async () => {
+        mockDocGet.mockResolvedValue({
+            exists: true,
+            data: () => ({
+                ...EXISTING_KI,
+                scope: 'channel',
+                videoId: undefined,
+                title: 'Channel KI',
+            }),
+        });
+
+        const result = await handleEditKnowledge(
+            { kiId: 'ki-123', videoId: null, title: 'Renamed Channel KI' },
+            CTX,
+        );
+
+        expect(result.title).toBe('Renamed Channel KI');
+        // Only 1 batch.update: main doc (no scope change → no discovery flags)
+        expect(mockBatchUpdate).toHaveBeenCalledOnce();
+    });
+
+    // =========================================================================
+    // VideoId: link (string → video scope)
+    // =========================================================================
+
+    it('links to a video — normalizes YouTube ID and updates discovery flags', async () => {
+        const channelKi = { ...EXISTING_KI, scope: 'channel', videoId: undefined };
+        // First get(): KI doc. Second get(): old entity (channel) existence check.
+        mockDocGet
+            .mockResolvedValueOnce({ exists: true, data: () => channelKi })
+            .mockResolvedValueOnce({ exists: true }); // old entity (channel doc) exists
+
+        // resolveVideosByIds returns normalized doc ID
+        mockResolveVideosByIds.mockResolvedValueOnce({
+            resolved: new Map([['youtube-xyz', { docId: 'custom-resolved-789' }]]),
+            missing: [],
+        });
+
+        const result = await handleEditKnowledge(
+            { kiId: 'ki-123', videoId: 'youtube-xyz' },
+            CTX,
+        );
+
+        expect(result.scope).toBe('video');
+        expect(result.videoId).toBe('custom-resolved-789');
+
+        // resolveVideosByIds was called with correct args
+        expect(mockResolveVideosByIds).toHaveBeenCalledWith(
+            'users/user1/channels/ch1',
+            ['youtube-xyz'],
+            { skipExternal: true },
+        );
+
+        // batch.update: main doc + old entity (channel) + new entity (video)
+        expect(mockBatchUpdate).toHaveBeenCalledTimes(3);
+
+        const mainUpdate = mockBatchUpdate.mock.calls[0][1];
+        expect(mainUpdate.scope).toBe('video');
+        expect(mainUpdate.videoId).toBe('custom-resolved-789');
+
+        // Old entity (channel): decrement
+        expect(mockBatchUpdate.mock.calls[1][0].path).toBe('users/user1/channels/ch1');
+        expect(mockBatchUpdate.mock.calls[1][1].knowledgeItemCount).toBe('INCREMENT(-1)');
+
+        // New entity (video): increment
+        expect(mockBatchUpdate.mock.calls[2][0].path).toBe('users/user1/channels/ch1/videos/custom-resolved-789');
+        expect(mockBatchUpdate.mock.calls[2][1].knowledgeItemCount).toBe('INCREMENT(1)');
+    });
+
+    it('returns error when video not found during link', async () => {
+        mockResolveVideosByIds.mockResolvedValueOnce({
+            resolved: new Map(), // empty — video not found
+            missing: ['nonexistent-vid'],
+        });
+
+        const result = await handleEditKnowledge(
+            { kiId: 'ki-123', videoId: 'nonexistent-vid' },
+            CTX,
+        );
+
+        expect(result.error).toContain('Video not found');
+        expect(result.error).toContain('nonexistent-vid');
+        expect(mockBatchCommit).not.toHaveBeenCalled();
+    });
+
+    // =========================================================================
+    // VideoId + content together
+    // =========================================================================
+
+    it('handles videoId unlink + content change together', async () => {
+        mockDocGet
+            .mockResolvedValueOnce({ exists: true, data: () => ({ ...EXISTING_KI }) })
+            .mockResolvedValueOnce({ exists: true }); // old entity exists
+
+        const result = await handleEditKnowledge(
+            { kiId: 'ki-123', videoId: null, content: 'New channel-level content' },
+            CTX,
+        );
+
+        expect(result.scope).toBe('channel');
+        expect(result.videoId).toBeUndefined();
+        expect(result.contentLength).toBe('New channel-level content'.length);
+
+        // Version snapshot (content changed)
+        expect(mockBatchSet).toHaveBeenCalledOnce();
+        const versionData = mockBatchSet.mock.calls[0][1];
+        expect(versionData.content).toBe(EXISTING_KI.content);
+
+        // batch.update: main doc + old entity + new entity = 3
+        expect(mockBatchUpdate).toHaveBeenCalledTimes(3);
+
+        // Main doc has both content and scope changes
+        const mainUpdate = mockBatchUpdate.mock.calls[0][1];
+        expect(mainUpdate.content).toBe('New channel-level content');
+        expect(mainUpdate.scope).toBe('channel');
+        expect(mainUpdate.videoId).toBe('DELETE_FIELD');
+    });
+
+    // =========================================================================
+    // Category editing
+    // =========================================================================
+
+    it('updates category and adds to entity knowledgeCategories', async () => {
+        const result = await handleEditKnowledge(
+            { kiId: 'ki-123', category: 'packaging-audit' },
+            CTX,
+        );
+
+        expect(result.category).toBe('packaging-audit');
+
+        // batch.update: main doc + entity category flag = 2
+        expect(mockBatchUpdate).toHaveBeenCalledTimes(2);
+
+        const mainUpdate = mockBatchUpdate.mock.calls[0][1];
+        expect(mainUpdate.category).toBe('packaging-audit');
+
+        // Category flag on entity (same entity — video, since scope didn't change)
+        const entityRef = mockBatchUpdate.mock.calls[1][0];
+        expect(entityRef.path).toBe('users/user1/channels/ch1/videos/vid-abc');
+        expect(mockBatchUpdate.mock.calls[1][1].knowledgeCategories).toBe('ARRAY_UNION(packaging-audit)');
+    });
+
+    it('updates category registry when category changes', async () => {
+        await handleEditKnowledge(
+            { kiId: 'ki-123', category: 'packaging-audit' },
+            CTX,
+        );
+
+        // Registry update via db.doc().set() (non-blocking, after batch)
+        expect(mockDocSet).toHaveBeenCalledOnce();
+        const registryData = mockDocSet.mock.calls[0][0];
+        expect(registryData).toHaveProperty('categories.packaging-audit');
+        expect(registryData['categories.packaging-audit'].label).toBe('Packaging Audit');
+    });
+
+    it('skips category flag update on entity when scope also changes (discovery handles it)', async () => {
+        mockDocGet
+            .mockResolvedValueOnce({ exists: true, data: () => ({ ...EXISTING_KI }) })
+            .mockResolvedValueOnce({ exists: true }); // old entity exists
+
+        // Unlink + change category simultaneously
+        const result = await handleEditKnowledge(
+            { kiId: 'ki-123', videoId: null, category: 'niche-analysis' },
+            CTX,
+        );
+
+        expect(result.scope).toBe('channel');
+        expect(result.category).toBe('niche-analysis');
+
+        // batch.update: main doc + old entity (decrement) + new entity (increment) = 3
+        // NOT 4 — category flag is folded into scope change discovery update
+        expect(mockBatchUpdate).toHaveBeenCalledTimes(3);
+
+        // New entity uses the new category for arrayUnion
+        expect(mockBatchUpdate.mock.calls[2][1].knowledgeCategories).toBe('ARRAY_UNION(niche-analysis)');
+    });
+
+    it('does not update registry when category is unchanged', async () => {
+        await handleEditKnowledge(
+            { kiId: 'ki-123', title: 'New Title' },
+            CTX,
+        );
+
+        expect(mockDocSet).not.toHaveBeenCalled();
+    });
+
+    // =========================================================================
+    // Returns: videoId for channel-scoped KI
+    // =========================================================================
+
+    it('returns undefined videoId when KI has no videoId', async () => {
+        mockDocGet.mockResolvedValue({
+            exists: true,
+            data: () => ({
+                ...EXISTING_KI,
+                content: 'Channel-level content',
+                title: 'Channel KI',
+                source: 'chat-tool',
+                model: 'claude-sonnet-4-6',
+                scope: 'channel',
+                videoId: undefined,
+            }),
+        });
+
+        const result = await handleEditKnowledge(
+            { kiId: 'ki-channel', content: 'Updated channel content' },
+            CTX,
+        );
+
+        expect(result.videoId).toBeUndefined();
+    });
+
+    // =========================================================================
+    // Return payload completeness
+    // =========================================================================
+
+    it('returns all current field values after update', async () => {
+        const result = await handleEditKnowledge(
+            { kiId: 'ki-123', title: 'New Title', summary: 'New summary.' },
+            CTX,
+        );
+
+        expect(result.id).toBe('ki-123');
+        expect(result.title).toBe('New Title');
+        expect(result.summary).toBe('New summary.');
+        expect(result.category).toBe('traffic-analysis'); // unchanged
+        expect(result.scope).toBe('video'); // unchanged
+        expect(result.videoId).toBe('vid-abc'); // unchanged
+        expect(result.contentLength).toBe(EXISTING_KI.content.length); // content unchanged
+    });
+
+    // =========================================================================
+    // Main doc update: only changed fields present
+    // =========================================================================
+
+    it('only includes changed fields in main doc update', async () => {
+        await handleEditKnowledge(
+            { kiId: 'ki-123', title: 'New Title' },
+            CTX,
+        );
+
+        const updateData = mockBatchUpdate.mock.calls[0][1];
+        expect(updateData.title).toBe('New Title');
+        // These should NOT be in the update
+        expect(updateData).not.toHaveProperty('content');
+        expect(updateData).not.toHaveProperty('summary');
+        expect(updateData).not.toHaveProperty('category');
+        expect(updateData).not.toHaveProperty('scope');
+        expect(updateData).not.toHaveProperty('videoId');
+        // Provenance is always present
+        expect(updateData.updatedAt).toBe('SERVER_TIMESTAMP');
+        expect(updateData.lastEditedBy).toBe('claude-sonnet-4-6');
+        expect(updateData.lastEditSource).toBe('chat-edit');
+    });
+
+    // =========================================================================
+    // W1: Version createdAt uses toMillis when timestamp exists
+    // =========================================================================
+
+    it('uses updatedAt.toMillis() for version createdAt when available', async () => {
+        mockDocGet.mockResolvedValue({
+            exists: true,
+            data: () => ({
+                ...EXISTING_KI,
+                updatedAt: { toMillis: () => 1700000000000 },
+                createdAt: { toMillis: () => 1690000000000 },
+            }),
+        });
+
+        await handleEditKnowledge(
+            { kiId: 'ki-123', content: 'New content' },
+            CTX,
+        );
+
+        const versionData = mockBatchSet.mock.calls[0][1];
+        // Should use updatedAt (more recent), not createdAt or Date.now()
+        expect(versionData.createdAt).toBe(1700000000000);
+    });
+
+    it('falls back to createdAt.toMillis() when updatedAt is absent', async () => {
+        mockDocGet.mockResolvedValue({
+            exists: true,
+            data: () => ({
+                ...EXISTING_KI,
+                createdAt: { toMillis: () => 1690000000000 },
+                // no updatedAt
+            }),
+        });
+
+        await handleEditKnowledge(
+            { kiId: 'ki-123', content: 'New content' },
+            CTX,
+        );
+
+        const versionData = mockBatchSet.mock.calls[0][1];
+        expect(versionData.createdAt).toBe(1690000000000);
+    });
+
+    // =========================================================================
+    // W4: Batch failure propagation
+    // =========================================================================
+
+    it('propagates batch.commit() failure as uncaught error', async () => {
+        mockBatchCommit.mockRejectedValueOnce(new Error('Firestore batch failed'));
+
+        await expect(
+            handleEditKnowledge({ kiId: 'ki-123', content: 'New content' }, CTX),
+        ).rejects.toThrow('Firestore batch failed');
+    });
+
+    // =========================================================================
+    // W5: Version snapshot uses correct subcollection path
+    // =========================================================================
+
+    it('creates version snapshot in the correct subcollection path', async () => {
+        await handleEditKnowledge(
+            { kiId: 'ki-123', content: 'New content' },
+            CTX,
+        );
+
+        // mockCollectionDoc is called with the collection path
+        expect(mockCollectionDoc).toHaveBeenCalledWith(
+            'users/user1/channels/ch1/knowledgeItems/ki-123/versions',
+        );
+    });
+
+    // =========================================================================
+    // F2: Old entity doc missing — skip decrement gracefully
+    // =========================================================================
+
+    it('skips decrement when old entity doc does not exist (deleted video)', async () => {
+        // First get(): KI doc exists. Second get(): old entity doc does NOT exist.
+        mockDocGet
+            .mockResolvedValueOnce({ exists: true, data: () => ({ ...EXISTING_KI }) })
+            .mockResolvedValueOnce({ exists: false }); // old video doc was deleted
+
+        const result = await handleEditKnowledge(
+            { kiId: 'ki-123', videoId: null },
+            CTX,
+        );
+
+        expect(result.scope).toBe('channel');
+        expect(result.content).toContain('updated');
+
+        // batch.update: main doc + new entity (increment) only — NO old entity decrement
+        expect(mockBatchUpdate).toHaveBeenCalledTimes(2);
+
+        // Main doc
+        expect(mockBatchUpdate.mock.calls[0][0].path).toContain('knowledgeItems/ki-123');
+
+        // New entity (channel): increment
+        expect(mockBatchUpdate.mock.calls[1][0].path).toBe('users/user1/channels/ch1');
+        expect(mockBatchUpdate.mock.calls[1][1].knowledgeItemCount).toBe('INCREMENT(1)');
+
+        // Batch should still commit successfully
+        expect(mockBatchCommit).toHaveBeenCalledOnce();
+    });
+
+    // =========================================================================
+    // Registry: no description field (W2 fix)
+    // =========================================================================
+
+    it('registry update contains label and level but no description', async () => {
+        await handleEditKnowledge(
+            { kiId: 'ki-123', category: 'packaging-audit' },
+            CTX,
+        );
+
+        const registryData = mockDocSet.mock.calls[0][0];
+        const entry = registryData['categories.packaging-audit'];
+        expect(entry.label).toBe('Packaging Audit');
+        expect(entry.level).toBe('video'); // scope unchanged, still video
+        expect(entry).not.toHaveProperty('description');
     });
 });

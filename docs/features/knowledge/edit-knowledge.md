@@ -1,10 +1,10 @@
 # Edit Knowledge (LLM tool)
 
-> LLM может редактировать существующие Knowledge Items — обновлять content, сохранять версии, показывать diff.
+> LLM может редактировать существующие Knowledge Items — обновлять любые поля (content, title, summary, videoId, category), сохранять версии, показывать diff.
 
 ## Текущее состояние
 
-Production-ready. LLM может редактировать существующие KI через `editKnowledge` tool call. Tool description содержит hint для параллельного вызова — при обновлении нескольких KI одновременно LLM вызывает `editKnowledge` для каждого в одном ответе, сервер выполняет их через `Promise.all` (экономия на round trips и cache writes). Backend handler читает старый doc, создаёт version snapshot в `versions/` subcollection (атомарный batch), обновляет main doc, re-resolves video refs. Backend пропускает version snapshot если content не изменился (content-changed check). UI Edit модалка тоже создаёт версию при изменении content. Zen Mode показывает dropdown с историей версий и premium split-view DiffViewer (npm `diff` + custom React, line numbers, green/red highlights, theme-aware CSS variables). Conclude prompt обновлён: LLM предпочитает editKnowledge над saveKnowledge когда KI уже существует. Restore-to-version: пользователь может откатить KI к любой предыдущей версии — контент восстанавливается в редакторе, при Save все версии новее выбранной удаляются **атомарно в том же Firestore batch** (не fire-and-forget), `skipVersioning` предотвращает лишний snapshot. Version provenance: `lastEditSource`/`lastEditedBy` корректно проходят через весь pipeline (types → mutation → service), restore pure-content сохраняет оригинальный провенанс. URL sanitization: `allowCustomUrls` с protocol allowlist (defense-in-depth). ESC key: dropdown перехватывает в capture phase, не закрывает модалку. Save handler: deduplicated через `useKnowledgeSaveHandler` shared hook.
+Production-ready. LLM может редактировать существующие KI через `editKnowledge` tool call — partial update любых полей. Все параметры кроме `kiId` опциональные: LLM передаёт только то, что нужно изменить. `videoId: null` отвязывает KI от видео (→ channel scope), `videoId: "string"` привязывает (нормализация через `resolveVideosByIds`). Смена scope атомарно обновляет discovery flags (decrement на старом entity, increment на новом, с guard на случай удалённого видео). Смена category — `arrayUnion` на entity + registry update. Content changes создают version snapshot, metadata changes (title/summary/videoId/category) — нет. Tool description содержит hint для параллельного вызова — при обновлении нескольких KI одновременно LLM вызывает `editKnowledge` для каждого в одном ответе, сервер выполняет их через `Promise.all`. UI Edit модалка тоже создаёт версию при изменении content. Zen Mode показывает dropdown с историей версий и premium split-view DiffViewer (npm `diff` + custom React, line numbers, green/red highlights, theme-aware CSS variables). Conclude prompt обновлён: LLM предпочитает editKnowledge над saveKnowledge когда KI уже существует. Restore-to-version: пользователь может откатить KI к любой предыдущей версии — атомарно в Firestore batch. Save handler: deduplicated через `useKnowledgeSaveHandler` shared hook.
 
 ---
 
@@ -22,11 +22,11 @@ Production-ready. LLM может редактировать существующ
 1. Пользователь: "обнови анализ трафика для видео X" (или LLM решает сама при Memorize)
 2. LLM вызывает `listKnowledge` → видит существующий KI
 3. LLM вызывает `getKnowledge` → читает полный content
-4. LLM вызывает `editKnowledge` с `kiId` + новый `content`
-5. Backend: атомарный batch — snapshot старого content в `versions/` + update основного doc
+4. LLM вызывает `editKnowledge` с `kiId` + любые поля для обновления (content, title, summary, videoId, category)
+5. Backend: partial update — version snapshot если content изменился, discovery flags если scope/videoId изменился, всё в одном batch
 6. В чате: badge "Knowledge Item updated: Traffic Analysis"
-7. Пользователь открывает KI → видит обновлённый content
-8. В KI карточке: dropdown "Versions" → выбор версии → line-level diff (как в IDE)
+7. Пользователь открывает KI → видит обновлённые данные
+8. В KI карточке: dropdown "Versions" → выбор версии → line-level diff (только для content changes)
 
 ## Version History
 
@@ -86,7 +86,8 @@ Premium IDE-like diff viewer — **только в Zen Mode** (fullscreen). KI c
 | File | Role |
 |------|------|
 | `shared/knowledgeVersion.ts` | `KnowledgeVersion` interface — SSOT, shared by frontend + backend. `source` union includes `'chat-edit'` |
-| `functions/src/services/tools/handlers/knowledge/editKnowledge.ts` | Handler: content-changed check (early return), atomic batch (version snapshot + doc update), video ref re-resolution, returns `videoId` in both paths (unchanged + updated) for frontend pill thumbnails. `firebase-functions/v2` logger |
+| `functions/src/services/tools/handlers/knowledge/editKnowledge.ts` | Handler: partial update (all KI fields), content-changed check (early return), atomic batch (version snapshot + doc update + discovery flags), videoId normalization via `resolveVideosByIds`, old entity existence guard, category registry update |
+| `functions/src/services/tools/utils/firestoreHelpers.ts` | Shared `stripUndefined` (Firestore throws on undefined) + typed `getEntityRef` (video/channel entity resolution) — used by both `editKnowledge` and `saveKnowledge` |
 | `functions/src/services/tools/utils/resolveContentVideoRefs.ts` | Shared utility: extract video IDs from content, resolve via 3-step resolver, write `resolvedVideoRefs` snapshot |
 | `functions/src/services/tools/definitions.ts` | `editKnowledge` tool definition (in `TOOL_DECLARATIONS`, available in chat + memorize) |
 | `functions/src/services/tools/executor.ts` | Handler registration |
@@ -118,7 +119,7 @@ Premium IDE-like diff viewer — **только в Zen Mode** (fullscreen). KI c
 
 | File | Coverage |
 |------|----------|
-| `functions/src/services/tools/handlers/knowledge/__tests__/editKnowledge.test.ts` | Handler: happy path, validation, not found, content-changed early return, version provenance, video ref resolution, videoId in response |
+| `functions/src/services/tools/handlers/knowledge/__tests__/editKnowledge.test.ts` | Handler (34 tests): content editing, title/summary/category updates, videoId link/unlink, discovery flags, videoId normalization, old entity guard, version provenance, toMillis path, batch failure propagation, collection path assertion |
 | `src/features/Knowledge/utils/__tests__/formatDate.test.ts` | Label functions: `getOriginLabel`, `getEditLabel`, `getSourceLabel`, `formatVersionLabel` |
 | `src/features/Knowledge/utils/__tests__/allowCustomUrls.test.ts` | Protocol allowlist: vid/mention/ki/http/https pass, javascript/data/vbscript blocked, relative URLs |
 
@@ -137,7 +138,7 @@ Premium IDE-like diff viewer — **только в Zen Mode** (fullscreen). KI c
 | 3 | Текущая версия на основном doc, не в subcollection | Zero extra reads при обычном просмотре (90% use cases) |
 | 4 | npm `diff` для алгоритма + custom React для UI | Лёгкая зависимость (7KB), полный контроль над premium дизайном |
 | 5 | UI Edit тоже создаёт версию | Единообразие: любое изменение = версия, полная история |
-| 6 | Scope Phase 1: только content | Title/summary/category — добавить позже по необходимости |
+| 6 | Full partial update (all fields) | LLM может обновить любое поле KI: content, title, summary, videoId (link/unlink), category. `scope` выводится из `videoId` автоматически — LLM не может создать inconsistent state |
 | 7 | Atomic batch для version + update | Prevents phantom versions при partial failure (version created, doc not updated) |
 | 8 | Shared `resolveContentVideoRefs` utility | Extracts 40-line video ref resolution from `saveKnowledge`, shared by both handlers. Eliminates code duplication |
 | 9 | Version snapshot includes `title?` | Forward-proofing: title нужен для diff labels, добавить позже без миграции |

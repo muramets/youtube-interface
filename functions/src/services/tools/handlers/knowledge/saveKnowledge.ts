@@ -12,6 +12,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { logger } from "firebase-functions/v2";
 import type { ToolContext } from "../../types.js";
 import { SLUG_PATTERN } from "../../../../shared/knowledge.js";
+import { stripUndefined, getEntityRef } from "../../utils/firestoreHelpers.js";
 import { resolveVideosByIds } from "../../utils/resolveVideos.js";
 import { resolveContentVideoRefs } from "../../utils/resolveContentVideoRefs.js";
 
@@ -23,19 +24,6 @@ interface SaveKnowledgeArgs {
     videoId?: string;
     videoRefs?: string[];
     toolsUsed?: string[];
-}
-
-/**
- * Strip undefined values from an object — Firestore throws on undefined.
- */
-function stripUndefined(obj: Record<string, unknown>): Record<string, unknown> {
-    const result: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(obj)) {
-        if (value !== undefined) {
-            result[key] = value;
-        }
-    }
-    return result;
 }
 
 export async function handleSaveKnowledge(
@@ -143,9 +131,8 @@ export async function handleSaveKnowledge(
     batch.set(kiRef, kiData);
 
     // Update discovery flags on the entity (video or channel) doc
-    const entityRef = effectiveScope === "video"
-        ? db.doc(`${basePath}/videos/${resolvedDocId}`)
-        : db.doc(`${basePath}`);
+    const entityScope = effectiveScope === "video" ? "video" as const : "channel" as const;
+    const entityRef = getEntityRef(basePath, entityScope, resolvedDocId);
 
     batch.update(entityRef, {
         knowledgeItemCount: FieldValue.increment(1),
@@ -175,11 +162,11 @@ export async function handleSaveKnowledge(
 
     try {
         const registryRef = db.doc(`${basePath}/knowledgeCategories/registry`);
+        const categoryLabel = category.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
         await registryRef.set({
             [`categories.${category}`]: {
-                label: category.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" "),
+                label: categoryLabel,
                 level: effectiveScope === "video" ? "video" : "channel",
-                description: `${title} analysis`,
             },
         }, { merge: true });
     } catch (err) {
