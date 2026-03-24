@@ -481,6 +481,31 @@ function applyCacheBreakpoints(messages: MessageParam[]): MessageParam[] {
 // =============================================================================
 
 /**
+ * Transient SSE error types from the Anthropic streaming API.
+ *
+ * When an error occurs mid-stream (HTTP 200 already sent), the API sends an
+ * SSE `error` event instead of an HTTP error code. The SDK wraps it as
+ * `APIError` with `status: undefined` and the parsed JSON in `error`.
+ * Structure: `{ type: "error", error: { type: "<error_type>", ... } }`.
+ */
+const TRANSIENT_SSE_ERROR_TYPES = new Set([
+    "overloaded_error",  // servers overloaded (≈ HTTP 529)
+    "rate_limit_error",  // rate limit exceeded (≈ HTTP 429)
+    "api_error",         // internal server error (≈ HTTP 500)
+]);
+
+/**
+ * Extract the SSE error type from an APIError with undefined status.
+ * Returns the nested `error.error.type` string, or undefined if not present.
+ */
+function getSseErrorType(err: APIError): string | undefined {
+    if (err.status != null) return undefined;
+    const body = err.error as Record<string, unknown> | undefined;
+    const inner = body?.error as Record<string, unknown> | undefined;
+    return typeof inner?.type === "string" ? inner.type : undefined;
+}
+
+/**
  * Claude-specific transient error predicate.
  * Returns true for errors that are safe to retry:
  *   - AiStreamTimeoutError: stream stalled (no events for 90s)
@@ -488,21 +513,29 @@ function applyCacheBreakpoints(messages: MessageParam[]): MessageParam[] {
  *   - HTTP 529: API overloaded
  *   - HTTP 500: Internal server error
  *   - HTTP 503: Service unavailable
+ *   - SSE overloaded_error / rate_limit_error / api_error (status undefined)
  *
  * Passed to withStreamRetry() as the `isTransient` predicate.
  */
 function isClaudeTransient(err: unknown): boolean {
     if (err instanceof AiStreamTimeoutError) return !err.hadThinkingProgress;
     if (err instanceof APIError) {
-        return err.status === 429 || err.status === 529 || err.status === 500 || err.status === 503;
+        // Path 1: HTTP error code (connection rejected before streaming)
+        if (err.status === 429 || err.status === 529 || err.status === 500 || err.status === 503) {
+            return true;
+        }
+        // Path 2: SSE error event (error mid-stream, status undefined)
+        const sseType = getSseErrorType(err);
+        if (sseType && TRANSIENT_SSE_ERROR_TYPES.has(sseType)) return true;
     }
     return false;
 }
 
-/** Per-error delay: 60s for rate limits, default for others. */
+/** Per-error delay: 60s for rate limits (HTTP or SSE), default for others. */
 function getClaudeRetryDelay(err: unknown): number | undefined {
-    if (err instanceof APIError && err.status === 429) {
-        return 60_000;
+    if (err instanceof APIError) {
+        if (err.status === 429) return 60_000;
+        if (getSseErrorType(err) === "rate_limit_error") return 60_000;
     }
     return undefined; // use default delayMs
 }

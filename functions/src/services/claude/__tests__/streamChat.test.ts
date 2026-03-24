@@ -181,11 +181,16 @@ vi.mock("@anthropic-ai/sdk", () => {
 
 vi.mock("@anthropic-ai/sdk/error.js", () => {
     class APIError extends Error {
-        status: number;
-        constructor(status: number, message: string) {
-            super(message);
+        status: number | undefined;
+        error: unknown;
+        constructor(status: number | undefined, errorOrMessage: unknown, message?: string) {
+            const msg = typeof errorOrMessage === "string"
+                ? errorOrMessage
+                : message ?? (errorOrMessage ? JSON.stringify(errorOrMessage) : "(no body)");
+            super(status ? `${status} ${msg}` : msg);
             this.name = "APIError";
             this.status = status;
+            this.error = errorOrMessage;
         }
     }
     return { APIError };
@@ -969,6 +974,107 @@ describe("Claude streamChat — retry logic", () => {
         expect(mockMessagesStream).toHaveBeenCalledTimes(1);
         // Returns partial result instead of throwing
         expect(result.partial).toBe(true);
+    });
+});
+
+describe("Claude streamChat — SSE error retry (status undefined)", () => {
+    it("retries on SSE overloaded_error (status undefined) and succeeds", async () => {
+        const onRetry = vi.fn();
+        const mockMessagesStream = vi.fn();
+        mockGetClaudeClient.mockResolvedValue({
+            messages: { stream: mockMessagesStream },
+        } as never);
+
+        // SSE error event: SDK creates APIError(undefined, parsedJSON, ...)
+        const sseOverloaded = new APIError(
+            undefined as never,
+            { type: "error", error: { details: null, type: "overloaded_error", message: "Overloaded" } },
+        );
+        mockMessagesStream.mockImplementationOnce(() => {
+            const stream = buildMockStream([
+                { event: "error", data: sseOverloaded },
+            ]);
+            stream._run();
+            return stream;
+        });
+
+        // Second call: stream succeeds
+        mockMessagesStream.mockImplementationOnce(() => {
+            const stream = buildMockStream([
+                ...textEvents("Recovered from SSE overload"),
+                finalMessageEvent({ input_tokens: 10, output_tokens: 5 }),
+            ]);
+            stream._run();
+            return stream;
+        });
+
+        const result = await streamChat(
+            makeOptsWithCallbacks({ onRetry }),
+        );
+
+        expect(onRetry).toHaveBeenCalledTimes(1);
+        expect(result.text).toBe("Recovered from SSE overload");
+    });
+
+    it("retries on SSE api_error (status undefined) and succeeds", async () => {
+        const onRetry = vi.fn();
+        const mockMessagesStream = vi.fn();
+        mockGetClaudeClient.mockResolvedValue({
+            messages: { stream: mockMessagesStream },
+        } as never);
+
+        const sseApiError = new APIError(
+            undefined as never,
+            { type: "error", error: { details: null, type: "api_error", message: "Internal server error" } },
+        );
+        mockMessagesStream.mockImplementationOnce(() => {
+            const stream = buildMockStream([
+                { event: "error", data: sseApiError },
+            ]);
+            stream._run();
+            return stream;
+        });
+
+        mockMessagesStream.mockImplementationOnce(() => {
+            const stream = buildMockStream([
+                ...textEvents("Recovered"),
+                finalMessageEvent({ input_tokens: 10, output_tokens: 5 }),
+            ]);
+            stream._run();
+            return stream;
+        });
+
+        const result = await streamChat(
+            makeOptsWithCallbacks({ onRetry }),
+        );
+
+        expect(onRetry).toHaveBeenCalledTimes(1);
+        expect(result.text).toBe("Recovered");
+    });
+
+    it("does NOT retry SSE authentication_error (non-transient)", async () => {
+        const mockMessagesStream = vi.fn();
+        mockGetClaudeClient.mockResolvedValue({
+            messages: { stream: mockMessagesStream },
+        } as never);
+
+        const sseAuthError = new APIError(
+            undefined as never,
+            { type: "error", error: { type: "authentication_error", message: "Invalid key" } },
+        );
+        mockMessagesStream.mockImplementationOnce(() => {
+            const stream = buildMockStream([
+                { event: "error", data: sseAuthError },
+            ]);
+            stream._run();
+            return stream;
+        });
+
+        await expect(
+            streamChat(makeOpts()),
+        ).rejects.toThrow();
+
+        expect(mockMessagesStream).toHaveBeenCalledTimes(1);
     });
 });
 
