@@ -421,7 +421,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     // --- Scroll State Machine (extracted to dedicated hook) ---
     const lastMsg = messages[messages.length - 1];
     const {
-        containerRef, stickyZoneRef, spacerRef, bottomRef,
+        containerRef, stickyZoneRef, bottomRef,
         showScrollFab, isPinned, scrollToBottom, handleScroll,
     } = useChatScroll({
         messageCount: messages.length,
@@ -685,11 +685,6 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
 
                 <div ref={bottomRef} className="-mt-3" />
             </div>
-
-            {/* Spacer OUTSIDE sticky zone — one-shot P3 cushion for scroll position preservation.
-                Height managed solely via DOM (setSpacer) — no React-controlled style,
-                so re-renders don't reset it. */}
-            <div ref={spacerRef} aria-hidden="true" />
 
             {/* Scroll-to-bottom FAB */}
             {

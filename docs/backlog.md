@@ -25,3 +25,4 @@
 | 17 | Chat / Tools | `channelBasePath(ctx)` — extract shared utility из 5 knowledge handlers | Low | `functions/src/services/tools/handlers/knowledge/` (saveMemory, saveKnowledge, editKnowledge, getKnowledge, listKnowledge) |
 | 18 | Sync | Multi-tab race condition: duplicate sync + notifications при нескольких открытых вкладках | Medium | [sync-architecture.md](features/sync-architecture.md#текущее-состояние) |
 | 19 | Chat / Memory | Удалить legacy `generateConcludeSummary` + `CONCLUDE_SYSTEM_PROMPT` из `memory.ts` (не используется в production, заменён tool-based Memorize через aiChat) | Low | [memory-system.md](features/chat/context/memory-system.md#technical-implementation) |
+| 20 | Chat / Store | Optimistic message oscillation: message count 1→0→1 при reconciliation (optimistic→Firestore), вызывает 2-3 frame blink первого сообщения | Medium | `src/core/stores/chat/` — reconciliation должна быть atomic (replace, не remove+add) |

@@ -115,6 +115,13 @@
        for scrollIntoView to position zone at viewport top. */
 }
 
+/* First message (no pre-zone siblings): negative margins absorb container
+   padding so scrollHeight === clientHeight → zero scroll freedom. */
+.chat-sticky-zone:first-child {
+    margin-top: -14px;  /* absorbs container pt-3.5 */
+    margin-bottom: -4px; /* absorbs container pb-1 */
+}
+
 /* --- Context accordion (ChatInput) - uses design tokens for consistency --- */
 
 .context-accordion {
