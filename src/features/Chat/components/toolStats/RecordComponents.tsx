@@ -47,6 +47,23 @@ export const SaveKnowledgeRecord: React.FC<{ record: ToolCallRecord; videoMap?: 
     );
 };
 
+/** Format edit stats for display in pill. */
+function formatEditStats(editStats: { mode: string; charsAdded: number; charsRemoved: number }): React.ReactNode {
+    if (editStats.mode === 'rewrite') {
+        return <>{editStats.charsAdded.toLocaleString()} chars rewritten</>;
+    }
+    // Operations mode: show +added / -removed
+    const parts: React.ReactNode[] = [];
+    if (editStats.charsAdded > 0) {
+        parts.push(<span key="add" style={{ color: 'var(--color-success)' }}>+{editStats.charsAdded.toLocaleString()}</span>);
+    }
+    if (editStats.charsRemoved > 0) {
+        parts.push(<span key="rm" style={{ color: 'var(--color-error)' }}>−{editStats.charsRemoved.toLocaleString()}</span>);
+    }
+    if (parts.length === 0) return <>0 chars changed</>;
+    return <>{parts.reduce<React.ReactNode[]>((acc, el, i) => i === 0 ? [el] : [...acc, ' / ', el], [])} chars</>;
+}
+
 /** Per-record expanded content for editKnowledge pill. */
 export const EditKnowledgeRecord: React.FC<{ record: ToolCallRecord; videoMap?: Map<string, VideoPreviewData> }> = ({ record, videoMap }) => {
     const result = record.result as Record<string, unknown> | undefined;
@@ -54,6 +71,7 @@ export const EditKnowledgeRecord: React.FC<{ record: ToolCallRecord; videoMap?: 
     const category = result?.category as string | undefined;
     const videoId = result?.videoId as string | undefined;
     const contentLength = result?.contentLength as number | undefined;
+    const editStats = result?.editStats as { mode: string; charsAdded: number; charsRemoved: number } | undefined;
 
     return (
         <div className="px-2 py-1.5 rounded-md bg-surface-primary dark:bg-white/[0.03] text-[11px] min-w-0">
@@ -66,11 +84,11 @@ export const EditKnowledgeRecord: React.FC<{ record: ToolCallRecord; videoMap?: 
                         </span>
                     )}
                     {title && <span className="text-text-primary truncate">{title}</span>}
-                    {contentLength != null && (
-                        <span className="text-text-tertiary">
-                            {contentLength.toLocaleString()} chars
-                        </span>
-                    )}
+                    <span className="text-text-tertiary">
+                        {editStats ? formatEditStats(editStats) : (
+                            contentLength != null ? `${contentLength.toLocaleString()} chars` : null
+                        )}
+                    </span>
                 </div>
             </div>
         </div>

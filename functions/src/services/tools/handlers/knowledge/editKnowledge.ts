@@ -14,6 +14,7 @@ import type { ToolContext } from "../../types.js";
 import { stripUndefined, getEntityRef } from "../../utils/firestoreHelpers.js";
 import { resolveContentVideoRefs } from "../../utils/resolveContentVideoRefs.js";
 import { resolveVideosByIds } from "../../utils/resolveVideos.js";
+import { applyOperations, type EditOperation } from "../../utils/applyOperations.js";
 
 interface EditKnowledgeArgs {
     kiId: string;
@@ -22,13 +23,14 @@ interface EditKnowledgeArgs {
     summary?: string;
     videoId?: string | null;
     category?: string;
+    operations?: EditOperation[];
 }
 
 export async function handleEditKnowledge(
     args: Record<string, unknown>,
     ctx: ToolContext,
 ): Promise<Record<string, unknown>> {
-    const { kiId, content, title, summary, category } = args as unknown as EditKnowledgeArgs;
+    const { kiId, content, title, summary, category, operations } = args as unknown as EditKnowledgeArgs;
     // videoId needs special handling: undefined = omitted, null = unlink
     const videoIdProvided = "videoId" in args;
     const rawVideoId = videoIdProvided ? (args.videoId as string | null) : undefined;
@@ -40,7 +42,13 @@ export async function handleEditKnowledge(
         return { error: "Required field: kiId" };
     }
 
-    const hasUpdates = content !== undefined || title !== undefined
+    // Mutual exclusion: content (full rewrite) vs operations (patch-based)
+    if (content !== undefined && operations !== undefined) {
+        logger.warn("[editKnowledge] Validation failed: content and operations are mutually exclusive");
+        return { error: "Cannot use both 'content' and 'operations'. Use 'content' for full rewrite, 'operations' for surgical edits." };
+    }
+
+    const hasUpdates = content !== undefined || operations !== undefined || title !== undefined
         || summary !== undefined || videoIdProvided || category !== undefined;
     if (!hasUpdates) {
         logger.warn("[editKnowledge] Validation failed: no fields to update");
@@ -83,9 +91,28 @@ export async function handleEditKnowledge(
     const oldEditSource = (kiData.lastEditSource as string) || undefined;
     const oldEditModel = (kiData.lastEditedBy as string) || undefined;
 
+    // --- Resolve operations into content string ---
+
+    let resolvedContent: string | undefined = content;
+    let opsCharsAdded: number | undefined;
+    let opsCharsRemoved: number | undefined;
+
+    if (operations !== undefined) {
+        const opsResult = applyOperations(oldContent, operations);
+        if (!opsResult.success) {
+            logger.warn("[editKnowledge] Operations failed", {
+                kiId, operationIndex: opsResult.operationIndex, error: opsResult.error,
+            });
+            return { error: opsResult.error };
+        }
+        resolvedContent = opsResult.content;
+        opsCharsAdded = opsResult.charsAdded;
+        opsCharsRemoved = opsResult.charsRemoved;
+    }
+
     // --- Detect what changed ---
 
-    const contentChanged = content !== undefined && content.trim() !== oldContent.trim();
+    const contentChanged = resolvedContent !== undefined && resolvedContent.trim() !== oldContent.trim();
     const titleChanged = title !== undefined && title !== oldTitle;
     const summaryChanged = summary !== undefined && summary !== oldSummary;
     const categoryChanged = category !== undefined && category !== oldCategory;
@@ -140,7 +167,8 @@ export async function handleEditKnowledge(
     const effectiveCategory = categoryChanged ? category : oldCategory;
     const effectiveScope: "video" | "channel" = newScope ?? oldScope;
     const effectiveVideoId = videoIdProvided ? resolvedVideoId : oldVideoId;
-    const effectiveContent = contentChanged ? content : oldContent;
+    // When contentChanged is true, resolvedContent is guaranteed to be a string
+    const effectiveContent = contentChanged ? resolvedContent! : oldContent;
 
     // --- Atomic batch ---
 
@@ -171,7 +199,7 @@ export async function handleEditKnowledge(
         lastEditedBy: ctx.model || "unknown",
         lastEditSource: source,
     };
-    if (contentChanged) mainUpdate.content = content;
+    if (contentChanged) mainUpdate.content = resolvedContent;
     if (titleChanged) mainUpdate.title = title;
     if (summaryChanged) mainUpdate.summary = summary;
     if (categoryChanged) mainUpdate.category = category;
@@ -241,7 +269,7 @@ export async function handleEditKnowledge(
     // Re-resolve video references when content changes
     if (contentChanged) {
         try {
-            await resolveContentVideoRefs(content!, basePath, kiRef, "editKnowledge");
+            await resolveContentVideoRefs(resolvedContent!, basePath, kiRef, "editKnowledge");
         } catch (err) {
             logger.warn("[editKnowledge] Video ref resolution failed", { kiId, error: String(err) });
         }
@@ -263,6 +291,19 @@ export async function handleEditKnowledge(
         }
     }
 
+    // --- Edit stats for UI pill ---
+
+    let editStats: { mode: string; charsAdded: number; charsRemoved: number } | undefined;
+    if (contentChanged) {
+        if (opsCharsAdded !== undefined) {
+            // Operations mode: stats computed by applyOperations (exact per-step tracking)
+            editStats = { mode: "operations", charsAdded: opsCharsAdded, charsRemoved: opsCharsRemoved! };
+        } else {
+            // Full rewrite mode: LLM generated all chars
+            editStats = { mode: "rewrite", charsRemoved: oldContent.length, charsAdded: effectiveContent.length };
+        }
+    }
+
     return {
         content: `Knowledge Item updated: ${effectiveTitle} [id: ${kiId}]`,
         id: kiId,
@@ -272,5 +313,6 @@ export async function handleEditKnowledge(
         scope: effectiveScope,
         videoId: effectiveVideoId,
         contentLength: effectiveContent.length,
+        editStats,
     };
 }

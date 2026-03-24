@@ -613,13 +613,18 @@ const getKnowledge: ToolDefinition = {
 const editKnowledge: ToolDefinition = {
     name: TOOL_NAMES.EDIT_KNOWLEDGE,
     description:
-        "Update an existing Knowledge Item. Pass only the fields you want to change — " +
-        "omitted fields stay unchanged. Set videoId to null to unlink from a video " +
-        "(converts to channel-level). Scope is derived automatically from videoId. " +
+        "Update an existing Knowledge Item. Two modes: (1) SURGICAL EDITS via 'operations' — " +
+        "preferred for small, targeted changes (saves tokens and preserves unchanged text). " +
+        "(2) FULL REWRITE via 'content' — for complete restructuring or major rewrites. " +
+        "Cannot use both 'content' and 'operations' in the same call. " +
+        "Pass only the fields you want to change — omitted fields stay unchanged. " +
+        "Set videoId to null to unlink from a video (converts to channel-level). " +
+        "Scope is derived automatically from videoId. " +
         "Content changes are versioned (old content preserved in history). " +
         "Call getKnowledge first to read the current state. " +
-        "CONTENT EDITING: Preserve existing structure and wording — only modify sections " +
-        "that need updating with new data. Minimal changes produce clean version diffs. " +
+        "OPERATIONS: Each operation specifies an exact string to find and what to do with it. " +
+        "old_string/anchor must be unique in the document — if it appears multiple times, " +
+        "include more surrounding context to disambiguate. " +
         "PARALLEL EDITING: When updating multiple KIs, call editKnowledge for each one " +
         "in the same response — they execute in parallel, saving time and cost.",
     parametersJsonSchema: {
@@ -632,9 +637,49 @@ const editKnowledge: ToolDefinition = {
             content: {
                 type: "string",
                 description:
-                    "Updated markdown content. Preserve existing text as-is — only add, " +
-                    "modify, or remove specific parts. Do not rewrite unchanged sections. " +
+                    "Updated markdown content (FULL REWRITE mode). Replaces the entire content field. " +
+                    "For small targeted edits, prefer 'operations' instead — it saves ~90% output tokens. " +
                     "When referencing videos, use [video title](vid://VIDEO_ID) links.",
+            },
+            operations: {
+                type: "array",
+                description:
+                    "Array of surgical edit operations. Each operation finds an exact string " +
+                    "and replaces, inserts before, or inserts after it. Operations are applied " +
+                    "sequentially — each sees the result of the previous one. " +
+                    "If any operation fails, none are applied. " +
+                    "Preferred over 'content' for targeted edits (saves ~90% output tokens). " +
+                    "Cannot be used together with 'content'.",
+                items: {
+                    type: "object",
+                    oneOf: [
+                        {
+                            properties: {
+                                type: { type: "string", enum: ["replace"], description: "Replace exact text match" },
+                                old_string: { type: "string", description: "Exact text to find (must be unique unless replace_all is true)" },
+                                new_string: { type: "string", description: "Text to replace with" },
+                                replace_all: { type: "boolean", description: "Replace all occurrences (default: false)" },
+                            },
+                            required: ["type", "old_string", "new_string"],
+                        },
+                        {
+                            properties: {
+                                type: { type: "string", enum: ["insert_after"], description: "Insert content after anchor" },
+                                anchor: { type: "string", description: "Exact text to find (must be unique)" },
+                                content: { type: "string", description: "Text to insert after the anchor" },
+                            },
+                            required: ["type", "anchor", "content"],
+                        },
+                        {
+                            properties: {
+                                type: { type: "string", enum: ["insert_before"], description: "Insert content before anchor" },
+                                anchor: { type: "string", description: "Exact text to find (must be unique)" },
+                                content: { type: "string", description: "Text to insert before the anchor" },
+                            },
+                            required: ["type", "anchor", "content"],
+                        },
+                    ],
+                },
             },
             title: {
                 type: "string",

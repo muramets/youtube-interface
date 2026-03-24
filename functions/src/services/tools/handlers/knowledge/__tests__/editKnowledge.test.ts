@@ -869,4 +869,228 @@ describe('handleEditKnowledge', () => {
         expect(entry.level).toBe('video'); // scope unchanged, still video
         expect(entry).not.toHaveProperty('description');
     });
+
+    // =========================================================================
+    // Operations-based editing (patch mode)
+    // =========================================================================
+
+    describe('operations-based editing', () => {
+        // --- Mutual exclusion ---
+
+        it('rejects when both content and operations are provided', async () => {
+            const result = await handleEditKnowledge(
+                {
+                    kiId: 'ki-123',
+                    content: 'full rewrite',
+                    operations: [{ type: 'replace', old_string: '45%', new_string: '50%' }],
+                },
+                CTX,
+            );
+
+            expect(result.error).toContain("Cannot use both");
+            expect(mockBatchCommit).not.toHaveBeenCalled();
+        });
+
+        it('empty operations array triggers applyOperations error, not "no fields"', async () => {
+            const result = await handleEditKnowledge(
+                { kiId: 'ki-123', operations: [] },
+                CTX,
+            );
+
+            expect(result.error).toContain("empty");
+            expect(mockBatchCommit).not.toHaveBeenCalled();
+        });
+
+        // --- Happy path: replace ---
+
+        it('replace operation patches content, creates version snapshot', async () => {
+            const result = await handleEditKnowledge(
+                {
+                    kiId: 'ki-123',
+                    operations: [{ type: 'replace', old_string: '45%', new_string: '50%' }],
+                },
+                CTX,
+            );
+
+            expect(result.error).toBeUndefined();
+            expect(result.content).toContain('updated');
+
+            // Version snapshot contains OLD content
+            expect(mockBatchSet).toHaveBeenCalledTimes(1);
+            const versionData = mockBatchSet.mock.calls[0][1];
+            expect(versionData.content).toBe('## Old Traffic Analysis\nBrowse 45%...');
+
+            // Main doc update contains PATCHED content
+            const updateCalls = mockBatchUpdate.mock.calls;
+            const mainDocUpdate = updateCalls.find(
+                (call: unknown[]) => (call[0] as { path: string }).path.includes('knowledgeItems/ki-123'),
+            );
+            expect(mainDocUpdate).toBeDefined();
+            expect(mainDocUpdate![1].content).toBe('## Old Traffic Analysis\nBrowse 50%...');
+
+            // contentLength reflects patched content
+            expect(result.contentLength).toBe('## Old Traffic Analysis\nBrowse 50%...'.length);
+
+            expect(mockBatchCommit).toHaveBeenCalledTimes(1);
+        });
+
+        it('resolveContentVideoRefs called with patched content', async () => {
+            await handleEditKnowledge(
+                {
+                    kiId: 'ki-123',
+                    operations: [{ type: 'replace', old_string: '45%', new_string: '50%' }],
+                },
+                CTX,
+            );
+
+            expect(mockResolveContentVideoRefs).toHaveBeenCalledWith(
+                '## Old Traffic Analysis\nBrowse 50%...',
+                expect.any(String),
+                expect.any(Object),
+                'editKnowledge',
+            );
+        });
+
+        // --- Happy path: insert_after ---
+
+        it('insert_after appends content after anchor', async () => {
+            const result = await handleEditKnowledge(
+                {
+                    kiId: 'ki-123',
+                    operations: [{ type: 'insert_after', anchor: 'Browse 45%...', content: '\nDirect 30%' }],
+                },
+                CTX,
+            );
+
+            expect(result.error).toBeUndefined();
+            const mainDocUpdate = mockBatchUpdate.mock.calls.find(
+                (call: unknown[]) => (call[0] as { path: string }).path.includes('knowledgeItems/ki-123'),
+            );
+            expect(mainDocUpdate![1].content).toBe('## Old Traffic Analysis\nBrowse 45%...\nDirect 30%');
+        });
+
+        // --- Happy path: insert_before ---
+
+        it('insert_before prepends content before anchor', async () => {
+            const result = await handleEditKnowledge(
+                {
+                    kiId: 'ki-123',
+                    operations: [{ type: 'insert_before', anchor: '## Old Traffic', content: '## Preamble\n' }],
+                },
+                CTX,
+            );
+
+            expect(result.error).toBeUndefined();
+            const mainDocUpdate = mockBatchUpdate.mock.calls.find(
+                (call: unknown[]) => (call[0] as { path: string }).path.includes('knowledgeItems/ki-123'),
+            );
+            expect(mainDocUpdate![1].content).toBe('## Preamble\n## Old Traffic Analysis\nBrowse 45%...');
+        });
+
+        // --- Operations + metadata ---
+
+        it('operations + title update in same call', async () => {
+            const result = await handleEditKnowledge(
+                {
+                    kiId: 'ki-123',
+                    operations: [{ type: 'replace', old_string: '45%', new_string: '50%' }],
+                    title: 'Updated Traffic Analysis',
+                },
+                CTX,
+            );
+
+            expect(result.error).toBeUndefined();
+            expect(result.title).toBe('Updated Traffic Analysis');
+
+            const mainDocUpdate = mockBatchUpdate.mock.calls.find(
+                (call: unknown[]) => (call[0] as { path: string }).path.includes('knowledgeItems/ki-123'),
+            );
+            expect(mainDocUpdate![1].content).toBe('## Old Traffic Analysis\nBrowse 50%...');
+            expect(mainDocUpdate![1].title).toBe('Updated Traffic Analysis');
+        });
+
+        // --- Operations error: not found ---
+
+        it('operations error (not found) returns error, no batch commit', async () => {
+            const result = await handleEditKnowledge(
+                {
+                    kiId: 'ki-123',
+                    operations: [{ type: 'replace', old_string: 'nonexistent text', new_string: 'x' }],
+                },
+                CTX,
+            );
+
+            expect(result.error).toContain('not found');
+            expect(mockBatchCommit).not.toHaveBeenCalled();
+            expect(mockBatchSet).not.toHaveBeenCalled();
+        });
+
+        // --- Operations error: multiple matches ---
+
+        it('operations error (multiple matches) returns error, no batch commit', async () => {
+            mockDocGet.mockResolvedValue({
+                exists: true,
+                data: () => ({ ...EXISTING_KI, content: 'duplicated word duplicated word' }),
+            });
+
+            const result = await handleEditKnowledge(
+                {
+                    kiId: 'ki-123',
+                    operations: [{ type: 'replace', old_string: 'duplicated', new_string: 'x' }],
+                },
+                CTX,
+            );
+
+            expect(result.error).toContain('found');
+            expect(mockBatchCommit).not.toHaveBeenCalled();
+        });
+
+        // --- Operations unchanged content ---
+
+        it('operations resulting in same content returns "unchanged"', async () => {
+            const result = await handleEditKnowledge(
+                {
+                    kiId: 'ki-123',
+                    operations: [{ type: 'replace', old_string: '45%', new_string: '45%' }],
+                },
+                CTX,
+            );
+
+            expect(result.content).toContain('unchanged');
+            expect(mockBatchCommit).not.toHaveBeenCalled();
+        });
+
+        // --- Provenance ---
+
+        it('operations set lastEditSource: "chat-edit" and lastEditedBy', async () => {
+            await handleEditKnowledge(
+                {
+                    kiId: 'ki-123',
+                    operations: [{ type: 'replace', old_string: '45%', new_string: '50%' }],
+                },
+                CTX,
+            );
+
+            const mainDocUpdate = mockBatchUpdate.mock.calls.find(
+                (call: unknown[]) => (call[0] as { path: string }).path.includes('knowledgeItems/ki-123'),
+            );
+            expect(mainDocUpdate![1].lastEditSource).toBe('chat-edit');
+            expect(mainDocUpdate![1].lastEditedBy).toBe('claude-sonnet-4-6');
+        });
+
+        it('operations with conclude context set lastEditSource: "conclude"', async () => {
+            await handleEditKnowledge(
+                {
+                    kiId: 'ki-123',
+                    operations: [{ type: 'replace', old_string: '45%', new_string: '50%' }],
+                },
+                { ...CTX, isConclude: true },
+            );
+
+            const mainDocUpdate = mockBatchUpdate.mock.calls.find(
+                (call: unknown[]) => (call[0] as { path: string }).path.includes('knowledgeItems/ki-123'),
+            );
+            expect(mainDocUpdate![1].lastEditSource).toBe('conclude');
+        });
+    });
 });

@@ -4,7 +4,7 @@
 
 ## Текущее состояние
 
-Production-ready. LLM может редактировать существующие KI через `editKnowledge` tool call — partial update любых полей. Все параметры кроме `kiId` опциональные: LLM передаёт только то, что нужно изменить. `videoId: null` отвязывает KI от видео (→ channel scope), `videoId: "string"` привязывает (нормализация через `resolveVideosByIds`). Смена scope атомарно обновляет discovery flags (decrement на старом entity, increment на новом, с guard на случай удалённого видео). Смена category — `arrayUnion` на entity + registry update. Content changes создают version snapshot, metadata changes (title/summary/videoId/category) — нет. Tool description содержит hint для параллельного вызова — при обновлении нескольких KI одновременно LLM вызывает `editKnowledge` для каждого в одном ответе, сервер выполняет их через `Promise.all`. UI Edit модалка тоже создаёт версию при изменении content. Zen Mode показывает dropdown с историей версий и premium split-view DiffViewer (npm `diff` + custom React, line numbers, green/red highlights, theme-aware CSS variables). Conclude prompt обновлён: LLM предпочитает editKnowledge над saveKnowledge когда KI уже существует. Restore-to-version: пользователь может откатить KI к любой предыдущей версии — атомарно в Firestore batch. Save handler: deduplicated через `useKnowledgeSaveHandler` shared hook.
+Production-ready. LLM может редактировать существующие KI через `editKnowledge` tool call — partial update любых полей. Два режима content editing: (1) `operations` — хирургические правки (replace, insert_after, insert_before), экономия ~90% output tokens; (2) `content` — полная перезапись для масштабных изменений. Режимы взаимоисключающие, валидируются server-side. Operations — all-or-nothing: если любая операция не нашла target string, ни одна не применяется. `applyOperations` — pure function без зависимостей, 39 unit tests. Все параметры кроме `kiId` опциональные: LLM передаёт только то, что нужно изменить. `videoId: null` отвязывает KI от видео (→ channel scope), `videoId: "string"` привязывает (нормализация через `resolveVideosByIds`). Смена scope атомарно обновляет discovery flags (decrement на старом entity, increment на новом, с guard на случай удалённого видео). Смена category — `arrayUnion` на entity + registry update. Content changes создают version snapshot, metadata changes (title/summary/videoId/category) — нет. Tool description содержит hint для параллельного вызова — при обновлении нескольких KI одновременно LLM вызывает `editKnowledge` для каждого в одном ответе, сервер выполняет их через `Promise.all`. UI Edit модалка тоже создаёт версию при изменении content. Zen Mode показывает dropdown с историей версий и premium split-view DiffViewer (npm `diff` + custom React, line numbers, green/red highlights, theme-aware CSS variables). Conclude prompt обновлён: LLM предпочитает editKnowledge над saveKnowledge когда KI уже существует. Restore-to-version: пользователь может откатить KI к любой предыдущей версии — атомарно в Firestore batch. Save handler: deduplicated через `useKnowledgeSaveHandler` shared hook.
 
 ---
 
@@ -22,11 +22,25 @@ Production-ready. LLM может редактировать существующ
 1. Пользователь: "обнови анализ трафика для видео X" (или LLM решает сама при Memorize)
 2. LLM вызывает `listKnowledge` → видит существующий KI
 3. LLM вызывает `getKnowledge` → читает полный content
-4. LLM вызывает `editKnowledge` с `kiId` + любые поля для обновления (content, title, summary, videoId, category)
+4. LLM вызывает `editKnowledge` с `kiId` + одним из двух режимов:
+   - **Operations mode** (preferred): `operations: [{ type: 'replace', old_string: '...', new_string: '...' }]` — хирургические правки, ~90% экономия output tokens
+   - **Full rewrite mode**: `content: '...'` — полная замена content (для масштабных переписываний)
 5. Backend: partial update — version snapshot если content изменился, discovery flags если scope/videoId изменился, всё в одном batch
 6. В чате: badge "Knowledge Item updated: Traffic Analysis"
 7. Пользователь открывает KI → видит обновлённые данные
 8. В KI карточке: dropdown "Versions" → выбор версии → line-level diff (только для content changes)
+
+### Operations Mode (Phase 7)
+
+Два режима `editKnowledge` — `content` (полная перезапись) и `operations` (patch-based) — взаимоисключающие. Operations работают как Edit tool в Claude Code:
+
+| Тип операции | Параметры | Описание |
+|---|---|---|
+| `replace` | `old_string`, `new_string`, `replace_all?` | Заменить точное совпадение. `old_string` должен быть уникальным (или `replace_all: true`) |
+| `insert_after` | `anchor`, `content` | Вставить текст после `anchor` |
+| `insert_before` | `anchor`, `content` | Вставить текст перед `anchor` |
+
+**Dry-run + all-or-nothing:** операции применяются к копии строки. Если любая операция не нашла `old_string`/`anchor` (или нашла 2+ раз) — ни одна не применяется, ошибка с контекстом. Модель корректирует и повторяет. Версионирование без изменений — operations разрешаются server-side в полный content string.
 
 ## Version History
 
@@ -61,8 +75,7 @@ Premium IDE-like diff viewer — **только в Zen Mode** (fullscreen). KI c
 - [x] FINAL: Double review-fix cycle (R1 Architecture 9/9 PASS + R2 Production 10/10 PASS after fixes)
 - [x] Phase 5: Restore-to-version — restore button (LiveDiffPanel + VersionDropdown), deferred version cleanup on Save, skipVersioning flag, version count bugfix (+1 for Current)
 - [x] Phase 6: Version Hardening — type contracts (`'chat-edit'` union), provenance pipeline fix, atomic restore (batch save+delete), content-changed check (backend), URL allowlist, ESC capture phase, `useKnowledgeSaveHandler` dedup, `console.*` → `logger`
-
-← YOU ARE HERE
+- [x] Phase 7: Operations — patch-based editing via `operations` parameter (replace, insert_after, insert_before). Экономит ~90% output tokens при правках Living Docs. R1 Architecture 8/8 PASS + R2 Production Readiness 10/10 PASS
 
 ---
 
@@ -87,6 +100,7 @@ Premium IDE-like diff viewer — **только в Zen Mode** (fullscreen). KI c
 |------|------|
 | `shared/knowledgeVersion.ts` | `KnowledgeVersion` interface — SSOT, shared by frontend + backend. `source` union includes `'chat-edit'` |
 | `functions/src/services/tools/handlers/knowledge/editKnowledge.ts` | Handler: partial update (all KI fields), content-changed check (early return), atomic batch (version snapshot + doc update + discovery flags), videoId normalization via `resolveVideosByIds`, old entity existence guard, category registry update |
+| `functions/src/services/tools/utils/applyOperations.ts` | **(Phase 7)** Pure function: applies edit operations (replace, insert_after, insert_before) to content string. Dry-run + all-or-nothing. Zero dependencies |
 | `functions/src/services/tools/utils/firestoreHelpers.ts` | Shared `stripUndefined` (Firestore throws on undefined) + typed `getEntityRef` (video/channel entity resolution) — used by both `editKnowledge` and `saveKnowledge` |
 | `functions/src/services/tools/utils/resolveContentVideoRefs.ts` | Shared utility: extract video IDs from content, resolve via 3-step resolver, write `resolvedVideoRefs` snapshot |
 | `functions/src/services/tools/definitions.ts` | `editKnowledge` tool definition (in `TOOL_DECLARATIONS`, available in chat + memorize) |
@@ -119,7 +133,8 @@ Premium IDE-like diff viewer — **только в Zen Mode** (fullscreen). KI c
 
 | File | Coverage |
 |------|----------|
-| `functions/src/services/tools/handlers/knowledge/__tests__/editKnowledge.test.ts` | Handler (34 tests): content editing, title/summary/category updates, videoId link/unlink, discovery flags, videoId normalization, old entity guard, version provenance, toMillis path, batch failure propagation, collection path assertion |
+| `functions/src/services/tools/handlers/knowledge/__tests__/editKnowledge.test.ts` | Handler (52 tests): content editing, title/summary/category updates, videoId link/unlink, discovery flags, videoId normalization, old entity guard, version provenance, toMillis path, batch failure propagation, collection path assertion, operations-based editing (mutual exclusion, replace/insert_after/insert_before, ops+metadata, error cases, unchanged content, provenance) |
+| `functions/src/services/tools/utils/__tests__/applyOperations.test.ts` | Pure function (39 tests): replace/insert_after/insert_before happy paths, replace_all, error cases (not found, multiple matches, empty string), sequential application, dry-run semantics, regex special chars, unicode, edge cases |
 | `src/features/Knowledge/utils/__tests__/formatDate.test.ts` | Label functions: `getOriginLabel`, `getEditLabel`, `getSourceLabel`, `formatVersionLabel` |
 | `src/features/Knowledge/utils/__tests__/allowCustomUrls.test.ts` | Protocol allowlist: vid/mention/ki/http/https pass, javascript/data/vbscript blocked, relative URLs |
 
@@ -146,3 +161,8 @@ Premium IDE-like diff viewer — **только в Zen Mode** (fullscreen). KI c
 | 11 | Version provenance via `lastEditSource`/`lastEditedBy` | Main doc tracks who last edited (backend writes at LLM edit, frontend writes at manual edit). Version snapshot captures `lastEditSource ?? source` to correctly identify the OLD content's origin. `source`/`model` on main doc = original creation provenance (immutable) |
 | 12 | Atomic version cleanup on restore | Restore only changes editor state (local). Version deletion + content save happen in **same Firestore batch** on Save (via `versionIdsToDelete`). Cancel = no side effects. `skipVersioning` flag prevents unwanted snapshot of pre-restore content |
 | 13 | Version count includes Current | `getVersionCountLabel(previousVersionCount)` returns `previousVersionCount + 1` — aligns dropdown header with visible entries (Current is always shown) |
+| 14 | **(Phase 7)** `content` и `operations` — взаимоисключающие в одном вызове | Один tool вместо двух — LLM лучше выбирает между параметрами одного tool, чем между двумя похожими tools. Mutual exclusion валидируется server-side (не JSON Schema) |
+| 15 | **(Phase 7)** All-or-nothing + dry-run для operations | Операции применяются к копии строки. Если любая fails → ни одна не применяется. Чистая version history без промежуточных garbage-snapshot. Retry cost (~250 tokens) trivial vs экономия (~4K tokens) |
+| 16 | **(Phase 7)** `applyOperations` — pure function, отдельный файл | Zero dependencies, тестируется без моков (20+ edge cases). Переиспользуемость. Handler импортирует результат как `resolvedContent` |
+| 17 | **(Phase 7)** `indexOf` вместо regex для поиска `old_string`/`anchor` | Markdown content содержит regex-спецсимволы (`$`, `.`, `*`, `(`, `)`). Regex сломает поиск. `indexOf` — детерминистичен и безопасен |
+| 18 | **(Phase 7)** `replace_all` на insert операциях — ошибка, не silent ignore | LLM-facing API: молчаливое игнорирование — anti-pattern. LLM не видит логи, единственный feedback — tool result. Explicit error → модель корректирует |
