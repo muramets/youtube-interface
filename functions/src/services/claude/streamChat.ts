@@ -100,6 +100,11 @@ export interface ClaudeStreamChatResult {
 /** Inactivity timeout: abort if no event arrives within this window. */
 const STREAM_INACTIVITY_TIMEOUT_MS = 90_000;
 
+/** Escalated inactivity timeout during tool input streaming (3 minutes).
+ *  API can stall for 90+ seconds on large tool inputs (editKnowledge, saveKnowledge)
+ *  with heavy context (200K+ tokens) and thinking compression. */
+const TOOL_INPUT_INACTIVITY_TIMEOUT_MS = 180_000;
+
 /** Escalated inactivity timeout during extended thinking (10 minutes). */
 const THINKING_INACTIVITY_TIMEOUT_MS = 600_000;
 
@@ -1050,7 +1055,7 @@ async function streamIteration(
     let earlyCacheRead: number | undefined;
     let earlyCacheWrite: number | undefined;
 
-    // Inactivity timeout — dynamic: 90s default, 600s during thinking
+    // Inactivity timeout — 3 levels: 90s (text), 180s (tool input), 600s (thinking)
     let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
     let timeoutReject: ((err: Error) => void) | null = null;
     let hadThinkingEvents = false;
@@ -1131,6 +1136,10 @@ async function streamIteration(
                     event.type === "content_block_start" &&
                     event.content_block.type === "tool_use"
                 ) {
+                    // Policy: escalate timeout for tool input streaming.
+                    // API can stall 90+ seconds on large tool inputs with heavy context.
+                    currentTimeoutMs = TOOL_INPUT_INACTIVITY_TIMEOUT_MS;
+                    resetTimer();
                     callbacks.onToolCallStart?.(
                         event.content_block.name,
                         toolCallStartIndex + localToolCount,

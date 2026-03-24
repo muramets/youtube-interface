@@ -161,10 +161,10 @@ export async function streamChat(opts: StreamChatOpts): Promise<AiChatResult> {
     let receivedAnyData = false;
 
     // --- Inactivity timeout: abort reader if no data arrives.
-    // Set to 120s (not 90s) to give the server guaranteed time to send the retry SSE event
-    // before the client gives up. Server timeout is 90s — the extra 30s covers network lag
-    // between server iterationAbort → SSE write → client receive. ---
-    const STREAM_TIMEOUT_MS = 120_000;
+    // Must exceed server-side timeouts to let the server handle stalls and send proper
+    // partial results. Server timeouts: 90s (text), 180s (tool input), 600s (thinking).
+    // Client adds 30s buffer over the highest non-thinking timeout (180s + 30s = 210s). ---
+    const STREAM_TIMEOUT_MS = 210_000;
     const THINKING_STREAM_TIMEOUT_MS = 660_000; // 600s thinking + 60s buffer
     let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
     let currentStreamTimeout = STREAM_TIMEOUT_MS;
