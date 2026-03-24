@@ -87,11 +87,12 @@ src/
 
 | Константа | Значение | Файл |
 |---|---|---|
-| `STREAM_INACTIVITY_TIMEOUT_MS` | 90_000 (unchanged) | `streamChat.ts` |
-| `THINKING_INACTIVITY_TIMEOUT_MS` | 600_000 | `streamChat.ts` |
+| `STREAM_INACTIVITY_TIMEOUT_MS` | 90_000 (text streaming) | `streamChat.ts` |
+| `TOOL_INPUT_INACTIVITY_TIMEOUT_MS` | 180_000 (tool input streaming) | `streamChat.ts` |
+| `THINKING_INACTIVITY_TIMEOUT_MS` | 600_000 (extended thinking) | `streamChat.ts` |
 | `HEARTBEAT_INTERVAL_MS` | 30_000 | `streamChat.ts` |
 | `timeoutSeconds` | 1200 (was 540) | `aiChat.ts` |
-| `STREAM_TIMEOUT_MS` | 120_000 (default) | `aiProxyService.ts` |
+| `STREAM_TIMEOUT_MS` | 210_000 (180s + 30s buffer) | `aiProxyService.ts` |
 | `THINKING_STREAM_TIMEOUT_MS` | 660_000 (600s + 60s buffer) | `aiProxyService.ts` |
 
 ---
