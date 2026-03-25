@@ -66,7 +66,7 @@ const SECTION_SPACING = {
     section: 'mb-1',
     preamble: 'mb-4',
     contentTop: 'mt-1',
-    contentBottom: 'mb-6',
+    contentBottom: 'mb-2',
     childrenTop: 'mt-1',
 }
 
