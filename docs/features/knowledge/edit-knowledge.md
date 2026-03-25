@@ -76,6 +76,7 @@ Premium IDE-like diff viewer — **только в Zen Mode** (fullscreen). KI c
 - [x] Phase 5: Restore-to-version — restore button (LiveDiffPanel + VersionDropdown), deferred version cleanup on Save, skipVersioning flag, version count bugfix (+1 for Current)
 - [x] Phase 6: Version Hardening — type contracts (`'chat-edit'` union), provenance pipeline fix, atomic restore (batch save+delete), content-changed check (backend), URL allowlist, ESC capture phase, `useKnowledgeSaveHandler` dedup, `console.*` → `logger`
 - [x] Phase 7: Operations — patch-based editing via `operations` parameter (replace, insert_after, insert_before). Экономит ~90% output tokens при правках Living Docs. R1 Architecture 8/8 PASS + R2 Production Readiness 10/10 PASS
+- [x] Phase 7.1: Operations Error UX — error strings with "Operation N:" prefix, context window 40→200 chars, tool description guidance (short anchors, copy exactly), separate pills per editKnowledge call, human-readable error expand in UI
 
 ---
 
@@ -166,3 +167,6 @@ Premium IDE-like diff viewer — **только в Zen Mode** (fullscreen). KI c
 | 16 | **(Phase 7)** `applyOperations` — pure function, отдельный файл | Zero dependencies, тестируется без моков (20+ edge cases). Переиспользуемость. Handler импортирует результат как `resolvedContent` |
 | 17 | **(Phase 7)** `indexOf` вместо regex для поиска `old_string`/`anchor` | Markdown content содержит regex-спецсимволы (`$`, `.`, `*`, `(`, `)`). Regex сломает поиск. `indexOf` — детерминистичен и безопасен |
 | 18 | **(Phase 7)** `replace_all` на insert операциях — ошибка, не silent ignore | LLM-facing API: молчаливое игнорирование — anti-pattern. LLM не видит логи, единственный feedback — tool result. Explicit error → модель корректирует |
+| 19 | **(Phase 7.1)** Error strings с "Operation N:" prefix | LLM не знает какая из N операций упала без index. Без prefix retry слепой — модель повторяет все операции. С prefix — чинит конкретный anchor за одну попытку |
+| 20 | **(Phase 7.1)** `separatePills: true` для editKnowledge | Каждый вызов = свой pill. Ошибка от попытки #1 не заражает pill попытки #2. `handlesErrors: true` разрешает RecordComponent рендерить error state, не ломая другие tools |
+| 21 | **(Phase 7.1)** Error expand: human-readable reason, не raw error | Пользователь видит "Text not found in document · op 0", не 400 символов bookends. Raw error — для LLM, human-readable — для UI |
