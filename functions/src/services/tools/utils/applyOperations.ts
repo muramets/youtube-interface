@@ -50,7 +50,7 @@ export interface ApplyOperationsError {
 
 const MAX_OPERATIONS = 30;
 const PARTIAL_MATCH_PREFIX_LENGTH = 30;
-const CONTEXT_WINDOW = 40;
+const CONTEXT_WINDOW = 200;
 const BOOKEND_LENGTH = 100;
 
 // ---------------------------------------------------------------------------
@@ -73,6 +73,7 @@ function buildNotFoundError(
     content: string,
     searchString: string,
     label: string,
+    operationIndex: number,
 ): string {
     const prefix = searchString.slice(0, PARTIAL_MATCH_PREFIX_LENGTH);
     const partialIdx = content.indexOf(prefix);
@@ -81,22 +82,23 @@ function buildNotFoundError(
         const start = Math.max(0, partialIdx - CONTEXT_WINDOW);
         const end = Math.min(content.length, partialIdx + prefix.length + CONTEXT_WINDOW);
         const snippet = content.slice(start, end);
-        return `${label} not found. Closest match at position ${partialIdx}: '...${snippet}...' — your ${label}: '${searchString.slice(0, 80)}'`;
+        return `Operation ${operationIndex}: ${label} not found. Closest match at position ${partialIdx}: '...${snippet}...' — your ${label}: '${searchString.slice(0, 80)}'`;
     }
 
     // Fallback: bookends (first 100 + last 100 + total length)
     const head = content.slice(0, BOOKEND_LENGTH);
     const tail = content.slice(-BOOKEND_LENGTH);
-    return `${label} not found in content (${content.length} chars). Content starts with: '${head}...' and ends with: '...${tail}'`;
+    return `Operation ${operationIndex}: ${label} not found in content (${content.length} chars). Content starts with: '${head}...' and ends with: '...${tail}'`;
 }
 
 /** Build a "multiple matches" error with occurrence count and positions. */
 function buildMultipleMatchesError(
     positions: number[],
     label: string,
+    operationIndex: number,
 ): string {
     const posStr = positions.join(", ");
-    return `${label} found ${positions.length} times at character positions [${posStr}] — provide more surrounding context to disambiguate, or use replace_all: true for replace operations`;
+    return `Operation ${operationIndex}: ${label} found ${positions.length} times at character positions [${posStr}] — provide more surrounding context to disambiguate, or use replace_all: true for replace operations`;
 }
 
 // ---------------------------------------------------------------------------
@@ -156,7 +158,7 @@ export function applyOperations(
             if (positions.length === 0) {
                 return {
                     success: false,
-                    error: buildNotFoundError(result, op.old_string, "old_string"),
+                    error: buildNotFoundError(result, op.old_string, "old_string", i),
                     operationIndex: i,
                 };
             }
@@ -164,7 +166,7 @@ export function applyOperations(
             if (positions.length > 1 && !op.replace_all) {
                 return {
                     success: false,
-                    error: buildMultipleMatchesError(positions, "old_string"),
+                    error: buildMultipleMatchesError(positions, "old_string", i),
                     operationIndex: i,
                 };
             }
@@ -198,7 +200,7 @@ export function applyOperations(
             if (positions.length === 0) {
                 return {
                     success: false,
-                    error: buildNotFoundError(result, anchor, "anchor"),
+                    error: buildNotFoundError(result, anchor, "anchor", i),
                     operationIndex: i,
                 };
             }
@@ -206,7 +208,7 @@ export function applyOperations(
             if (positions.length > 1) {
                 return {
                     success: false,
-                    error: buildMultipleMatchesError(positions, "anchor"),
+                    error: buildMultipleMatchesError(positions, "anchor", i),
                     operationIndex: i,
                 };
             }

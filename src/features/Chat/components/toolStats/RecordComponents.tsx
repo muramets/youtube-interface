@@ -67,11 +67,37 @@ function formatEditStats(editStats: { mode: string; charsAdded: number; charsRem
 /** Per-record expanded content for editKnowledge pill. */
 export const EditKnowledgeRecord: React.FC<{ record: ToolCallRecord; videoMap?: Map<string, VideoPreviewData> }> = ({ record, videoMap }) => {
     const result = record.result as Record<string, unknown> | undefined;
+    const error = result?.error as string | undefined;
     const title = result?.title as string | undefined;
     const category = result?.category as string | undefined;
     const videoId = result?.videoId as string | undefined;
     const contentLength = result?.contentLength as number | undefined;
     const editStats = result?.editStats as { mode: string; charsAdded: number; charsRemoved: number } | undefined;
+
+    if (error) {
+        const isAnchorNotFound = error.includes('anchor not found') || error.includes('old_string not found');
+        const isMultiple = error.includes('anchor found') && error.includes('times')
+            || error.includes('old_string found') && error.includes('times');
+        const isMutualExclusion = error.includes('Cannot use both');
+        const opMatch = error.match(/^Operation (\d+):/);
+        const opIndex = opMatch ? opMatch[1] : null;
+
+        const reason = isMutualExclusion
+            ? 'Conflicting parameters'
+            : isMultiple
+                ? 'Ambiguous match (multiple occurrences)'
+                : isAnchorNotFound
+                    ? 'Text not found in document'
+                    : 'Edit failed';
+
+        return (
+            <div className="px-2 py-1.5 rounded-md bg-red-500/[0.06] text-[11px] min-w-0">
+                <span className="text-red-400">
+                    {reason}{opIndex != null && ` · op ${opIndex}`}
+                </span>
+            </div>
+        );
+    }
 
     return (
         <div className="px-2 py-1.5 rounded-md bg-surface-primary dark:bg-white/[0.03] text-[11px] min-w-0">

@@ -218,3 +218,145 @@ describe('toolCallGrouping — searchDatabase', () => {
         });
     });
 });
+
+// =========================================================================
+// separatePills — editKnowledge gets one pill per call
+// =========================================================================
+
+describe('toolCallGrouping — separatePills', () => {
+    describe('groupToolCalls', () => {
+        it('creates separate groups for editKnowledge calls', () => {
+            const records = [
+                makeRecord({ name: 'editKnowledge', args: { kiId: 'ki1' }, result: { title: 'Doc A' } }),
+                makeRecord({ name: 'editKnowledge', args: { kiId: 'ki2' }, result: { error: 'anchor not found' } }),
+            ];
+
+            const groups = groupToolCalls(records);
+            const editGroups = groups.filter(g => g.toolName === 'editKnowledge');
+
+            expect(editGroups).toHaveLength(2);
+            expect(editGroups[0].records).toHaveLength(1);
+            expect(editGroups[1].records).toHaveLength(1);
+        });
+
+        it('computes allResolved and hasErrors independently per pill', () => {
+            const records = [
+                makeRecord({ name: 'editKnowledge', args: { kiId: 'ki1' }, result: { title: 'Doc A' } }),
+                makeRecord({ name: 'editKnowledge', args: { kiId: 'ki2' }, result: { error: 'anchor not found' } }),
+            ];
+
+            const groups = groupToolCalls(records);
+            const editGroups = groups.filter(g => g.toolName === 'editKnowledge');
+
+            expect(editGroups[0].allResolved).toBe(true);
+            expect(editGroups[0].hasErrors).toBe(false);
+            expect(editGroups[1].allResolved).toBe(true);
+            expect(editGroups[1].hasErrors).toBe(true);
+        });
+
+        it('marks preparing correctly for unresolved editKnowledge call', () => {
+            const records = [
+                { ...makeRecord({ name: 'editKnowledge', args: { kiId: 'ki1' } }), preparing: true } as ToolCallRecord & { preparing: boolean },
+            ];
+
+            const groups = groupToolCalls(records);
+            const editGroup = groups.find(g => g.toolName === 'editKnowledge')!;
+
+            expect(editGroup.preparing).toBe(true);
+            expect(editGroup.allResolved).toBe(false);
+        });
+
+        it('mixes separatePills and grouped tools correctly', () => {
+            const records = [
+                makeRecord({ name: 'mentionVideo', args: { videoId: 'v1' }, result: { found: true } }),
+                makeRecord({ name: 'editKnowledge', args: { kiId: 'ki1' }, result: { title: 'Doc A' } }),
+                makeRecord({ name: 'mentionVideo', args: { videoId: 'v2' }, result: { found: true } }),
+                makeRecord({ name: 'editKnowledge', args: { kiId: 'ki2' }, result: { error: 'not found' } }),
+            ];
+
+            const groups = groupToolCalls(records);
+
+            const mentionGroups = groups.filter(g => g.toolName === 'mentionVideo');
+            expect(mentionGroups).toHaveLength(1);
+            expect(mentionGroups[0].records).toHaveLength(2);
+
+            const editGroups = groups.filter(g => g.toolName === 'editKnowledge');
+            expect(editGroups).toHaveLength(2);
+        });
+
+        it('handles all tool calls being separatePills', () => {
+            const records = [
+                makeRecord({ name: 'editKnowledge', args: { kiId: 'ki1' }, result: { title: 'A' } }),
+                makeRecord({ name: 'editKnowledge', args: { kiId: 'ki2' }, result: { title: 'B' } }),
+                makeRecord({ name: 'editKnowledge', args: { kiId: 'ki3' }, result: { title: 'C' } }),
+            ];
+
+            const groups = groupToolCalls(records);
+            expect(groups).toHaveLength(3);
+            expect(groups.every(g => g.toolName === 'editKnowledge')).toBe(true);
+            expect(groups.every(g => g.records.length === 1)).toBe(true);
+        });
+    });
+
+    describe('getGroupLabel', () => {
+        it('returns title for successful editKnowledge', () => {
+            const group = makeGroup({
+                toolName: 'editKnowledge',
+                allResolved: true,
+                records: [makeRecord({
+                    name: 'editKnowledge',
+                    result: { title: 'Clone Tracker' },
+                })],
+            });
+
+            expect(getGroupLabel(group)).toBe('Edited: "Clone Tracker"');
+        });
+
+        it('returns error label for failed editKnowledge', () => {
+            const group = makeGroup({
+                toolName: 'editKnowledge',
+                hasErrors: true,
+                allResolved: true,
+                records: [makeRecord({
+                    name: 'editKnowledge',
+                    result: { error: 'anchor not found' },
+                })],
+            });
+
+            expect(getGroupLabel(group)).toBe("Couldn't edit knowledge");
+        });
+
+        it('returns loading label for pending editKnowledge', () => {
+            const group = makeGroup({
+                toolName: 'editKnowledge',
+                allResolved: false,
+                records: [makeRecord({
+                    name: 'editKnowledge',
+                    result: undefined,
+                })],
+            });
+
+            expect(getGroupLabel(group)).toBe('Editing knowledge...');
+        });
+    });
+
+    describe('isExpandable', () => {
+        it('returns true for resolved editKnowledge (has RecordComponent)', () => {
+            const group = makeGroup({
+                toolName: 'editKnowledge',
+                allResolved: true,
+            });
+
+            expect(isExpandable(group)).toBe(true);
+        });
+
+        it('returns false for unresolved editKnowledge', () => {
+            const group = makeGroup({
+                toolName: 'editKnowledge',
+                allResolved: false,
+            });
+
+            expect(isExpandable(group)).toBe(false);
+        });
+    });
+});

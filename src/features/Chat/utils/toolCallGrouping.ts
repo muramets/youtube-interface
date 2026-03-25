@@ -23,21 +23,29 @@ export interface ToolCallGroup {
 
 // --- Grouping ---
 
-/** Group tool call records by tool name and extract video IDs. */
+/** Group tool call records by tool name and extract video IDs.
+ *  Tools with `separatePills: true` in registry get one group per record. */
 export function groupToolCalls(toolCalls: Array<ToolCallRecord & { preparing?: boolean }>): ToolCallGroup[] {
     const map = new Map<string, Array<ToolCallRecord & { preparing?: boolean }>>();
+    const separateRecords: Array<ToolCallRecord & { preparing?: boolean }> = [];
 
     for (const tc of toolCalls) {
-        const existing = map.get(tc.name);
-        if (existing) {
-            existing.push(tc);
+        const config = getToolConfig(tc.name);
+        if (config?.separatePills) {
+            separateRecords.push(tc);
         } else {
-            map.set(tc.name, [tc]);
+            const existing = map.get(tc.name);
+            if (existing) {
+                existing.push(tc);
+            } else {
+                map.set(tc.name, [tc]);
+            }
         }
     }
 
     const groups: ToolCallGroup[] = [];
 
+    // Grouped tools (default behavior)
     for (const [toolName, records] of map) {
         const config = getToolConfig(toolName);
         const videoIds = config?.extractVideoIds?.(records) ?? [];
@@ -49,6 +57,22 @@ export function groupToolCalls(toolCalls: Array<ToolCallRecord & { preparing?: b
             allResolved: records.every(r => r.result !== undefined),
             hasErrors: records.some(r => r.result?.error != null),
             preparing: records.some(r => !r.result && r.preparing === true),
+        });
+    }
+
+    // Separate-pill tools: one group per record
+    for (const tc of separateRecords) {
+        const config = getToolConfig(tc.name);
+        const records = [tc];
+        const videoIds = config?.extractVideoIds?.(records) ?? [];
+
+        groups.push({
+            toolName: tc.name,
+            records,
+            videoIds,
+            allResolved: tc.result !== undefined,
+            hasErrors: tc.result?.error != null,
+            preparing: !tc.result && tc.preparing === true,
         });
     }
 

@@ -60,6 +60,10 @@ export interface ToolConfig {
     sortVideosBy?: 'views';
     /** Sort channels in stats component by this field (default: preserve backend order). */
     sortChannelsBy?: 'averageViews';
+    /** When true, each tool call gets its own pill instead of grouping by tool name. */
+    separatePills?: boolean;
+    /** When true, RecordComponent handles error state internally (renders error UI). */
+    handlesErrors?: boolean;
 }
 
 // --- Video ID extraction helpers ---
@@ -396,16 +400,15 @@ const TOOL_REGISTRY: Record<string, ToolConfig> = {
         color: 'emerald',
         RecordComponent: EditKnowledgeRecord,
         hasExpandableContent: true,
+        separatePills: true,
+        handlesErrors: true,
         labels: {
             error: "Couldn't edit knowledge",
             loading: 'Editing knowledge...',
             preparing: 'Editing knowledge...',
             done: (group) => {
-                if (group.records.length === 1) {
-                    const title = group.records[0]?.result?.title as string | undefined;
-                    return title ? `Edited: "${title}"` : 'Knowledge updated';
-                }
-                return `Edited ${group.records.length} knowledge items`;
+                const title = group.records[0]?.result?.title as string | undefined;
+                return title ? `Edited: "${title}"` : 'Knowledge updated';
             },
         },
     },

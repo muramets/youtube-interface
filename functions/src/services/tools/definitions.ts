@@ -623,6 +623,9 @@ const editKnowledge: ToolDefinition = {
         "Content changes are versioned (old content preserved in history). " +
         "Call getKnowledge first to read the current state. " +
         "OPERATIONS: Each operation specifies an exact string to find and what to do with it. " +
+        "CRITICAL: Copy old_string/anchor text character-for-character from the getKnowledge result. " +
+        "Do NOT retype from memory — even small differences (bullet '*' vs table '|', '→' vs '|') cause failure. " +
+        "Use SHORT anchors (20-60 chars) — shorter text means less room for transcription error. " +
         "old_string/anchor must be unique in the document — if it appears multiple times, " +
         "include more surrounding context to disambiguate. " +
         "PARALLEL EDITING: When updating multiple KIs, call editKnowledge for each one " +

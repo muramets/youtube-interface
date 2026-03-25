@@ -146,7 +146,7 @@ const GroupPill: React.FC<{
             </button>
 
             {/* Expanded content */}
-            {expanded && group.allResolved && !group.hasErrors && (
+            {expanded && group.allResolved && (!group.hasErrors || config?.handlesErrors) && (
                 <div className="mt-1.5 flex flex-col gap-1 w-full">
                     {/* Per-record rendering (registry-driven) */}
                     {RecordComponent && group.records.map((rec, i) => (
@@ -242,9 +242,9 @@ export const ToolCallSummary: React.FC<ToolCallSummaryProps> = React.memo(({
 
     return (
         <div className="flex flex-wrap gap-1.5 mb-2">
-            {sorted.map(group => (
+            {sorted.map((group, i) => (
                 <GroupPill
-                    key={group.toolName}
+                    key={`${group.toolName}-${i}`}
                     group={group}
                     videoMap={videoMap}
                     progressMessage={progressMap.get(group.toolName)}
