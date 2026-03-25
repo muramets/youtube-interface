@@ -210,8 +210,13 @@ describe('createCache', () => {
         const content = makeCacheableContent();
         await createCache(API_KEY, MODEL, content, 'cachedContents/old789');
 
-        // Old cache deleted (fire-and-forget)
-        await vi.waitFor(() => expect(mockCachesDelete).toHaveBeenCalledWith({ name: 'cachedContents/old789' }));
+        // Flush the fire-and-forget promise chain: import() → getClient() → delete()
+        const flush = () => new Promise(r => setTimeout(r, 0));
+        await flush();
+        await flush();
+        await flush();
+
+        expect(mockCachesDelete).toHaveBeenCalledWith({ name: 'cachedContents/old789' });
     });
 
     it('returns null on API error without throwing', async () => {
@@ -286,15 +291,21 @@ describe('invalidateCache', () => {
     });
 
     it('calls delete on provided cacheId', async () => {
+        const flush = () => new Promise(r => setTimeout(r, 0));
         invalidateCache(API_KEY, 'cachedContents/del1');
-        await vi.waitFor(() => expect(mockCachesDelete).toHaveBeenCalledWith({ name: 'cachedContents/del1' }));
+        await flush();
+        await flush();
+        await flush();
+        expect(mockCachesDelete).toHaveBeenCalledWith({ name: 'cachedContents/del1' });
     });
 
     it('does NOT throw on delete error — logs warning', async () => {
+        const flush = () => new Promise(r => setTimeout(r, 0));
         mockCachesDelete.mockRejectedValue(new Error('NOT_FOUND'));
-        // Should not throw
         invalidateCache(API_KEY, 'cachedContents/gone');
-        // Wait for async to complete
-        await vi.waitFor(() => expect(mockCachesDelete).toHaveBeenCalled());
+        await flush();
+        await flush();
+        await flush();
+        expect(mockCachesDelete).toHaveBeenCalled();
     });
 });
