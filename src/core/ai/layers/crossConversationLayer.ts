@@ -27,7 +27,8 @@ export function buildCrossConversationLayer(memories?: ConversationMemory[]): st
             ? m.createdAt.toDate().toISOString().slice(0, 10)
             : 'Unknown date';
 
-        let block = `### "${m.conversationTitle}" (${date})`;
+        const protectedTag = m.protected ? ' 🔒' : '';
+        let block = `### "${m.conversationTitle}" (${date}) [mem:${m.id}]${protectedTag}`;
 
         if (m.videoRefs && m.videoRefs.length > 0) {
             const refs = m.videoRefs.map(v =>

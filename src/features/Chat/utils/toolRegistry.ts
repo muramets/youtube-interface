@@ -26,6 +26,7 @@ import {
     SaveKnowledgeRecord,
     EditKnowledgeRecord,
     SaveMemoryRecord,
+    EditMemoryRecord,
     ListKnowledgeStats,
     GetKnowledgeStats,
 } from '../components/toolStats';
@@ -472,6 +473,23 @@ const TOOL_REGISTRY: Record<string, ToolConfig> = {
             error: "Couldn't save memory",
             loading: 'Saving memory...',
             done: 'Memory saved',
+        },
+    },
+    editMemory: {
+        icon: Brain,
+        color: 'accent',
+        RecordComponent: EditMemoryRecord,
+        hasExpandableContent: true,
+        separatePills: true,
+        handlesErrors: true,
+        labels: {
+            error: "Couldn't edit memory",
+            loading: 'Editing memory...',
+            preparing: 'Editing memory...',
+            done: (group) => {
+                const title = group.records[0]?.result?.memoryTitle as string | undefined;
+                return title ? `Edited: "${title}"` : 'Memory updated';
+            },
         },
     },
 };

@@ -147,16 +147,16 @@ async function applyConsolidation(
 
 ## Отличие от существующих механизмов
 
-| | Memorize (L4) | Edit Memory | Consolidation |
-|---|---------------|-------------|---------------|
-| **Trigger** | Кнопка в чате | Click на memory | Кнопка в Settings |
-| **Input** | Текущий разговор | Один memory | N memories + intention |
-| **Output** | 1 memory + N KI | Обновлённый memory | 1-N новых memories |
-| **Scope** | Один разговор | Один memory | Все (или выбранные) memories |
-| **Кто генерирует** | Chat model (warm cache) | Пользователь вручную | Выбранная модель (cold call) |
-| **Provider** | Provider-agnostic (aiChat) | N/A (manual edit) | Provider-agnostic (provider router) |
-| **AI call** | CF `aiChat` (streaming + tools) | N/A | CF `consolidateMemories` (one-shot, no tools) |
-| **Firestore write** | CF handler `saveMemory` | Frontend `ChatService` | Frontend `applyConsolidation()` (atomic `writeBatch`) |
+| | Memorize (L4) | Edit Memory (UI) | Edit Memory (LLM) | Consolidation |
+|---|---------------|-------------|-------------|---------------|
+| **Trigger** | Кнопка в чате | Click на memory | LLM tool call `editMemory` | Кнопка в Settings |
+| **Input** | Текущий разговор | Один memory | Один memory + operations | N memories + intention |
+| **Output** | 1 memory + N KI | Обновлённый memory | Patched memory | 1-N новых memories |
+| **Scope** | Один разговор | Один memory | Любая memory (кроме protected) | Все (или выбранные) memories |
+| **Кто генерирует** | Chat model (warm cache) | Пользователь вручную | Chat model (tool call) | Выбранная модель (cold call) |
+| **Provider** | Provider-agnostic (aiChat) | N/A (manual edit) | Provider-agnostic (aiChat) | Provider-agnostic (provider router) |
+| **AI call** | CF `aiChat` (streaming + tools) | N/A | CF `aiChat` (tool execution) | CF `consolidateMemories` (one-shot, no tools) |
+| **Firestore write** | CF handler `saveMemory` | Frontend `ChatService` | CF handler `editMemory` | Frontend `applyConsolidation()` (atomic `writeBatch`) |
 
 ---
 

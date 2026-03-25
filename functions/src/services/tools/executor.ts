@@ -29,6 +29,7 @@ import { handleEditKnowledge } from "./handlers/knowledge/editKnowledge.js";
 import { handleListKnowledge } from "./handlers/knowledge/listKnowledge.js";
 import { handleGetKnowledge } from "./handlers/knowledge/getKnowledge.js";
 import { handleSaveMemory } from "./handlers/knowledge/saveMemory.js";
+import { handleEditMemory } from "./handlers/knowledge/editMemory.js";
 // Utility
 import { handleMentionVideo } from "./handlers/utility/mentionVideo.js";
 
@@ -53,6 +54,7 @@ const HANDLERS: Record<ToolName, ToolHandler> = {
     [TOOL_NAMES.LIST_KNOWLEDGE]: handleListKnowledge,
     [TOOL_NAMES.GET_KNOWLEDGE]: handleGetKnowledge,
     [TOOL_NAMES.SAVE_MEMORY]: handleSaveMemory,
+    [TOOL_NAMES.EDIT_MEMORY]: handleEditMemory,
 };
 
 // --- Dispatcher ---

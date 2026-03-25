@@ -9,4 +9,4 @@ export { NicheSnapshotStats } from './NicheSnapshotStats';
 export { FindSimilarStats } from './FindSimilarStats';
 export { QuotaBadge } from './QuotaBadge';
 export { SearchDatabaseStats } from './SearchDatabaseStats';
-export { SaveKnowledgeRecord, EditKnowledgeRecord, SaveMemoryRecord, ListKnowledgeStats, GetKnowledgeStats } from './RecordComponents';
+export { SaveKnowledgeRecord, EditKnowledgeRecord, SaveMemoryRecord, EditMemoryRecord, ListKnowledgeStats, GetKnowledgeStats } from './RecordComponents';

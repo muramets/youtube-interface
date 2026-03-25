@@ -189,19 +189,21 @@ Summary инжектируется как сообщение с `role: "model"` 
 
 ## Design Decisions
 
-### Asymmetric permission model (read-many / write-own)
+### Asymmetric permission model (read-many / write-own / patch-any)
 
-LLM **читает все** L4 memories канала (инжектируются в system prompt через `crossConversationLayer`), но **писать может только в memory текущего разговора** — через единственный tool `saveMemory` с детерминистическим `docId = conversationId`.
+LLM **читает все** L4 memories канала (инжектируются в system prompt через `crossConversationLayer`), **создаёт/перезаписывает** memory текущего разговора через `saveMemory` (`docId = conversationId`), и **точечно редактирует любую** memory через `editMemory` (operations-based patching). Каждая memory в system prompt содержит `[mem:id]` — LLM использует этот ID для адресации.
 
-**У LLM нет tools для edit и delete.** Это осознанное решение: memories — постоянная база знаний пользователя, и AI не должен иметь возможность уничтожить или исказить ранее сохранённые инсайты. Полный CRUD — только у пользователя через UI.
+**У LLM нет tool для delete.** Удаление — необратимое действие, остаётся прерогативой пользователя. Protected memories (locked через UI) не редактируются LLM — `editMemory` возвращает ошибку.
 
 | Операция | LLM (tool) | Пользователь (UI) |
 |----------|:-:|:-:|
 | Создать memory | `saveMemory` (только текущий чат) | Settings → Add Memory |
 | Перезаписать memory | Повторный Memorize в том же чате (upsert) | Edit в MemoryCheckpoint / Settings |
-| Точечно отредактировать | — | Edit в UI |
+| Точечно отредактировать | `editMemory` (любая memory по ID, кроме protected) | Edit в UI |
 | Удалить | — | Delete в UI |
-| Читать все memories канала | Да (system prompt) | Да (Settings) |
+| Читать все memories канала | Да (system prompt с `[mem:id]`) | Да (Settings) |
+
+Подробнее: [Edit Memory](./edit-memory.md).
 
 ---
 

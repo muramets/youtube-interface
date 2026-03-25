@@ -36,6 +36,7 @@ export const TOOL_NAMES = {
     LIST_KNOWLEDGE: "listKnowledge",
     GET_KNOWLEDGE: "getKnowledge",
     SAVE_MEMORY: "saveMemory",
+    EDIT_MEMORY: "editMemory",
 } as const;
 
 export type ToolName = (typeof TOOL_NAMES)[keyof typeof TOOL_NAMES];
@@ -716,7 +717,9 @@ const saveMemory: ToolDefinition = {
         "Save or update a cross-conversation memory — a concise summary that carries context " +
         "into future sessions. Call when the conversation reaches a meaningful checkpoint " +
         "(e.g., a strategy was decided, next steps were agreed, or open questions were identified). " +
-        "Include: key decisions, action items, open questions.",
+        "Include: key decisions, action items, open questions. " +
+        "This creates/overwrites the memory for the CURRENT conversation only. " +
+        "To patch an existing memory from a previous conversation, use editMemory instead.",
     parametersJsonSchema: {
         type: "object",
         properties: {
@@ -732,6 +735,73 @@ const saveMemory: ToolDefinition = {
             },
         },
         required: ["content"],
+    },
+};
+
+const editMemory: ToolDefinition = {
+    name: TOOL_NAMES.EDIT_MEMORY,
+    description:
+        "Patch an existing cross-conversation memory with surgical edits. " +
+        "Use when you need to update a memory from a PREVIOUS conversation — " +
+        "e.g., add new findings to an ongoing analysis, update action items, or append new data rows. " +
+        "Each memory in the system prompt has an ID in [mem:ID] format — pass that ID here. " +
+        "Protected memories (marked with 🔒 in system prompt) cannot be edited. " +
+        "For creating a new memory for the current conversation, use saveMemory instead. " +
+        "OPERATIONS: Each operation specifies an exact string to find and what to do with it. " +
+        "CRITICAL: Copy anchor/old_string text character-for-character from the memory content " +
+        "in the system prompt. Do NOT retype from recall — even small differences cause failure. " +
+        "Use SHORT anchors (20-60 chars) for less transcription error. " +
+        "If you edit the same memory twice in one conversation, use the contentPreview from " +
+        "the previous editMemory result for anchors (the system prompt snapshot is frozen).",
+    parametersJsonSchema: {
+        type: "object",
+        properties: {
+            memoryId: {
+                type: "string",
+                description:
+                    "The memory ID from [mem:ID] in the system prompt. " +
+                    "Pass the full ID exactly as shown.",
+            },
+            operations: {
+                type: "array",
+                description:
+                    "Array of surgical edit operations applied sequentially. " +
+                    "If any operation fails, none are applied (all-or-nothing). " +
+                    "Copy text character-for-character from memory content — " +
+                    "do not include the ### header or [mem:...] tag.",
+                items: {
+                    type: "object",
+                    oneOf: [
+                        {
+                            properties: {
+                                type: { type: "string", enum: ["replace"], description: "Replace exact text match" },
+                                old_string: { type: "string", description: "Exact text to find (must be unique unless replace_all is true)" },
+                                new_string: { type: "string", description: "Text to replace with" },
+                                replace_all: { type: "boolean", description: "Replace all occurrences (default: false)" },
+                            },
+                            required: ["type", "old_string", "new_string"],
+                        },
+                        {
+                            properties: {
+                                type: { type: "string", enum: ["insert_after"], description: "Insert content after anchor" },
+                                anchor: { type: "string", description: "Exact text to find (must be unique)" },
+                                content: { type: "string", description: "Text to insert after the anchor" },
+                            },
+                            required: ["type", "anchor", "content"],
+                        },
+                        {
+                            properties: {
+                                type: { type: "string", enum: ["insert_before"], description: "Insert content before anchor" },
+                                anchor: { type: "string", description: "Exact text to find (must be unique)" },
+                                content: { type: "string", description: "Text to insert before the anchor" },
+                            },
+                            required: ["type", "anchor", "content"],
+                        },
+                    ],
+                },
+            },
+        },
+        required: ["memoryId", "operations"],
     },
 };
 
@@ -756,6 +826,7 @@ export const TOOL_DECLARATIONS: ToolDefinition[] = [
     listKnowledge,
     getKnowledge,
     saveMemory,
+    editMemory,
 ];
 
 /** @deprecated Empty — saveMemory moved to TOOL_DECLARATIONS. Kept for backward compat (test mocks). */

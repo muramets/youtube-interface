@@ -197,3 +197,49 @@ export const SaveMemoryRecord: React.FC<{ record: ToolCallRecord }> = ({ record 
         </div>
     );
 };
+
+/** Per-record expanded content for editMemory pill. */
+export const EditMemoryRecord: React.FC<{ record: ToolCallRecord }> = ({ record }) => {
+    const result = record.result as Record<string, unknown> | undefined;
+    const error = result?.error as string | undefined;
+    const memoryTitle = result?.memoryTitle as string | undefined;
+    const charsAdded = result?.charsAdded as number | undefined;
+    const charsRemoved = result?.charsRemoved as number | undefined;
+
+    if (error) {
+        const isAnchorNotFound = error.includes('anchor not found') || error.includes('old_string not found');
+        const isMultiple = (error.includes('anchor found') || error.includes('old_string found')) && error.includes('times');
+        const isProtected = error.includes('protected');
+        const opMatch = error.match(/^Operation (\d+):/);
+        const opIndex = opMatch ? opMatch[1] : null;
+
+        const reason = isProtected
+            ? 'Memory is protected'
+            : isMultiple
+                ? 'Ambiguous match (multiple occurrences)'
+                : isAnchorNotFound
+                    ? 'Text not found in memory'
+                    : 'Edit failed';
+
+        return (
+            <div className="px-2 py-1.5 rounded-md bg-red-500/[0.06] text-[11px] min-w-0">
+                <span className="text-red-400">
+                    {reason}{opIndex != null && ` · op ${opIndex}`}
+                </span>
+            </div>
+        );
+    }
+
+    return (
+        <div className="px-2 py-1.5 rounded-md bg-surface-primary dark:bg-white/[0.03] text-[11px] min-w-0">
+            <div className="flex flex-col gap-0.5 min-w-0">
+                {memoryTitle && <span className="text-text-primary truncate">{memoryTitle}</span>}
+                <span className="text-text-tertiary">
+                    {charsAdded != null && charsRemoved != null
+                        ? formatEditStats({ mode: 'operations', charsAdded, charsRemoved })
+                        : 'Updated'}
+                </span>
+            </div>
+        </div>
+    );
+};
