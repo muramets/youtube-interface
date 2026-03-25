@@ -198,13 +198,74 @@ export const SaveMemoryRecord: React.FC<{ record: ToolCallRecord }> = ({ record 
     );
 };
 
+// --- Edit Memory diff helpers ---
+
+interface MemoryEditOperation {
+    type: 'replace' | 'insert_after' | 'insert_before';
+    old_string?: string;
+    new_string?: string;
+    anchor?: string;
+    content?: string;
+}
+
+const OP_LABEL: Record<string, string> = {
+    replace: 'replace',
+    insert_after: 'insert after',
+    insert_before: 'insert before',
+};
+
+const DIFF_LINE_LIMIT = 200;
+
+function truncateDiff(text: string): string {
+    if (text.length <= DIFF_LINE_LIMIT) return text;
+    return text.slice(0, DIFF_LINE_LIMIT) + '…';
+}
+
+/** Single operation diff block. */
+const OperationDiff: React.FC<{ op: MemoryEditOperation; index: number }> = ({ op, index }) => (
+    <div className="flex flex-col gap-0.5">
+        <span className="text-[9px] text-text-tertiary uppercase tracking-wider">
+            op {index} · {OP_LABEL[op.type] || op.type}
+        </span>
+        {op.type === 'replace' ? (
+            <>
+                {op.old_string && (
+                    <pre className="px-1.5 py-1 rounded bg-red-500/[0.08] text-red-400 whitespace-pre-wrap break-words font-mono text-[10px] leading-relaxed">
+                        − {truncateDiff(op.old_string)}
+                    </pre>
+                )}
+                {op.new_string && (
+                    <pre className="px-1.5 py-1 rounded bg-emerald-500/[0.08] text-emerald-400 whitespace-pre-wrap break-words font-mono text-[10px] leading-relaxed">
+                        + {truncateDiff(op.new_string)}
+                    </pre>
+                )}
+            </>
+        ) : (
+            <>
+                {op.anchor && (
+                    <pre className="px-1.5 py-1 rounded bg-white/[0.03] text-text-tertiary whitespace-pre-wrap break-words font-mono text-[10px] leading-relaxed">
+                        ⚓ {truncateDiff(op.anchor)}
+                    </pre>
+                )}
+                {op.content && (
+                    <pre className="px-1.5 py-1 rounded bg-emerald-500/[0.08] text-emerald-400 whitespace-pre-wrap break-words font-mono text-[10px] leading-relaxed">
+                        + {truncateDiff(op.content)}
+                    </pre>
+                )}
+            </>
+        )}
+    </div>
+);
+
 /** Per-record expanded content for editMemory pill. */
 export const EditMemoryRecord: React.FC<{ record: ToolCallRecord }> = ({ record }) => {
     const result = record.result as Record<string, unknown> | undefined;
+    const args = record.args as Record<string, unknown> | undefined;
     const error = result?.error as string | undefined;
     const memoryTitle = result?.memoryTitle as string | undefined;
     const charsAdded = result?.charsAdded as number | undefined;
     const charsRemoved = result?.charsRemoved as number | undefined;
+    const operations = args?.operations as MemoryEditOperation[] | undefined;
 
     if (error) {
         const isAnchorNotFound = error.includes('anchor not found') || error.includes('old_string not found');
@@ -232,13 +293,24 @@ export const EditMemoryRecord: React.FC<{ record: ToolCallRecord }> = ({ record 
 
     return (
         <div className="px-2 py-1.5 rounded-md bg-surface-primary dark:bg-white/[0.03] text-[11px] min-w-0">
-            <div className="flex flex-col gap-0.5 min-w-0">
-                {memoryTitle && <span className="text-text-primary truncate">{memoryTitle}</span>}
-                <span className="text-text-tertiary">
-                    {charsAdded != null && charsRemoved != null
-                        ? formatEditStats({ mode: 'operations', charsAdded, charsRemoved })
-                        : 'Updated'}
-                </span>
+            <div className="flex flex-col gap-1.5 min-w-0">
+                {/* Header: title + stats */}
+                <div className="flex items-center justify-between gap-2">
+                    {memoryTitle && <span className="text-text-primary truncate">{memoryTitle}</span>}
+                    <span className="text-text-tertiary shrink-0">
+                        {charsAdded != null && charsRemoved != null
+                            ? formatEditStats({ mode: 'operations', charsAdded, charsRemoved })
+                            : 'Updated'}
+                    </span>
+                </div>
+                {/* Operation diffs */}
+                {operations && operations.length > 0 && (
+                    <div className="flex flex-col gap-1.5">
+                        {operations.map((op, i) => (
+                            <OperationDiff key={i} op={op} index={i} />
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
     );
