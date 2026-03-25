@@ -30,14 +30,14 @@ const sanitizeSchema = {
     },
 }
 
-/** Indentation by heading level. */
+/** Indentation by heading level — symmetric left + right padding. */
 const INDENT: Record<number, string> = {
-    1: 'pl-0',
-    2: 'pl-5',
-    3: 'pl-5',
-    4: 'pl-5',
-    5: 'pl-5',
-    6: 'pl-5',
+    1: 'px-0',
+    2: 'px-5',
+    3: 'px-5',
+    4: 'px-5',
+    5: 'px-5',
+    6: 'px-5',
 }
 
 // --- Section layout config ---

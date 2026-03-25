@@ -152,7 +152,7 @@ export const KnowledgeViewer = React.memo(({
                             />
                         </div>
                     ) : (
-                        <div className="flex-1 overflow-y-auto p-8">
+                        <div className="flex-1 overflow-y-auto overflow-x-hidden p-8">
                             <CollapsibleMarkdownSections
                                 content={content}
                                 videoMap={videoMap}

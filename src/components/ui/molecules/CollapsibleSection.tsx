@@ -107,7 +107,7 @@ export function CollapsibleSection({
                     ${isOverflowVisible ? 'overflow-visible' : 'overflow-hidden'}
                 `}
             >
-                <div className={`${isCompact ? "py-0" : "py-1"} min-h-0`}>
+                <div className={`${isCompact ? "py-0" : "py-1"} min-h-0 min-w-0`}>
                     {children}
                 </div>
             </div>

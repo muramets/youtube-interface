@@ -103,7 +103,11 @@ export function buildBodyComponents(
         code: ({ className, style, children }) => <code className={clsx(s.code, className)} style={style}>{children}</code>,
         blockquote: ({ className, style, children }) => <blockquote className={clsx(s.blockquote, className)} style={style}>{children}</blockquote>,
         hr: ({ className, style }) => <hr className={clsx(s.hr, className)} style={style} />,
-        table: ({ className, style, children }) => <table className={clsx(s.table, className)} style={style}>{children}</table>,
+        table: ({ className, style, children }) => (
+            <div className="overflow-x-auto">
+                <table className={clsx(s.table, className)} style={style}>{children}</table>
+            </div>
+        ),
         th: ({ className, style, children }) => <th className={clsx(s.th, className)} style={style}>{children}</th>,
         td: ({ className, style, children }) => <td className={clsx(s.td, className)} style={style}>{children}</td>,
         // Details/Summary — custom chevron matching editor style, hide native marker
