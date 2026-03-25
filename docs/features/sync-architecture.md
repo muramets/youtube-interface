@@ -17,7 +17,7 @@
 - [x] `refreshSubscriberCounts` чанкуется по 400 (защита от Firestore 500-op batch limit)
 - [x] Partial failure observability: `apiSkippedCount` + warning notification при network errors
 - [ ] Деплой backend (functions) с последними изменениями
-- [ ] Multi-tab race condition: `useAutoSync` запускает sync во всех открытых вкладках одновременно → дублирующие уведомления + лишний расход квоты. Нужна cross-tab координация (re-read `lastGlobalSync` перед sync или `navigator.locks`)
+- [x] Multi-tab race condition: fixed — `useAutoSync` re-reads `lastGlobalSync` from Firestore before sync (cross-tab guard). If another tab already synced within frequency window, skip.
 
 ---
 

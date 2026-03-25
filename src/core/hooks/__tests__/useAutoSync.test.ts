@@ -89,6 +89,16 @@ vi.mock('../../stores/notificationStore', () => ({
     ),
 }));
 
+// Cross-tab guard: mock Firestore getDoc for fresh lastGlobalSync reads
+const mockGetDoc = vi.fn().mockResolvedValue({
+    data: () => ({ lastGlobalSync: 0 }),
+});
+vi.mock('firebase/firestore', async () => {
+    const actual = await vi.importActual<Record<string, unknown>>('firebase/firestore');
+    return { ...actual, getDoc: (...args: unknown[]) => mockGetDoc(...args), doc: vi.fn() };
+});
+vi.mock('../../../config/firebase', () => ({ db: {} }));
+
 // Import AFTER mocks are defined
 import { useAutoSync } from '../useAutoSync';
 
@@ -127,6 +137,9 @@ beforeEach(() => {
         addNotification: mockAddNotification,
         notifications: [],
     };
+
+    // Reset cross-tab guard mock: default = no recent sync (lastGlobalSync = 0)
+    mockGetDoc.mockResolvedValue({ data: () => ({ lastGlobalSync: 0 }) });
 
     // Spy on document event listeners to capture and test visibilitychange
     visibilityChangeHandler = null;
@@ -286,6 +299,26 @@ describe('useAutoSync', () => {
                 'ch-1',
                 expect.objectContaining({ lastGlobalSync: NOW }),
             );
+        });
+    });
+
+    // =======================================================================
+    // Cross-Tab Guard
+    // =======================================================================
+
+    describe('cross-tab guard', () => {
+        it('skips sync when Firestore shows another tab already synced', async () => {
+            // Cached state says sync is due (lastGlobalSync = 0)
+            // But fresh Firestore read shows another tab synced recently
+            mockGetDoc.mockResolvedValue({
+                data: () => ({ lastGlobalSync: NOW - ONE_HOUR_MS }), // 1h ago — within 24h window
+            });
+
+            renderHook(() => useAutoSync());
+            await act(() => vi.runAllTimersAsync());
+
+            expect(mockSyncAllVideos).not.toHaveBeenCalled();
+            expect(mockUpdateSyncSettings).not.toHaveBeenCalled();
         });
     });
 

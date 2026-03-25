@@ -1,4 +1,6 @@
 import { useEffect, useRef } from 'react';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../../config/firebase';
 import { useSettings } from './useSettings';
 import { useVideoSync } from './useVideoSync';
 
@@ -26,11 +28,15 @@ export const useAutoSync = () => {
             const nextSyncTime = lastSync + frequencyMs;
 
             if (now >= nextSyncTime) {
-                console.log('[AutoSync] Checking API Key:', {
-                    apiKey: generalSettings.apiKey,
-                    hasKey: !!generalSettings.apiKey,
-                    settings: generalSettings
-                });
+                // Cross-tab guard: re-read lastGlobalSync from Firestore (not cached state)
+                // to prevent duplicate sync when multiple tabs are open
+                const freshSyncDoc = await getDoc(
+                    doc(db, `users/${user.uid}/channels/${currentChannel.id}/settings/sync`)
+                );
+                const freshLastSync = (freshSyncDoc.data()?.lastGlobalSync as number) || 0;
+                if (now < freshLastSync + frequencyMs) {
+                    return; // Another tab already synced within the frequency window
+                }
 
                 // Time to sync!
                 if (!generalSettings.apiKey) {
