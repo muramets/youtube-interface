@@ -186,6 +186,7 @@ import { SegmentedControl } from '@/components/ui/molecules/SegmentedControl';
 | `z-panel-elevated` | 401 | Панель над другой панелью |
 | `z-overlay-ui` | 403 | UI поверх canvas overlay |
 | `z-modal` | 500 | Модальные окна + backdrop |
+| `z-modal-stacked` | 550 | Вложенная модалка поверх другой модалки |
 | `z-toast` | 600 | Toast уведомления |
 | `z-tooltip` | 700 | Standalone tooltips (PortalTooltip) |
 | `z-max` | 9999 | Аварийный выход (избегать) |

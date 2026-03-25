@@ -5,6 +5,7 @@
 // =============================================================================
 
 import React, { useState, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Lock, Loader2, AlertCircle, ChevronDown, Check, Pencil } from 'lucide-react';
 import { Checkbox } from '../../../components/ui/atoms/Checkbox/Checkbox';
 import { CollapsibleMarkdownSections } from '../../Knowledge/components/CollapsibleMarkdownSections';
@@ -79,10 +80,16 @@ export const ConsolidationModal: React.FC<ConsolidationModalProps> = ({ isOpen, 
     const [errorMessage, setErrorMessage] = useState('');
     const [costUsd, setCostUsd] = useState<number | null>(null);
     const [isSaving, setIsSaving] = useState(false);
+    const [isClosing, setIsClosing] = useState(false);
+    const [frozenMemories, setFrozenMemories] = useState<Array<{ id: string; conversationTitle: string; content: string }> | null>(null);
 
     const unprotectedCount = useMemo(() => memories.filter(m => !m.protected).length, [memories]);
     const selectedCount = selectedIds.size;
-
+    const selectedModel = useMemo(() => MODEL_REGISTRY.find(m => m.id === model), [model]);
+    const selectedMemories = useMemo(
+        () => memories.filter(m => selectedIds.has(m.id)),
+        [memories, selectedIds],
+    );
 
     // --- Selection handlers ---
     const toggleMemory = useCallback((id: string) => {
@@ -151,10 +158,11 @@ export const ConsolidationModal: React.FC<ConsolidationModalProps> = ({ isOpen, 
         }
     }, [memories, selectedIds, model, intention]);
 
-    // --- Save ---
+    // --- Save (freeze snapshot → save → fade-out → close) ---
     const handleSave = useCallback(async () => {
         if (!user?.uid || !currentChannel?.id) return;
         setIsSaving(true);
+        setFrozenMemories(selectedMemories);
         try {
             await ChatService.applyConsolidation(
                 user.uid,
@@ -162,15 +170,21 @@ export const ConsolidationModal: React.FC<ConsolidationModalProps> = ({ isOpen, 
                 Array.from(selectedIds),
                 newMemories,
             );
-            showToast(`Consolidated ${selectedIds.size} memories into ${newMemories.length}`, 'success');
-            onClose();
+            setIsSaving(false);
+            setIsClosing(true);
+            setTimeout(() => {
+                showToast(`Consolidated ${selectedIds.size} memories into ${newMemories.length}`, 'success');
+                onClose();
+                setIsClosing(false);
+                setFrozenMemories(null);
+            }, 250);
         } catch (err: unknown) {
             logger.error('[ConsolidationModal] Save failed', { error: err, component: 'ConsolidationModal' });
             showToast('Failed to save consolidated memories', 'error');
-        } finally {
+            setFrozenMemories(null);
             setIsSaving(false);
         }
-    }, [user, currentChannel, selectedIds, newMemories, onClose, showToast]);
+    }, [user, currentChannel, selectedIds, selectedMemories, newMemories, onClose, showToast]);
 
     // --- Edit preview memory ---
     const updateNewMemory = useCallback((index: number, field: 'title' | 'content', value: string) => {
@@ -183,21 +197,15 @@ export const ConsolidationModal: React.FC<ConsolidationModalProps> = ({ isOpen, 
         setErrorMessage('');
     }, []);
 
-    const selectedModel = useMemo(() => MODEL_REGISTRY.find(m => m.id === model), [model]);
-    const selectedMemories = useMemo(
-        () => memories.filter(m => selectedIds.has(m.id)),
-        [memories, selectedIds],
-    );
+    if (!isOpen && !isClosing) return null;
 
-    if (!isOpen) return null;
-
-    return (
+    return createPortal(
         <div
-            className="fixed inset-0 z-modal flex items-center justify-center bg-black/50 animate-fade-in p-8"
+            className={`fixed inset-0 z-modal-stacked flex items-center justify-center bg-black/50 ${isClosing ? 'animate-fade-out' : 'animate-fade-in'} ${step === 'preview' ? 'p-3' : 'p-8'}`}
             onClick={step === 'selection' || step === 'noChanges' ? onClose : undefined}
         >
             <div
-                className="bg-bg-secondary rounded-xl shadow-2xl border border-border w-full max-w-2xl max-h-full flex flex-col overflow-hidden"
+                className={`bg-bg-secondary rounded-xl shadow-2xl border border-border w-full ${step === 'preview' ? 'max-w-7xl h-full' : 'max-w-2xl'} max-h-full flex flex-col overflow-hidden ${isClosing ? 'animate-scale-out' : ''}`}
                 onClick={e => e.stopPropagation()}
             >
                 {/* Header */}
@@ -209,7 +217,7 @@ export const ConsolidationModal: React.FC<ConsolidationModalProps> = ({ isOpen, 
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
+                <div className={`flex-1 min-h-0 px-5 py-4 ${step === 'preview' ? 'flex flex-col' : 'overflow-y-auto'}`}>
                     {step === 'selection' && (
                         <SelectionStep
                             memories={memories}
@@ -245,7 +253,7 @@ export const ConsolidationModal: React.FC<ConsolidationModalProps> = ({ isOpen, 
                     )}
                     {step === 'preview' && (
                         <PreviewStep
-                            selectedMemories={selectedMemories}
+                            selectedMemories={frozenMemories ?? selectedMemories}
                             reasoning={reasoning}
                             costUsd={costUsd}
                             newMemories={newMemories}
@@ -302,7 +310,8 @@ export const ConsolidationModal: React.FC<ConsolidationModalProps> = ({ isOpen, 
                     )}
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body,
     );
 };
 
@@ -399,7 +408,7 @@ function SelectionStep({
                     value={intention}
                     onChange={e => setIntention(e.target.value)}
                     placeholder="What should the AI focus on? E.g.: merge session summaries, keep only current decisions..."
-                    className="w-full bg-bg-secondary border border-border rounded-md px-3 py-2 text-sm text-text-primary outline-none focus:border-text-secondary transition-colors resize-none placeholder:text-text-tertiary"
+                    className="w-full bg-[var(--settings-input-bg)] border border-border rounded-md px-3 py-2 text-sm text-text-primary outline-none focus:border-text-secondary transition-colors resize-none placeholder:text-text-tertiary"
                     rows={2}
                 />
             </div>
@@ -426,7 +435,7 @@ function PreviewStep({
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
     return (
-        <div className="space-y-4">
+        <div className="flex flex-col gap-4 flex-1 min-h-0">
             {/* Reasoning + Cost */}
             {(reasoning || costUsd !== null) && (
                 <div className="flex items-start justify-between gap-3 bg-bg-primary rounded-md px-3 py-2">
@@ -441,78 +450,85 @@ function PreviewStep({
                 </div>
             )}
 
-            {/* Before (collapsed, markdown-rendered) */}
-            <div>
-                <h3 className="text-xs text-text-secondary font-medium uppercase tracking-wider mb-1.5">Before ({selectedMemories.length} memories)</h3>
-                <div className="space-y-1">
-                    {selectedMemories.map(mem => (
-                        <div key={mem.id} className="rounded-lg p-2 opacity-50" style={{ backgroundColor: 'var(--settings-menu-active)' }}>
-                            <span className="text-sm font-medium text-text-tertiary line-through">{mem.conversationTitle}</span>
-                            <div className="max-h-[200px] overflow-y-auto mt-1">
-                                <CollapsibleMarkdownSections
-                                    content={videoMap ? linkifyVideoIds(mem.content, videoMap) : mem.content}
-                                    videoMap={videoMap}
-                                    kiMap={kiMap}
-                                    defaultOpenLevel={0}
-                                />
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
-
-            {/* After (read mode with markdown, click pencil to edit) */}
-            <div>
-                <h3 className="text-xs text-text-secondary font-medium uppercase tracking-wider mb-1.5">After ({newMemories.length} memories)</h3>
-                <div className="space-y-3">
-                    {newMemories.map((mem, i) => {
-                        const isEditing = editingIndex === i;
-                        return (
-                            <div key={i} className="rounded-lg p-3" style={{ backgroundColor: 'var(--settings-menu-active)' }}>
-                                <div className="flex items-center justify-between mb-1.5">
-                                    {isEditing ? (
-                                        <input
-                                            type="text"
-                                            value={mem.title}
-                                            onChange={e => updateNewMemory(i, 'title', e.target.value)}
-                                            className="flex-1 min-w-0 bg-transparent text-sm font-medium text-text-primary outline-none border-b border-border px-0 py-0.5 placeholder-modal-placeholder hover:border-text-secondary focus:border-text-primary transition-colors"
-                                            placeholder="Memory title"
-                                        />
-                                    ) : (
-                                        <span className="text-sm font-medium text-text-primary truncate">{mem.title}</span>
-                                    )}
-                                    <button
-                                        className={`p-1.5 rounded-md transition-colors shrink-0 ml-2 ${isEditing ? 'text-accent bg-accent/10' : 'text-text-tertiary hover:text-text-primary hover:bg-hover-bg'}`}
-                                        onClick={() => setEditingIndex(isEditing ? null : i)}
-                                        title={isEditing ? 'Done editing' : 'Edit'}
-                                    >
-                                        <Pencil size={12} />
-                                    </button>
+            {/* Two-column layout (lg+) / stacked (below lg) */}
+            <div className="flex flex-col lg:flex-row lg:gap-6 gap-4 flex-1 min-h-0">
+                {/* Left: Removing (1/3 on lg+) */}
+                <div className="lg:w-1/3 shrink-0 min-h-0 flex flex-col">
+                    <h3 className="text-xs text-text-secondary font-medium uppercase tracking-wider mb-1.5 shrink-0">
+                        Removing ({selectedMemories.length})
+                    </h3>
+                    <div className="space-y-1 overflow-y-auto flex-1 min-h-0">
+                        {selectedMemories.map(mem => (
+                            <div key={mem.id} className="rounded-lg p-2 opacity-50" style={{ backgroundColor: 'var(--settings-menu-active)' }}>
+                                <span className="text-sm font-medium text-text-tertiary line-through">{mem.conversationTitle}</span>
+                                <div className="max-h-[200px] overflow-y-auto mt-1">
+                                    <CollapsibleMarkdownSections
+                                        content={videoMap ? linkifyVideoIds(mem.content, videoMap) : mem.content}
+                                        videoMap={videoMap}
+                                        kiMap={kiMap}
+                                        defaultOpenLevel={0}
+                                    />
                                 </div>
-
-                                {isEditing ? (
-                                    <div className="max-h-[400px] overflow-y-auto">
-                                        <RichTextEditor
-                                            value={mem.content}
-                                            onChange={v => updateNewMemory(i, 'content', v)}
-                                            placeholder="Write your memory..."
-                                            videoCatalog={videoCatalog}
-                                            knowledgeCatalog={knowledgeCatalog}
-                                        />
-                                    </div>
-                                ) : (
-                                    <div className="max-h-[300px] overflow-y-auto">
-                                        <CollapsibleMarkdownSections
-                                            content={videoMap ? linkifyVideoIds(mem.content, videoMap) : mem.content}
-                                            videoMap={videoMap}
-                                            kiMap={kiMap}
-                                            defaultOpenLevel={0}
-                                        />
-                                    </div>
-                                )}
                             </div>
-                        );
-                    })}
+                        ))}
+                    </div>
+                </div>
+
+                {/* Right: New (2/3 on lg+) */}
+                <div className="lg:w-2/3 min-w-0 min-h-0 flex flex-col">
+                    <h3 className="text-xs text-text-secondary font-medium uppercase tracking-wider mb-1.5 shrink-0">
+                        New ({newMemories.length})
+                    </h3>
+                    <div className="space-y-3 overflow-y-auto flex-1 min-h-0">
+                        {newMemories.map((mem, i) => {
+                            const isEditing = editingIndex === i;
+                            return (
+                                <div key={i} className="rounded-lg p-3" style={{ backgroundColor: 'var(--settings-menu-active)' }}>
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        {isEditing ? (
+                                            <input
+                                                type="text"
+                                                value={mem.title}
+                                                onChange={e => updateNewMemory(i, 'title', e.target.value)}
+                                                className="flex-1 min-w-0 bg-transparent text-sm font-medium text-text-primary outline-none border-b border-border px-0 py-0.5 placeholder-modal-placeholder hover:border-text-secondary focus:border-text-primary transition-colors"
+                                                placeholder="Memory title"
+                                            />
+                                        ) : (
+                                            <span className="text-sm font-medium text-text-primary truncate">{mem.title}</span>
+                                        )}
+                                        <button
+                                            className={`p-1.5 rounded-md transition-colors shrink-0 ml-2 ${isEditing ? 'text-accent bg-accent/10' : 'text-text-tertiary hover:text-text-primary hover:bg-hover-bg'}`}
+                                            onClick={() => setEditingIndex(isEditing ? null : i)}
+                                            title={isEditing ? 'Done editing' : 'Edit'}
+                                        >
+                                            <Pencil size={12} />
+                                        </button>
+                                    </div>
+
+                                    {isEditing ? (
+                                        <div className="max-h-[400px] overflow-y-auto">
+                                            <RichTextEditor
+                                                value={mem.content}
+                                                onChange={v => updateNewMemory(i, 'content', v)}
+                                                placeholder="Write your memory..."
+                                                videoCatalog={videoCatalog}
+                                                knowledgeCatalog={knowledgeCatalog}
+                                            />
+                                        </div>
+                                    ) : (
+                                        <div className="max-h-[300px] overflow-y-auto">
+                                            <CollapsibleMarkdownSections
+                                                content={videoMap ? linkifyVideoIds(mem.content, videoMap) : mem.content}
+                                                videoMap={videoMap}
+                                                kiMap={kiMap}
+                                                defaultOpenLevel={0}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
             </div>
         </div>
@@ -539,7 +555,7 @@ function ModelPicker({ model, setModel, selectedModel }: {
                 ref={setAnchorEl}
                 type="button"
                 onClick={() => setOpen(v => !v)}
-                className="w-full flex items-center justify-between bg-bg-primary border border-border rounded-md px-3 py-2 text-sm text-text-primary hover:border-text-secondary transition-colors"
+                className="w-full flex items-center justify-between bg-[var(--settings-input-bg)] border border-border rounded-md px-3 py-2 text-sm text-text-primary hover:border-text-secondary transition-colors"
             >
                 <span>{selectedModel?.label ?? model}</span>
                 <ChevronDown size={14} className={`text-text-tertiary transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
