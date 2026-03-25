@@ -49,7 +49,8 @@ export interface ApplyOperationsError {
 // ---------------------------------------------------------------------------
 
 const MAX_OPERATIONS = 30;
-const PARTIAL_MATCH_PREFIX_LENGTH = 30;
+const PARTIAL_MATCH_PREFIXES = [30, 20, 15, 10] as const;
+const MULTI_MATCH_CONTEXT = 80;
 const CONTEXT_WINDOW = 200;
 const BOOKEND_LENGTH = 100;
 
@@ -68,21 +69,26 @@ function findAllPositions(haystack: string, needle: string): number[] {
     return positions;
 }
 
-/** Build a "not found" error with nearest partial match context. */
+/** Build a "not found" error with nearest partial match context.
+ *  Progressive prefix: tries 30, 20, 15, 10 chars to find the best partial match. */
 function buildNotFoundError(
     content: string,
     searchString: string,
     label: string,
     operationIndex: number,
 ): string {
-    const prefix = searchString.slice(0, PARTIAL_MATCH_PREFIX_LENGTH);
-    const partialIdx = content.indexOf(prefix);
+    // Progressive partial match: try longer prefixes first, fall back to shorter
+    for (const prefixLen of PARTIAL_MATCH_PREFIXES) {
+        if (searchString.length < prefixLen) continue;
+        const prefix = searchString.slice(0, prefixLen);
+        const partialIdx = content.indexOf(prefix);
 
-    if (partialIdx !== -1) {
-        const start = Math.max(0, partialIdx - CONTEXT_WINDOW);
-        const end = Math.min(content.length, partialIdx + prefix.length + CONTEXT_WINDOW);
-        const snippet = content.slice(start, end);
-        return `Operation ${operationIndex}: ${label} not found. Closest match at position ${partialIdx}: '...${snippet}...' — your ${label}: '${searchString.slice(0, 80)}'`;
+        if (partialIdx !== -1) {
+            const start = Math.max(0, partialIdx - CONTEXT_WINDOW);
+            const end = Math.min(content.length, partialIdx + prefix.length + CONTEXT_WINDOW);
+            const snippet = content.slice(start, end);
+            return `Operation ${operationIndex}: ${label} not found. Closest match at position ${partialIdx}: '...${snippet}...' — your ${label}: '${searchString.slice(0, 80)}'`;
+        }
     }
 
     // Fallback: bookends (first 100 + last 100 + total length)
@@ -91,14 +97,23 @@ function buildNotFoundError(
     return `Operation ${operationIndex}: ${label} not found in content (${content.length} chars). Content starts with: '${head}...' and ends with: '...${tail}'`;
 }
 
-/** Build a "multiple matches" error with occurrence count and positions. */
+/** Build a "multiple matches" error with surrounding context per match. */
 function buildMultipleMatchesError(
+    content: string,
     positions: number[],
+    needle: string,
     label: string,
     operationIndex: number,
 ): string {
-    const posStr = positions.join(", ");
-    return `Operation ${operationIndex}: ${label} found ${positions.length} times at character positions [${posStr}] — provide more surrounding context to disambiguate, or use replace_all: true for replace operations`;
+    // Show surrounding context for each match so the model can disambiguate
+    const matchDetails = positions.slice(0, 5).map((pos, i) => {
+        const start = Math.max(0, pos - MULTI_MATCH_CONTEXT);
+        const end = Math.min(content.length, pos + needle.length + MULTI_MATCH_CONTEXT);
+        const snippet = content.slice(start, end);
+        return `  [${i + 1}] at ${pos}: '...${snippet}...'`;
+    }).join("\n");
+
+    return `Operation ${operationIndex}: ${label} found ${positions.length} times — include more surrounding context to disambiguate:\n${matchDetails}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -166,7 +181,7 @@ export function applyOperations(
             if (positions.length > 1 && !op.replace_all) {
                 return {
                     success: false,
-                    error: buildMultipleMatchesError(positions, "old_string", i),
+                    error: buildMultipleMatchesError(result, positions, op.old_string, "old_string", i),
                     operationIndex: i,
                 };
             }
@@ -208,7 +223,7 @@ export function applyOperations(
             if (positions.length > 1) {
                 return {
                     success: false,
-                    error: buildMultipleMatchesError(positions, "anchor", i),
+                    error: buildMultipleMatchesError(result, positions, anchor, "anchor", i),
                     operationIndex: i,
                 };
             }

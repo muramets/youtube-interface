@@ -629,6 +629,8 @@ const editKnowledge: ToolDefinition = {
         "Use SHORT anchors (20-60 chars) — shorter text means less room for transcription error. " +
         "old_string/anchor must be unique in the document — if it appears multiple times, " +
         "include more surrounding context to disambiguate. " +
+        "FALLBACK: If operations fail twice on the same KI, switch to 'content' mode (full rewrite) — " +
+        "it costs more tokens but guarantees success. Do not retry the same anchor more than once. " +
         "PARALLEL EDITING: When updating multiple KIs, call editKnowledge for each one " +
         "in the same response — they execute in parallel, saving time and cost.",
     parametersJsonSchema: {
