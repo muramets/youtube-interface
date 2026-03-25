@@ -26,13 +26,15 @@ export function deriveCategories(
 }
 
 /**
- * Filter items by scope and category, then sort by createdAt.
+ * Filter items by scope, category, and search query, then sort by createdAt.
+ * Search matches against title and summary (case-insensitive).
  */
 export function filterAndSortItems(
     items: KnowledgeItem[],
     scopeFilter: KnowledgeScopeFilter,
     selectedCategory: string | null,
     sortOrder: 'newest' | 'oldest',
+    searchQuery?: string,
 ): KnowledgeItem[] {
     let filtered = items
     if (scopeFilter !== 'all') {
@@ -40,6 +42,13 @@ export function filterAndSortItems(
     }
     if (selectedCategory) {
         filtered = filtered.filter(i => i.category === selectedCategory)
+    }
+    if (searchQuery) {
+        const q = searchQuery.toLowerCase()
+        filtered = filtered.filter(i =>
+            i.title.toLowerCase().includes(q) ||
+            i.summary.toLowerCase().includes(q),
+        )
     }
     return [...filtered].sort((a, b) => {
         const timeA = a.createdAt?.seconds ?? 0

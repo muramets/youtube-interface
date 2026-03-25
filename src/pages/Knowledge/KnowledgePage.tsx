@@ -9,6 +9,7 @@ import { useKnowledgeSaveHandler } from '../../features/Knowledge/hooks/useKnowl
 import { useVideosCatalog } from '../../core/hooks/useVideosCatalog'
 import { useKnowledgeCatalog } from '../../core/hooks/useKnowledgeCatalog'
 import { useKnowledgeStore, type KnowledgeScopeFilter } from '../../core/stores/knowledgeStore'
+import { useFilterStore } from '../../core/stores/filterStore'
 import { buildCatalogVideoMap } from '../../features/Knowledge/utils/videoRefMap'
 import { KnowledgeList } from '../../features/Knowledge/components/KnowledgeList'
 import { KnowledgeItemModal } from '../../features/Knowledge/modals/KnowledgeItemModal'
@@ -48,6 +49,7 @@ export const KnowledgePage: React.FC = () => {
     const knowledgeCatalog = useKnowledgeCatalog()
 
     const { scopeFilter, selectedCategory, sortOrder, setScopeFilter, setCategory, setSortOrder } = useKnowledgeStore()
+    const { searchQuery } = useFilterStore()
 
     const [editingItem, setEditingItem] = useState<KnowledgeItem | null>(null)
     const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -71,10 +73,10 @@ export const KnowledgePage: React.FC = () => {
     const showChannelCats = scopeFilter === 'all' || scopeFilter === 'channel'
     const showVideoCats = scopeFilter === 'all' || scopeFilter === 'video'
 
-    // Filter + sort
+    // Filter + sort (includes global header search)
     const displayItems = useMemo(
-        () => filterAndSortItems(items, scopeFilter, selectedCategory, sortOrder),
-        [items, scopeFilter, selectedCategory, sortOrder],
+        () => filterAndSortItems(items, scopeFilter, selectedCategory, sortOrder, searchQuery),
+        [items, scopeFilter, selectedCategory, sortOrder, searchQuery],
     )
 
     const handleEdit = useCallback((item: KnowledgeItem) => {
@@ -227,7 +229,7 @@ export const KnowledgePage: React.FC = () => {
                     videoMap={videoMap}
                     showLinkedVideo
                     emptyMessage={
-                        selectedCategory || scopeFilter !== 'all'
+                        searchQuery || selectedCategory || scopeFilter !== 'all'
                             ? 'No Knowledge Items match these filters.'
                             : 'No Knowledge Items yet. Use the chat to analyze your channel, or click "+ Add" to create one manually.'
                     }

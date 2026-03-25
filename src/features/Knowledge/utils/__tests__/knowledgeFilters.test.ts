@@ -24,12 +24,12 @@ function makeItem(overrides: Partial<KnowledgeItem> & { scope: 'video' | 'channe
 }
 
 const ITEMS: KnowledgeItem[] = [
-    makeItem({ scope: 'channel', category: 'niche-analysis', seconds: 100 }),
-    makeItem({ scope: 'channel', category: 'niche-analysis', seconds: 200 }),
-    makeItem({ scope: 'channel', category: 'channel-journey', seconds: 300 }),
-    makeItem({ scope: 'video', category: 'traffic-analysis', videoId: 'vid-1', seconds: 400 }),
-    makeItem({ scope: 'video', category: 'traffic-analysis', videoId: 'vid-2', seconds: 500 }),
-    makeItem({ scope: 'video', category: 'packaging-audit', videoId: 'vid-1', seconds: 600 }),
+    makeItem({ scope: 'channel', category: 'niche-analysis', title: 'Niche Overview', summary: 'Broad niche analysis', seconds: 100 }),
+    makeItem({ scope: 'channel', category: 'niche-analysis', title: 'Competitor Landscape', summary: 'Key competitors identified', seconds: 200 }),
+    makeItem({ scope: 'channel', category: 'channel-journey', title: 'Growth Strategy', summary: 'Channel growth plan', seconds: 300 }),
+    makeItem({ scope: 'video', category: 'traffic-analysis', title: 'Traffic Deep Dive', summary: 'Suggested traffic breakdown', videoId: 'vid-1', seconds: 400 }),
+    makeItem({ scope: 'video', category: 'traffic-analysis', title: 'Browse Performance', summary: 'Browse feature analysis', videoId: 'vid-2', seconds: 500 }),
+    makeItem({ scope: 'video', category: 'packaging-audit', title: 'Thumbnail Review', summary: 'CTR optimization insights', videoId: 'vid-1', seconds: 600 }),
 ]
 
 // ---------------------------------------------------------------------------
@@ -127,5 +127,45 @@ describe('filterAndSortItems', () => {
         const original = [...ITEMS]
         filterAndSortItems(ITEMS, 'all', null, 'oldest')
         expect(ITEMS.map(i => i.createdAt?.seconds)).toEqual(original.map(i => i.createdAt?.seconds))
+    })
+
+    // Search query tests
+    it('filters by search query matching title (case-insensitive)', () => {
+        const result = filterAndSortItems(ITEMS, 'all', null, 'newest', 'thumbnail')
+        expect(result).toHaveLength(1)
+        expect(result[0].title).toBe('Thumbnail Review')
+    })
+
+    it('filters by search query matching summary', () => {
+        const result = filterAndSortItems(ITEMS, 'all', null, 'newest', 'CTR')
+        expect(result).toHaveLength(1)
+        expect(result[0].title).toBe('Thumbnail Review')
+    })
+
+    it('search combines with scope filter', () => {
+        const result = filterAndSortItems(ITEMS, 'channel', null, 'newest', 'niche')
+        expect(result).toHaveLength(1)
+        expect(result[0].title).toBe('Niche Overview')
+    })
+
+    it('search combines with category filter', () => {
+        const result = filterAndSortItems(ITEMS, 'all', 'traffic-analysis', 'newest', 'browse')
+        expect(result).toHaveLength(1)
+        expect(result[0].title).toBe('Browse Performance')
+    })
+
+    it('ignores empty search query', () => {
+        const result = filterAndSortItems(ITEMS, 'all', null, 'newest', '')
+        expect(result).toHaveLength(6)
+    })
+
+    it('ignores undefined search query', () => {
+        const result = filterAndSortItems(ITEMS, 'all', null, 'newest', undefined)
+        expect(result).toHaveLength(6)
+    })
+
+    it('returns empty when search matches nothing', () => {
+        const result = filterAndSortItems(ITEMS, 'all', null, 'newest', 'nonexistent')
+        expect(result).toHaveLength(0)
     })
 })
