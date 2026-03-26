@@ -163,8 +163,8 @@ interface VideoDeltaStats {
 
 | Файл | Назначение |
 |------|-----------|
-| `src/pages/Trends/Table/TrendsTable.tsx` | Основной компонент таблицы |
-| `src/pages/Trends/Table/TrendsVideoRow.tsx` | Строка видео + `DeltaValue` component |
+| `src/pages/Trends/Table/TrendsTable.tsx` | Основной компонент таблицы (powered by DataTable) |
+| `src/components/ui/organisms/DataTable/` | Shared table infrastructure (header, row, totals, DeltaCell) |
 | `shared/viewDeltas.ts` | SSOT: `calculateViewDeltas()`, `VideoDeltaStats`, `DELTA_SNAPSHOT_DAYS` |
 | `src/core/hooks/useTrendSnapshots.ts` | TanStack Query cache for trend snapshots (per-channel) |
 | `src/pages/Trends/hooks/useTrendTableData.ts` | Video-level data; uses `useTrendSnapshots()` cache + `calculateViewDeltas()` |

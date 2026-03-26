@@ -253,16 +253,15 @@ export const TrafficTable = memo<TrafficTableProps>(({
         return data.some(item => !!item.publishedAt);
     }, [data]);
 
-    // IMPORTANT: Tailwind JIT requires full class strings to be statically analyzable.
-    // Dynamic construction like `grid-cols-[${...}]` breaks JIT — class won't be generated.
-    // Enumerate all 4 combinations: property × publishDate
-    const gridClassName = showPropertyColumn
-        ? showPublishDateColumn
-            ? "grid-cols-[40px_72px_24px_1fr_22px_22px_70px_60px_70px_80px_96px_66px]"
-            : "grid-cols-[40px_72px_24px_1fr_22px_22px_70px_60px_70px_80px_66px]"
-        : showPublishDateColumn
-            ? "grid-cols-[40px_72px_1fr_22px_22px_70px_60px_70px_80px_96px_66px]"
-            : "grid-cols-[40px_72px_1fr_22px_22px_70px_60px_70px_80px_66px]";
+    // Grid template — inline style instead of Tailwind JIT (dynamic values can't be statically analyzed)
+    const gridStyle = useMemo((): React.CSSProperties => {
+        const tracks = ['40px', '72px'];
+        if (showPropertyColumn) tracks.push('24px');
+        tracks.push('1fr', '22px', '22px', '70px', '60px', '70px', '80px');
+        if (showPublishDateColumn) tracks.push('96px');
+        tracks.push('66px');
+        return { gridTemplateColumns: tracks.join(' ') };
+    }, [showPropertyColumn, showPublishDateColumn]);
 
     const computedTotal = useMemo(() => {
         if (data.length === 0) return null;
@@ -300,7 +299,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
 
         return (
             <div
-                className={`flex items-center gap-1 ${align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : 'justify-start'} ${canSort ? 'cursor-pointer hover:text-white transition-colors select-none' : ''}`}
+                className={`flex items-center gap-1 ${align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : 'justify-start'} ${canSort ? 'cursor-pointer hover:text-text-primary transition-colors select-none' : ''}`}
                 onClick={() => canSort && handleSort(sortKey)}
             >
                 {label}
@@ -339,10 +338,9 @@ export const TrafficTable = memo<TrafficTableProps>(({
     }
 
     return (
-        <div className="w-full h-full flex flex-col bg-bg-secondary/30 rounded-xl border border-white/5 overflow-hidden relative">
-            {/* Fixed Header - Show when loading OR when there's data OR when filtered/delta empty */}
-            {/* Fixed Header - Show when loading OR when there's data OR when filtered/delta empty */}
-            <div className={`grid ${gridClassName} gap-2 px-4 py-3 bg-white/5 border-b border-white/5 text-xs font-medium text-text-secondary uppercase tracking-wider flex-shrink-0 group`}>
+        <div className="w-full h-full flex flex-col bg-bg-secondary/30 rounded-xl border border-text-primary/5 overflow-hidden relative">
+            {/* Fixed Header */}
+            <div className="grid gap-2 px-4 py-3 bg-text-primary/5 text-xs font-medium text-text-secondary uppercase tracking-wider flex-shrink-0 group" style={gridStyle}>
                 <div className="flex items-center justify-center">
                     <Checkbox
                         checked={isAllSelected}
@@ -394,7 +392,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
                 ) : (
                     <>
                         {computedTotal && (
-                            <div className={`sticky top-0 z-10 grid ${gridClassName} gap-2 px-4 py-3 border-b border-white/10 bg-video-edit-bg backdrop-blur-md font-bold text-text-primary text-xs select-none shadow-sm`}>
+                            <div className="sticky top-0 z-sticky grid gap-2 px-4 py-3 border-b border-text-primary/10 bg-bg-secondary shadow-xs font-bold text-text-primary text-xs select-none" style={gridStyle}>
                                 <div />
                                 <div /> {/* Thumbnail spacer */}
                                 {showPropertyColumn && <div />}
@@ -495,7 +493,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
                                             onRowClick={handleRowClick}
                                             onToggleSelection={onToggleSelection}
                                             ctrRules={ctrRules}
-                                            gridClassName={gridClassName}
+                                            gridStyle={gridStyle}
                                             showPropertyIcon={showPropertyColumn}
                                             showPublishDate={showPublishDateColumn}
                                             videoDetails={videoDetails}

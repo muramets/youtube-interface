@@ -15,7 +15,6 @@
 | 7 | Packaging | Primary language: не-ENG локализация по умолчанию | Medium | [packaging.md](features/video-details/packaging.md#stage-5--localization--ux-polish--you-are-here) |
 | 8 | Packaging | Shared tags across localizations | Medium | [packaging.md](features/video-details/packaging.md#stage-5--localization--ux-polish--you-are-here) |
 | 9 | Packaging | Draft warning (напоминание о Published URL) | Medium | [packaging.md](features/video-details/packaging.md#stage-5--localization--ux-polish--you-are-here) |
-| 10 | UI / Tables | Unified table: Traffic Sources + Suggested Traffic + Trends | Medium | [unified-table.md](backlog/unified-table.md) |
 | 11 | Traffic | Delete any snapshot, не только последний | Medium | [delete-any-snapshot.md](backlog/delete-any-snapshot.md) |
 | 12 | Chat / YT Research | Suggested Traffic tool: теги из описаний не анализируются | Medium | [Known Issues](features/chat/tools/layer-3-analysis/2-analyze-suggested-traffic-tool.md#known-issues) |
 | 13 | Chat / YT Research | Suggested Traffic tool: не передаёт viewer type / traffic type / niche (user annotations) | Medium | [Known Issues](features/chat/tools/layer-3-analysis/2-analyze-suggested-traffic-tool.md#known-issues) |

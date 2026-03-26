@@ -9,5 +9,5 @@
  * Они представляют собой законченные секции UI.
  */
 
-// Export organisms here
-// export { Modal } from './Modal';
+export { DataTable, DataTableHeader, DataTableRow, DataTableTotalRow, DeltaCell, ThumbnailCell, useTableSort } from './DataTable';
+export type { ColumnDef, SortConfig, DataTableConfig, DataTableProps, DataTableRowProps } from './DataTable';

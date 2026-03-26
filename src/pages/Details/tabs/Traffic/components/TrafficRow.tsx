@@ -32,7 +32,7 @@ interface TrafficRowProps {
     activeSortKey?: string;
     onRowClick: (id: string, index: number, e: React.MouseEvent) => void;
     ctrRules?: CTRRule[];
-    gridClassName: string;
+    gridStyle: React.CSSProperties;
     showPropertyIcon: boolean;
     videoDetails?: VideoDetails;
     onToggleSelection?: (id: string) => void;
@@ -91,7 +91,7 @@ export const TrafficRow = ({
     onRowClick,
     onToggleSelection,
     ctrRules = [],
-    gridClassName,
+    gridStyle,
     showPropertyIcon,
     videoDetails,
     suggestedNiche,
@@ -179,7 +179,7 @@ export const TrafficRow = ({
         return {
             icon: HelpCircle,
             label: 'Set Traffic Type',
-            color: 'text-white/20',
+            color: 'text-text-primary/20',
             activeClass: 'opacity-0 group-hover:opacity-100' // Only show on hover if unset
         };
     }, [trafficType]);
@@ -203,7 +203,7 @@ export const TrafficRow = ({
                 return {
                     icon: User,
                     label: 'Set Viewer Type',
-                    color: 'text-white/20',
+                    color: 'text-text-primary/20',
                     activeClass: 'opacity-0 group-hover:opacity-100'
                 };
         }
@@ -249,7 +249,7 @@ export const TrafficRow = ({
     // BUSINESS RULE: Star icon color derives from assigned niche property
     // Priority: desired (emerald) > targeted (yellow) > adjacent (blue) > unrelated (red) > default (amber)
     const starColor = React.useMemo(() => {
-        if (reaction !== 'star') return 'text-white/20'; // inactive ghost
+        if (reaction !== 'star') return 'text-text-primary/20'; // inactive ghost
         if (!assignedNiches.length) return 'text-amber-400'; // no niche → default amber
 
         const hasProperty = (p: string) => assignedNiches.some(n => n.property === p);
@@ -275,11 +275,13 @@ export const TrafficRow = ({
             key={item.videoId || index}
             onClick={(e) => item.videoId && onRowClick(item.videoId, index, e)}
             className={`
-                relative h-full grid ${gridClassName} gap-2 px-4 items-center border-b border-white/5 
+                relative h-full grid gap-2 px-4 items-center border-b border-text-primary/[0.03]
                 text-xs cursor-pointer group select-none
-                ${index % 2 === 0 ? 'bg-white/[0.035]' : 'bg-transparent'}  
-                hover:bg-white/[0.05]
+                ${index % 2 === 0 ? 'bg-text-primary/[0.03]' : ''}
+                hover:bg-text-primary/[0.05]
+                transition-colors duration-[350ms] hover:duration-75
             `}
+            style={gridStyle}
         >
             {/* Selection indicator line - Absolute to avoid clipping */}
             {isSelected && (
@@ -301,11 +303,11 @@ export const TrafficRow = ({
                     <div className={`relative w-full overflow-hidden rounded-md ${isNowPlaying ? 'ring-1 ring-emerald-400/60' : ''}`} style={{ aspectRatio: '16/9' }}>
                         {/* Pulse placeholder — starts animating instantly, no compositor delay */}
                         {!isThumbError && (
-                            <div className="absolute inset-0 bg-white/5 animate-pulse rounded-md" />
+                            <div className="absolute inset-0 bg-text-primary/5 animate-pulse rounded-md" />
                         )}
                         {isThumbError ? (
-                            <div className="absolute inset-0 flex items-center justify-center bg-white/5 rounded-md">
-                                <Film size={16} className="text-white/20" />
+                            <div className="absolute inset-0 flex items-center justify-center bg-text-primary/5 rounded-md">
+                                <Film size={16} className="text-text-primary/20" />
                             </div>
                         ) : (
                             <img
@@ -344,7 +346,7 @@ export const TrafficRow = ({
                         )}
                     </div>
                 ) : (
-                    <div className="w-full h-full rounded-md bg-white/5 transition-all duration-200 ease-out group-hover:bg-white/10 group-hover:shadow-lg group-hover:shadow-white/5"
+                    <div className="w-full h-full rounded-md bg-text-primary/5 transition-all duration-200 ease-out group-hover:bg-text-primary/10 group-hover:shadow-lg group-hover:shadow-text-primary/5"
                         style={{ aspectRatio: '16/9' }} />
                 )}
             </div>
@@ -376,7 +378,7 @@ export const TrafficRow = ({
                         onBlur={handleSaveNote}
                         autoFocus
                         placeholder="Add a note..."
-                        className="w-full bg-transparent border-none outline-none text-xs text-text-primary placeholder:text-white/20 py-0.5 caret-blue-400"
+                        className="w-full bg-transparent border-none outline-none text-xs text-text-primary placeholder:text-text-primary/20 py-0.5 caret-blue-400"
                         onClick={(e) => e.stopPropagation()}
                     />
                 ) : (
@@ -460,7 +462,7 @@ export const TrafficRow = ({
                                             forceOpen={activeTooltipId === `preview-${item.videoId}`}
                                         >
                                             <div
-                                                className="text-text-secondary hover:text-white cursor-pointer transition-colors"
+                                                className="text-text-secondary hover:text-text-primary cursor-pointer transition-colors"
                                                 onClick={(e) => e.stopPropagation()}
                                             >
                                                 <Info size={14} />
@@ -474,7 +476,7 @@ export const TrafficRow = ({
                             {noteText && (
                                 <button
                                     onClick={handleStartEditNote}
-                                    className="truncate text-xs text-white/30 italic mt-0.5 cursor-pointer bg-transparent border-none p-0 text-left max-w-fit hover:text-white/50 transition-colors"
+                                    className="truncate text-xs text-text-primary/30 italic mt-0.5 cursor-pointer bg-transparent border-none p-0 text-left max-w-fit hover:text-text-primary/50 transition-colors"
                                 >
                                     {noteText}
                                 </button>
@@ -496,7 +498,7 @@ export const TrafficRow = ({
                                     target="_blank"
                                     rel="noreferrer"
                                     onClick={(e) => e.stopPropagation()}
-                                    className="p-1.5 -m-1.5 text-text-secondary hover:text-white transition-colors flex items-center justify-center"
+                                    className="p-1.5 -m-1.5 text-text-secondary hover:text-text-primary transition-colors flex items-center justify-center"
                                 >
                                     <ExternalLink size={14} />
                                 </a>
@@ -513,13 +515,13 @@ export const TrafficRow = ({
                         content={typeLabel}
                         enterDelay={300}
                         side="top"
-                        className="!px-2.5 !py-1 !border-none !shadow-xl !bg-[#1F1F1F]"
+                        className="!px-2.5 !py-1 !border-none !shadow-xl !bg-card-bg"
                     >
                         <button
                             onClick={handleTypeClick}
                             className={`
                                 p-1.5 rounded-full transition-transform duration-200
-                                hover:bg-white/10 active:scale-95
+                                hover:bg-text-primary/10 active:scale-95
                                 ${typeColor} ${typeActiveClass}
                             `}
                         >
@@ -543,13 +545,13 @@ export const TrafficRow = ({
                         content={viewerLabel}
                         enterDelay={300}
                         side="top"
-                        className="!px-2.5 !py-1 !border-none !shadow-xl !bg-[#1F1F1F]"
+                        className="!px-2.5 !py-1 !border-none !shadow-xl !bg-card-bg"
                     >
                         <button
                             onClick={handleViewerClick}
                             className={`
                                 p-1.5 rounded-full transition-transform duration-200
-                                hover:bg-white/10 active:scale-95
+                                hover:bg-text-primary/10 active:scale-95
                                 ${viewerColor} ${viewerActiveClass}
                             `}
                         >
@@ -610,7 +612,7 @@ export const TrafficRow = ({
                             </span>
                         </>
                     ) : (
-                        <span className="text-[11px] text-white/10">—</span>
+                        <span className="text-[11px] text-text-primary/10">—</span>
                     )}
                 </div>
             )}
@@ -622,8 +624,8 @@ export const TrafficRow = ({
                     onClick={(e) => handleReactionClick(e, 'star')}
                     className={`
                         p-1 rounded-full transition-all duration-150
-                        hover:bg-white/10 active:scale-90
-                        ${reaction === 'star' ? `${starColor} opacity-100` : 'text-white/20 opacity-0 group-hover:opacity-100'}
+                        hover:bg-text-primary/10 active:scale-90
+                        ${reaction === 'star' ? `${starColor} opacity-100` : 'text-text-primary/20 opacity-0 group-hover:opacity-100'}
                     `}
                 >
                     <Star size={12} className={reaction === 'star' ? 'fill-current' : ''} />
@@ -633,8 +635,8 @@ export const TrafficRow = ({
                     onClick={(e) => handleReactionClick(e, 'like')}
                     className={`
                         p-1 rounded-full transition-all duration-150
-                        hover:bg-white/10 active:scale-90
-                        ${reaction === 'like' ? 'text-emerald-400 opacity-100' : 'text-white/20 opacity-0 group-hover:opacity-100'}
+                        hover:bg-text-primary/10 active:scale-90
+                        ${reaction === 'like' ? 'text-emerald-400 opacity-100' : 'text-text-primary/20 opacity-0 group-hover:opacity-100'}
                     `}
                 >
                     <ThumbsUp size={12} className={reaction === 'like' ? 'fill-current' : ''} />
@@ -644,8 +646,8 @@ export const TrafficRow = ({
                     onClick={(e) => handleReactionClick(e, 'dislike')}
                     className={`
                         p-1 rounded-full transition-all duration-150
-                        hover:bg-white/10 active:scale-90
-                        ${reaction === 'dislike' ? 'text-red-400 opacity-100' : 'text-white/20 opacity-0 group-hover:opacity-100'}
+                        hover:bg-text-primary/10 active:scale-90
+                        ${reaction === 'dislike' ? 'text-red-400 opacity-100' : 'text-text-primary/20 opacity-0 group-hover:opacity-100'}
                     `}
                 >
                     <ThumbsDown size={12} className={reaction === 'dislike' ? 'fill-current' : ''} />
