@@ -115,6 +115,7 @@ export interface ChatState {
     renameConversation: (conversationId: string, title: string) => Promise<void>;
     moveConversation: (conversationId: string, projectId: string | null) => Promise<void>;
     setConversationModel: (conversationId: string, model: string) => Promise<void>;
+    setConversationThinkingOptionId: (conversationId: string, thinkingOptionId: string | null) => Promise<void>;
     setPendingModel: (model: string | null) => void;
     setPendingThinkingOptionId: (level: string | null) => void;
     clearPersistedContext: (conversationId: string) => Promise<void>;

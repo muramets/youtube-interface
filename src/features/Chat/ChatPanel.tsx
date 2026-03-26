@@ -83,6 +83,7 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
     const retryLastMessage = useChatStore(s => s.retryLastMessage);
     const stopGeneration = useChatStore(s => s.stopGeneration);
     const setConversationModel = useChatStore(s => s.setConversationModel);
+    const setConversationThinkingOptionId = useChatStore(s => s.setConversationThinkingOptionId);
     const setPendingModel = useChatStore(s => s.setPendingModel);
     const pendingModel = useChatStore(s => s.pendingModel);
     const editingMessage = useChatStore(s => s.editingMessage);
@@ -113,7 +114,7 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
     });
 
     const {
-        filteredConversations, headerTitle,
+        filteredConversations, activeConversation, headerTitle,
         totalTokens, totalCost, totalSavings, activeModel, modelLabel, contextUsed, contextPercent, contextLimit, modelContextLimit, isContextFull,
     } = useChatDerivedState({
         projects, conversations, messages,
@@ -368,6 +369,10 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
                             onModelChange={(modelId) => {
                                 if (activeConversationId) setConversationModel(activeConversationId, modelId);
                                 else setPendingModel(modelId);
+                            }}
+                            conversationThinkingOptionId={activeConversation?.thinkingOptionId}
+                            onThinkingChange={(optionId) => {
+                                if (activeConversationId) setConversationThinkingOptionId(activeConversationId, optionId);
                             }}
                             editingMessage={editingMessage}
                             onCancelEdit={() => setEditingMessage(null)}

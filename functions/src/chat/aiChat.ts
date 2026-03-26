@@ -512,6 +512,7 @@ export const aiChat = onRequest(
                 model,
                 status: messageStatus,
             };
+            if (thinkingOptionId) rawMsg.thinkingOptionId = thinkingOptionId;
             if (tokenUsage) rawMsg.tokenUsage = tokenUsage;
             if (normalizedUsage) rawMsg.normalizedUsage = normalizedUsage;
             if (toolCalls) rawMsg.toolCalls = toolCalls;
@@ -627,6 +628,7 @@ export const aiChat = onRequest(
                     status: 'stopped',
                     createdAt: admin.firestore.FieldValue.serverTimestamp(),
                 };
+                if (thinkingOptionId) stoppedMsg.thinkingOptionId = thinkingOptionId;
                 if (thinkingAccumulator) {
                     stoppedMsg.thinking = thinkingAccumulator;
                     stoppedMsg.thinkingElapsedMs = firstThoughtTs ? Date.now() - firstThoughtTs : 0;
@@ -677,6 +679,7 @@ export const aiChat = onRequest(
                         thinkingElapsedMs: firstThoughtTs ? Date.now() - firstThoughtTs : 0,
                         createdAt: admin.firestore.FieldValue.serverTimestamp(),
                     };
+                    if (thinkingOptionId) stoppedMsg.thinkingOptionId = thinkingOptionId;
                     if (partialTokenUsage) stoppedMsg.tokenUsage = partialTokenUsage;
                     const timeoutBatch = db.batch();
                     timeoutBatch.set(timeoutMsgRef, stoppedMsg);

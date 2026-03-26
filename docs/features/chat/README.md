@@ -63,7 +63,7 @@ Gemini ссылается на конкретные видео, пользова
 - [x] Agentic Loop в `streamChat()` (до 10 итераций)
 - [x] SSE Event Types (`chunk`, `toolCall`, `toolResult`, `toolProgress`, `thought`, `done`, `error`, `confirmLargePayload`, `retry`)
 - [x] System Prompt Migration — `[id: videoId]` аннотации вместо порядковых номеров
-- [x] Thinking Level per-model (backend + UI toggle)
+- [x] Thinking Level per-model (backend + UI toggle + per-conversation Firestore persistence)
 - [x] ToolCallBadge — inline pills (pending/resolved/error)
 - [x] ThinkingBubble — collapsible thinking chain display
 - [x] Structured Mentions — `mention://videoId` вместо regex

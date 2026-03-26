@@ -25,7 +25,7 @@ import type { ReadyAttachment } from '../../../types/chat/chatAttachment';
 import type { AppContextItem } from '../../../types/appContext';
 import type { ChatState, ActiveToolCall } from '../types';
 import { session, startStreamingSession, cacheSessionThinking } from '../session';
-import { requireContext, resolveModel, rebuildPersistedContext } from '../helpers';
+import { requireContext, resolveModel, resolveThinkingOptionId, rebuildPersistedContext } from '../helpers';
 import { setFrozenConversationId, refreshSnapshotIfStale } from './navigationSlice';
 
 // =============================================================================
@@ -218,10 +218,12 @@ async function resumeSendFlow(
 
     maybeAutoTitle(userId, channelId, convId, text, model, isFirstExchange ?? false);
 
+    const resolvedThinking = resolveThinkingOptionId(model, get().pendingThinkingOptionId, activeConv?.thinkingOptionId);
+
     const { usedSummary, messageId } = await streamAiResponse(
         channelId, convId, model, systemPrompt,
         text, attachments, thumbnailUrls, contextMeta, scopedSet, get, abortController.signal,
-        get().pendingThinkingOptionId,
+        resolvedThinking,
         largePayloadApproved,
         (count) => scopedSet({ pendingLargePayloadConfirmation: { count, text, attachments, convId, appContext, persistedContext } }),
         (attempt) => scopedSet({ retryAttempt: attempt, streamingText: '', thinkingText: '' }),
@@ -289,18 +291,21 @@ export function createSendSlice(
             try {
                 // 0. Lazy-create conversation if needed (first message in a new chat)
                 if (!convId) {
-                    const { pendingModel } = get();
+                    const { pendingModel, pendingThinkingOptionId } = get();
                     const conversation = await ChatService.createConversation(
                         userId, channelId, activeProjectId, 'New Chat', pendingConversationId ?? undefined,
                     );
                     convId = conversation.id;
-                    set({ pendingConversationId: null, pendingModel: null });
+                    set({ pendingConversationId: null, pendingModel: null, pendingThinkingOptionId: null });
                     // Sync frozenForConversationId so returning to this chat (via conversation list)
                     // doesn't refresh memoriesSnapshot and break prompt cache
                     setFrozenConversationId(convId);
-                    // Apply pending model to newly created conversation
-                    if (pendingModel) {
-                        ChatService.updateConversation(userId, channelId, convId, { model: pendingModel });
+                    // Apply pending model + thinking level to newly created conversation
+                    const convUpdates: Record<string, unknown> = {};
+                    if (pendingModel) convUpdates.model = pendingModel;
+                    if (pendingThinkingOptionId) convUpdates.thinkingOptionId = pendingThinkingOptionId;
+                    if (Object.keys(convUpdates).length > 0) {
+                        ChatService.updateConversation(userId, channelId, convId, convUpdates as Parameters<typeof ChatService.updateConversation>[3]);
                     }
                     // Set activeConversationId AFTER we're about to add the optimistic message,
                     // so the subscription won't race with us and reset messages to []

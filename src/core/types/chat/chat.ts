@@ -25,6 +25,7 @@ export interface ChatConversation {
     projectId: string | null; // null = unassigned
     title: string;
     model?: string;              // per-conversation model override
+    thinkingOptionId?: string | null;  // per-conversation thinking level override (null = use model default)
     summary?: string;           // cached conversation summary
     summarizedUpTo?: string;    // ID of last message included in summary
     persistedContext?: AppContextItem[]; // Video/traffic/canvas context attached for the lifetime of this conversation
@@ -70,6 +71,8 @@ export interface ChatMessage {
     status?: MessageStatus;
     /** Context breakdown: char sizes of components sent to the model. */
     contextBreakdown?: import('../../../../shared/models').ContextBreakdown;
+    /** Thinking level requested by user for this message (e.g. "high", "low", "auto"). */
+    thinkingOptionId?: string;
     /** Full thinking chain text (persisted to Firestore). */
     thinking?: string;
     /** Approximate time spent thinking (ms). */

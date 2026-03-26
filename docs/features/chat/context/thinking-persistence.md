@@ -26,7 +26,18 @@ Thinking сохраняется как поля `thinking` и `thinkingElapsedMs
 - [x] Frontend: при рендере — приоритет Firestore данных, fallback на session cache
 - [x] Тесты: персистентность + приоритет отображения
 
-### Этап 2 — Lazy Loading (будущее, если потребуется) ← YOU ARE HERE
+### Этап 2 — Thinking Level Persistence ✅ DONE
+
+Выбранный пользователем thinking level сохраняется per-conversation в Firestore и восстанавливается после reload. Каждое сообщение записывает, какой thinking level был запрошен.
+
+- [x] `ChatConversation.thinkingOptionId?: string | null` — текущая настройка беседы (null = model default)
+- [x] `ChatMessage.thinkingOptionId?: string` — snapshot запрошенного уровня per-message
+- [x] `resolveThinkingOptionId()` — каскад: pending → conversation → model default с defensive validation
+- [x] Сброс thinking при смене модели (разные модели = разные thinking options)
+- [x] Lazy-create: pendingThinkingOptionId записывается в conversation при создании (как pendingModel)
+- [x] Server: `thinkingOptionId` пишется в message doc (complete, stopped, timeout)
+
+### Этап 3 — Lazy Loading (будущее, если потребуется) ← YOU ARE HERE
 
 Если thinking text станет слишком большим (>50KB регулярно) и начнёт тормозить загрузку бесед, вынести в subcollection `messages/{id}/thinking` с подгрузкой по клику.
 
@@ -87,18 +98,21 @@ Frontend считает `Date.now() - session.streamStartMs` (включает n
 **Типы:**
 | Файл | Изменение |
 |------|-----------|
-| `src/core/types/chat/chat.ts` | `ChatMessage` + `thinking?: string` + `thinkingElapsedMs?: number` |
+| `src/core/types/chat/chat.ts` | `ChatMessage` + `thinking?: string` + `thinkingElapsedMs?: number` + `thinkingOptionId?: string` |
+| `src/core/types/chat/chat.ts` | `ChatConversation` + `thinkingOptionId?: string \| null` (per-conversation override) |
 
 **Frontend (persistence):**
 | Файл | Изменение |
 |------|-----------|
-| `src/core/stores/chat/slices/sendSlice.ts` | `persistAiResponse` рефакторинг в object params; принимает thinking; `resumeSendFlow` persist → cache (session cache после persist, т.к. message ID доступен только через onSnapshot) |
-| `src/core/services/ai/chatService.ts` | Без изменений — `addMessage` использует spread (`...message`), новые поля проходят автоматически. Verification only. |
+| `src/core/stores/chat/slices/sendSlice.ts` | `persistAiResponse` рефакторинг в object params; принимает thinking; `resumeSendFlow` persist → cache; lazy-create пишет `pendingThinkingOptionId` в conversation |
+| `src/core/stores/chat/slices/conversationSlice.ts` | `setConversationThinkingOptionId()` + `setConversationModel()` сбрасывает thinkingOptionId |
+| `src/core/stores/chat/helpers.ts` | `resolveThinkingOptionId()` — каскад pending → conversation → model default с validation |
+| `src/core/services/ai/chatService.ts` | `updateConversation` расширен полем `thinkingOptionId` |
 
-**Backend (stopped messages):**
+**Backend (message persistence):**
 | Файл | Изменение |
 |------|-----------|
-| `functions/src/chat/aiChat.ts` | `thinkingAccumulator` + `firstThoughtTs` в `onThought` callback; включить в stopped message write |
+| `functions/src/chat/aiChat.ts` | `thinkingAccumulator` + `firstThoughtTs` в `onThought` callback; `thinkingOptionId` пишется в message doc (complete, stopped, timeout) |
 
 **Frontend (display):**
 | Файл | Изменение |

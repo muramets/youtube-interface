@@ -151,6 +151,7 @@ function buildStore(overrides: Partial<ChatState> = {}) {
         renameConversation: vi.fn(),
         moveConversation: vi.fn(),
         setConversationModel: vi.fn(),
+        setConversationThinkingOptionId: vi.fn(),
         setPendingModel: vi.fn(),
         setPendingThinkingOptionId: vi.fn(),
         clearPersistedContext: vi.fn(),

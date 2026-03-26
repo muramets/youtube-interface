@@ -175,7 +175,7 @@ export const ChatService = {
         userId: string,
         channelId: string,
         conversationId: string,
-        updates: Partial<Pick<ChatConversation, 'title' | 'projectId' | 'model' | 'persistedContext'>>,
+        updates: Partial<Pick<ChatConversation, 'title' | 'projectId' | 'model' | 'thinkingOptionId' | 'persistedContext'>>,
         options?: { preserveTimestamp?: boolean }
     ) {
         await updateDocument(conversationsPath(userId, channelId), conversationId, {

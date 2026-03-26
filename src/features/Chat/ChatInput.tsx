@@ -33,6 +33,9 @@ interface ChatInputProps {
     modelLabel?: string;
     activeModel?: string;
     onModelChange?: (modelId: string) => void;
+    // Thinking level — persisted on conversation, resolved via cascade
+    conversationThinkingOptionId?: string | null;
+    onThinkingChange?: (optionId: string | null) => void;
     // Editing
     editingMessage?: import('../../core/types/chat/chat').ChatMessage | null;
     onCancelEdit?: () => void;
@@ -69,6 +72,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     onSend, onStop, disabled,
     stagedFiles, onAddFiles, onRemoveFile, isAnyUploading,
     modelLabel, activeModel, onModelChange,
+    conversationThinkingOptionId, onThinkingChange,
     editingMessage, onCancelEdit, onEditSend,
     videoCatalog, knowledgeCatalog,
 }) => {
@@ -90,14 +94,15 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const setPendingThinkingOptionId = useChatStore(s => s.setPendingThinkingOptionId);
     const [isThinkingMenuOpen, setIsThinkingMenuOpen] = useState(false);
 
-    // Resolve thinking options for the active model
+    // Resolve thinking options for the active model (cascade: pending → conversation → model default)
     const thinkingConfig = useMemo(() => {
         const model = MODEL_REGISTRY.find(m => m.id === activeModel);
         if (!model) return null;
-        const activeOptionId = pendingThinkingOptionId ?? model.thinkingDefault;
-        const activeOption = model.thinkingOptions.find(o => o.id === activeOptionId) ?? model.thinkingOptions[0];
+        const activeOptionId = pendingThinkingOptionId ?? conversationThinkingOptionId ?? model.thinkingDefault;
+        // Defensive: validate the resolved ID exists in this model's options
+        const activeOption = model.thinkingOptions.find(o => o.id === activeOptionId) ?? model.thinkingOptions.find(o => o.id === model.thinkingDefault) ?? model.thinkingOptions[0];
         return { options: model.thinkingOptions, activeOption, defaultId: model.thinkingDefault };
-    }, [activeModel, pendingThinkingOptionId]);
+    }, [activeModel, pendingThinkingOptionId, conversationThinkingOptionId]);
 
     // Attachment support for active model
     const activeModelConfig = useMemo(() => MODEL_REGISTRY.find(m => m.id === activeModel), [activeModel]);
@@ -423,7 +428,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                                     : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
                                                     }`}
                                                 onClick={() => {
-                                                    setPendingThinkingOptionId(opt.id === thinkingConfig.defaultId ? null : opt.id);
+                                                    const value = opt.id === thinkingConfig.defaultId ? null : opt.id;
+                                                    setPendingThinkingOptionId(value);
+                                                    onThinkingChange?.(value);
                                                     setIsThinkingMenuOpen(false);
                                                 }}
                                             >

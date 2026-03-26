@@ -22,6 +22,7 @@ export function createConversationSlice(
     | 'renameConversation'
     | 'moveConversation'
     | 'setConversationModel'
+    | 'setConversationThinkingOptionId'
     | 'clearPersistedContext'
     | 'updatePersistedContext'
 > {
@@ -117,7 +118,13 @@ export function createConversationSlice(
 
         setConversationModel: async (conversationId, model) => {
             const { userId, channelId } = requireContext(get);
-            await ChatService.updateConversation(userId, channelId, conversationId, { model });
+            // Clear thinkingOptionId when model changes — different models have different thinking options
+            await ChatService.updateConversation(userId, channelId, conversationId, { model, thinkingOptionId: null });
+        },
+
+        setConversationThinkingOptionId: async (conversationId, thinkingOptionId) => {
+            const { userId, channelId } = requireContext(get);
+            await ChatService.updateConversation(userId, channelId, conversationId, { thinkingOptionId: thinkingOptionId ?? null });
         },
 
         clearPersistedContext: async (conversationId) => {

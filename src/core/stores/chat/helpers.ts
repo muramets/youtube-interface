@@ -3,6 +3,7 @@
 // =============================================================================
 
 import type { AiAssistantSettings, ChatProject, ChatMessage } from '../../types/chat/chat';
+import { MODEL_REGISTRY } from '../../types/chat/chat';
 import type { AppContextItem } from '../../types/appContext';
 import { mergeContextItems } from '../../types/appContext';
 import type { ChatState } from './types';
@@ -30,6 +31,29 @@ export function resolveModel(
     const project = projects.find(p => p.id === activeProjectId)
         ?? (conversationProjectId ? projects.find(p => p.id === conversationProjectId) : undefined);
     return project?.model || aiSettings.defaultModel;
+}
+
+/**
+ * Resolve thinking option ID with defensive validation.
+ * Cascade: pendingThinkingOptionId → conversation.thinkingOptionId → model.thinkingDefault.
+ * If the resolved ID is not valid for the current model, falls back to thinkingDefault.
+ */
+export function resolveThinkingOptionId(
+    modelId: string,
+    pendingThinkingOptionId?: string | null,
+    conversationThinkingOptionId?: string | null,
+): string | null {
+    const modelConfig = MODEL_REGISTRY.find(m => m.id === modelId);
+    if (!modelConfig) return null;
+
+    const candidate = pendingThinkingOptionId ?? conversationThinkingOptionId ?? null;
+
+    // No override — use model default (return null so sendSlice sends undefined → server uses default)
+    if (!candidate) return null;
+
+    // Validate: candidate must exist in this model's thinkingOptions
+    const isValid = modelConfig.thinkingOptions.some(o => o.id === candidate);
+    return isValid ? candidate : null;
 }
 
 /** Rebuild persistedContext from surviving messages' appContext fields. */
