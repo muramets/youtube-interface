@@ -181,6 +181,29 @@ Breakpoint 4: (резерв)
 
 ---
 
+## Thinking Parameters и Cache (empirical finding, 2026-03-26)
+
+Документация Anthropic утверждает: "System prompts and tools remain cached despite thinking parameter changes. Only message cache is invalidated."
+
+**Реальное поведение (подтверждено тестами с SHA-256 хэшами payload):**
+
+Cache entries создаются **per thinking configuration**. Thinking params (`type` + `effort`) входят в cache key на ВСЕХ уровнях (tools, system, messages), а не только на уровне messages.
+
+| Сценарий | Результат |
+|---|---|
+| Сообщение 2 с тем же effort level | Cache HIT (tools + system + частично messages) |
+| Первое переключение на новый effort level | Cache MISS на всех уровнях (entry для этого config не существует) |
+| Возврат к ранее использованному level (в пределах TTL) | Cache HIT (entry ещё жива) |
+
+**Практические следствия:**
+- "Стоимость" переключения thinking — одноразовая per effort level. После прогрева всех уровней (low, medium, high) дальнейшие переключения — cache hits.
+- Для нового разговора: первое сообщение = cache write (~$0.06 для Sonnet). Если пользователь переключит effort mid-chat — ещё один write. Но при возврате к прежнему level — hit.
+- Cross-conversation cache sharing работает: entry от предыдущего разговора с тем же effort level переиспользуется (в пределах 1h TTL).
+
+**Методология проверки:** debug-хэши (SHA-256 prefix 16 chars) `system`, `tools`, `messages` payload записывались в `contextBreakdown.cacheDebug`. Хэши system и tools идентичны между сообщениями с разными thinking configs → контент побайтово одинаковый, но cache miss происходит. Дополнительно проверено: Anthropic SDK не мутирует params объект.
+
+---
+
 ## Technical Implementation
 
 ### Точки изменения — Stage 1
@@ -294,7 +317,7 @@ tokenUsage = {
 | Feature | Взаимодействие | Действие |
 |---------|---------------|----------|
 | Retry (`withStreamRetry`) | Retry = новый запрос → cache read (не write) | Бесплатный бонус — retry дешевле с кэшем |
-| Thinking mode | `thinkingConfig` передаётся отдельно от cache — runtime only | Без изменений |
+| Thinking mode | Separate cache entries per thinking config (см. ниже) | Cache hit только при совпадении thinking params |
 | Attachments | Картинки в messages кэшируются как часть content blocks | Без изменений |
 | Agentic loop (Claude) | Tool results → incremental cache → breakpoint 3 сдвигается | Без изменений |
 | Agentic loop (Gemini) | Only iteration 1 uses cache. Iterations 2+ send full contents (tool results not in cache) | Cache recreated after response with full exchange |

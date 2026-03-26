@@ -120,7 +120,29 @@
 
 **Отличие от L3:** L3 — временное сжатие для управления контекстным окном (живёт в рамках одной беседы). L4 — постоянная "база знаний" пользователя (живёт вечно, видна во всех беседах).
 
-**Cache-оптимизация: frozen snapshot.** L4 memories инжектируются в system prompt как `memoriesSnapshot` — замороженный snapshot, привязанный к конкретному разговору через `frozenForConversationId` (module-level переменная в `navigationSlice`). Snapshot обновляется **только при переключении на другой разговор** — навигация в conversation list, закрытие панели, редактирование memories в Settings, saveMemory mid-chat **не сбрасывают** snapshot. Новые или изменённые memories вступают в силу в следующем разговоре. Это предотвращает каскадную инвалидацию prompt cache (prefix-based cache ломается при любом изменении в system prompt → re-cache всего downstream контента). Подробнее: [Prompt Caching](./prompt-caching.md).
+**Cache-оптимизация: frozen snapshot.** L4 memories инжектируются в system prompt как `memoriesSnapshot` — замороженный snapshot. Это предотвращает каскадную инвалидацию prompt cache: prefix-based cache ломается при любом изменении в system prompt → re-cache всего downstream контента (tools, history). Подробнее: [Prompt Caching](./prompt-caching.md).
+
+**Механизм freeze:**
+- `frozenForConversationId` — module-level переменная в `navigationSlice.ts`. Хранит ID разговора, для которого snapshot был заморожен.
+- `memoriesSnapshot` — массив `ConversationMemory[]` в store. Используется для `buildSystemPrompt()` вместо live `memories`.
+- Snapshot обновляется **только при переключении на другой разговор** (когда `conversationId !== frozenForConversationId`).
+
+**Два пути создания чата и синхронизация `frozenForConversationId`:**
+
+| Путь | Где устанавливается `frozenForConversationId` |
+|------|----------------------------------------------|
+| `startNewChat()` | → `null`, затем `sendSlice` вызывает `setFrozenConversationId(convId)` при lazy-create conversation |
+| `setActiveConversation(id)` | → `id` (если `id !== frozenForConversationId`) |
+
+**Что НЕ сбрасывает snapshot:**
+- Навигация в conversation list и возврат в тот же чат (guard: `id === frozenForConversationId`)
+- `saveMemory` / `editMemory` mid-chat (пишут в Firestore, live подписка обновляет `memories`, но `memoriesSnapshot` не трогается)
+- Редактирование memories в Settings UI
+- Закрытие/открытие chat panel
+
+**Что сбрасывает snapshot:**
+- Переход в другой разговор (`setActiveConversation` с новым ID)
+- Начало нового чата (`startNewChat` → свежий snapshot из текущих `memories`)
 
 **Что извлекается** (по инструкции):
 - Принятые решения и почему

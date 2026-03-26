@@ -9,6 +9,11 @@ import { session } from '../session';
 /** Tracks which conversation the memoriesSnapshot was frozen for — survives setActiveConversation(null) navigations. */
 let frozenForConversationId: string | null = null;
 
+/** Sync frozenForConversationId after lazy-create in sendSlice (where setActiveConversation can't be called — it resets messages). */
+export function setFrozenConversationId(id: string): void {
+    frozenForConversationId = id;
+}
+
 export function createNavigationSlice(
     set: (partial: Partial<ChatState>) => void,
     get: () => ChatState,

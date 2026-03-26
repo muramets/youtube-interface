@@ -26,6 +26,7 @@ import type { AppContextItem } from '../../../types/appContext';
 import type { ChatState, ActiveToolCall } from '../types';
 import { session, startStreamingSession, cacheSessionThinking } from '../session';
 import { requireContext, resolveModel, rebuildPersistedContext } from '../helpers';
+import { setFrozenConversationId } from './navigationSlice';
 
 // =============================================================================
 // Internal flow helpers (not exported)
@@ -291,6 +292,9 @@ export function createSendSlice(
                     );
                     convId = conversation.id;
                     set({ pendingConversationId: null, pendingModel: null });
+                    // Sync frozenForConversationId so returning to this chat (via conversation list)
+                    // doesn't refresh memoriesSnapshot and break prompt cache
+                    setFrozenConversationId(convId);
                     // Apply pending model to newly created conversation
                     if (pendingModel) {
                         ChatService.updateConversation(userId, channelId, convId, { model: pendingModel });

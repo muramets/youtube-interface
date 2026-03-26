@@ -107,7 +107,7 @@
 
 ### Frozen snapshot и prompt cache
 
-`memoriesSnapshot` замерзает при входе в разговор (navigationSlice). System prompt строится из snapshot. `editMemory` пишет в Firestore, но **snapshot не обновляется** — prompt cache остаётся валидным.
+`memoriesSnapshot` замерзает при входе в разговор. System prompt строится из snapshot. `editMemory` пишет в Firestore, но **snapshot не обновляется** — prompt cache остаётся валидным. Полный механизм freeze: [Memory System — frozen snapshot](./memory-system.md#l4--cross-conversation-memory).
 
 ```
 Chat B (активный)                          Firestore
