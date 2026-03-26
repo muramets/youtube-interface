@@ -26,7 +26,7 @@ import type { AppContextItem } from '../../../types/appContext';
 import type { ChatState, ActiveToolCall } from '../types';
 import { session, startStreamingSession, cacheSessionThinking } from '../session';
 import { requireContext, resolveModel, rebuildPersistedContext } from '../helpers';
-import { setFrozenConversationId } from './navigationSlice';
+import { setFrozenConversationId, refreshSnapshotIfStale } from './navigationSlice';
 
 // =============================================================================
 // Internal flow helpers (not exported)
@@ -171,6 +171,9 @@ async function resumeSendFlow(
     isFirstExchange?: boolean,
     isConclude?: boolean,
 ): Promise<void> {
+    // Unfreeze memories if cache TTL expired (no cache to protect after 1 hour)
+    refreshSnapshotIfStale(get, set);
+
     const { aiSettings, projects, activeProjectId, messages, memoriesSnapshot: memories } = get();
 
     // Re-activate streaming UI

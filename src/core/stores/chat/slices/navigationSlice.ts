@@ -8,10 +8,24 @@ import { session } from '../session';
 
 /** Tracks which conversation the memoriesSnapshot was frozen for — survives setActiveConversation(null) navigations. */
 let frozenForConversationId: string | null = null;
+/** When the snapshot was frozen — used to detect staleness (cache TTL expiry). */
+let frozenAt: number | null = null;
+
+/** Anthropic prompt cache TTL. After this period, frozen snapshot provides no cache benefit. */
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 /** Sync frozenForConversationId after lazy-create in sendSlice (where setActiveConversation can't be called — it resets messages). */
 export function setFrozenConversationId(id: string): void {
     frozenForConversationId = id;
+    frozenAt = Date.now();
+}
+
+/** Check if the frozen snapshot is stale (older than cache TTL). If so, refresh from live memories. */
+export function refreshSnapshotIfStale(get: () => ChatState, set: (partial: Partial<ChatState>) => void): void {
+    if (frozenAt !== null && Date.now() - frozenAt > CACHE_TTL_MS) {
+        frozenAt = Date.now();
+        set({ memoriesSnapshot: get().memories });
+    }
 }
 
 export function createNavigationSlice(
@@ -48,8 +62,12 @@ export function createNavigationSlice(
         setActiveConversation: (id) => {
             // Invalidate any running stream's UI callbacks (stream itself keeps running)
             session.streamingNonce++;
-            const shouldRefreshSnapshot = id !== null && id !== frozenForConversationId;
-            if (shouldRefreshSnapshot) frozenForConversationId = id;
+            const isStale = frozenAt !== null && Date.now() - frozenAt > CACHE_TTL_MS;
+            const shouldRefreshSnapshot = id !== null && (id !== frozenForConversationId || isStale);
+            if (shouldRefreshSnapshot) {
+                frozenForConversationId = id;
+                frozenAt = Date.now();
+            }
             set({
                 activeConversationId: id,
                 pendingConversationId: null,
@@ -75,6 +93,7 @@ export function createNavigationSlice(
             // Invalidate any running stream's UI callbacks (stream itself keeps running)
             session.streamingNonce++;
             frozenForConversationId = null;
+            frozenAt = Date.now();
             set({
                 activeConversationId: null,
                 pendingConversationId: crypto.randomUUID(),

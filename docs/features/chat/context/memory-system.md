@@ -143,6 +143,7 @@
 **Что сбрасывает snapshot:**
 - Переход в другой разговор (`setActiveConversation` с новым ID)
 - Начало нового чата (`startNewChat` → свежий snapshot из текущих `memories`)
+- Неактивность >60 мин — `frozenAt` + `CACHE_TTL_MS` guard. Проверяется в `setActiveConversation` (возврат в чат) и в `refreshSnapshotIfStale` (перед `buildSystemPrompt` в sendSlice). После 1 часа prompt cache Anthropic истёк → замораживание не даёт выигрыша, а пользователь получает устаревшие memories
 
 **Что извлекается** (по инструкции):
 - Принятые решения и почему
