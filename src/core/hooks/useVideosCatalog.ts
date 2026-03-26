@@ -5,6 +5,7 @@ import { db } from '../../config/firebase'
 import { useAuth } from './useAuth'
 import { useChannelStore } from '../stores/channelStore'
 import { useVideos } from './useVideos'
+import { useVideoDeltaMap } from './useVideoDeltaMap'
 import type { VideoPreviewData } from '../../features/Video/types'
 import type { TrendVideo } from '../types/trends'
 import { hasRealVideoData } from '../../../shared/memory'
@@ -14,10 +15,15 @@ import { hasRealVideoData } from '../../../shared/memory'
  *
  * Merges:
  * - Own videos (from useVideos — already subscribed)
- * - Trend channel videos (from Firestore, one-time fetch, cached 5min)
+ * - Trend channel videos (from Firestore, one-time fetch, cached 90min)
+ * - View deltas (from useVideoDeltaMap — cached trend snapshots)
  *
  * Returns VideoPreviewData[] sorted by title.
- * Used for both editing (@-autocomplete) and read-only rendering (vid:// tooltips).
+ * Used for editing (@-autocomplete), read-only rendering (vid:// tooltips),
+ * and Chat Layer 3 mention resolution.
+ *
+ * Delta enrichment: videos whose channels are tracked in Trends
+ * receive delta24h/7d/30d fields. Others remain without deltas.
  */
 export function useVideosCatalog(): VideoPreviewData[] {
     const { user } = useAuth()
@@ -63,6 +69,20 @@ export function useVideosCatalog(): VideoPreviewData[] {
         enabled: !!userId && !!channelId,
     })
 
+    // Collect all YouTube video IDs for delta lookup
+    const allVideoIds = useMemo(() => {
+        const ids: string[] = []
+        for (const v of ownVideos) {
+            ids.push(v.publishedVideoId ?? v.id)
+        }
+        for (const tv of (trendVideos ?? [])) {
+            ids.push(tv.videoId)
+        }
+        return ids
+    }, [ownVideos, trendVideos])
+
+    const { perVideo: deltaMap } = useVideoDeltaMap(allVideoIds)
+
     return useMemo(() => {
         const catalog: VideoPreviewData[] = []
         const seen = new Set<string>()
@@ -73,6 +93,7 @@ export function useVideosCatalog(): VideoPreviewData[] {
             if (seen.has(key)) continue
             seen.add(key)
             const hasRealData = hasRealVideoData(v)
+            const deltas = deltaMap.get(v.publishedVideoId ?? v.id)
             catalog.push({
                 videoId: v.id,
                 youtubeVideoId: v.publishedVideoId ?? v.id,
@@ -82,19 +103,32 @@ export function useVideosCatalog(): VideoPreviewData[] {
                 viewCount: hasRealData && v.viewCount ? Number(v.viewCount) : undefined,
                 publishedAt: hasRealData ? v.publishedAt : undefined,
                 ownership: v.isDraft ? 'own-draft' : 'own-published',
+                ...(deltas && {
+                    delta24h: deltas.delta24h,
+                    delta7d: deltas.delta7d,
+                    delta30d: deltas.delta30d,
+                }),
             })
         }
 
-        // Trend videos (skip duplicates)
+        // Trend videos (skip duplicates, enrich with deltas)
         if (trendVideos) {
             for (const tv of trendVideos) {
                 if (seen.has(tv.videoId)) continue
                 seen.add(tv.videoId)
-                catalog.push(tv)
+                const deltas = deltaMap.get(tv.videoId)
+                catalog.push({
+                    ...tv,
+                    ...(deltas && {
+                        delta24h: deltas.delta24h,
+                        delta7d: deltas.delta7d,
+                        delta30d: deltas.delta30d,
+                    }),
+                })
             }
         }
 
         catalog.sort((a, b) => a.title.localeCompare(b.title))
         return catalog
-    }, [ownVideos, trendVideos])
+    }, [ownVideos, trendVideos, deltaMap])
 }

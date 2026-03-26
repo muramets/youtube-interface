@@ -21,9 +21,10 @@
 - [x] Отображение в Playlist Details (суммарные дельты в header, сортировка по дельтам, per-video delta в VideoCard)
 - [x] Enrichment для AI Chat (автоматическое обогащение контекста перед отправкой модели + channelIdHints)
 - [x] Единый вычислитель (`shared/viewDeltas.ts` — SSOT алгоритм, все потребители делегируют)
-- [x] Кэширование (`useTrendSnapshots()` — TanStack Query in-memory, инвалидация по `lastUpdated`)
+- [x] Кэширование (`useTrendSnapshots()` — TanStack Query, один слот на канал, `gcTime: Infinity`, invalidation по `lastUpdated`)
 - [x] Серверные AI tools имеют доступ к view deltas (`getMultipleVideoDetails` + `analyzeSuggestedTraffic`)
 - [x] `analyzeSuggestedTraffic` tool обогащён view deltas на suggested videos
+- [x] Дельты в тултипах KI / Chat @-mentions / Watch (`useVideosCatalog` обогащён через `useVideoDeltaMap`)
 - [ ] IndexedDB persistence (отложено — in-memory cache достаточен для текущего масштаба)
 
 ## Источник данных: Trend Snapshots
@@ -162,7 +163,21 @@ snapshot = первый snapshot, где snapshot.timestamp <= target
 
 **⚠️ Non-React context:** Этот middleware запускается из `chatStore.sendMessage`, не внутри React. Использует `computeVideoDeltas()` (прямые Firestore reads через `TrendService`), а НЕ `useTrendSnapshots()` hook. `channelIdHints` здесь уменьшает **количество Firestore reads** (меньше каналов сканируется), а не cache hits.
 
-### 5. Server-Side AI Tools
+### 5. Video Catalog (KI / Chat / Watch Tooltips)
+
+**Где:** `src/core/hooks/useVideosCatalog.ts`
+
+**Как получает данные:** `useVideosCatalog()` собирает video IDs из обоих источников (own published + trend) и вызывает `useVideoDeltaMap(allVideoIds)`. При сборке каталога дельты подмешиваются в каждую запись, для которой они доступны (spread `delta24h/7d/30d` из `deltaMap`).
+
+**Что покрывает:**
+- **KI тултипы** (vid:// ссылки в Knowledge Items) — через `VideoRefContext` → `VideoRefView` → `VideoPreviewTooltip`
+- **Watch тултипы** (vid:// ссылки в Watch Page) — аналогичный путь
+- **Chat @-mentions** (Layer 3 в `ChatMessageList`) — каталог используется как fallback для видео, не найденных в tool results
+- **@-autocomplete** в RichTextEditor — каталог содержит дельты, но autocomplete их не отображает (не релевантно)
+
+**Graceful degradation:** Если канал видео не отслеживается в Trends — дельт не будет (deltaMap для этого видео пуст), запись каталога остаётся без delta-полей. Тултип просто не покажет секцию роста.
+
+### 6. Server-Side AI Tools
 
 **Где:** `functions/src/services/tools/handlers/`
 
@@ -227,8 +242,13 @@ useTrendTableData()  useVideoDeltaMap()  enrichContextWithDeltas()
 Trends Table         |      +-> VideoPreviewTooltip  prepareContext()
 (24h/7d/30d +        |                               +-> System Prompt
  totals + sort)      +---> usePlaylistDeltaStats()
-                            +-> PlaylistSubtitle (aggregate header)
-                            +-> VideoCard (currentViews + delta24h)
+                     |      +-> PlaylistSubtitle (aggregate header)
+                     |      +-> VideoCard (currentViews + delta24h)
+                     |
+                     +---> useVideosCatalog()
+                             +-> KI tooltips (VideoRefView)
+                             +-> Watch tooltips (VideoRefView)
+                             +-> Chat @-mentions (Layer 3)
 ```
 
 ---
@@ -240,7 +260,7 @@ Trends Table         |      +-> VideoPreviewTooltip  prepareContext()
 | 1 | Snapshots остаются source of truth, без денормализации | Сохраняет возможность рисовать графики просмотров per day; нет лимитов на размер канала |
 | 2 | Гибрид: enrichment middleware + серверные tools оба имеют доступ к дельтам | Прикреплённые видео обогащаются автоматически; tools обогащают по запросу LLM |
 | 3 | Серверные tools читают snapshots напрямую через admin SDK | Единственный вариант без денормализации; ~0.1-0.2s latency приемлемо |
-| 4 | TanStack Query in-memory cache, инвалидация по `lastUpdated` | Snapshots неизменяемы; `gcTime: 30min`; IndexedDB отложен до реальной потребности |
+| 4 | TanStack Query in-memory cache, один слот на канал, `gcTime: Infinity` | Snapshots неизменяемы между синками; `lastUpdated` не в queryKey — вместо него `useEffect` + `invalidateQueries()` при синке; ноль осиротевших записей; IndexedDB отложен до реальной потребности |
 | 5 | `analyzeSuggestedTraffic` обогащается view deltas | +~750-1150 токенов, но LLM видит: видео даёт impressions моему видео И одновременно растёт на YouTube |
 | 6 | Tests first → refactor second | 865 тестов (35 файлов) обеспечивают regression safety |
 | 7 | Shared algorithm in `shared/viewDeltas.ts` | Один алгоритм, 0 I/O, 0 зависимостей — используется frontend + backend |
@@ -282,9 +302,10 @@ interface VideoDeltaStats {
 | Файл | Роль |
 |------|------|
 | `shared/viewDeltas.ts` | **SSOT**: `calculateViewDeltas()` + `VideoDeltaStats` + `DELTA_SNAPSHOT_DAYS` (35). Zero imports. |
-| `src/core/hooks/useTrendSnapshots.ts` | TanStack Query cache: per-channel queries, keyed by `lastUpdated`, `gcTime: 30min` |
+| `src/core/hooks/useTrendSnapshots.ts` | TanStack Query cache: per-channel queries, `gcTime: Infinity`, invalidation via `lastUpdated` change detection |
 | `src/core/utils/computeVideoDeltas.ts` | I/O wrapper (non-React): Firestore reads → `calculateViewDeltas()`. Для AI middleware. |
 | `src/core/hooks/useVideoDeltaMap.ts` | React hook: `useTrendSnapshots()` → `calculateViewDeltas()` → `Map<videoId, VideoDeltaStats>` |
+| `src/core/hooks/useVideosCatalog.ts` | Video catalog: enriches own + trend videos with deltas via `useVideoDeltaMap()` → feeds KI/Chat/Watch tooltips |
 | `src/features/Playlists/hooks/usePlaylistDeltaStats.ts` | Aggregation: per-video + totals для плейлиста |
 | `src/core/ai/pipeline/enrichContextWithDeltas.ts` | AI Chat: enrichment middleware + `channelIdHints` |
 | `src/pages/Trends/hooks/useTrendTableData.ts` | Trends Table: cached snapshots → `calculateViewDeltas()` |
