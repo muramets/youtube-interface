@@ -40,6 +40,12 @@ export const UnifiedMention = Extension.create<UnifiedMentionOptions>({
     addProseMirrorPlugins() {
         const { videoCatalog, knowledgeCatalog, popupDirection } = this.options
 
+        // videoId → thumbnailUrl lookup for KI rows with video scope
+        const videoThumbnailMap = new Map<string, string>()
+        for (const v of videoCatalog) {
+            if (v.thumbnailUrl) videoThumbnailMap.set(v.videoId, v.thumbnailUrl)
+        }
+
         // Shared mode state — persists across filter calls within a single @-session
         let currentMode: MentionMode = 'videos'
 
@@ -130,6 +136,7 @@ export const UnifiedMention = Extension.create<UnifiedMentionOptions>({
                         queryLength: lastQuery.length,
                         hasVideos: videoCatalog.length > 0,
                         hasKnowledge: knowledgeCatalog.length > 0,
+                        videoThumbnailMap,
                         onModeChange: (mode: MentionMode) => {
                             currentMode = mode
                             const refiltered = filterItems(lastQuery)

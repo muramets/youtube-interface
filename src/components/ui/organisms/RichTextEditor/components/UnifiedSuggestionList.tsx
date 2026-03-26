@@ -23,10 +23,12 @@ interface UnifiedSuggestionListProps {
     hasKnowledge: boolean
     /** Current query length — dropdown hidden until >= 2 chars */
     queryLength: number
+    /** videoId → thumbnailUrl lookup for KI rows with video scope */
+    videoThumbnailMap?: Map<string, string>
 }
 
 export const UnifiedSuggestionList = forwardRef<UnifiedSuggestionListRef, UnifiedSuggestionListProps>(
-    ({ items, command, mode, onModeChange, hasVideos, hasKnowledge, queryLength }, ref) => {
+    ({ items, command, mode, onModeChange, hasVideos, hasKnowledge, queryLength, videoThumbnailMap }, ref) => {
         const [rawIndex, setRawIndex] = useState(0)
         const listRef = useRef<HTMLDivElement>(null)
 
@@ -115,7 +117,7 @@ export const UnifiedSuggestionList = forwardRef<UnifiedSuggestionListRef, Unifie
                                 {item.kind === 'video' ? (
                                     <VideoRow video={item.data} />
                                 ) : (
-                                    <KiRow ki={item.data} />
+                                    <KiRow ki={item.data} videoThumbnailMap={videoThumbnailMap} />
                                 )}
                             </button>
                         ))
@@ -160,12 +162,22 @@ function VideoRow({ video }: { video: VideoPreviewData }) {
     )
 }
 
-function KiRow({ ki }: { ki: KiPreviewData }) {
+function KiRow({ ki, videoThumbnailMap }: { ki: KiPreviewData; videoThumbnailMap?: Map<string, string> }) {
+    const thumbnailUrl = ki.videoId ? videoThumbnailMap?.get(ki.videoId) : undefined
+
     return (
         <>
-            <div className="w-7 h-7 rounded flex items-center justify-center flex-shrink-0 bg-accent/10">
-                <BookOpen size={14} className="text-accent" />
-            </div>
+            {thumbnailUrl ? (
+                <img
+                    src={thumbnailUrl}
+                    alt=""
+                    className="w-12 aspect-video object-cover rounded flex-shrink-0"
+                />
+            ) : (
+                <div className="w-7 h-7 rounded flex items-center justify-center flex-shrink-0 bg-accent/10">
+                    <BookOpen size={14} className="text-accent" />
+                </div>
+            )}
             <div className="flex-1 min-w-0">
                 <div className="text-xs text-text-primary truncate">{ki.title}</div>
                 <div className="text-[10px] text-text-tertiary truncate capitalize">{ki.category.replace(/-/g, ' ')}</div>
