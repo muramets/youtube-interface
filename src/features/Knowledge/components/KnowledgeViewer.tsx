@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { motion, AnimatePresence } from 'framer-motion'
 import { Minimize, Bot, Calendar, Tag } from 'lucide-react'
 import { CollapsibleMarkdownSections } from './CollapsibleMarkdownSections'
 import { formatKnowledgeDate, formatVersionLabel } from '../utils/formatDate'
@@ -27,7 +26,7 @@ interface KnowledgeViewerProps {
  * KnowledgeViewer — Zen Mode
  *
  * Fullscreen read-only overlay for viewing Knowledge Item content.
- * Portal + AnimatePresence + backdrop blur.
+ * Portal + CSS animation + backdrop blur.
  * Includes version history dropdown. When a version is selected,
  * shows split-view DiffViewer (old version vs current) and expands to near-fullscreen.
  *
@@ -83,21 +82,14 @@ export const KnowledgeViewer = React.memo(({
     const outerPadding = isDiffActive ? 'p-4 sm:p-8' : 'p-10'
 
     return createPortal(
-        <AnimatePresence>
-            <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className={`fixed inset-0 z-modal flex items-center justify-center bg-black/60 backdrop-blur-sm ${outerPadding}`}
-                onClick={onClose}
+        <div
+            className={`fixed inset-0 z-modal flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in ${outerPadding}`}
+            onClick={onClose}
+        >
+            <div
+                className={`${containerClass} animate-scale-in`}
+                onClick={(e) => e.stopPropagation()}
             >
-                <motion.div
-                    initial={{ scale: 0.95, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.95, opacity: 0 }}
-                    className={containerClass}
-                    onClick={(e) => e.stopPropagation()}
-                >
                     {/* Header */}
                     <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-bg-secondary">
                         <div className="flex flex-col gap-1 min-w-0 flex-1 mr-4">
@@ -160,9 +152,8 @@ export const KnowledgeViewer = React.memo(({
                             />
                         </div>
                     )}
-                </motion.div>
-            </motion.div>
-        </AnimatePresence>,
+            </div>
+        </div>,
         document.body
     )
 })
