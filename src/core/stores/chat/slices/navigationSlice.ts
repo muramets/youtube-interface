@@ -42,12 +42,20 @@ export function setFrozenConversationId(id: string): void {
     persistFrozenState();
 }
 
-/** Check if the frozen snapshot is stale (older than cache TTL). If so, refresh from live memories. */
+/** Check if the frozen snapshot is stale (older than cache TTL). If so, refresh from live memories.
+ *  Called before each sendMessage — also extends frozenAt to track cache TTL renewal
+ *  (Anthropic resets TTL on each cache use, so sending a message = cache still alive). */
 export function refreshSnapshotIfStale(get: () => ChatState, set: (partial: Partial<ChatState>) => void): void {
-    if (frozenAt !== null && Date.now() - frozenAt > CACHE_TTL_MS) {
+    if (frozenAt === null) return;
+    if (Date.now() - frozenAt > CACHE_TTL_MS) {
+        // Stale — cache expired, refresh snapshot with live memories
         frozenAt = Date.now();
         persistFrozenState();
         set({ memoriesSnapshot: get().memories });
+    } else {
+        // Not stale — extend TTL tracking (cache was just used by this message)
+        frozenAt = Date.now();
+        persistFrozenState();
     }
 }
 
