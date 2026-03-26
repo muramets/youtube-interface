@@ -1,10 +1,11 @@
 import { useMemo } from 'react'
-import ReactMarkdown from 'react-markdown'
+import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
 import { computeDiffBlocks, allowCustomUrls, type DiffBlock } from '../utils/diffUtils'
 import { buildBodyComponents } from '../utils/bodyComponents'
+import { mergeTableBlocks, type DisplayBlock, type MergedTableBlock } from '../utils/tableDiffMerge'
 import { linkifyVideoIds } from '../../../core/utils/linkifyVideoIds'
 import type { VideoPreviewData } from '../../Video/types'
 
@@ -53,10 +54,15 @@ interface RenderedDiffViewerProps {
 export const RenderedDiffViewer = ({
     oldContent, newContent, oldLabel, newLabel, videoMap,
 }: RenderedDiffViewerProps) => {
-    const { left, right, stats } = useMemo(() => {
+    const { mergedLeft, mergedRight, stats } = useMemo(() => {
         const oldLinkified = videoMap ? linkifyVideoIds(oldContent, videoMap) : oldContent
         const newLinkified = videoMap ? linkifyVideoIds(newContent, videoMap) : newContent
-        return computeDiffBlocks(oldLinkified, newLinkified)
+        const { left, right, stats: s } = computeDiffBlocks(oldLinkified, newLinkified)
+        return {
+            mergedLeft: mergeTableBlocks(left, 'left'),
+            mergedRight: mergeTableBlocks(right, 'right'),
+            stats: s,
+        }
     }, [oldContent, newContent, videoMap])
 
     const mdComponents = useMemo(() => buildBodyComponents(videoMap, 'prose'), [videoMap])
@@ -90,26 +96,82 @@ export const RenderedDiffViewer = ({
             {/* Diff content — two independent scroll columns */}
             <div className="flex-1 grid grid-cols-2 overflow-hidden min-h-0">
                 <div className="overflow-y-auto px-4 py-3" style={{ borderRight: '1px solid var(--diff-separator)' }}>
-                    {left.map((block, i) => (
-                        <DiffBlockView
-                            key={i}
-                            block={block}
-                            side="left"
-                            components={mdComponents}
-                        />
+                    {mergedLeft.map((db, i) => (
+                        <DisplayBlockView key={i} displayBlock={db} side="left" components={mdComponents} />
                     ))}
                 </div>
                 <div className="overflow-y-auto px-4 py-3">
-                    {right.map((block, i) => (
-                        <DiffBlockView
-                            key={i}
-                            block={block}
-                            side="right"
-                            components={mdComponents}
-                        />
+                    {mergedRight.map((db, i) => (
+                        <DisplayBlockView key={i} displayBlock={db} side="right" components={mdComponents} />
                     ))}
                 </div>
             </div>
+        </div>
+    )
+}
+
+/** Routes a DisplayBlock to the appropriate renderer */
+export const DisplayBlockView = ({
+    displayBlock, side, components,
+}: {
+    displayBlock: DisplayBlock
+    side: 'left' | 'right'
+    components: ReturnType<typeof buildBodyComponents>
+}) => {
+    if (displayBlock.kind === 'table') {
+        return <TableDiffBlockView table={displayBlock} components={components} />
+    }
+    return <DiffBlockView block={displayBlock.block} side={side} components={components} />
+}
+
+/**
+ * Renders a merged table with row-level diff highlighting.
+ * Builds a complete GFM markdown table so remark-gfm parses it correctly,
+ * then overrides the `tr` component to apply per-row background colors.
+ */
+const TableDiffBlockView = ({
+    table, components: baseComponents,
+}: {
+    table: MergedTableBlock
+    components: ReturnType<typeof buildBodyComponents>
+}) => {
+    const markdown = [
+        table.headerLine,
+        table.separatorLine,
+        ...table.rows.map(r => r.line),
+    ].join('\n')
+
+    const rowTypes = [table.headerType, ...table.rows.map(r => r.type)]
+
+    // Mutable counter — safe: ReactMarkdown renders <tr> elements synchronously in DOM order
+    let trIdx = 0
+
+    const components: Components = {
+        ...baseComponents,
+        tr: ({ children }) => {
+            const type = rowTypes[trIdx++] ?? 'unchanged'
+            return (
+                <tr style={
+                    type === 'added' ? { backgroundColor: 'var(--diff-added-bg)' }
+                        : type === 'removed' ? { backgroundColor: 'var(--diff-removed-bg)' }
+                            : undefined
+                }>
+                    {children}
+                </tr>
+            )
+        },
+    }
+
+    return (
+        <div className="my-1">
+            <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                rehypePlugins={[rehypeRaw, [rehypeSanitize, diffSanitizeSchema]]}
+                components={components}
+                urlTransform={allowCustomUrls}
+            >
+                {markdown}
+            </ReactMarkdown>
         </div>
     )
 }

@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from 'react'
 import { X, RotateCcw } from 'lucide-react'
 import { buildBodyComponents } from '../utils/bodyComponents'
 import { computeDiffBlocks } from '../utils/diffUtils'
-import { DiffBlockView } from './RenderedDiffViewer'
+import { mergeTableBlocks } from '../utils/tableDiffMerge'
+import { DisplayBlockView } from './RenderedDiffViewer'
 import type { VideoPreviewData } from '../../Video/types'
 
 interface LiveDiffPanelProps {
@@ -36,10 +37,10 @@ export const LiveDiffPanel = ({ oldContent, newContent, label, videoMap, onClose
         return () => clearTimeout(timer)
     }, [newContent])
 
-    const { left, stats } = useMemo(
-        () => computeDiffBlocks(oldContent, debouncedNew),
-        [oldContent, debouncedNew],
-    )
+    const { mergedLeft, stats } = useMemo(() => {
+        const { left, stats: s } = computeDiffBlocks(oldContent, debouncedNew)
+        return { mergedLeft: mergeTableBlocks(left, 'left'), stats: s }
+    }, [oldContent, debouncedNew])
 
     const mdComponents = useMemo(() => buildBodyComponents(videoMap, 'prose'), [videoMap])
 
@@ -85,10 +86,10 @@ export const LiveDiffPanel = ({ oldContent, newContent, label, videoMap, onClose
 
             {/* Rendered diff blocks — old version side */}
             <div className="flex-1 overflow-y-auto px-4 py-3">
-                {left.map((block, i) => (
-                    <DiffBlockView
+                {mergedLeft.map((db, i) => (
+                    <DisplayBlockView
                         key={i}
-                        block={block}
+                        displayBlock={db}
                         side="left"
                         components={mdComponents}
                     />
