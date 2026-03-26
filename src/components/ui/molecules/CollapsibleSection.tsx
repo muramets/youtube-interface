@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { ChevronDown, GripVertical } from 'lucide-react';
 
 interface CollapsibleSectionProps {
@@ -46,7 +46,16 @@ export function CollapsibleSection({
 
     const isSectionOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen;
 
+    // Skip the overflow timer on mount if the section is already open —
+    // no expand animation occurred, so overflow-visible can be set immediately.
+    // The timer is only needed when toggling from closed → open (to wait for the
+    // grid-rows CSS transition to finish before showing overflow).
+    const isFirstRender = useRef(true);
     React.useEffect(() => {
+        if (isFirstRender.current) {
+            isFirstRender.current = false;
+            if (isSectionOpen) return; // already open on mount — overflow already visible via initial state
+        }
         let timer: ReturnType<typeof setTimeout>;
         if (isSectionOpen) {
             timer = setTimeout(() => setOverflowVisible(true), 300);

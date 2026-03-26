@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Minimize, Bot, Calendar, Tag } from 'lucide-react'
 import { CollapsibleMarkdownSections } from './CollapsibleMarkdownSections'
@@ -26,7 +26,7 @@ interface KnowledgeViewerProps {
  * KnowledgeViewer — Zen Mode
  *
  * Fullscreen read-only overlay for viewing Knowledge Item content.
- * Portal + CSS animation + backdrop blur.
+ * Portal + CSS transition + backdrop blur.
  * Includes version history dropdown. When a version is selected,
  * shows split-view DiffViewer (old version vs current) and expands to near-fullscreen.
  *
@@ -57,6 +57,14 @@ export const KnowledgeViewer = React.memo(({
     const editSource = item.lastEditSource
     const currentModel = item.lastEditedBy ?? item.model
 
+    // Fade-in via CSS transition (immune to style-recalc animation restarts).
+    // useEffect sets mounted=true on next frame → opacity transitions from 0 to 1.
+    const [mounted, setMounted] = useState(false)
+    const backdropRef = useRef<HTMLDivElement>(null)
+    useEffect(() => {
+        requestAnimationFrame(() => setMounted(true))
+    }, [])
+
     // Lock body scroll while Zen Mode is open
     useEffect(() => {
         const prev = document.body.style.overflow
@@ -83,11 +91,14 @@ export const KnowledgeViewer = React.memo(({
 
     return createPortal(
         <div
-            className={`fixed inset-0 z-modal flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in ${outerPadding}`}
+            ref={backdropRef}
+            className={`fixed inset-0 z-modal flex items-center justify-center bg-black/60 backdrop-blur-sm transition-opacity duration-300 ${outerPadding}`}
+            style={{ opacity: mounted ? 1 : 0 }}
             onClick={onClose}
         >
             <div
-                className={`${containerClass} animate-scale-in`}
+                className={`${containerClass} transition-[transform,opacity] duration-300`}
+                style={{ opacity: mounted ? 1 : 0, transform: mounted ? 'scale(1)' : 'scale(0.95)' }}
                 onClick={(e) => e.stopPropagation()}
             >
                     {/* Header */}
