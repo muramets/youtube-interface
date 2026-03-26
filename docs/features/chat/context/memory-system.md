@@ -147,7 +147,7 @@
 - Неактивность >60 мин — `frozenAt` + `CACHE_TTL_MS` guard. Проверяется в `setActiveConversation` (возврат в чат) и в `refreshSnapshotIfStale` (перед `buildSystemPrompt` в sendSlice). `frozenAt` отражает время последнего отправленного сообщения, а не момент создания snapshot — потому что Anthropic сбрасывает TTL кэша при каждом использовании
 - Новая вкладка браузера (`sessionStorage` изолирован per tab → fresh start)
 
-**Known issue: page reload после editMemory.** `sessionStorage` сохраняет замок (`frozenForConversationId`), но не сами данные snapshot (`memoriesSnapshot` в Zustand). При reload Zustand пересоздаётся, `memoriesSnapshot` заполняется из live `memories` (уже с editMemory-изменениями). Замок предотвращает принудительный refresh, но данные уже обновились. Impact: partial cache miss (~1K tokens cache write вместо full hit). Полный фикс: персистить `memoriesSnapshot` в `localStorage`. Отложено — impact минимальный, а старые cache entries с тем же prefix часто покрывают miss.
+**Персистентность:** два ключа в `sessionStorage` — `chat:frozenSnapshot` (metadata: id + at) и `chat:frozenMemories` (snapshot data ~14KB). При page reload metadata + data восстанавливаются → `setActiveConversation` применяет сохранённый snapshot вместо live `memories` → system prompt идентичен → cache hit.
 
 **Что извлекается** (по инструкции):
 - Принятые решения и почему

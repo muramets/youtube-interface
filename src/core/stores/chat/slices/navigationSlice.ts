@@ -2,44 +2,58 @@
 // Navigation Slice — chat panel open/close, view routing, active IDs
 // =============================================================================
 
-import type { ChatView } from '../../../types/chat/chat';
+import type { ChatView, ConversationMemory } from '../../../types/chat/chat';
 import type { ChatState } from '../types';
 import { session } from '../session';
 
 /** Anthropic prompt cache TTL. After this period, frozen snapshot provides no cache benefit. */
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
-const FROZEN_STORAGE_KEY = 'chat:frozenSnapshot';
+const FROZEN_META_KEY = 'chat:frozenSnapshot';       // id + at (lightweight)
+const FROZEN_DATA_KEY = 'chat:frozenMemories';       // actual snapshot (~14KB)
 
 /** Tracks which conversation the memoriesSnapshot was frozen for — survives page reload via sessionStorage. */
 let frozenForConversationId: string | null = null;
 /** When the snapshot was frozen — used to detect staleness (cache TTL expiry). */
 let frozenAt: number | null = null;
+/** One-time restored snapshot from sessionStorage — consumed on first setActiveConversation after reload. */
+let restoredSnapshot: ConversationMemory[] | null = null;
 
 // Restore frozen state from sessionStorage (survives page reload within same tab)
 try {
-    const stored = sessionStorage.getItem(FROZEN_STORAGE_KEY);
-    if (stored) {
-        const parsed = JSON.parse(stored) as { id: string; at: number };
+    const meta = sessionStorage.getItem(FROZEN_META_KEY);
+    if (meta) {
+        const parsed = JSON.parse(meta) as { id: string; at: number };
         frozenForConversationId = parsed.id;
         frozenAt = parsed.at;
     }
+    const data = sessionStorage.getItem(FROZEN_DATA_KEY);
+    if (data && frozenForConversationId) {
+        restoredSnapshot = JSON.parse(data) as ConversationMemory[];
+    }
 } catch { /* sessionStorage unavailable or corrupt — start fresh */ }
 
-function persistFrozenState(): void {
+function persistFrozenMeta(): void {
     try {
         if (frozenForConversationId) {
-            sessionStorage.setItem(FROZEN_STORAGE_KEY, JSON.stringify({ id: frozenForConversationId, at: frozenAt }));
+            sessionStorage.setItem(FROZEN_META_KEY, JSON.stringify({ id: frozenForConversationId, at: frozenAt }));
         } else {
-            sessionStorage.removeItem(FROZEN_STORAGE_KEY);
+            sessionStorage.removeItem(FROZEN_META_KEY);
+            sessionStorage.removeItem(FROZEN_DATA_KEY);
         }
     } catch { /* sessionStorage unavailable — no-op */ }
+}
+
+function persistFrozenData(snapshot: ConversationMemory[]): void {
+    try {
+        sessionStorage.setItem(FROZEN_DATA_KEY, JSON.stringify(snapshot));
+    } catch { /* sessionStorage full or unavailable — no-op, graceful degradation */ }
 }
 
 /** Sync frozenForConversationId after lazy-create in sendSlice (where setActiveConversation can't be called — it resets messages). */
 export function setFrozenConversationId(id: string): void {
     frozenForConversationId = id;
     frozenAt = Date.now();
-    persistFrozenState();
+    persistFrozenMeta();
 }
 
 /** Check if the frozen snapshot is stale (older than cache TTL). If so, refresh from live memories.
@@ -49,13 +63,15 @@ export function refreshSnapshotIfStale(get: () => ChatState, set: (partial: Part
     if (frozenAt === null) return;
     if (Date.now() - frozenAt > CACHE_TTL_MS) {
         // Stale — cache expired, refresh snapshot with live memories
+        const snapshot = get().memories;
         frozenAt = Date.now();
-        persistFrozenState();
-        set({ memoriesSnapshot: get().memories });
+        persistFrozenMeta();
+        persistFrozenData(snapshot);
+        set({ memoriesSnapshot: snapshot });
     } else {
         // Not stale — extend TTL tracking (cache was just used by this message)
         frozenAt = Date.now();
-        persistFrozenState();
+        persistFrozenMeta();
     }
 }
 
@@ -95,10 +111,20 @@ export function createNavigationSlice(
             session.streamingNonce++;
             const isStale = frozenAt !== null && Date.now() - frozenAt > CACHE_TTL_MS;
             const shouldRefreshSnapshot = id !== null && (id !== frozenForConversationId || isStale);
+            // Determine which snapshot to use
+            let snapshotUpdate: { memoriesSnapshot: ConversationMemory[] } | Record<string, never> = {};
             if (shouldRefreshSnapshot) {
+                // New or stale conversation — fresh snapshot from live memories
+                const snapshot = get().memories;
                 frozenForConversationId = id;
                 frozenAt = Date.now();
-                persistFrozenState();
+                persistFrozenMeta();
+                persistFrozenData(snapshot);
+                snapshotUpdate = { memoriesSnapshot: snapshot };
+            } else if (restoredSnapshot) {
+                // Returning to frozen conversation after page reload — restore saved snapshot
+                snapshotUpdate = { memoriesSnapshot: restoredSnapshot };
+                restoredSnapshot = null;
             }
             set({
                 activeConversationId: id,
@@ -116,17 +142,18 @@ export function createNavigationSlice(
                 error: null,
                 hasMoreMessages: false,
                 pendingLargePayloadConfirmation: null,
-                // Freeze memories when entering a NEW conversation — returning to the same chat (even via conversation list) keeps the frozen snapshot
-                ...(shouldRefreshSnapshot ? { memoriesSnapshot: get().memories } : {}),
+                ...snapshotUpdate,
             });
         },
 
         startNewChat: () => {
             // Invalidate any running stream's UI callbacks (stream itself keeps running)
             session.streamingNonce++;
+            const snapshot = get().memories;
             frozenForConversationId = null;
             frozenAt = Date.now();
-            persistFrozenState();
+            persistFrozenMeta();
+            persistFrozenData(snapshot);
             set({
                 activeConversationId: null,
                 pendingConversationId: crypto.randomUUID(),
@@ -139,7 +166,7 @@ export function createNavigationSlice(
                 stoppedResponse: null,
                 pendingLargePayloadConfirmation: null,
                 // Freeze memories for this conversation — prevents cache invalidation when saveMemory updates Firestore mid-chat
-                memoriesSnapshot: get().memories,
+                memoriesSnapshot: snapshot,
             });
         },
     };
