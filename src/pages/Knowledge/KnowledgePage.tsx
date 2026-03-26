@@ -15,7 +15,11 @@ import { KnowledgeList } from '../../features/Knowledge/components/KnowledgeList
 import { KnowledgeItemModal } from '../../features/Knowledge/modals/KnowledgeItemModal'
 import { CreateKnowledgeItemModal } from '../../features/Knowledge/modals/CreateKnowledgeItemModal'
 import { deriveCategories, filterAndSortItems } from '../../features/Knowledge/utils/knowledgeFilters'
+import { fmtTokens } from '../../features/Chat/utils/tokenDisplay'
 import type { KnowledgeItem } from '../../core/types/knowledge'
+
+/** Rough estimate: ~4 chars per token (matches backend CHARS_PER_TOKEN in memory.ts). */
+const CHARS_PER_TOKEN = 4
 
 const SCOPE_CHIPS: { value: KnowledgeScopeFilter; label: string }[] = [
     { value: 'all', label: 'All' },
@@ -64,6 +68,12 @@ export const KnowledgePage: React.FC = () => {
         }
         return { all: items.length, channel, video }
     }, [items])
+
+    // Total token estimate across all KI
+    const totalTokens = useMemo(
+        () => items.reduce((sum, item) => sum + Math.ceil(item.content.length / CHARS_PER_TOKEN), 0),
+        [items],
+    )
 
     // Categories per scope (for conditional rows)
     const channelCategories = useMemo(() => deriveCategories(items, 'channel'), [items])
@@ -136,6 +146,9 @@ export const KnowledgePage: React.FC = () => {
                             <h1 className="text-xl font-semibold text-text-primary">Knowledge</h1>
                             <p className="text-xs text-text-secondary">
                                 {items.length} {items.length === 1 ? 'item' : 'items'}
+                                {totalTokens > 0 && (
+                                    <span className="text-text-tertiary"> · ~{fmtTokens(totalTokens)} tokens</span>
+                                )}
                             </p>
                         </div>
                     </div>

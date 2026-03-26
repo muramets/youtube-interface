@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronDown, Maximize, Pencil, Bot, Wrench } from 'lucide-react'
+import { ChevronDown, Maximize, Pencil, Bot, Wrench, Hash } from 'lucide-react'
 import { Badge } from '../../../components/ui/atoms/Badge/Badge'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -16,6 +16,7 @@ import { formatKnowledgeDate, getOriginLabel } from '../utils/formatDate'
 import { buildBodyComponents } from '../utils/bodyComponents'
 import { allowCustomUrls } from '../utils/diffUtils'
 import { linkifyVideoIds } from '../../../core/utils/linkifyVideoIds'
+import { fmtTokens } from '../../Chat/utils/tokenDisplay'
 import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip'
 import { VideoPreviewTooltip, PREVIEW_DIMENSIONS } from '../../Video/components/VideoPreviewTooltip'
 
@@ -27,6 +28,9 @@ interface KnowledgeCardProps {
     /** Show linked video row for video-scoped KI (default: false) */
     showLinkedVideo?: boolean
 }
+
+/** Rough estimate: ~4 chars per token (matches backend CHARS_PER_TOKEN in memory.ts). */
+const CHARS_PER_TOKEN = 4;
 
 /** Sanitize schema: allow vid:// protocols + class attribute on links/spans */
 const sanitizeSchema = {
@@ -231,6 +235,10 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
                                     <Badge variant="neutral">
                                         {getOriginLabel(item.source)}
                                     </Badge>
+                                    <span className="flex items-center gap-1 ml-auto">
+                                        <Hash size={10} />
+                                        {fmtTokens(Math.ceil(item.content.length / CHARS_PER_TOKEN))} tokens
+                                    </span>
                                 </div>
 
                                 {/* Collapsible sections */}
