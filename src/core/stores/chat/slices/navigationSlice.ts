@@ -49,6 +49,11 @@ function persistFrozenData(snapshot: ConversationMemory[]): void {
     } catch { /* sessionStorage full or unavailable — no-op, graceful degradation */ }
 }
 
+/** Check if a restored snapshot is pending (prevents subscribeToMemories from overwriting it with live data). */
+export function hasPendingRestoredSnapshot(): boolean {
+    return restoredSnapshot !== null;
+}
+
 /** Sync frozenForConversationId after lazy-create in sendSlice (where setActiveConversation can't be called — it resets messages). */
 export function setFrozenConversationId(id: string): void {
     frozenForConversationId = id;

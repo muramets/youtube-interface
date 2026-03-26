@@ -8,6 +8,7 @@ import { ChatService } from '../../../services/ai/chatService';
 import { CONCLUDE_INSTRUCTION } from '../../../config/concludePrompt';
 import type { ChatState } from '../types';
 import { requireContext } from '../helpers';
+import { hasPendingRestoredSnapshot } from './navigationSlice';
 
 export function createSettingsSlice(
     set: (partial: Partial<ChatState>) => void,
@@ -45,7 +46,8 @@ export function createSettingsSlice(
             return ChatService.subscribeToMemories(userId, channelId, (memories) => {
                 const update: Partial<ChatState> = { memories };
                 // Populate snapshot on first load (handles race: memories arrive after conversation is already active)
-                if (get().memoriesSnapshot.length === 0 && memories.length > 0) {
+                // Skip if a restored snapshot from sessionStorage is pending — it takes priority over live data
+                if (get().memoriesSnapshot.length === 0 && memories.length > 0 && !hasPendingRestoredSnapshot()) {
                     update.memoriesSnapshot = memories;
                 }
                 set(update);
