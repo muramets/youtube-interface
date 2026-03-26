@@ -123,27 +123,29 @@
 **Cache-оптимизация: frozen snapshot.** L4 memories инжектируются в system prompt как `memoriesSnapshot` — замороженный snapshot. Это предотвращает каскадную инвалидацию prompt cache: prefix-based cache ломается при любом изменении в system prompt → re-cache всего downstream контента (tools, history). Подробнее: [Prompt Caching](./prompt-caching.md).
 
 **Механизм freeze:**
-- `frozenForConversationId` — module-level переменная в `navigationSlice.ts`. Хранит ID разговора, для которого snapshot был заморожен.
+- `frozenForConversationId` — module-level переменная в `navigationSlice.ts`, персистится в `sessionStorage` (переживает page reload в рамках вкладки). Хранит ID разговора, для которого snapshot был заморожен.
+- `frozenAt` — timestamp последнего использования кэша. Обновляется при каждой отправке сообщения (Anthropic сбрасывает TTL при каждом использовании кэша). Персистится вместе с `frozenForConversationId`.
 - `memoriesSnapshot` — массив `ConversationMemory[]` в store. Используется для `buildSystemPrompt()` вместо live `memories`.
-- Snapshot обновляется **только при переключении на другой разговор** (когда `conversationId !== frozenForConversationId`).
 
 **Два пути создания чата и синхронизация `frozenForConversationId`:**
 
 | Путь | Где устанавливается `frozenForConversationId` |
 |------|----------------------------------------------|
 | `startNewChat()` | → `null`, затем `sendSlice` вызывает `setFrozenConversationId(convId)` при lazy-create conversation |
-| `setActiveConversation(id)` | → `id` (если `id !== frozenForConversationId`) |
+| `setActiveConversation(id)` | → `id` (если `id !== frozenForConversationId` или snapshot stale) |
 
 **Что НЕ сбрасывает snapshot:**
 - Навигация в conversation list и возврат в тот же чат (guard: `id === frozenForConversationId`)
 - `saveMemory` / `editMemory` mid-chat (пишут в Firestore, live подписка обновляет `memories`, но `memoriesSnapshot` не трогается)
 - Редактирование memories в Settings UI
 - Закрытие/открытие chat panel
+- Page reload (frozen state восстанавливается из `sessionStorage`)
 
 **Что сбрасывает snapshot:**
 - Переход в другой разговор (`setActiveConversation` с новым ID)
 - Начало нового чата (`startNewChat` → свежий snapshot из текущих `memories`)
-- Неактивность >60 мин — `frozenAt` + `CACHE_TTL_MS` guard. Проверяется в `setActiveConversation` (возврат в чат) и в `refreshSnapshotIfStale` (перед `buildSystemPrompt` в sendSlice). После 1 часа prompt cache Anthropic истёк → замораживание не даёт выигрыша, а пользователь получает устаревшие memories
+- Неактивность >60 мин — `frozenAt` + `CACHE_TTL_MS` guard. Проверяется в `setActiveConversation` (возврат в чат) и в `refreshSnapshotIfStale` (перед `buildSystemPrompt` в sendSlice). `frozenAt` отражает время последнего отправленного сообщения, а не момент создания snapshot — потому что Anthropic сбрасывает TTL кэша при каждом использовании
+- Новая вкладка браузера (`sessionStorage` изолирован per tab → fresh start)
 
 **Что извлекается** (по инструкции):
 - Принятые решения и почему
