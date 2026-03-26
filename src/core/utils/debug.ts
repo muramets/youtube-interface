@@ -28,6 +28,7 @@ export const DEBUG_ENABLED = {
     canvas: false,       // Canvas: node re-renders, drag frame timing, memo hits
     context: false,       // App context: slot mutations, bridge pushes, consume/clear
     firestore: false,     // Firestore read tracking: document counts per collection
+    frozen: false,        // Frozen memory snapshot: sessionStorage persist/restore, cache TTL staleness
 } as const;
 
 type DebugCategory = keyof typeof DEBUG_ENABLED;
@@ -169,6 +170,7 @@ export const debug = {
     canvas: createLogger('canvas'),
     context: createLogger('context'),
     firestore: createLogger('firestore'),
+    frozen: createLogger('frozen'),
 
     // Grouped logging for complex debugging sessions
     tooltipGroup: createGroupLogger('tooltip'),

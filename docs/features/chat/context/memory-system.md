@@ -147,7 +147,9 @@
 - Неактивность >60 мин — `frozenAt` + `CACHE_TTL_MS` guard. Проверяется в `setActiveConversation` (возврат в чат) и в `refreshSnapshotIfStale` (перед `buildSystemPrompt` в sendSlice). `frozenAt` отражает время последнего отправленного сообщения, а не момент создания snapshot — потому что Anthropic сбрасывает TTL кэша при каждом использовании
 - Новая вкладка браузера (`sessionStorage` изолирован per tab → fresh start)
 
-**Персистентность:** два ключа в `sessionStorage` — `chat:frozenSnapshot` (metadata: id + at) и `chat:frozenMemories` (snapshot data ~14KB). При page reload metadata + data восстанавливаются → `setActiveConversation` применяет сохранённый snapshot вместо live `memories` → system prompt идентичен → cache hit.
+**Персистентность:** два ключа в `sessionStorage` — `chat:frozenSnapshot` (metadata: id + at) и `chat:frozenMemories` (snapshot data ~14KB). При page reload metadata + data восстанавливаются → `setActiveConversation` применяет сохранённый snapshot вместо live `memories` → system prompt идентичен → cache hit. Firestore Timestamps сериализуются как ISO strings при записи и восстанавливаются с `toDate()` при чтении (без этого `buildCrossConversationLayer` форматирует дату как "Unknown date" вместо "2026-03-15", ломая побайтовое совпадение). RESTORE применяется только когда `id === frozenForConversationId` — не при `null` (back button) и не при входе в другой чат. `subscribeToMemories` проверяет `hasPendingRestoredSnapshot()` и не перезаписывает snapshot live данными пока pending restore не применён.
+
+**Debug:** категория `frozen` в `debug.ts` (по умолчанию выключена). Включить: `DEBUG_ENABLED.frozen = true`.
 
 **Что извлекается** (по инструкции):
 - Принятые решения и почему
