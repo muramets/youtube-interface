@@ -38,7 +38,7 @@ export const aiChat = onRequest(
     {
         secrets: [geminiApiKey, anthropicApiKey],
         maxInstances: 3,
-        timeoutSeconds: 1200,
+        timeoutSeconds: 3600,
         memory: "1GiB",
         cors: true,
     },
