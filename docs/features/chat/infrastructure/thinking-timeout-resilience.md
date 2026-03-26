@@ -2,7 +2,7 @@
 
 ## Текущее состояние
 
-**Стадия 1 реализована + архитектурный фикс liveness.** Thinking-aware dynamic timeout защищает extended thinking сессии от преждевременного обрыва. При thinking events таймаут эскалируется 90s → 600s, SSE heartbeat каждые 30s поддерживает соединение, retry блокируется если thinking шёл. При таймауте partial thinking сохраняется как `stopped` message. Cloud Function timeout увеличен до 1200s, client-side timeout адаптивный (120s → 660s при thinking).
+**Стадия 1 реализована + архитектурный фикс liveness.** Thinking-aware dynamic timeout защищает extended thinking сессии от преждевременного обрыва. При thinking events таймаут эскалируется 90s → 600s, SSE heartbeat каждые 30s поддерживает соединение, retry блокируется если thinking шёл. При таймауте partial thinking сохраняется как `stopped` message. Cloud Function timeout увеличен до 3600s, client-side timeout адаптивный (120s → 660s при thinking).
 
 **Liveness architecture:** `streamEvent` — единственный детектор жизни стрима (`resetTimer()` на каждый raw API event). `thinking` и `text` хендлеры управляют только timeout policy (escalation/de-escalation). Heartbeat стартует при thinking и работает до конца стрима (не гасится на thinking→text переходе), что покрывает и tool input streaming (`input_json_delta`).
 
@@ -91,7 +91,7 @@ src/
 | `TOOL_INPUT_INACTIVITY_TIMEOUT_MS` | 240_000 (tool input streaming) | `streamChat.ts` |
 | `THINKING_INACTIVITY_TIMEOUT_MS` | 600_000 (extended thinking) | `streamChat.ts` |
 | `HEARTBEAT_INTERVAL_MS` | 30_000 | `streamChat.ts` |
-| `timeoutSeconds` | 1200 (was 540) | `aiChat.ts` |
+| `timeoutSeconds` | 3600 | `aiChat.ts` |
 | `STREAM_TIMEOUT_MS` | 120_000 (90s text + 30s buffer) | `aiProxyService.ts` |
 | `TOOL_STREAM_TIMEOUT_MS` | 270_000 (240s tool + 30s buffer) | `aiProxyService.ts` |
 | `THINKING_STREAM_TIMEOUT_MS` | 660_000 (600s + 60s buffer) | `aiProxyService.ts` |
