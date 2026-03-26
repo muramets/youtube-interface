@@ -122,7 +122,7 @@ export const CollapsibleMarkdownSections = React.memo(({
             title={
                 <div className="inline-block pointer-events-none">
                     <ReactMarkdown rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]} urlTransform={allowCustomUrls} components={headerComponents}>
-                        {section.title}
+                        {section.title.replace(/^(\d+)\. /, '$1\\. ')}
                     </ReactMarkdown>
                 </div>
             }
