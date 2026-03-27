@@ -28,7 +28,7 @@ export const DEBUG_ENABLED = {
     canvas: false,       // Canvas: node re-renders, drag frame timing, memo hits
     context: false,       // App context: slot mutations, bridge pushes, consume/clear
     firestore: false,     // Firestore read tracking: document counts per collection
-    frozen: false,        // Frozen memory snapshot: sessionStorage persist/restore, cache TTL staleness
+    frozen: true,        // Frozen memory snapshot: sessionStorage persist/restore, cache TTL staleness
 } as const;
 
 type DebugCategory = keyof typeof DEBUG_ENABLED;
