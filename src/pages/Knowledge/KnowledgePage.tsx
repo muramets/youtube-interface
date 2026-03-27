@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useMemo } from 'react'
-import { BookOpen, Plus, ArrowUpDown } from 'lucide-react'
+import React, { useState, useCallback, useMemo, useEffect } from 'react'
+import { BookOpen, Plus, ArrowUpDown, CheckSquare, Download, X } from 'lucide-react'
 import { Button } from '../../components/ui/atoms/Button/Button'
 import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip'
 import { useAuth } from '../../core/hooks/useAuth'
@@ -10,11 +10,14 @@ import { useVideosCatalog } from '../../core/hooks/useVideosCatalog'
 import { useKnowledgeCatalog } from '../../core/hooks/useKnowledgeCatalog'
 import { useKnowledgeStore, type KnowledgeScopeFilter } from '../../core/stores/knowledgeStore'
 import { useFilterStore } from '../../core/stores/filterStore'
+import { useKnowledgeSelectionStore } from '../../core/stores/knowledgeSelectionStore'
+import { ChatService } from '../../core/services/ai/chatService'
 import { buildCatalogVideoMap } from '../../features/Knowledge/utils/videoRefMap'
 import { KnowledgeList } from '../../features/Knowledge/components/KnowledgeList'
 import { KnowledgeItemModal } from '../../features/Knowledge/modals/KnowledgeItemModal'
 import { CreateKnowledgeItemModal } from '../../features/Knowledge/modals/CreateKnowledgeItemModal'
 import { deriveCategories, filterAndSortItems } from '../../features/Knowledge/utils/knowledgeFilters'
+import { exportKnowledgeAsZip } from '../../features/Knowledge/utils/exportKnowledge'
 import { fmtTokens } from '../../features/Chat/utils/tokenDisplay'
 import type { KnowledgeItem } from '../../core/types/knowledge'
 
@@ -57,6 +60,53 @@ export const KnowledgePage: React.FC = () => {
 
     const [editingItem, setEditingItem] = useState<KnowledgeItem | null>(null)
     const [isCreateOpen, setIsCreateOpen] = useState(false)
+    const [isExporting, setIsExporting] = useState(false)
+
+    // Selection state for export
+    const { selectedIds, toggle: toggleSelection, selectAll, clear: clearSelection } = useKnowledgeSelectionStore()
+    const selectionCount = selectedIds.size
+    const isAllSelected = items.length > 0 && selectionCount === items.length
+
+    // Escape to clear selection
+    useEffect(() => {
+        if (selectionCount === 0) return
+        const handler = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') clearSelection()
+        }
+        window.addEventListener('keydown', handler)
+        return () => window.removeEventListener('keydown', handler)
+    }, [selectionCount, clearSelection])
+
+    const handleSelectAll = useCallback(() => {
+        if (isAllSelected) {
+            clearSelection()
+        } else {
+            selectAll(items.map(i => i.id))
+        }
+    }, [isAllSelected, items, selectAll, clearSelection])
+
+    const handleExport = useCallback(async () => {
+        const selectedItems = items.filter(i => selectedIds.has(i.id))
+        if (selectedItems.length === 0) return
+
+        setIsExporting(true)
+        try {
+            // Fetch AI settings + memories on demand (no persistent listener needed)
+            const [aiSettings, memories] = await Promise.all([
+                ChatService.getAiSettings(userId, channelId),
+                ChatService.loadMemories(userId, channelId),
+            ])
+
+            await exportKnowledgeAsZip({
+                items: selectedItems,
+                videoMap,
+                aiSettings: aiSettings.globalSystemPrompt ? aiSettings : undefined,
+                memories: memories.length > 0 ? memories : undefined,
+            })
+        } finally {
+            setIsExporting(false)
+        }
+    }, [items, selectedIds, videoMap, userId, channelId])
 
     // Scope counts for chip badges
     const scopeCounts = useMemo(() => {
@@ -153,6 +203,43 @@ export const KnowledgePage: React.FC = () => {
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
+                        {/* Selection controls — visible when 1+ selected */}
+                        {selectionCount > 0 && (
+                            <>
+                                <span className="text-xs text-text-secondary mr-1">
+                                    {selectionCount} selected
+                                </span>
+                                <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    leftIcon={<Download size={16} />}
+                                    onClick={handleExport}
+                                    isLoading={isExporting}
+                                >
+                                    Export
+                                </Button>
+                                <PortalTooltip content="Clear selection (Esc)">
+                                    <button
+                                        onClick={clearSelection}
+                                        className="p-2 rounded-full text-text-secondary hover:text-text-primary hover:bg-hover-bg transition-colors cursor-pointer bg-transparent border-none"
+                                    >
+                                        <X size={18} />
+                                    </button>
+                                </PortalTooltip>
+                            </>
+                        )}
+                        <PortalTooltip content={isAllSelected ? 'Deselect All' : 'Select All'}>
+                            <button
+                                onClick={handleSelectAll}
+                                className={`p-2 rounded-full transition-colors cursor-pointer bg-transparent border-none ${
+                                    isAllSelected
+                                        ? 'text-blue-500 hover:text-blue-400'
+                                        : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
+                                }`}
+                            >
+                                <CheckSquare size={18} />
+                            </button>
+                        </PortalTooltip>
                         <PortalTooltip content={sortOrder === 'newest' ? 'Newest First' : 'Oldest First'}>
                             <button
                                 onClick={() => setSortOrder(sortOrder === 'newest' ? 'oldest' : 'newest')}
@@ -241,6 +328,8 @@ export const KnowledgePage: React.FC = () => {
                     onDelete={handleDelete}
                     videoMap={videoMap}
                     showLinkedVideo
+                    selectedIds={selectedIds}
+                    onToggleSelection={toggleSelection}
                     emptyMessage={
                         searchQuery || selectedCategory || scopeFilter !== 'all'
                             ? 'No Knowledge Items match these filters.'

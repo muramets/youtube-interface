@@ -16,6 +16,10 @@ interface KnowledgeListProps {
     videoMap?: Map<string, VideoPreviewData>
     /** Show linked video row on video-scoped cards (default: false) */
     showLinkedVideo?: boolean
+    /** Set of selected KI IDs (for export selection). */
+    selectedIds?: Set<string>
+    /** Callback to toggle KI selection. */
+    onToggleSelection?: (id: string) => void
 }
 
 /**
@@ -32,6 +36,8 @@ export const KnowledgeList = React.memo(({
     emptyMessage = 'No Knowledge Items yet. Start a chat conversation and analyze content to generate insights.',
     videoMap,
     showLinkedVideo = false,
+    selectedIds,
+    onToggleSelection,
 }: KnowledgeListProps) => {
     if (items.length === 0) {
         return (
@@ -53,6 +59,8 @@ export const KnowledgeList = React.memo(({
                     onDelete={onDelete}
                     videoMap={videoMap}
                     showLinkedVideo={showLinkedVideo}
+                    isSelected={selectedIds?.has(item.id)}
+                    onToggleSelection={onToggleSelection}
                 />
             ))}
         </div>

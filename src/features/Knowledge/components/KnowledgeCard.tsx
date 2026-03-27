@@ -27,6 +27,10 @@ interface KnowledgeCardProps {
     videoMap?: Map<string, VideoPreviewData>
     /** Show linked video row for video-scoped KI (default: false) */
     showLinkedVideo?: boolean
+    /** Whether this card is selected (for export). */
+    isSelected?: boolean
+    /** Callback to toggle selection (Ctrl/Cmd+click). */
+    onToggleSelection?: (id: string) => void
 }
 
 /** Rough estimate: ~4 chars per token (matches backend CHARS_PER_TOKEN in memory.ts). */
@@ -49,7 +53,7 @@ const sanitizeSchema = {
  *
  * Shared between Knowledge Page (channel KI) and Watch Page (video KI).
  */
-export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: externalVideoMap, showLinkedVideo = false }: KnowledgeCardProps) => {
+export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: externalVideoMap, showLinkedVideo = false, isSelected, onToggleSelection }: KnowledgeCardProps) => {
     const [isExpanded, setIsExpanded] = useState(false)
     const [isZenMode, setIsZenMode] = useState(false)
     const cardRef = useRef<HTMLDivElement>(null)
@@ -78,7 +82,15 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
         return map.size > 0 ? map : undefined
     }, [item.resolvedVideoRefs, externalVideoMap])
 
-    const handleToggle = useCallback(() => {
+    const handleClick = useCallback((e: React.MouseEvent) => {
+        // Ctrl/Cmd+click → toggle selection
+        if ((e.metaKey || e.ctrlKey) && onToggleSelection) {
+            e.preventDefault()
+            e.stopPropagation()
+            onToggleSelection(item.id)
+            return
+        }
+        // Normal click → expand/collapse
         setIsExpanded(prev => {
             const next = !prev
             if (next) {
@@ -88,7 +100,7 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
             }
             return next
         })
-    }, [])
+    }, [onToggleSelection, item.id])
     const handleEdit = useCallback((e: React.MouseEvent) => {
         e.stopPropagation()
         onEdit(item)
@@ -116,11 +128,13 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
                 ref={cardRef}
                 className={clsx(
                     'group relative rounded-lg hover-trail-lift cursor-pointer select-none scale-100 shadow-none',
-                    isExpanded
-                        ? 'bg-black/[0.04] dark:bg-white/[0.06]'
-                        : 'bg-black/[0.02] hover:bg-black/[0.04] hover:scale-[1.012] hover:shadow-lg dark:bg-white/[0.03] dark:hover:bg-white/[0.06] dark:hover:shadow-black/30'
+                    isSelected
+                        ? 'border-2 border-blue-500 bg-blue-500/10'
+                        : isExpanded
+                            ? 'bg-black/[0.04] dark:bg-white/[0.06]'
+                            : 'bg-black/[0.02] hover:bg-black/[0.04] hover:scale-[1.012] hover:shadow-lg dark:bg-white/[0.03] dark:hover:bg-white/[0.06] dark:hover:shadow-black/30'
                 )}
-                onClick={handleToggle}
+                onClick={handleClick}
             >
                 {/* Header — always visible */}
                 <div className="px-4 pt-3 pb-2">
@@ -257,7 +271,7 @@ export const KnowledgeCard = React.memo(({ item, onEdit, onDelete, videoMap: ext
                 {/* Chevron indicator — always in DOM, rotates on expand/collapse */}
                 <div
                     className="flex items-center justify-center pb-1.5 pt-0.5"
-                    onClick={(e) => { e.stopPropagation(); handleToggle() }}
+                    onClick={(e) => { e.stopPropagation(); handleClick(e) }}
                 >
                     <ChevronDown
                         size={14}
