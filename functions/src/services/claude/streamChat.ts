@@ -528,6 +528,14 @@ function isClaudeTransient(err: unknown): boolean {
         const sseType = getSseErrorType(err);
         if (sseType && TRANSIENT_SSE_ERROR_TYPES.has(sseType)) return true;
     }
+    // Path 3: Connection drops — SDK throws plain Error (not APIError).
+    // "terminated" = Anthropic server closed SSE stream unexpectedly.
+    if (err instanceof Error && !(err instanceof APIError)) {
+        const msg = err.message.toLowerCase();
+        if (msg === "terminated" || msg.includes("socket hang up") || msg.includes("econnreset")) {
+            return true;
+        }
+    }
     return false;
 }
 

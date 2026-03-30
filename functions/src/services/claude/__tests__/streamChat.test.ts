@@ -1078,6 +1078,67 @@ describe("Claude streamChat — SSE error retry (status undefined)", () => {
     });
 });
 
+describe("Claude streamChat — connection drop retry (plain Error)", () => {
+    it.each([
+        ["terminated", "terminated"],
+        ["socket hang up", "socket hang up"],
+        ["ECONNRESET", "read ECONNRESET"],
+    ])('retries on "%s" connection drop and succeeds', async (_, errorMessage) => {
+        const onRetry = vi.fn();
+        const mockMessagesStream = vi.fn();
+        mockGetClaudeClient.mockResolvedValue({
+            messages: { stream: mockMessagesStream },
+        } as never);
+
+        // First call: plain Error (not APIError) — connection dropped
+        mockMessagesStream.mockImplementationOnce(() => {
+            const stream = buildMockStream([
+                { event: "error", data: new Error(errorMessage) },
+            ]);
+            stream._run();
+            return stream;
+        });
+
+        // Second call: succeeds
+        mockMessagesStream.mockImplementationOnce(() => {
+            const stream = buildMockStream([
+                ...textEvents("Recovered after drop"),
+                finalMessageEvent({ input_tokens: 10, output_tokens: 5 }),
+            ]);
+            stream._run();
+            return stream;
+        });
+
+        const result = await streamChat(
+            makeOptsWithCallbacks({ onRetry }),
+        );
+
+        expect(onRetry).toHaveBeenCalledTimes(1);
+        expect(result.text).toBe("Recovered after drop");
+    });
+
+    it("does NOT retry unknown plain Error (e.g. TypeError)", async () => {
+        const mockMessagesStream = vi.fn();
+        mockGetClaudeClient.mockResolvedValue({
+            messages: { stream: mockMessagesStream },
+        } as never);
+
+        mockMessagesStream.mockImplementationOnce(() => {
+            const stream = buildMockStream([
+                { event: "error", data: new TypeError("Cannot read properties of undefined") },
+            ]);
+            stream._run();
+            return stream;
+        });
+
+        await expect(
+            streamChat(makeOpts()),
+        ).rejects.toThrow("Cannot read properties of undefined");
+
+        expect(mockMessagesStream).toHaveBeenCalledTimes(1);
+    });
+});
+
 // ===========================================================================
 // Suite E: Error handling — non-transient errors propagate
 // ===========================================================================
