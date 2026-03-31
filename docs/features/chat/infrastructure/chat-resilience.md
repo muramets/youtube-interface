@@ -2,7 +2,7 @@
 
 ## Текущее состояние ← YOU ARE HERE
 
-**Реализовано (v2).** Три уровня защиты стриминга:
+**Реализовано (v3).** Четыре уровня защиты стриминга:
 
 **1. Server-side retry (`withStreamRetry()`):** каждая итерация agentic loop обёрнута в `withStreamRetry()` (`services/ai/retry.ts`). Таймер 90 секунд сбрасывается на каждом чанке. Нет чанков 90с → таймаут → retry (до 2 раз). Оба провайдера (Gemini, Claude).
 
@@ -17,6 +17,8 @@
 - 60+ сек: "Still thinking, this may take a moment longer..."
 - При retry: "Reconnecting (attempt N)..."
 - При page reload recovery: прогрессивный — "Picking up response..." → "Model is still working..." → "Complex request..." → "Still processing..."
+
+**4. Image Download Fallback (Claude only):** Claude API загружает image URL напрямую. Если YouTube CDN блокирует запрос с серверов Anthropic — ошибка 400 `"Unable to download the file"` роняет весь запрос. Fallback: наш сервер сам скачивает все URL images, конвертирует в base64, подставляет в сообщения и повторяет stream. Работает для всех image blocks: контекстные thumbnails, tool_result images (viewThumbnails, findSimilarVideos и т.д.). Неудавшиеся downloads заменяются на текст `[Thumbnail unavailable]`.
 
 **После исчерпания retries:** ошибка в `ChatErrorBanner`.
 
@@ -109,6 +111,34 @@ aiChat start
   → message appears in chat
 ```
 
+```
+[Image Download Fallback — Claude only]
+
+[streamIteration() via withStreamRetry()]
+       │
+       ├─── success → continue as normal
+       │
+       └─── APIError 400 "Unable to download the file"
+              │
+              ▼
+        isImageDownloadError(err) = true
+              │
+              ▼
+        convertUrlImagesToBase64(agenticMessages)
+          ─ walks all messages + nested tool_result.content
+          ─ finds ImageBlockParam with source.type === "url"
+          ─ downloads each URL from our server (Promise.all)
+              │
+              ├── download OK → replace source with { type: "base64", data, media_type }
+              └── download FAIL → replace block with { type: "text", text: "[Thumbnail unavailable]" }
+              │
+              ▼
+        retry runStream() once with base64 images
+              │
+              ├── success → continue agentic loop
+              └── fail → propagate error
+```
+
 ---
 
 ## Константы
@@ -125,6 +155,7 @@ aiChat start
 |---|---|---|
 | Gemini | 503 (UNAVAILABLE) + inactivity timeout | String fallback: `err.message.includes('503')` |
 | Claude | 529, 500, 503 + inactivity timeout | Также retry на rate limit (529) и server error (500) |
+| Claude | 400 "Unable to download the file" | Image fallback: URL→base64 конвертация + retry (не через `isTransient`, а через отдельный catch) |
 
 ### Client-side HTTP retry (до SSE)
 
@@ -141,6 +172,10 @@ functions/src/
       retry.ts                            ← withStreamRetry() — shared by Gemini & Claude
       __tests__/
         retry.test.ts                     ← unit tests (retry logic, cancel, exhaustion, delay timing)
+    claude/
+      streamChat.ts                       ← isImageDownloadError(), convertUrlImagesToBase64(), downloadImageAsBase64()
+      __tests__/
+        imageFallback.test.ts             ← unit tests (error detection, URL→base64, nested tool_result)
 
   chat/
     aiChat.ts                             ← activeStream write/clear, onRetry → SSE retry event
@@ -212,6 +247,20 @@ Server-side inactivity timeout + per-iteration retry loop + frontend progressive
 - [x] Guard: `sendMessage` заблокирован при `isWaitingForServerResponse` — дубликаты невозможны
 - [x] Staleness guard: `activeStream` старше 10 минут → очистка (сервер умер без cleanup)
 - [x] `onSnapshot` доставляет финальное сообщение → `isWaitingForServerResponse: false`
+
+### Стадия 1.7 — Image Download Fallback (Claude) ✅
+
+**Бизнес-цель:** Claude API загружает image URL напрямую. YouTube CDN может блокировать запросы с серверов Anthropic → 400 ошибка убивает весь стрим. Fallback не теряет анализ — модель продолжает работу с текстовыми данными.
+
+**Архитектурное отличие от Gemini:** Gemini использует Files API (бэкенд загружает файл → передаёт ref). Claude принимает URL и качает сам. Поэтому fallback нужен только для Claude.
+
+- [x] `isImageDownloadError(err)` — детектит 400 "Unable to download the file"
+- [x] `downloadImageAsBase64(url)` — скачивает image с нашего сервера, возвращает base64 + media_type
+- [x] `convertUrlImagesToBase64(messages)` — обходит все MessageParam (включая nested tool_result.content), заменяет URL images на base64 in-place
+- [x] Catch в agentic loop: image download error → конвертация → retry один раз
+- [x] Graceful degradation: failed downloads → `[Thumbnail unavailable]` (текстовый placeholder)
+- [x] Параллельная загрузка всех images (Promise.all)
+- [x] 13 unit tests (error detection, conversion, nested blocks, parallel download)
 
 ### Стадия 2 — Telemetry & Alerting
 

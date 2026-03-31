@@ -30,6 +30,7 @@ import type {
     DocumentBlockParam,
     ThinkingConfigParam,
     CacheControlEphemeral,
+    Base64ImageSource,
 } from "@anthropic-ai/sdk/resources/messages/messages.js";
 import { APIError } from "@anthropic-ai/sdk/error.js";
 
@@ -549,6 +550,164 @@ function getClaudeRetryDelay(err: unknown): number | undefined {
 }
 
 // =============================================================================
+// Image Download Fallback — URL → base64 on Anthropic download failure
+// =============================================================================
+
+const IMAGE_DOWNLOAD_ERROR_MESSAGE = "Unable to download the file";
+
+/**
+ * Detect Anthropic API 400 error caused by failing to download an image URL.
+ * This happens when YouTube CDN blocks requests from Anthropic servers.
+ */
+export function isImageDownloadError(err: unknown): boolean {
+    if (err instanceof APIError && err.status === 400) {
+        const msg = typeof err.message === "string" ? err.message : "";
+        return msg.includes(IMAGE_DOWNLOAD_ERROR_MESSAGE);
+    }
+    return false;
+}
+
+/** Media types that Claude accepts for base64 images. */
+type ClaudeImageMediaType = Base64ImageSource["media_type"];
+
+const MIME_TO_MEDIA_TYPE: Record<string, ClaudeImageMediaType> = {
+    "image/jpeg": "image/jpeg",
+    "image/png": "image/png",
+    "image/gif": "image/gif",
+    "image/webp": "image/webp",
+};
+
+/**
+ * Infer media_type from URL extension. YouTube thumbnails are always JPEG.
+ * Falls back to image/jpeg for unknown extensions (safe default for thumbnails).
+ */
+function inferMediaType(url: string): ClaudeImageMediaType {
+    try {
+        const pathname = new URL(url).pathname.toLowerCase();
+        if (pathname.endsWith(".png")) return "image/png";
+        if (pathname.endsWith(".gif")) return "image/gif";
+        if (pathname.endsWith(".webp")) return "image/webp";
+    } catch { /* malformed URL — fall through */ }
+    return "image/jpeg";
+}
+
+/**
+ * Download an image from URL and convert to base64 data string.
+ * Returns null if the download fails (graceful degradation).
+ */
+async function downloadImageAsBase64(url: string): Promise<{ data: string; mediaType: ClaudeImageMediaType } | null> {
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            console.warn(`[claude:imageFallback] Failed to download ${url}: HTTP ${response.status}`);
+            return null;
+        }
+
+        const contentType = response.headers.get("content-type") ?? "";
+        const mediaType = MIME_TO_MEDIA_TYPE[contentType] ?? inferMediaType(url);
+
+        const buffer = await response.arrayBuffer();
+        const data = Buffer.from(buffer).toString("base64");
+        return { data, mediaType };
+    } catch (err) {
+        console.warn(`[claude:imageFallback] Error downloading ${url}:`, err);
+        return null;
+    }
+}
+
+/** Reference to an image block + the array it lives in (for replacement on failure). */
+interface ImageTask {
+    block: ImageBlockParam;
+    parentArray: unknown[];
+    parentIndex: number;
+    promise: Promise<{ data: string; mediaType: ClaudeImageMediaType } | null>;
+}
+
+/**
+ * Walk all messages and replace URL-sourced ImageBlockParams with base64.
+ * Downloads images from our server (which CAN reach YouTube CDN).
+ * Mutates messages in place. Skips images that fail to download.
+ *
+ * Handles nested content arrays inside tool_result blocks.
+ *
+ * Returns { converted, failed } counts for logging.
+ */
+export async function convertUrlImagesToBase64(
+    messages: MessageParam[],
+): Promise<{ converted: number; failed: number }> {
+    const tasks: ImageTask[] = [];
+
+    /** Scan an array of content blocks for URL images (one level). */
+    function scanBlocks(blocks: unknown[]): void {
+        for (let i = 0; i < blocks.length; i++) {
+            const block = blocks[i] as Record<string, unknown>;
+            if (!block || typeof block !== "object") continue;
+
+            // Direct image block
+            if (
+                block.type === "image" &&
+                block.source &&
+                (block.source as Record<string, unknown>).type === "url"
+            ) {
+                const url = (block.source as { type: "url"; url: string }).url;
+                tasks.push({
+                    block: block as unknown as ImageBlockParam,
+                    parentArray: blocks,
+                    parentIndex: i,
+                    promise: downloadImageAsBase64(url),
+                });
+            }
+
+            // tool_result has nested content array with possible image blocks
+            if (block.type === "tool_result" && Array.isArray(block.content)) {
+                scanBlocks(block.content as unknown[]);
+            }
+        }
+    }
+
+    for (const msg of messages) {
+        if (!Array.isArray(msg.content)) continue;
+        scanBlocks(msg.content as unknown[]);
+    }
+
+    if (tasks.length === 0) return { converted: 0, failed: 0 };
+
+    console.log(`[claude:imageFallback] Converting ${tasks.length} URL images to base64...`);
+
+    // Download all images in parallel
+    const results = await Promise.all(tasks.map(t => t.promise));
+
+    let converted = 0;
+    let failed = 0;
+
+    for (let i = 0; i < tasks.length; i++) {
+        const result = results[i];
+        if (result) {
+            // Replace URL source with base64 source (mutate in place)
+            tasks[i].block.source = {
+                type: "base64",
+                data: result.data,
+                media_type: result.mediaType,
+            } as Base64ImageSource;
+            converted++;
+        } else {
+            // Replace broken image with text placeholder in parent array
+            tasks[i].parentArray[tasks[i].parentIndex] = {
+                type: "text",
+                text: "[Thumbnail unavailable]",
+            } as TextBlockParam;
+            failed++;
+        }
+    }
+
+    console.log(
+        `[claude:imageFallback] Done — ${converted} converted, ${failed} failed (removed)`,
+    );
+
+    return { converted, failed };
+}
+
+// =============================================================================
 // Main Streaming Function
 // =============================================================================
 
@@ -692,7 +851,8 @@ export async function streamChat(
 
         // --- Stream with retry ---
         const client = await getClaudeClient(apiKey);
-        const iterationResult = await withStreamRetry(
+        let iterationResult: Awaited<ReturnType<typeof streamIteration>>;
+        const runStream = () => withStreamRetry(
             () => streamIteration({
                 client,
                 model,
@@ -722,6 +882,31 @@ export async function streamChat(
                 signal,
             },
         );
+
+        try {
+            iterationResult = await runStream();
+        } catch (streamErr) {
+            // Fallback: if Anthropic cannot download image URLs (e.g. YouTube CDN
+            // blocks requests from Anthropic servers), convert all URL images to
+            // base64 and retry once. Text tool results are preserved — only visual
+            // context is affected.
+            if (!isImageDownloadError(streamErr)) throw streamErr;
+
+            console.warn(
+                `[claude:streamChat] Image download error in iteration ${iteration} — ` +
+                `converting URL images to base64 and retrying...`,
+            );
+            const { converted, failed } = await convertUrlImagesToBase64(agenticMessages);
+            if (converted === 0 && failed === 0) {
+                // No image blocks found — error is from something else, propagate
+                throw streamErr;
+            }
+            iterationResult = await runStream();
+            console.log(
+                `[claude:streamChat] Image fallback retry succeeded — ` +
+                `${converted} base64, ${failed} dropped`,
+            );
+        }
 
         // Accumulate text + tokens (sum across iterations, not overwrite)
         fullText = iterationResult.fullText;
