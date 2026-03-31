@@ -342,6 +342,8 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
             return {
                 ...s,
                 publishedAt: s.publishedAt || cachedVideo?.publishedAt,
+                channelTitle: s.channelTitle || cachedVideo?.channelTitle,
+                channelId: s.channelId || cachedVideo?.channelId,
                 trafficType: s.videoId ? trafficEdges[s.videoId]?.type : undefined,
                 trafficSource: s.videoId ? trafficEdges[s.videoId]?.source : undefined,
                 viewerType: s.videoId ? viewerEdges[s.videoId]?.type : undefined,
