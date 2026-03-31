@@ -1,9 +1,6 @@
 import { useMemo } from 'react';
 import type { Transform } from '../utils/timelineMath';
-
-// Constants matching useTimelinePositions
-const BASE_THUMBNAIL_SIZE = 200;
-const MIN_THUMBNAIL_SIZE = 40;
+import { BASE_THUMBNAIL_SIZE, MIN_THUMBNAIL_SIZE } from '../utils/timelineConstants';
 
 interface UseAxisTicksProps {
     stats: { minViews: number; maxViews: number };

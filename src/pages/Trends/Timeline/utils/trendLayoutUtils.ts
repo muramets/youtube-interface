@@ -1,7 +1,5 @@
 import type { TimelineStats, MonthLayout } from '../../../../core/types/trends';
-
-const BASE_THUMBNAIL_SIZE = 200;
-const MIN_THUMBNAIL_SIZE = 40;
+import { BASE_THUMBNAIL_SIZE, MIN_THUMBNAIL_SIZE } from './timelineConstants';
 
 /**
  * Calculates the Y pixel position for a given view count.

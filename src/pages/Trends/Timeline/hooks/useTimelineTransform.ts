@@ -5,6 +5,9 @@ import { useChannelStore } from '../../../../core/stores/channelStore';
 import { calculatePreservedTransform } from '../utils/timelineMath';
 import type { Transform } from '../utils/timelineMath';
 import type { MonthLayout, TimelineStats } from '../../../../core/types/trends';
+import {
+    computeEffectiveOverflow
+} from '../utils/timelineConstants';
 
 // Re-export Transform so existing consumers of this module keep working
 export type { Transform };
@@ -131,17 +134,28 @@ export const useTimelineTransform = ({
         return () => observer.disconnect();
     }, []);
 
-    // 1. Calculate 'Fit Scale' based on Width
-    const fitScale = useMemo(() => {
-        if (viewportSize.width <= 0) return 0.001;
-        return (viewportSize.width - totalPadding) / Math.max(1, worldWidth);
-    }, [viewportSize.width, totalPadding, worldWidth]);
+    // 1. Calculate 'Fit Scale' with LOD-aware overflow compensation
+    // Two-step: compute base fit → compute visual overflow (thumbnails vs dots) → adjust fit
+    const { fitScale, thumbOverflow } = useMemo(() => {
+        if (viewportSize.width <= 0) {
+            return { fitScale: 0.001, thumbOverflow: { x: 0, yTop: 0, yBottom: 0 } };
+        }
 
-    // 2. Derive Dynamic World Height (with stability)
-    // Account for vertical padding to create safe zones at top and bottom
+        // Step 1: Base fit scale (no overflow)
+        const baseFit = (viewportSize.width - totalPadding) / Math.max(1, worldWidth);
+
+        // Step 2: LOD-aware overflow (tiny for dots, large for thumbnails)
+        const overflow = computeEffectiveOverflow(baseFit, videosLength);
+
+        // Step 3: Adjusted fit scale — subtract overflow from both sides
+        const adjusted = (viewportSize.width - totalPadding - 2 * overflow.x) / Math.max(1, worldWidth);
+
+        return { fitScale: Math.max(0.001, adjusted), thumbOverflow: overflow };
+    }, [viewportSize.width, totalPadding, worldWidth, videosLength]);
+
     // 2. Derive Dynamic World Height
-    // Account for vertical padding to create safe zones at top and bottom
-    const availableHeight = viewportSize.height - headerHeight - totalVerticalPadding;
+    // Account for vertical padding + thumbnail visual overflow to create safe zones
+    const availableHeight = Math.max(0, viewportSize.height - headerHeight - totalVerticalPadding - thumbOverflow.yTop - thumbOverflow.yBottom);
 
     // Calculate synchronously during render (Pure)
     let dynamicWorldHeight = 1000;
@@ -179,15 +193,18 @@ export const useTimelineTransform = ({
         // Cap overscroll at 12% of viewport
         const overscrollX = Math.min(viewportWidth * 0.12, dynamicOverscroll);
 
-        // Calculate the safe bounds (with padding + overscroll)
-        // Upper bound (Leftmost position): Left Padding + Overscroll
-        const maxOffsetX = paddingLeft + overscrollX;
+        // LOD-aware visual overflow at current scale (tiny for dots, large for thumbnails)
+        const ov = computeEffectiveOverflow(t.scale);
+
+        // Calculate the safe bounds (with padding + overflow + overscroll)
+        // Upper bound (Leftmost position): Left Padding + overflow + Overscroll
+        const maxOffsetX = paddingLeft + ov.x + overscrollX;
 
         const maxScale = Math.max(t.scale, minScale); // Ensure we don't clamp below minScale logic
         const effectiveWorldWidth = worldWidth * maxScale;
 
-        // Lower bound (Rightmost position): Viewport - World - Padding - Overscroll
-        const minOffsetX = viewportWidth - (effectiveWorldWidth + paddingRight) - overscrollX;
+        // Lower bound (Rightmost position): Viewport - World - Padding - overflow - Overscroll
+        const minOffsetX = viewportWidth - (effectiveWorldWidth + paddingRight + ov.x) - overscrollX;
 
         // Bounds:
         // We simply clamp between min and max.
@@ -197,17 +214,17 @@ export const useTimelineTransform = ({
 
         const constrainedOffsetX = Math.max(lowerBound, Math.min(upperBound, t.offsetX));
 
-        // Y-Axis clamping
+        // Y-Axis clamping (with LOD-aware overflow)
         let constrainedOffsetY: number;
-        const availableHeight = viewportHeight - headerHeight - totalVerticalPadding;
+        const rawAvailableHeight = viewportHeight - headerHeight - totalVerticalPadding;
 
-        if (scaledHeight <= availableHeight) {
-            // Content fits: align to top padding (similar to left padding for X)
-            constrainedOffsetY = headerHeight + paddingTop;
+        if (scaledHeight + ov.yTop + ov.yBottom <= rawAvailableHeight) {
+            // Content + overflow fits: align with top overflow margin
+            constrainedOffsetY = headerHeight + paddingTop + ov.yTop;
         } else {
-            // Content is larger: Clamp with padding bounds
-            const maxOffsetY = headerHeight + paddingTop;
-            const minOffsetY = viewportHeight - paddingBottom - scaledHeight;
+            // Content is larger: Clamp with overflow-aware bounds
+            const maxOffsetY = headerHeight + paddingTop + ov.yTop;
+            const minOffsetY = viewportHeight - paddingBottom - ov.yBottom - scaledHeight;
             constrainedOffsetY = Math.max(minOffsetY, Math.min(maxOffsetY, t.offsetY));
         }
 
@@ -219,17 +236,16 @@ export const useTimelineTransform = ({
     }, [worldWidth, dynamicWorldHeight, headerHeight, paddingLeft, paddingRight, paddingTop, paddingBottom, totalVerticalPadding, minScale]);
 
     // Calculate Auto Fit Transform (Pure Calculation)
+    // Uses overflow-adjusted fitScale and offsets to keep all thumbnails fully visible
     const calculateAutoFitTransform = useCallback(() => {
         if (videosLength === 0 || viewportSize.width <= 0) return null;
 
-        const currentFitScale = (viewportSize.width - totalPadding) / Math.max(1, worldWidth);
+        // Position content with padding + thumbnail overflow offsets
+        const newOffsetX = paddingLeft + thumbOverflow.x;
+        const newOffsetY = headerHeight + paddingTop + thumbOverflow.yTop;
 
-        // Position content with padding offsets
-        const newOffsetX = paddingLeft;
-        const newOffsetY = headerHeight + paddingTop;
-
-        return { scale: currentFitScale, offsetX: newOffsetX, offsetY: newOffsetY };
-    }, [videosLength, viewportSize, totalPadding, paddingLeft, paddingTop, worldWidth, headerHeight]);
+        return { scale: fitScale, offsetX: newOffsetX, offsetY: newOffsetY };
+    }, [videosLength, viewportSize.width, fitScale, paddingLeft, paddingTop, headerHeight, thumbOverflow]);
 
     // Handle Auto Fit (Instant)
     // WHY: Fits all content in viewport. Called on first load, hash change (no saved state), or manual reset.
@@ -403,7 +419,10 @@ export const useTimelineTransform = ({
          * If the view was roughly fitted before the resize (within 5% tolerance),
          * maintain the "fitted" state by re-running auto-fit on the new dimensions.
          */
-        const prevFitScale = (viewportSize.width - totalPadding) / Math.max(1, pWidth);
+        // Use overflow-adjusted fit scale for comparison (matches how fitScale is computed)
+        const basePrevFit = (viewportSize.width - totalPadding) / Math.max(1, pWidth);
+        const prevOvX = computeEffectiveOverflow(basePrevFit, videosLength).x;
+        const prevFitScale = (viewportSize.width - totalPadding - 2 * prevOvX) / Math.max(1, pWidth);
         const scaleDiff = Math.abs(transformState.scale - prevFitScale);
         const isRoughlyFitted = scaleDiff < 0.001 || (scaleDiff / prevFitScale) < 0.05;
 
