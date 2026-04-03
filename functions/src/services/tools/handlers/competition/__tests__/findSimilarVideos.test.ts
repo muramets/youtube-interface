@@ -855,3 +855,168 @@ describe("handleFindSimilarVideos — mode: both", () => {
         expect(mockFindNearestVideos).toHaveBeenCalledTimes(2);
     });
 });
+
+// ---------------------------------------------------------------------------
+// Tests — searchChannelId (cross-channel search)
+// ---------------------------------------------------------------------------
+
+describe("searchChannelId — cross-channel search", () => {
+    const SEARCH_CHANNEL_ID = "other-channel";
+    const SEARCH_BASE_PATH = `users/user1/channels/${SEARCH_CHANNEL_ID}`;
+
+    it("searches in target channel's trend DB when searchChannelId is set", async () => {
+        const embData = makeEmbeddingData("vid1", "ch1");
+
+        // Video found in globalVideoEmbeddings (no channel dependency)
+        mockDocGet.mockImplementation((path: string) => {
+            if (path === "globalVideoEmbeddings/vid1") {
+                return Promise.resolve({ exists: true, data: () => embData });
+            }
+            if (path === "system/embeddingStats") {
+                return Promise.resolve({ exists: false });
+            }
+            return Promise.resolve({ exists: false });
+        });
+
+        // trendChannels should be read from searchBasePath, not basePath
+        mockCollectionGet.mockImplementation((path: string) => {
+            if (path === `${SEARCH_BASE_PATH}/trendChannels`) {
+                return Promise.resolve({
+                    empty: false,
+                    docs: [makeTrendChannelDoc("ch1", "Channel 1"), makeTrendChannelDoc("ch2", "Channel 2")],
+                });
+            }
+            // basePath trendChannels should NOT be queried
+            if (path === `${BASE_PATH}/trendChannels`) {
+                return Promise.resolve({ empty: true, docs: [] });
+            }
+            return Promise.resolve({ empty: true, docs: [] });
+        });
+
+        mockFindNearestVideos.mockResolvedValue([]);
+        mockGetHiddenVideoIds.mockResolvedValue(new Set());
+        mockGetViewDeltas.mockResolvedValue(new Map());
+        mockAssignPercentileGroups.mockReturnValue(new Map());
+
+        const result = await handleFindSimilarVideos(
+            { videoId: "vid1", mode: "packaging", searchChannelId: SEARCH_CHANNEL_ID },
+            CTX,
+        );
+
+        // Verify trend channels were read from search channel
+        expect(mockCollectionGet).toHaveBeenCalledWith(`${SEARCH_BASE_PATH}/trendChannels`);
+
+        // Verify search used both trend channel IDs from target channel
+        expect(mockFindNearestVideos).toHaveBeenCalledWith(
+            expect.objectContaining({
+                youtubeChannelIds: ["ch1", "ch2"],
+            }),
+        );
+
+        expect(result).not.toHaveProperty("error");
+    });
+
+    it("looks up video in search channel when not found in caller channel", async () => {
+        mockDocGet.mockImplementation((path: string) => {
+            // Not in globalVideoEmbeddings
+            if (path === "globalVideoEmbeddings/vid-in-other") {
+                return Promise.resolve({ exists: false });
+            }
+            // Not in caller's own videos
+            if (path === `${BASE_PATH}/videos/vid-in-other`) {
+                return Promise.resolve({ exists: false });
+            }
+            // Found in search channel's own videos
+            if (path === `${SEARCH_BASE_PATH}/videos/vid-in-other`) {
+                return Promise.resolve({
+                    exists: true,
+                    data: () => ({
+                        title: "Video In Other Channel",
+                        tags: ["tag1"],
+                        description: "desc",
+                    }),
+                });
+            }
+            if (path === "system/embeddingStats") {
+                return Promise.resolve({ exists: false });
+            }
+            return Promise.resolve({ exists: false });
+        });
+
+        mockCollectionGet.mockImplementation((path: string) => {
+            // Caller's trend channels — empty (triggers video lookup failure for step 3)
+            if (path === `${BASE_PATH}/trendChannels`) {
+                return Promise.resolve({ empty: true, docs: [] });
+            }
+            // Search channel's trend channels
+            if (path === `${SEARCH_BASE_PATH}/trendChannels`) {
+                return Promise.resolve({
+                    empty: false,
+                    docs: [makeTrendChannelDoc("ch1", "Channel 1")],
+                });
+            }
+            return Promise.resolve({ empty: true, docs: [] });
+        });
+
+        process.env.GEMINI_API_KEY = "test-key";
+        mockGeneratePackagingEmbedding.mockResolvedValue(dummyPackagingVector);
+        mockFindNearestVideos.mockResolvedValue([]);
+        mockGetHiddenVideoIds.mockResolvedValue(new Set());
+        mockGetViewDeltas.mockResolvedValue(new Map());
+        mockAssignPercentileGroups.mockReturnValue(new Map());
+
+        const result = await handleFindSimilarVideos(
+            { videoId: "vid-in-other", mode: "packaging", searchChannelId: SEARCH_CHANNEL_ID },
+            CTX,
+        );
+
+        expect(result).not.toHaveProperty("error");
+        expect(mockGeneratePackagingEmbedding).toHaveBeenCalledWith(
+            "Video In Other Channel", ["tag1"], "desc", "test-key",
+        );
+
+        delete process.env.GEMINI_API_KEY;
+    });
+
+    it("uses search channel for hidden videos and view deltas", async () => {
+        const embData = makeEmbeddingData("vid1", "ch1");
+
+        mockDocGet.mockImplementation((path: string) => {
+            if (path === "globalVideoEmbeddings/vid1") {
+                return Promise.resolve({ exists: true, data: () => embData });
+            }
+            if (path === "system/embeddingStats") {
+                return Promise.resolve({ exists: false });
+            }
+            return Promise.resolve({ exists: false });
+        });
+
+        mockCollectionGet.mockImplementation((path: string) => {
+            if (path === `${SEARCH_BASE_PATH}/trendChannels`) {
+                return Promise.resolve({
+                    empty: false,
+                    docs: [makeTrendChannelDoc("ch1", "Channel 1")],
+                });
+            }
+            return Promise.resolve({ empty: true, docs: [] });
+        });
+
+        mockFindNearestVideos.mockResolvedValue([]);
+        mockGetHiddenVideoIds.mockResolvedValue(new Set());
+        mockGetViewDeltas.mockResolvedValue(new Map());
+        mockAssignPercentileGroups.mockReturnValue(new Map());
+
+        await handleFindSimilarVideos(
+            { videoId: "vid1", mode: "packaging", searchChannelId: SEARCH_CHANNEL_ID },
+            CTX,
+        );
+
+        // Hidden videos should be checked against search channel
+        expect(mockGetHiddenVideoIds).toHaveBeenCalledWith(SEARCH_BASE_PATH);
+
+        // View deltas should use search channel
+        expect(mockGetViewDeltas).toHaveBeenCalledWith(
+            "user1", SEARCH_CHANNEL_ID, expect.any(Array), expect.any(Set),
+        );
+    });
+});

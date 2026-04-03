@@ -228,13 +228,25 @@ export async function handleFindSimilarVideos(
 
         const basePath = `users/${ctx.userId}/channels/${ctx.channelId}`;
 
+        // Optional: search in a different channel's trend DB
+        const searchChannelId = typeof args.searchChannelId === "string"
+            ? args.searchChannelId.trim()
+            : undefined;
+        const searchBasePath = searchChannelId
+            ? `users/${ctx.userId}/channels/${searchChannelId}`
+            : basePath;
+
         // --- Step 1: Lookup video (shared for all modes) ---
         ctx.reportProgress?.("Resolving query video...");
-        const lookup = await lookupVideo(videoId, basePath);
+        let lookup = await lookupVideo(videoId, basePath);
+        // If not found in current channel and searchChannelId is set, try the other channel
+        if ("error" in lookup && searchChannelId) {
+            lookup = await lookupVideo(videoId, searchBasePath);
+        }
         if ("error" in lookup) return lookup;
 
-        // --- Step 2: Get user's trend channel IDs ---
-        const trendChannelsSnap = await db.collection(`${basePath}/trendChannels`).get();
+        // --- Step 2: Get trend channel IDs (from search channel if specified) ---
+        const trendChannelsSnap = await db.collection(`${searchBasePath}/trendChannels`).get();
         if (trendChannelsSnap.empty) {
             return { error: "No trend channels tracked. Add channels in Trends first." };
         }
@@ -334,7 +346,7 @@ export async function handleFindSimilarVideos(
         const excludeIds = new Set([videoId]);
         if (lookup.youtubeVideoId) excludeIds.add(lookup.youtubeVideoId);
 
-        const hiddenIds = await getHiddenVideoIds(basePath);
+        const hiddenIds = await getHiddenVideoIds(searchBasePath);
         const filtered = searchResults.filter(
             (r) => !excludeIds.has(r.videoId) && !hiddenIds.has(r.videoId),
         );
@@ -349,7 +361,7 @@ export async function handleFindSimilarVideos(
         const resultVideoIds = truncated.map((r) => r.videoId);
         const deltasMap = await getViewDeltas(
             ctx.userId,
-            ctx.channelId,
+            searchChannelId ?? ctx.channelId,
             resultVideoIds,
             channelIdHints,
         );

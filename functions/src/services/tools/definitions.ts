@@ -450,6 +450,13 @@ const findSimilarVideos: ToolDefinition = {
                 type: "number",
                 description: "Max results to return (default 20, max 50).",
             },
+            searchChannelId: {
+                type: "string",
+                description:
+                    "Optional. Internal channel ID whose trend database to search in. " +
+                    "Use when the reference video belongs to a different channel than the one " +
+                    "whose competitors you want to search. If omitted, searches the current channel's trend DB.",
+            },
         },
         required: ["videoId"],
     },
