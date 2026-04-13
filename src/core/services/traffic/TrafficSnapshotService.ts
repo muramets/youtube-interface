@@ -102,8 +102,8 @@ export const TrafficSnapshotService = {
 
         await TrafficDataService.save(userId, channelId, videoId, updated);
 
-        // Denormalize snapshot count onto the video document for LLM tool awareness
-        syncSnapshotCount(userId, channelId, videoId, 'suggestedTrafficSnapshotCount', updated.snapshots.length);
+        // Denormalize snapshot count + upload timestamp onto the video document
+        syncSnapshotCount(userId, channelId, videoId, 'suggestedTrafficSnapshotCount', updated.snapshots.length, 'lastSuggestedTrafficUpload');
 
         logger.info('Traffic snapshot created', {
             component: 'TrafficSnapshotService',

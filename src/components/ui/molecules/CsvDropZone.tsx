@@ -83,7 +83,7 @@ export const CsvDropZone: React.FC<CsvDropZoneProps> = ({
                 border rounded-xl
                 ${isBusy
                     ? 'border-transparent bg-bg-secondary/50 cursor-wait'
-                    : `cursor-pointer border-dashed ${isDragging ? 'border-accent-blue bg-accent-blue/5' : 'border-white/10 hover:border-white bg-transparent'}`
+                    : `cursor-pointer border-dashed ${isDragging ? 'border-accent-blue bg-accent-blue/5' : 'border-border hover:border-text-secondary bg-transparent'}`
                 }
             `}
             style={{ height }}

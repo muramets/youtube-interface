@@ -83,6 +83,28 @@ export const NotificationService = {
         }
     },
 
+    addNotificationsBatch: async (
+        userId: string,
+        channelId: string,
+        notifications: Omit<Notification, 'id' | 'timestamp' | 'isRead'>[]
+    ) => {
+        if (notifications.length === 0) return;
+        const batch = writeBatch(db);
+        const colRef = collection(db, 'users', userId, 'channels', channelId, 'notifications');
+        for (const notification of notifications) {
+            const docRef = notification.internalId
+                ? doc(colRef, notification.internalId)
+                : doc(colRef);
+            batch.set(docRef, {
+                ...notification,
+                id: notification.internalId || docRef.id,
+                isRead: false,
+                timestamp: serverTimestamp()
+            });
+        }
+        await batch.commit();
+    },
+
     markAsRead: async (userId: string, channelId: string, notificationId: string) => {
         const ref = doc(db, 'users', userId, 'channels', channelId, 'notifications', notificationId);
         await updateDoc(ref, { isRead: true });

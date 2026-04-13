@@ -115,6 +115,7 @@ Slug validation: `SLUG_PATTERN` (`/^[a-z0-9]+(-[a-z0-9]+)*$/`) — shared меж
 ← YOU ARE HERE
 
 ### Следующие шаги (не начаты)
+- [ ] KI Import — импорт KI из ZIP-архива (Claude Code workflow). UI кнопка на Knowledge Page, парсинг markdown + `<!-- -->` metadata, `setDoc` по ID (upsert), version snapshot при обновлении существующего KI, discovery flags update. ID-конвенция: `ki-{timestamp}` для новых, оригинальный ID для отредактированных. Детали ID-системы: `muramets-lab/KI/index.md`
 - [ ] KI recommendations — LLM предлагает обновить устаревшие KI
 - [ ] Cross-channel KI — знания, применимые ко всем каналам
 - [ ] KI search — полнотекстовый поиск по всем KI канала

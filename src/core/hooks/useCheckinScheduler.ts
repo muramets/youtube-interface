@@ -4,122 +4,94 @@ import { useAuth } from './useAuth';
 import { useChannelStore } from '../stores/channelStore';
 
 import { useSettings } from './useSettings';
-import { useNotificationStore } from '../stores/notificationStore';
+import { useNotificationStore, type Notification } from '../stores/notificationStore';
 import { calculateDueDate } from '../utils/dueDateUtils';
 
 export const useCheckinScheduler = () => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
-    const { videos, updateVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
+    const { videos } = useVideos(user?.uid || '', currentChannel?.id || '');
     const { packagingSettings } = useSettings();
-    const { notifications, addNotification, removeNotification } = useNotificationStore();
+    const { notifications } = useNotificationStore();
 
     const processedIdsRef = useRef(new Set<string>());
 
     useEffect(() => {
         const checkDueCheckins = async () => {
+            const store = useNotificationStore.getState();
+            const currentNotifications = store.notifications;
             const now = Date.now();
             const customVideos = videos.filter(v => v.isCustom && v.publishedVideoId);
+
+            // Collect batch operations to minimize Firestore writes and onSnapshot triggers
+            const toCreate: Omit<Notification, 'id' | 'timestamp' | 'isRead'>[] = [];
+            const toRemoveIds: string[] = [];
 
             for (const video of customVideos) {
                 const publishedAt = video.publishedAt;
                 if (!publishedAt) continue;
 
-                for (const rule of packagingSettings.checkinRules) {
-                    // Calculate due time using utility that accounts for YouTube analytics update at 12:00
-                    const dueTime = calculateDueDate(publishedAt, rule.hoursAfterPublish);
+                // Failed videos (deleted/private on YouTube): clean up existing notifications, skip creation
+                if (video.fetchStatus === 'failed') {
+                    for (const rule of packagingSettings.checkinRules) {
+                        const notificationId = `checkin-due-${video.id}-${rule.id}`;
+                        const existing = currentNotifications.find(n => n.internalId === notificationId);
+                        if (existing) toRemoveIds.push(existing.id);
+                    }
+                    continue;
+                }
 
+                for (const rule of packagingSettings.checkinRules) {
+                    const dueTime = calculateDueDate(publishedAt, rule.hoursAfterPublish);
                     const notificationId = `checkin-due-${video.id}-${rule.id}`;
 
-                    // Check if this check-in has already been done (exists in history)
-                    const videoHistory = video.packagingHistory || [];
-                    let existingCheckin = videoHistory.flatMap(v => v.checkins || []).find(c => c.ruleId === rule.id);
+                    // Snapshot-based completion: both CSV types must be uploaded after due date.
+                    const hasSuggested = (video.lastSuggestedTrafficUpload ?? 0) >= dueTime;
+                    const hasTrafficSource = (video.lastTrafficSourceUpload ?? 0) >= dueTime;
+                    const isComplete = hasSuggested && hasTrafficSource;
 
-                    const isCheckinComplete = existingCheckin && (existingCheckin.metrics.ctr !== null || existingCheckin.metrics.impressions !== null || existingCheckin.metrics.views !== null);
-
-                    if (isCheckinComplete) {
-                        // If job is done, remove the notification if it exists
-                        const existingNotification = notifications.find(n => n.internalId === notificationId);
-                        if (existingNotification) {
-                            await removeNotification(existingNotification.id);
-                        }
+                    if (isComplete) {
+                        const existing = currentNotifications.find(n => n.internalId === notificationId);
+                        if (existing) toRemoveIds.push(existing.id);
                         processedIdsRef.current.delete(notificationId);
                         continue;
                     }
 
-                    // If it's not due yet, skip
-                    if (now < dueTime) {
-                        continue;
-                    }
+                    if (now < dueTime) continue;
 
-                    // It IS due (or past due).
-
-                    // CRITICAL CHANGE: If it's due but MISSING in DB, we must CREATE it now.
-                    // This ensures Notification implies Checkin Row Exists.
-                    if (!existingCheckin) {
-                        // We need to add it to the LATEST version.
-                        // Clone history to avoid mutation
-                        const newHistory = JSON.parse(JSON.stringify(videoHistory));
-                        if (newHistory.length === 0) continue; // Should have history if custom? If not, maybe skip or create v1? Let's skip for safety if no version exists.
-
-                        // Sort by version desc
-                        newHistory.sort((a: { versionNumber: number }, b: { versionNumber: number }) => b.versionNumber - a.versionNumber);
-                        const latestVersion = newHistory[0];
-
-                        const newCheckin = {
-                            id: crypto.randomUUID(),
-                            date: dueTime, // Use the scheduled time, not 'now', for accuracy
-                            metrics: {
-                                impressions: null,
-                                ctr: null,
-                                views: null,
-                                avdSeconds: null
-                            },
-                            ruleId: rule.id
-                        };
-
-                        latestVersion.checkins.push(newCheckin);
-                        // Sort checkins by date
-                        latestVersion.checkins.sort((a: { date: number }, b: { date: number }) => a.date - b.date);
-
-                        // Update DB
-                        try {
-                            await updateVideo({
-                                videoId: video.id,
-                                updates: { packagingHistory: newHistory }
-                            });
-                            // Update local reference immediately so we don't try to add it again in next loop iteration (if it runs fast)
-                            existingCheckin = newCheckin;
-                        } catch (e) {
-                            console.error("Failed to auto-create checkin row", e);
-                            continue; // Retry next loop
-                        }
-                    }
-
-                    // Now check Notification status
-                    const alreadyNotified = notifications.some(n => n.internalId === notificationId);
-                    const isProcessing = processedIdsRef.current.has(notificationId);
-
-                    if (alreadyNotified || isProcessing) continue;
+                    const alreadyNotified = currentNotifications.some(n => n.internalId === notificationId);
+                    if (alreadyNotified || processedIdsRef.current.has(notificationId)) continue;
 
                     processedIdsRef.current.add(notificationId);
+                    toCreate.push({
+                        title: 'Packaging Check-in Due',
+                        message: `Time to check in on "${video.title}" (${rule.badgeText})`,
+                        type: 'info',
+                        link: `/video/${currentChannel!.id}/${video.id}/details?tab=packaging`,
+                        internalId: notificationId,
+                        customColor: rule.badgeColor,
+                        thumbnail: video.thumbnail || video.customImage,
+                        isPersistent: true,
+                        category: 'checkin'
+                    });
+                }
+            }
 
-                    try {
-                        await addNotification({
-                            title: 'Packaging Check-in Due',
-                            message: `Time to check in on "${video.title}" (${rule.badgeText})`,
-                            type: 'info',
-                            link: `/video/${video.id}`,
-                            internalId: notificationId,
-                            customColor: rule.badgeColor,
-                            thumbnail: video.thumbnail || video.customImage,
-                            isPersistent: true,
-                            category: 'checkin'
-                        });
-                    } catch (e) {
-                        processedIdsRef.current.delete(notificationId);
-                        console.error("Failed to add notification", e);
-                    }
+            // Single batch write → one onSnapshot → all notifications appear at once
+            if (toCreate.length > 0) {
+                try {
+                    await store.addNotificationsBatch(toCreate);
+                } catch (e) {
+                    toCreate.forEach(n => { if (n.internalId) processedIdsRef.current.delete(n.internalId); });
+                    console.error("Failed to batch-add notifications", e);
+                }
+            }
+
+            if (toRemoveIds.length > 0) {
+                try {
+                    await store.removeNotifications(toRemoveIds);
+                } catch (e) {
+                    console.error("Failed to batch-remove notifications", e);
                 }
             }
         };
@@ -128,7 +100,7 @@ export const useCheckinScheduler = () => {
         const interval = setInterval(checkDueCheckins, 60000);
 
         return () => clearInterval(interval);
-    }, [videos, packagingSettings, notifications, addNotification, removeNotification, updateVideo]);
+    }, [videos, packagingSettings, currentChannel]);
 
     // Cleanup Effect: Auto-remove duplicates
     // This handles the transition from Random IDs to Deterministic IDs

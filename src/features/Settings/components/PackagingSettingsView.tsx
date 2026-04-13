@@ -44,6 +44,7 @@ const ColorSelect: React.FC<{ value: string; onChange: (color: string) => void }
                 width={32}
                 align="left"
                 className="p-1"
+                zIndexClass="z-modal-stacked"
             >
                 <div className="flex flex-col gap-1">
                     {PRESET_COLORS.map(color => (
@@ -174,6 +175,7 @@ const RuleItem: React.FC<{
                             width={96}
                             className="bg-bg-primary border border-border"
                             connected
+                            zIndexClass="z-modal-stacked"
                         >
                             {['days', 'weeks'].map((unit) => (
                                 <div

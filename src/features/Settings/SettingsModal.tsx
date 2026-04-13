@@ -8,6 +8,7 @@ import type { GeneralSettings, SyncSettings, CloneSettings as CloneSettingsType,
 import { cleanOrphanedCheckins } from './services/packagingCleanupService';
 import type { AiAssistantSettings as AiSettingsType } from '../../core/types/chat/chat';
 import { useChatStore } from '../../core/stores/chat/chatStore';
+import { ChatService } from '../../core/services/ai/chatService';
 import { logger } from '../../core/utils/logger';
 import { useUIStore } from '../../core/stores/uiStore';
 
@@ -56,7 +57,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     const [localPicker, setLocalPicker] = useState<PickerSettings>(pickerSettings);
 
     const aiSettings = useChatStore(s => s.aiSettings);
-    const saveAiSettings = useChatStore(s => s.saveAiSettings);
     const [localAiSettings, setLocalAiSettings] = useState<AiSettingsType>(aiSettings);
 
     // Force remount of children when modal opens to reset their internal state
@@ -142,7 +142,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 updatePackagingSettings(user.uid, currentChannel.id, localPackaging),
                 updateUploadDefaults(user.uid, currentChannel.id, localUploadDefaults),
                 updatePickerSettings(user.uid, currentChannel.id, localPicker),
-                saveAiSettings(localAiSettings),
+                ChatService.saveAiSettings(user.uid, currentChannel.id, localAiSettings),
             ]);
 
             // Run cleanup AFTER saving settings to ensure no race conditions

@@ -110,8 +110,8 @@ export const TrafficSourceService = {
         // 4. Save to Firestore
         await this.save(userId, channelId, videoId, updatedData);
 
-        // Denormalize snapshot count onto the video document for LLM tool awareness
-        syncSnapshotCount(userId, channelId, videoId, 'trafficSourceSnapshotCount', updatedData.snapshots.length);
+        // Denormalize snapshot count + upload timestamp onto the video document
+        syncSnapshotCount(userId, channelId, videoId, 'trafficSourceSnapshotCount', updatedData.snapshots.length, 'lastTrafficSourceUpload');
 
         return snapshotId;
     },

@@ -21,7 +21,7 @@ interface NotificationDropdownProps {
 
 export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ onClose }) => {
     const { notifications, markAllAsRead } = useNotificationStore();
-    const { openVideoModal, setSettingsOpen } = useUIStore();
+    const { setSettingsOpen, openCheckinUpload } = useUIStore();
     const navigate = useNavigate();
 
     const [activeFilter, setActiveFilter] = React.useState<FilterTab>('all');
@@ -54,13 +54,24 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ onCl
 
         if (notification.link === 'settings') {
             setSettingsOpen(true);
-        } else if (notification.link.startsWith('/video/')) {
-            const videoId = notification.link.split('/video/')[1];
-            if (videoId) {
-                // If it's a check-in notification, open packaging tab
-                const isCheckin = notification.title.includes('Check-in');
-                openVideoModal(videoId, isCheckin ? 'packaging' : 'details');
-            }
+        } else if (notification.category === 'checkin' && notification.internalId?.startsWith('checkin-due-')) {
+            // Extract videoId and ruleId from internalId: "checkin-due-{videoId}-{ruleId}"
+            // ruleId is a UUID (36 chars), videoId is everything between "checkin-due-" and the last 37 chars (dash + UUID)
+            const suffix = notification.internalId.slice('checkin-due-'.length);
+            const ruleId = suffix.slice(-(36));
+            const videoId = suffix.slice(0, -(36 + 1)); // remove "-{uuid}"
+
+            // Extract badge text from message: 'Time to check in on "title" (badgeText)'
+            const badgeMatch = notification.message.match(/\(([^)]+)\)$/);
+            const badgeText = badgeMatch?.[1] || 'Check-in';
+
+            openCheckinUpload({
+                videoId,
+                ruleId,
+                badgeText,
+                badgeColor: notification.customColor || '#3B82F6',
+                thumbnail: notification.thumbnail,
+            });
         } else {
             navigate(notification.link);
         }

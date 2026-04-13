@@ -26,6 +26,17 @@ interface UIState {
     openVideoModal: (videoId: string, tab?: 'details' | 'packaging' | 'traffic' | 'stats') => void;
     closeVideoModal: () => void;
 
+    // Check-in Upload Modal
+    checkinUpload: {
+        videoId: string;
+        ruleId: string;
+        badgeText: string;
+        badgeColor: string;
+        thumbnail?: string;
+    } | null;
+    openCheckinUpload: (data: { videoId: string; ruleId: string; badgeText: string; badgeColor: string; thumbnail?: string }) => void;
+    closeCheckinUpload: () => void;
+
     // Video View Modes (Custom vs YouTube view)
     videoViewModes: Record<string, 'custom' | 'youtube'>;
     setVideoViewMode: (videoId: string, mode: 'custom' | 'youtube') => void;
@@ -63,6 +74,10 @@ export const useUIStore = create<UIState>()(
             activeTab: 'details',
             openVideoModal: (videoId, tab = 'details') => set({ activeVideoId: videoId, activeTab: tab }),
             closeVideoModal: () => set({ activeVideoId: null, activeTab: 'details' }),
+
+            checkinUpload: null,
+            openCheckinUpload: (data) => set({ checkinUpload: data }),
+            closeCheckinUpload: () => set({ checkinUpload: null }),
 
             videoViewModes: {},
             setVideoViewMode: (videoId, mode) => set((state) => ({

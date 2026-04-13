@@ -63,6 +63,9 @@ export interface VideoDetails {
     // Denormalized snapshot counts (written by TrafficSourceService / TrafficSnapshotService)
     trafficSourceSnapshotCount?: number;
     suggestedTrafficSnapshotCount?: number;
+    // Denormalized upload timestamps for check-in completion (written by same services)
+    lastSuggestedTrafficUpload?: number;
+    lastTrafficSourceUpload?: number;
     // Knowledge Items discovery flags (written by saveKnowledge handler)
     knowledgeItemCount?: number;
     // Enrichment: YouTube API confirmed this video as unfindable (deleted, private, etc.)

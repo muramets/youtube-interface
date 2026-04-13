@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { Trash2, Info, AlertCircle, CheckCircle } from 'lucide-react';
+import { Trash2, Info, AlertCircle, CheckCircle, EyeOff } from 'lucide-react';
 import { useNotificationStore, type Notification } from '../../core/stores/notificationStore';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -33,11 +33,11 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ notification
             markAsRead(notification.id);
         }
 
-        if (notification.link) {
+        if (onAction) {
+            onAction(notification);
+        } else if (notification.link) {
             navigate(notification.link);
         }
-
-        onAction?.(notification);
     };
 
     const [showTooltip, setShowTooltip] = useState(false);
@@ -240,16 +240,29 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ notification
             </div>
 
             <div className="flex-shrink-0">
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        removeNotification(notification.id);
-                    }}
-                    className="p-2 rounded-full hover:bg-hover-bg text-text-secondary hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
-                    title="Delete"
-                >
-                    <Trash2 size={18} />
-                </button>
+                {notification.category === 'checkin' ? (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            markAsRead(notification.id);
+                        }}
+                        className="p-2 rounded-full hover:bg-hover-bg text-text-secondary hover:text-text-primary opacity-0 group-hover:opacity-100 transition-all"
+                        title="Dismiss — upload CSV to clear"
+                    >
+                        <EyeOff size={18} />
+                    </button>
+                ) : (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            removeNotification(notification.id);
+                        }}
+                        className="p-2 rounded-full hover:bg-hover-bg text-text-secondary hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                        title="Delete"
+                    >
+                        <Trash2 size={18} />
+                    </button>
+                )}
             </div>
         </div>
     );

@@ -1,20 +1,27 @@
 import { db } from '../../../config/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 
+type CountField = 'suggestedTrafficSnapshotCount' | 'trafficSourceSnapshotCount';
+type TimestampField = 'lastSuggestedTrafficUpload' | 'lastTrafficSourceUpload';
+
 /**
- * Fire-and-forget update of a snapshot count field on the video document.
- * Used for denormalization so that backend tools (getMultipleVideoDetails)
- * can expose traffic data availability to the LLM without extra reads.
+ * Fire-and-forget update of snapshot metadata on the video document.
+ * Writes count (for LLM tool awareness) and upload timestamp (for check-in completion).
  */
 export function syncSnapshotCount(
     userId: string,
     channelId: string,
     videoId: string,
-    field: 'suggestedTrafficSnapshotCount' | 'trafficSourceSnapshotCount',
+    field: CountField,
     count: number,
+    uploadTimestampField?: TimestampField,
 ): void {
     const videoRef = doc(db, `users/${userId}/channels/${channelId}/videos/${videoId}`);
-    updateDoc(videoRef, { [field]: count }).catch((err) => {
+    const data: Record<string, number> = { [field]: count };
+    if (uploadTimestampField) {
+        data[uploadTimestampField] = Date.now();
+    }
+    updateDoc(videoRef, data).catch((err) => {
         console.warn(`[syncSnapshotCount] Failed to update ${field} for ${videoId}:`, err);
     });
 }

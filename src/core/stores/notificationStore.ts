@@ -34,6 +34,7 @@ interface NotificationState {
 
     subscribeToNotifications: (userId: string, channelId: string) => () => void;
     addNotification: (notification: Omit<Notification, 'id' | 'timestamp' | 'isRead'>) => Promise<void>;
+    addNotificationsBatch: (notifications: Omit<Notification, 'id' | 'timestamp' | 'isRead'>[]) => Promise<void>;
     markAsRead: (id: string) => Promise<void>;
     markAllAsRead: () => Promise<void>;
     removeNotification: (id: string) => Promise<void>;
@@ -60,6 +61,12 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         const { activeUserId, activeChannelId } = get();
         if (!activeUserId || !activeChannelId) return;
         await NotificationService.addNotification(activeUserId, activeChannelId, notification);
+    },
+
+    addNotificationsBatch: async (notifications) => {
+        const { activeUserId, activeChannelId } = get();
+        if (!activeUserId || !activeChannelId) return;
+        await NotificationService.addNotificationsBatch(activeUserId, activeChannelId, notifications);
     },
 
     markAsRead: async (id) => {
