@@ -50,8 +50,10 @@ Check-in = напоминание загрузить два CSV, которые 
 4. **Не важно, через какой UI загружен** — важна дата загрузки
 
 ### Правило завершения
-Check-in считается выполненным, когда **оба** CSV загружены после due date:
-- `lastSuggestedTrafficUpload >= dueDate` **И** `lastTrafficSourceUpload >= dueDate`
+Check-in считается выполненным, когда **Traffic Sources CSV** загружен после due date:
+- `lastTrafficSourceUpload >= dueDate` — единственное обязательное условие
+- Suggested Traffic CSV опционален (может не существовать для видео с малым количеством просмотров)
+- Модалка предлагает загрузить оба CSV, но completion и auto-close по Traffic Sources
 - Один snapshot на T+7d закрывает ВСЕ правила с меньшим интервалом (24h, 48h, 96h)
 
 ---
@@ -70,7 +72,7 @@ Check-in считается выполненным, когда **оба** CSV з
 Check-in привязан к загрузке traffic snapshot. Batch writes, dismiss UX, failed video cleanup.
 
 - [x] **Денормализация:** при загрузке snapshot — писать timestamp на video doc (`lastSuggestedTrafficUpload`, `lastTrafficSourceUpload`)
-- [x] **Scheduler:** проверка snapshot timestamps вместо `PackagingCheckin.metrics`. Оба CSV обязательны
+- [x] **Scheduler:** проверка `lastTrafficSourceUpload >= dueTime`. Suggested Traffic опционален
 - [x] **Batch writes:** все notifications создаются/удаляются одним `writeBatch` → один `onSnapshot` → всё сразу
 - [x] **Dismiss UX:** checkin notifications — кнопка EyeOff (dismiss = markAsRead), не delete. Notification остаётся в Firestore, scheduler не пересоздаёт
 - [x] **Failed video cleanup:** видео с `fetchStatus: 'failed'` — scheduler удаляет существующие notifications, не создаёт новых
@@ -135,7 +137,7 @@ Firestore: users/{uid}/channels/{channelId}/videos/{videoId}
   1. fetchStatus === 'failed' → удалить существующие notifications, skip
   2. Для каждого правила:
      dueDate = calculateDueDate(publishedAt, rule.hoursAfterPublish)
-     isComplete = lastSuggestedTrafficUpload >= dueDate AND lastTrafficSourceUpload >= dueDate
+     isComplete = lastTrafficSourceUpload >= dueDate
      → complete: batch-remove notification
      → due & not complete: batch-create notification (если не exists)
   3. Batch commit: один writeBatch для всех create, один для всех remove

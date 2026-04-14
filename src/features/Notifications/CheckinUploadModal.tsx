@@ -31,9 +31,10 @@ export const CheckinUploadModal: React.FC = () => {
         if (!video?.publishedAt || !rule) return { needsSuggested: true, needsTrafficSource: true };
 
         const dueTime = calculateDueDate(video.publishedAt, rule.hoursAfterPublish);
+        const GRACE_MS = 6 * 60 * 60 * 1000;
         return {
-            needsSuggested: (video.lastSuggestedTrafficUpload ?? 0) < dueTime,
-            needsTrafficSource: (video.lastTrafficSourceUpload ?? 0) < dueTime,
+            needsSuggested: (video.lastSuggestedTrafficUpload ?? 0) < (dueTime - GRACE_MS),
+            needsTrafficSource: (video.lastTrafficSourceUpload ?? 0) < (dueTime - GRACE_MS),
         };
     }, [checkinUpload, videos, packagingSettings]);
 
@@ -134,10 +135,9 @@ export const CheckinUploadModal: React.FC = () => {
         }
     }, [user, currentChannel, checkinUpload, videos]);
 
-    // Auto-close when all required uploads are done
-    const suggestedReady = !needsSuggested || suggestedStatus === 'done';
-    const trafficSourceReady = !needsTrafficSource || trafficSourceStatus === 'done';
-    const allDone = suggestedReady && trafficSourceReady && (suggestedStatus === 'done' || trafficSourceStatus === 'done');
+    // Auto-close when Traffic Sources CSV is uploaded (the only required CSV for check-in completion).
+    // Suggested Traffic is optional — modal stays open for it, but doesn't block completion.
+    const allDone = trafficSourceStatus === 'done';
     React.useEffect(() => {
         if (allDone) {
             const timer = setTimeout(() => {

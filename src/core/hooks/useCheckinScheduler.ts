@@ -45,10 +45,12 @@ export const useCheckinScheduler = () => {
                     const dueTime = calculateDueDate(publishedAt, rule.hoursAfterPublish);
                     const notificationId = `checkin-due-${video.id}-${rule.id}`;
 
-                    // Snapshot-based completion: both CSV types must be uploaded after due date.
-                    const hasSuggested = (video.lastSuggestedTrafficUpload ?? 0) >= dueTime;
-                    const hasTrafficSource = (video.lastTrafficSourceUpload ?? 0) >= dueTime;
-                    const isComplete = hasSuggested && hasTrafficSource;
+                    // Snapshot-based completion: Traffic Sources CSV is required (always available in YT Studio).
+                    // Suggested Traffic is optional (may not exist for low-view videos).
+                    // Grace period: upload within 6 hours before due time counts as complete
+                    // (user uploaded on the right day, just slightly before the exact hour mark).
+                    const GRACE_MS = 6 * 60 * 60 * 1000;
+                    const isComplete = (video.lastTrafficSourceUpload ?? 0) >= (dueTime - GRACE_MS);
 
                     if (isComplete) {
                         const existing = currentNotifications.find(n => n.internalId === notificationId);
