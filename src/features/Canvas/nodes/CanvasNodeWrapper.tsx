@@ -383,9 +383,9 @@ const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, childr
                     onMouseDown={handleResizeCorner}
                 />
 
-                {lodLevel === 'minimal' ? (
+                {lodLevel === 'minimal' && node.type !== 'video-card' ? (
                     <SimplifiedNode node={node} measuredHeight={measuredHeight} />
-                ) : lodLevel === 'medium' ? (
+                ) : lodLevel === 'medium' || (lodLevel === 'minimal' && node.type === 'video-card') ? (
                     <MediumLodNode node={node} channelId={channelId} measuredHeight={measuredHeight} />
                 ) : (
                     children
