@@ -24,6 +24,11 @@ import { debug } from '../../../core/utils/debug';
 
 export type LodLevel = 'full' | 'medium' | 'minimal';
 
+// Node types that always render their thumbnail — they skip the SimplifiedNode
+// placeholder at minimal LOD and stay at medium LOD (thumbnail + title) instead.
+// Why: an <img> is cheap, and losing the thumbnail on zoom-out is disorienting.
+const ALWAYS_SHOW_THUMBNAIL: ReadonlySet<string> = new Set(['video-card', 'image']);
+
 interface CanvasNodeWrapperProps {
     node: CanvasNode;
     children: React.ReactNode;
@@ -383,9 +388,9 @@ const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, childr
                     onMouseDown={handleResizeCorner}
                 />
 
-                {lodLevel === 'minimal' && node.type !== 'video-card' ? (
+                {lodLevel === 'minimal' && !ALWAYS_SHOW_THUMBNAIL.has(node.type) ? (
                     <SimplifiedNode node={node} measuredHeight={measuredHeight} />
-                ) : lodLevel === 'medium' || (lodLevel === 'minimal' && node.type === 'video-card') ? (
+                ) : lodLevel === 'medium' || (lodLevel === 'minimal' && ALWAYS_SHOW_THUMBNAIL.has(node.type)) ? (
                     <MediumLodNode node={node} channelId={channelId} measuredHeight={measuredHeight} />
                 ) : (
                     children
