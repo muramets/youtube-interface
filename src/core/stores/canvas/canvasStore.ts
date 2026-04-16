@@ -294,8 +294,12 @@ export const useCanvasStore = create<CanvasState>((...a) => {
             const { userId, channelId, activePageId } = get();
             if (!userId || !channelId) return;
 
-            // Same page → use in-memory addNode (supports undo, pending placement, etc.)
-            if (pageId === activePageId) {
+            // Same page AND page data is loaded → use in-memory addNode
+            // (supports undo, pending placement, etc.)
+            // Guard: _hasSyncedOnce must be true — otherwise in-memory nodes[]
+            // is stale/empty and doSave() would overwrite Firestore data.
+            // When guard fails, fall through to the read-modify-write path below.
+            if (pageId === activePageId && _hasSyncedOnce) {
                 for (const data of dataArr) {
                     get().addNode(data);
                 }
@@ -314,7 +318,7 @@ export const useCanvasStore = create<CanvasState>((...a) => {
                 return;
             }
 
-            // Cross-page → direct Firestore read-modify-write
+            // Cross-page (or same page with stale state) → direct Firestore read-modify-write
             try {
                 const ref = doc(db, canvasPageDocPath(userId, channelId, pageId));
                 const snap = await getDoc(ref);
