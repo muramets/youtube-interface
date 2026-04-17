@@ -26,7 +26,7 @@ interface UIState {
     openVideoModal: (videoId: string, tab?: 'details' | 'packaging' | 'traffic' | 'stats') => void;
     closeVideoModal: () => void;
 
-    // Check-in Upload Modal
+    // ⚠️ DEAD CODE (2026-04-14) — see CheckinUploadModal.tsx for deletion checklist
     checkinUpload: {
         videoId: string;
         ruleId: string;

@@ -1,3 +1,17 @@
+// =============================================================================
+// ⚠️ DEAD CODE — NOT RENDERED ANYWHERE (2026-04-14)
+//
+// Check-in notifications now navigate to the video's Traffic Sources tab
+// instead of opening this modal. See `NotificationDropdown.handleNotificationAction`
+// and `useCheckinScheduler` (link → `?tab=trafficSource`).
+//
+// Kept temporarily in case we revert to the modal flow. If the navigation
+// flow sticks (a couple of weeks of production use), DELETE:
+//   - this file
+//   - `checkinUpload` state + `openCheckinUpload` / `closeCheckinUpload` in uiStore.ts
+//   - `ruleId` field in the checkinUpload type
+// =============================================================================
+
 import React, { useState, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Check } from 'lucide-react';

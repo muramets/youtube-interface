@@ -35,19 +35,12 @@ Check-in = напоминание загрузить два CSV, которые 
 2. Scheduler создаёт notification: "Time to check in on 'Video Title' (24 hours snapshot)"
 3. Значок 🔔 в header показывает unread count
 
-### Загрузка snapshot (из уведомления)
-1. User кликает notification → открывается **CheckinUploadModal**
-2. Модалка показывает: thumbnail видео, название, badge правила
-3. Два drop zone: "Suggested Traffic CSV" + "Traffic Sources CSV"
-4. User загружает оба CSV
-5. Snapshot'ы создаются с label = badge text правила (e.g. "24 hours snapshot")
-6. Notification исчезает
-
-### Загрузка snapshot (обычный путь)
-1. User загружает CSV напрямую в Traffic Sources tab или Suggested Traffic tab
-2. Scheduler на следующем tick проверяет: "есть snapshot после due date?"
-3. Если оба типа snapshot'ов загружены → notification автоматически исчезает
-4. **Не важно, через какой UI загружен** — важна дата загрузки
+### Загрузка snapshot
+1. User кликает notification → редирект на `/video/{channelId}/{videoId}/details?tab=trafficSource`
+2. На Traffic Sources tab загружает CSV (пользователь видит полный контекст видео: thumbnail, metadata, предыдущие snapshot'ы)
+3. Scheduler на следующем tick проверяет: "есть Traffic Sources snapshot после due date?"
+4. Если да → notification автоматически исчезает
+5. Можно также загрузить CSV без клика на notification — scheduler всё равно увидит upload и уберёт уведомление
 
 ### Правило завершения
 Check-in считается выполненным, когда **Traffic Sources CSV** загружен после due date:
@@ -76,7 +69,7 @@ Check-in привязан к загрузке traffic snapshot. Batch writes, di
 - [x] **Batch writes:** все notifications создаются/удаляются одним `writeBatch` → один `onSnapshot` → всё сразу
 - [x] **Dismiss UX:** checkin notifications — кнопка EyeOff (dismiss = markAsRead), не delete. Notification остаётся в Firestore, scheduler не пересоздаёт
 - [x] **Failed video cleanup:** видео с `fetchStatus: 'failed'` — scheduler удаляет существующие notifications, не создаёт новых
-- [x] **CheckinUploadModal:** модалка с 2 CsvDropZone, вызывается из notification click. Label = badge text правила. Auto-close при обоих uploads
+- [x] **Notification click → Traffic Sources tab:** redirect на `?tab=trafficSource` видео, пользователь видит полный контекст. CheckinUploadModal помечен как dead code (не рендерится, см. комментарии в `CheckinUploadModal.tsx` + `uiStore.ts`)
 - [x] **Backfill migration:** `scripts/backfill-snapshot-timestamps.mjs` — одноразовый скрипт для записи timestamps из существующих snapshot'ов
 - [x] **Удаление мёртвого кода:** убран auto-create `PackagingCheckin` rows с null metrics из scheduler
 

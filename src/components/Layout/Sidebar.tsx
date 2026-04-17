@@ -3,7 +3,6 @@ import { Home, List, Settings, TrendingUp, Music, BookOpen } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { SettingsModal } from '../../features/Settings/SettingsModal';
-import { CheckinUploadModal } from '../../features/Notifications/CheckinUploadModal';
 import { useUIStore } from '../../core/stores/uiStore';
 import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
@@ -403,7 +402,6 @@ export const Sidebar: React.FC = () => {
       </aside>
 
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setSettingsOpen(false)} />
-      <CheckinUploadModal />
       <AddChannelModal
         isOpen={useTrendStore((state) => state.isAddChannelModalOpen)}
         onClose={() => useTrendStore.getState().setAddChannelModalOpen(false)}

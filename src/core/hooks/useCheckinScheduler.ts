@@ -22,10 +22,22 @@ export const useCheckinScheduler = () => {
             const currentNotifications = store.notifications;
             const now = Date.now();
             const customVideos = videos.filter(v => v.isCustom && v.publishedVideoId);
+            const existingVideoIds = new Set(customVideos.map(v => v.id));
 
             // Collect batch operations to minimize Firestore writes and onSnapshot triggers
             const toCreate: Omit<Notification, 'id' | 'timestamp' | 'isRead'>[] = [];
             const toRemoveIds: string[] = [];
+
+            // Orphan cleanup: remove check-in notifications whose video no longer exists
+            // (video was deleted by user or lost isCustom/publishedVideoId status).
+            for (const n of currentNotifications) {
+                if (!n.internalId?.startsWith('checkin-due-')) continue;
+                const suffix = n.internalId.slice('checkin-due-'.length);
+                const videoId = suffix.slice(0, -(36 + 1)); // strip "-{uuid}"
+                if (!existingVideoIds.has(videoId)) {
+                    toRemoveIds.push(n.id);
+                }
+            }
 
             for (const video of customVideos) {
                 const publishedAt = video.publishedAt;
@@ -66,10 +78,10 @@ export const useCheckinScheduler = () => {
 
                     processedIdsRef.current.add(notificationId);
                     toCreate.push({
-                        title: 'Packaging Check-in Due',
-                        message: `Time to check in on "${video.title}" (${rule.badgeText})`,
+                        title: `Check-in Due: ${rule.badgeText}`,
+                        message: `Time to check in on "${video.title}"`,
                         type: 'info',
-                        link: `/video/${currentChannel!.id}/${video.id}/details?tab=packaging`,
+                        link: `/video/${currentChannel!.id}/${video.id}/details?tab=trafficSource`,
                         internalId: notificationId,
                         customColor: rule.badgeColor,
                         thumbnail: video.thumbnail || video.customImage,
