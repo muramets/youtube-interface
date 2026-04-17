@@ -93,16 +93,33 @@ export function usePlaybackNavigation(
             }
             return;
         }
+        if (playbackQueue.length === 0) return;
+
         const currentIndex = playbackQueue.indexOf(playingTrackId!);
+
+        // Orphaned track (e.g. unliked during playback) → start queue from top
+        // so Skip doesn't silently die. Guards in useTrackDisplay should
+        // prevent this, but keep a safety net.
+        if (currentIndex === -1) {
+            const firstId = playbackQueue[0];
+            const first = tracks.find((t) => t.id === firstId);
+            if (first) {
+                prevAudioUrlRef.current = null;
+                setPlayingTrack(first.id, getDefaultVariant(first));
+            }
+            return;
+        }
+
         if (playbackQueue.length <= 1) return;
-        if (currentIndex >= 0 && currentIndex < playbackQueue.length - 1) {
+
+        if (currentIndex < playbackQueue.length - 1) {
             const nextId = playbackQueue[currentIndex + 1];
             const next = tracks.find((t) => t.id === nextId);
             if (next) {
                 prevAudioUrlRef.current = null;
                 setPlayingTrack(next.id, getDefaultVariant(next));
             }
-        } else if (repeatMode === 'all' && playbackQueue.length > 0) {
+        } else if (repeatMode === 'all') {
             const firstId = playbackQueue[0];
             const first = tracks.find((t) => t.id === firstId);
             if (first) {

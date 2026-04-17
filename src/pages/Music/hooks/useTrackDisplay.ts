@@ -12,6 +12,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useMusicStore } from '../../../core/stores/music/musicStore';
 import { useFilterStore } from '../../../core/stores/filterStore';
 import { sortByGroupOrder } from '../../../core/utils/trackUtils';
+import { shouldRebuildQueue } from '../utils/queueGuard';
 import type { Track, MusicTag } from '../../../core/types/music/track';
 import type { MusicPlaylist } from '../../../core/types/music/musicPlaylist';
 
@@ -255,12 +256,13 @@ export function useTrackDisplay({
             }
         }
 
-        // If a track is playing and the queue was built from a different view
-        // context, keep the existing queue so next/prev still work within the
-        // original playback context (e.g. shared library → navigate to playlist).
-        if (playingTrackIdForQueue && storedQueueContextId && storedQueueContextId !== queueContextId) {
-            return;
-        }
+        const shouldRebuild = shouldRebuildQueue({
+            newQueue: queue,
+            newContextId: queueContextId,
+            playingTrackId: playingTrackIdForQueue,
+            storedContextId: storedQueueContextId,
+        });
+        if (!shouldRebuild) return;
 
         setPlaybackQueue(queue, queueContextId);
     }, [displayItems, setPlaybackQueue, playingTrackIdForQueue, queueContextId, storedQueueContextId]);

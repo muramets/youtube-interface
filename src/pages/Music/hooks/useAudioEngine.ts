@@ -231,6 +231,18 @@ export function useAudioEngine(): AudioEngineResult {
             }
 
             const currentIndex = queue.indexOf(playingTrackId!);
+
+            // Orphaned track (dropped from queue during playback): recover by
+            // starting the queue from top instead of stopping silently.
+            if (currentIndex === -1 && queue.length > 0) {
+                const firstId = queue[0];
+                const first = findTrackById(firstId);
+                if (first) {
+                    setPlayingTrack(first.id, getDefaultVariant(first));
+                    return;
+                }
+            }
+
             if (currentIndex >= 0 && currentIndex < queue.length - 1) {
                 const nextId = queue[currentIndex + 1];
                 const next = findTrackById(nextId);

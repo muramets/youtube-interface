@@ -27,6 +27,7 @@ import { formatDuration } from '../utils/formatDuration';
 import { useAudioEngine } from '../hooks/useAudioEngine';
 import { usePlaybackNavigation } from '../hooks/usePlaybackNavigation';
 import { useTrimMode } from '../hooks/useTrimMode';
+import { useMediaSessionPlaybackState } from '../hooks/useMediaSessionPlaybackState';
 import type { SharePermissions } from '../../../core/types/music/musicSharing';
 import { DEFAULT_SHARE_PERMISSIONS, OWNER_PERMISSIONS } from '../../../core/types/music/musicSharing';
 
@@ -162,6 +163,8 @@ export const AudioPlayer: React.FC = () => {
             }
         };
     }, [track, handlePrevious, handleNext, setIsPlaying]);
+
+    useMediaSessionPlaybackState(!!track, isPlaying);
 
     // ── Derived values ──────────────────────────────────────────────────────
     const progress = duration > 0 ? currentTime / duration : 0;
