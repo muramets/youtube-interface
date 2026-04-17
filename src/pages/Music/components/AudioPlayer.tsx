@@ -17,6 +17,7 @@ import { UploadTrackModal } from '../modals/UploadTrackModal';
 import { WaveformCanvas } from './WaveformCanvas';
 import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
 import { useMusicStore, selectAllTracks } from '../../../core/stores/music/musicStore';
+import { useCanvasStore } from '../../../core/stores/canvas/canvasStore';
 import { useEditingStore } from '../../../core/stores/editing/editingStore';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
@@ -124,6 +125,9 @@ export const AudioPlayer: React.FC = () => {
                 return;
             }
             if (e.key === 'Escape') {
+                // Canvas overlay owns Escape when open — closing the canvas
+                // should not also stop the audio player.
+                if (useCanvasStore.getState().isOpen) return;
                 setPlayingTrack(null);
             }
         };
