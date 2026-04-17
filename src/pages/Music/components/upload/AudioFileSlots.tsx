@@ -104,8 +104,16 @@ export const AudioFileSlots: React.FC<AudioFileSlotsProps> = ({
                 </span>
             </label>
 
-            {/* Audio file selectors */}
-            <div className={`grid gap-3 overflow-hidden ${isInstrumentalOnly ? 'grid-cols-1' : (vocalLoaded && instrumentalLoaded) ? 'grid-cols-[1fr_auto_1fr]' : 'grid-cols-2'}`}>
+            {/*
+             * Audio file selectors.
+             * flex-shrink-0 is load-bearing: this grid sits in a flex column
+             * (modal body). When `overflow-hidden` is set on a flex item, the
+             * spec changes its min-height from `auto` to 0, which means under
+             * tight layouts the item collapses to 0px — the whole row
+             * disappears even though its content measures 64px. This was the
+             * Chrome-specific "file drops but slot stays empty" bug.
+             */}
+            <div className={`grid gap-3 flex-shrink-0 overflow-hidden ${isInstrumentalOnly ? 'grid-cols-1' : (vocalLoaded && instrumentalLoaded) ? 'grid-cols-[1fr_auto_1fr]' : 'grid-cols-2'}`}>
                 {/* Vocal — hidden in instrumental-only mode */}
                 {!isInstrumentalOnly && (
                     <div className="min-w-0">
