@@ -3,6 +3,7 @@ import { generateSnapshotId } from '../../utils/snapshotUtils';
 import { uploadCsvSnapshot, downloadCsvSnapshot, deleteCsvSnapshot } from '../storageService';
 import { TrafficDataService } from './TrafficDataService';
 import { syncSnapshotCount } from './syncSnapshotCount';
+import { generateAutoLabel } from '../../../pages/Details/tabs/TrafficSource/utils/autoLabel';
 import { logger, snapshotLogger } from '../../utils/logger';
 
 /**
@@ -68,11 +69,15 @@ export const TrafficSnapshotService = {
         }
 
         // Создаем метаданные снапшота
+        const publishedAtIso = publishDate ? new Date(publishDate).toISOString() : undefined;
         const snapshot: TrafficSnapshot = {
             id: snapshotId,
             version,
             timestamp,
             createdAt: new Date().toISOString(),
+
+            // Auto-generated label from retrospective calendar-day logic (same as check-in rules)
+            autoLabel: generateAutoLabel(publishedAtIso, timestamp),
 
             // Поля гибридного хранилища
             storagePath,

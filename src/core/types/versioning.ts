@@ -87,8 +87,10 @@ export interface TrafficSnapshotBase {
     timestamp: number;
     createdAt: string;
     storagePath: string; // REQUIRED: путь к CSV в Cloud Storage (no legacy support)
-    /** Custom user-defined name for the snapshot (e.g. "Before title change") */
+    /** Custom user-defined name for the snapshot (e.g. "Before title change"). Overrides autoLabel in UI. */
     label?: string;
+    /** Auto-generated label from retrospective calendar-day logic: "24 hours", "48 hours", "7 days". Optional for legacy snapshots. */
+    autoLabel?: string;
     /** Period when this data was active in YT Studio (date range) */
     activeDate?: { start: number; end: number };
     summary: {

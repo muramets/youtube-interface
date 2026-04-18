@@ -55,11 +55,11 @@ export const useTrafficVersions = ({
         return `${startStr} – ${endStr}`;
     }, []);
 
-    // Format snapshot date with priority: label > activeDate range > timestamp
+    // Format snapshot date with priority: label > autoLabel > activeDate range > timestamp
     const formatSnapshotDate = useCallback((timestamp: number, snapshot?: TrafficSnapshot) => {
         const uploaded = formatTimestamp(timestamp);
 
-        // Priority 1: Custom label
+        // Priority 1: Custom user label (e.g. "Before title change")
         if (snapshot?.label) {
             const tooltipParts = [snapshot.label];
             if (snapshot.activeDate) {
@@ -72,7 +72,20 @@ export const useTrafficVersions = ({
             };
         }
 
-        // Priority 2: Active date range
+        // Priority 2: Auto-label from retrospective calendar-day logic (e.g. "24 hours", "7 days")
+        if (snapshot?.autoLabel) {
+            const tooltipParts = [snapshot.autoLabel];
+            if (snapshot.activeDate) {
+                tooltipParts.push(formatDateRange(snapshot.activeDate.start, snapshot.activeDate.end));
+            }
+            tooltipParts.push(`Uploaded: ${uploaded.full}`);
+            return {
+                display: snapshot.autoLabel,
+                tooltip: tooltipParts.join(' • ')
+            };
+        }
+
+        // Priority 3: Active date range
         if (snapshot?.activeDate) {
             const rangeStr = formatDateRange(snapshot.activeDate.start, snapshot.activeDate.end);
             return {
@@ -81,7 +94,7 @@ export const useTrafficVersions = ({
             };
         }
 
-        // Priority 3: Fallback to upload timestamp
+        // Priority 4: Fallback to upload timestamp
         return { display: uploaded.display, tooltip: uploaded.full };
     }, [formatTimestamp, formatDateRange]);
 
