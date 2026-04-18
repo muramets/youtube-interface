@@ -58,11 +58,10 @@ export const useCheckinScheduler = () => {
                     const baseDueTime = new Date(publishedAt).getTime() + rule.hoursAfterPublish * 60 * 60 * 1000;
                     const notificationId = `checkin-due-${video.id}-${rule.id}`;
 
-                    // Completion check uses baseDueTime (nominal N-hour mark), not dueTime (retrospective availability).
-                    // Reason: if user catches data online and uploads early (before retrospective dueTime),
-                    // that upload should still satisfy the check-in. 6h grace for "close enough to N hours".
-                    const GRACE_MS = 6 * 60 * 60 * 1000;
-                    const isComplete = (video.lastTrafficSourceUpload ?? 0) >= (baseDueTime - GRACE_MS);
+                    // Completion check uses dueTime (retrospective YT Studio availability).
+                    // Upload before dueTime doesn't cover the required N-hour window — YT hasn't
+                    // published that day's data yet. Strict check; no grace.
+                    const isComplete = (video.lastTrafficSourceUpload ?? 0) >= dueTime;
 
                     if (isComplete) {
                         const existing = currentNotifications.find(n => n.internalId === notificationId);
