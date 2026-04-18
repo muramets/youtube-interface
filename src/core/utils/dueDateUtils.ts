@@ -1,26 +1,31 @@
 /**
- * Calculate the due date for a check-in based on video publish time and rule duration.
- * 
- * Logic:
- * 1. Calculate base due time: publishTime + hoursAfterPublish
- * 2. If calculated time < 12:00 local time → adjust to 12:00 same day
- * 3. If calculated time >= 12:00 local time → keep as is
- * 
- * This accounts for YouTube Analytics updating at 12:00 local time.
+ * Calculate the due date for a check-in using retrospective YT Studio logic.
+ *
+ * The user uploads snapshots retrospectively by selecting full calendar days in YT
+ * Studio's date range picker (not the exact N-hour mark). Convention:
+ *   - 24h snapshot = 2 calendar days [publish_day, publish_day+1]
+ *   - 48h snapshot = 3 calendar days [publish_day, ..., publish_day+2]
+ *   - Nh snapshot  = (N/24 + 1) calendar days
+ *
+ * YT Analytics publishes daily data at 12:00 local time the FOLLOWING day. So the
+ * last day in the range becomes available at `last_day + 1` at 12:00.
+ *
+ * Formula: dueTime = publish_day + (N/24 + 1) days, at 12:00 local time.
+ *
+ * Examples:
+ *   pub Apr 15 15:34, 24h  → Apr 17 12:00 (d1+d2 = Apr 15+16, visible Apr 17 12:00)
+ *   pub Apr 15 15:34, 48h  → Apr 18 12:00 (d1+d2+d3, visible Apr 18 12:00)
+ *   pub Apr 16 13:00, 24h  → Apr 18 12:00 (d1+d2 = Apr 16+17, visible Apr 18 12:00)
+ *   pub Apr 15 15:34, 168h → Apr 23 12:00 (d1..d8)
  */
 export const calculateDueDate = (publishedAt: string, hoursAfterPublish: number): number => {
-    const publishTime = new Date(publishedAt).getTime();
-    const baseDueTime = publishTime + (hoursAfterPublish * 60 * 60 * 1000);
-
-    const dueDate = new Date(baseDueTime);
-    const dueHour = dueDate.getHours();
-
-    // If the due time is before 12:00, push it to 12:00 same day
-    if (dueHour < 12) {
-        dueDate.setHours(12, 0, 0, 0);
-        return dueDate.getTime();
-    }
-
-    // Otherwise, keep the original time
-    return baseDueTime;
+    const pubDate = new Date(publishedAt);
+    const daysOffset = Math.ceil(hoursAfterPublish / 24) + 1;
+    const due = new Date(
+        pubDate.getFullYear(),
+        pubDate.getMonth(),
+        pubDate.getDate() + daysOffset,
+        12, 0, 0, 0
+    );
+    return due.getTime();
 };

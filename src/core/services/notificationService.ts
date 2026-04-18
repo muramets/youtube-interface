@@ -86,12 +86,12 @@ export const NotificationService = {
     addNotificationsBatch: async (
         userId: string,
         channelId: string,
-        notifications: Omit<Notification, 'id' | 'timestamp' | 'isRead'>[]
+        notifications: (Omit<Notification, 'id' | 'timestamp' | 'isRead'> & { customTimestamp?: number })[]
     ) => {
         if (notifications.length === 0) return;
         const batch = writeBatch(db);
         const colRef = collection(db, 'users', userId, 'channels', channelId, 'notifications');
-        for (const notification of notifications) {
+        for (const { customTimestamp, ...notification } of notifications) {
             const docRef = notification.internalId
                 ? doc(colRef, notification.internalId)
                 : doc(colRef);
@@ -99,7 +99,9 @@ export const NotificationService = {
                 ...notification,
                 id: notification.internalId || docRef.id,
                 isRead: false,
-                timestamp: serverTimestamp()
+                timestamp: customTimestamp
+                    ? Timestamp.fromMillis(customTimestamp)
+                    : serverTimestamp()
             });
         }
         await batch.commit();

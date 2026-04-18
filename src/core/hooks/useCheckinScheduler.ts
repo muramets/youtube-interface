@@ -25,7 +25,7 @@ export const useCheckinScheduler = () => {
             const existingVideoIds = new Set(customVideos.map(v => v.id));
 
             // Collect batch operations to minimize Firestore writes and onSnapshot triggers
-            const toCreate: Omit<Notification, 'id' | 'timestamp' | 'isRead'>[] = [];
+            const toCreate: (Omit<Notification, 'id' | 'timestamp' | 'isRead'> & { customTimestamp?: number })[] = [];
             const toRemoveIds: string[] = [];
 
             // Orphan cleanup: remove check-in notifications whose video no longer exists
@@ -55,14 +55,14 @@ export const useCheckinScheduler = () => {
 
                 for (const rule of packagingSettings.checkinRules) {
                     const dueTime = calculateDueDate(publishedAt, rule.hoursAfterPublish);
+                    const baseDueTime = new Date(publishedAt).getTime() + rule.hoursAfterPublish * 60 * 60 * 1000;
                     const notificationId = `checkin-due-${video.id}-${rule.id}`;
 
-                    // Snapshot-based completion: Traffic Sources CSV is required (always available in YT Studio).
-                    // Suggested Traffic is optional (may not exist for low-view videos).
-                    // Grace period: upload within 6 hours before due time counts as complete
-                    // (user uploaded on the right day, just slightly before the exact hour mark).
+                    // Completion check uses baseDueTime (nominal N-hour mark), not dueTime (retrospective availability).
+                    // Reason: if user catches data online and uploads early (before retrospective dueTime),
+                    // that upload should still satisfy the check-in. 6h grace for "close enough to N hours".
                     const GRACE_MS = 6 * 60 * 60 * 1000;
-                    const isComplete = (video.lastTrafficSourceUpload ?? 0) >= (dueTime - GRACE_MS);
+                    const isComplete = (video.lastTrafficSourceUpload ?? 0) >= (baseDueTime - GRACE_MS);
 
                     if (isComplete) {
                         const existing = currentNotifications.find(n => n.internalId === notificationId);
@@ -86,7 +86,10 @@ export const useCheckinScheduler = () => {
                         customColor: rule.badgeColor,
                         thumbnail: video.thumbnail || video.customImage,
                         isPersistent: true,
-                        category: 'checkin'
+                        category: 'checkin',
+                        // Timestamp = nominal N-hour mark of the video (publishedAt + hoursAfterPublish).
+                        // Differs per video based on publish time — user sees distinct "ago" for each video.
+                        customTimestamp: baseDueTime,
                     });
                 }
             }

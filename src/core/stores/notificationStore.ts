@@ -34,7 +34,7 @@ interface NotificationState {
 
     subscribeToNotifications: (userId: string, channelId: string) => () => void;
     addNotification: (notification: Omit<Notification, 'id' | 'timestamp' | 'isRead'>) => Promise<void>;
-    addNotificationsBatch: (notifications: Omit<Notification, 'id' | 'timestamp' | 'isRead'>[]) => Promise<void>;
+    addNotificationsBatch: (notifications: (Omit<Notification, 'id' | 'timestamp' | 'isRead'> & { customTimestamp?: number })[]) => Promise<void>;
     markAsRead: (id: string) => Promise<void>;
     markAllAsRead: () => Promise<void>;
     removeNotification: (id: string) => Promise<void>;

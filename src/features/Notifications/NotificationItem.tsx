@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { Trash2, Info, AlertCircle, CheckCircle, EyeOff } from 'lucide-react';
 import { useNotificationStore, type Notification } from '../../core/stores/notificationStore';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, format, differenceInHours } from 'date-fns';
 
 interface NotificationItemProps {
     notification: Notification;
@@ -18,6 +18,13 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ notification
         if (notification.type === 'success') return '#22c55e'; // green-500
         return notification.customColor;
     }, [notification.customColor, notification.type]);
+
+    // Compute once per mount — avoids Date.now() purity violation in JSX.
+    // Dropdown remounts each time it opens, so timestamp stays fresh in practice.
+    const [nowMs] = React.useState(() => Date.now());
+    const displayTime = differenceInHours(nowMs, notification.timestamp) >= 24
+        ? format(notification.timestamp, 'MMM d, h:mm a')
+        : formatDistanceToNow(notification.timestamp, { addSuffix: true });
 
     const getIcon = (size: number = 20) => {
         switch (notification.type) {
@@ -185,7 +192,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ notification
                     )}
                 </div>
                 <p className="text-xs text-text-secondary">
-                    {formatDistanceToNow(notification.timestamp, { addSuffix: true })}
+                    {displayTime}
                 </p>
                 {notification.meta && (
                     <div className="flex items-center gap-1.5 mt-2 relative group/quota">
