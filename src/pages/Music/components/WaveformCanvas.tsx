@@ -89,25 +89,29 @@ function usePeaks(
     peakCount: number,
     onPeaksComputed?: (peaks: number[]) => void,
 ): PeakState {
+    // Treat both `undefined` and `[]` as "no peaks yet" — empty array is truthy in JS
+    // and would incorrectly skip lazy generation without this explicit length check.
+    const hasInitialPeaks = !!initialPeaks && initialPeaks.length > 0;
+
     const [state, dispatch] = React.useReducer(peakReducer, undefined, () => ({
-        peaks: initialPeaks || [],
-        isLoading: !initialPeaks && !!audioUrl,
+        peaks: hasInitialPeaks ? initialPeaks : [],
+        isLoading: !hasInitialPeaks && !!audioUrl,
     }));
 
     // Stable ref for callback — avoids refetching when parent re-renders
     const onPeaksComputedRef = useRef(onPeaksComputed);
     useLayoutEffect(() => { onPeaksComputedRef.current = onPeaksComputed; });
 
-    // Sync prop → state when initialPeaks changes
+    // Sync prop → state when initialPeaks changes (only when actually present)
     useEffect(() => {
-        if (initialPeaks) {
+        if (hasInitialPeaks) {
             dispatch({ type: 'SYNC_PROPS', peaks: initialPeaks });
         }
-    }, [initialPeaks]);
+    }, [initialPeaks, hasInitialPeaks]);
 
     // Fetch peaks from audioUrl when no initial peaks are provided
     useEffect(() => {
-        if (initialPeaks || !audioUrl) return;
+        if (hasInitialPeaks || !audioUrl) return;
 
         let cancelled = false;
         dispatch({ type: 'FETCH_START' });
@@ -124,7 +128,7 @@ function usePeaks(
             });
 
         return () => { cancelled = true; };
-    }, [audioUrl, initialPeaks, peakCount]);
+    }, [audioUrl, hasInitialPeaks, peakCount]);
 
     return state;
 }

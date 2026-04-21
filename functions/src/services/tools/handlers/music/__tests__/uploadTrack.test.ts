@@ -135,14 +135,11 @@ describe("uploadTrack", () => {
             }),
         );
 
-        // Verify Firestore doc created with peaks empty
-        expect(mockDocSet).toHaveBeenCalledWith(
-            "users/user1/channels/channel1/tracks/fixed-uuid",
-            expect.objectContaining({
-                vocalPeaks: [],
-                instrumentalPeaks: [],
-            }),
-        );
+        // Verify Firestore doc created WITHOUT peaks fields (frontend lazy-generates)
+        const docCall = mockDocSet.mock.calls[0];
+        expect(docCall[0]).toBe("users/user1/channels/channel1/tracks/fixed-uuid");
+        expect(docCall[1]).not.toHaveProperty("vocalPeaks");
+        expect(docCall[1]).not.toHaveProperty("instrumentalPeaks");
     });
 
     it("uploads both vocal and instrumental variants", async () => {

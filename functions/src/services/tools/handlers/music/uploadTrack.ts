@@ -238,14 +238,15 @@ export async function handleUploadTrack(
 
         // --- Build Firestore track document ---
         const now = Date.now();
+        // Peaks are intentionally omitted — the frontend detects missing peaks and
+        // lazily generates them on first render (empty array would also work, but
+        // missing field is cleaner and matches what trimAudioFile does via FieldValue.delete()).
         const trackDoc: Record<string, unknown> = {
             id: trackId,
             title,
             genre,
             tags: tagsArg,
             duration: metadata.duration,
-            vocalPeaks: [],
-            instrumentalPeaks: [],
             createdAt: now,
             updatedAt: now,
         };
