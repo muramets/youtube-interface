@@ -37,6 +37,10 @@ export const TOOL_NAMES = {
     GET_KNOWLEDGE: "getKnowledge",
     SAVE_MEMORY: "saveMemory",
     EDIT_MEMORY: "editMemory",
+    LIST_MUSIC_LIBRARY: "listMusicLibrary",
+    ADD_MUSIC_GENRE: "addMusicGenre",
+    ADD_MUSIC_TAG: "addMusicTag",
+    UPLOAD_TRACK: "uploadTrack",
 } as const;
 
 export type ToolName = (typeof TOOL_NAMES)[keyof typeof TOOL_NAMES];
@@ -814,6 +818,154 @@ const editMemory: ToolDefinition = {
     },
 };
 
+// --- Music Library tools ---
+
+const listMusicLibrary: ToolDefinition = {
+    name: TOOL_NAMES.LIST_MUSIC_LIBRARY,
+    description:
+        "List available music genres, tags, and existing tracks for a channel. " +
+        "Call BEFORE uploadTrack to know which genres/tags exist. " +
+        "If the desired genre/tag is missing, call addMusicGenre or addMusicTag first. " +
+        "Use targetChannelId to inspect a different channel's library (e.g. when uploading music into another channel).",
+    parametersJsonSchema: {
+        type: "object",
+        properties: {
+            targetChannelId: {
+                type: "string",
+                description: "Optional. Internal channel ID whose music library to inspect. Defaults to current channel.",
+            },
+            includeTracks: {
+                type: "boolean",
+                description: "Include existing tracks in response (default: false — only genres + tags).",
+            },
+        },
+    },
+};
+
+const addMusicGenre: ToolDefinition = {
+    name: TOOL_NAMES.ADD_MUSIC_GENRE,
+    description:
+        "Add a new genre to the channel's music library registry. " +
+        "Call only when the desired genre does not exist in listMusicLibrary. " +
+        "Confirm with the user before creating a new genre. " +
+        "Genre id must be kebab-case (e.g. 'trip-hop', 'phonk').",
+    parametersJsonSchema: {
+        type: "object",
+        properties: {
+            id: {
+                type: "string",
+                description: "Kebab-case slug (e.g. 'trip-hop'). Must be unique within the channel.",
+            },
+            name: {
+                type: "string",
+                description: "Human-readable name (e.g. 'Trip-Hop').",
+            },
+            color: {
+                type: "string",
+                description:
+                    "Hex color for UI chips (e.g. '#A855F7'). " +
+                    "Pick one that visually differs from existing genres.",
+            },
+            targetChannelId: {
+                type: "string",
+                description: "Optional. Internal channel ID. Defaults to current channel.",
+            },
+        },
+        required: ["id", "name", "color"],
+    },
+};
+
+const addMusicTag: ToolDefinition = {
+    name: TOOL_NAMES.ADD_MUSIC_TAG,
+    description:
+        "Add a new tag to the channel's music library registry. " +
+        "Call only when the desired tag does not exist in listMusicLibrary. " +
+        "Confirm with the user before creating a new tag. " +
+        "Tag id must be kebab-case, usually category-prefixed (e.g. 'mood-nostalgic', 'energy-dreamy').",
+    parametersJsonSchema: {
+        type: "object",
+        properties: {
+            id: {
+                type: "string",
+                description: "Kebab-case slug, typically '{category}-{name}' (e.g. 'mood-nostalgic').",
+            },
+            name: {
+                type: "string",
+                description: "Human-readable name (e.g. 'Nostalgic').",
+            },
+            category: {
+                type: "string",
+                description: "Optional category grouping (e.g. 'Mood', 'Energy', 'Use Case').",
+            },
+            targetChannelId: {
+                type: "string",
+                description: "Optional. Internal channel ID. Defaults to current channel.",
+            },
+        },
+        required: ["id", "name"],
+    },
+};
+
+const uploadTrack: ToolDefinition = {
+    name: TOOL_NAMES.UPLOAD_TRACK,
+    description:
+        "Upload an audio track to the channel's music library. " +
+        "Reads audio files from the local filesystem (accepts absolute paths), extracts ID3 metadata " +
+        "(title, artist, BPM, duration, embedded cover art), uploads to Firebase Storage, " +
+        "and creates a Firestore track document. " +
+        "Waveform peaks are NOT computed here — the frontend generates them lazily on first play. " +
+        "Supports dual vocal+instrumental uploads (related by same groupId). " +
+        "Validate genre + tags against listMusicLibrary BEFORE calling this. " +
+        "Use targetChannelId to upload into a different channel's library.",
+    parametersJsonSchema: {
+        type: "object",
+        properties: {
+            vocalPath: {
+                type: "string",
+                description: "Absolute path to the vocal audio file (optional — at least one of vocalPath/instrumentalPath required).",
+            },
+            instrumentalPath: {
+                type: "string",
+                description: "Absolute path to the instrumental audio file (optional).",
+            },
+            title: {
+                type: "string",
+                description: "Track title. If omitted, extracted from ID3 or derived from filename.",
+            },
+            artist: {
+                type: "string",
+                description: "Artist name (optional, auto-extracted from ID3 if absent).",
+            },
+            genre: {
+                type: "string",
+                description: "Genre id (kebab-case, must exist in listMusicLibrary).",
+            },
+            tags: {
+                type: "array",
+                items: { type: "string" },
+                description: "Tag ids (must exist in listMusicLibrary).",
+            },
+            bpm: {
+                type: "number",
+                description: "BPM (optional, auto-extracted from ID3 if absent). Ask user if missing.",
+            },
+            lyrics: {
+                type: "string",
+                description: "Song lyrics (optional, auto-extracted from ID3 if absent).",
+            },
+            prompt: {
+                type: "string",
+                description: "AI generation prompt, for AI-generated tracks (optional).",
+            },
+            targetChannelId: {
+                type: "string",
+                description: "Optional. Internal channel ID to upload into. Defaults to current channel.",
+            },
+        },
+        required: ["genre"],
+    },
+};
+
 // --- Exported registries ---
 
 export const TOOL_DECLARATIONS: ToolDefinition[] = [
@@ -836,6 +988,10 @@ export const TOOL_DECLARATIONS: ToolDefinition[] = [
     getKnowledge,
     saveMemory,
     editMemory,
+    listMusicLibrary,
+    addMusicGenre,
+    addMusicTag,
+    uploadTrack,
 ];
 
 /** @deprecated Empty — saveMemory moved to TOOL_DECLARATIONS. Kept for backward compat (test mocks). */

@@ -32,6 +32,11 @@ import { handleSaveMemory } from "./handlers/knowledge/saveMemory.js";
 import { handleEditMemory } from "./handlers/knowledge/editMemory.js";
 // Utility
 import { handleMentionVideo } from "./handlers/utility/mentionVideo.js";
+// Music
+import { handleListMusicLibrary } from "./handlers/music/listMusicLibrary.js";
+import { handleAddMusicGenre } from "./handlers/music/addMusicGenre.js";
+import { handleAddMusicTag } from "./handlers/music/addMusicTag.js";
+import { handleUploadTrack } from "./handlers/music/uploadTrack.js";
 
 // --- Handler registry ---
 
@@ -55,6 +60,10 @@ const HANDLERS: Record<ToolName, ToolHandler> = {
     [TOOL_NAMES.GET_KNOWLEDGE]: handleGetKnowledge,
     [TOOL_NAMES.SAVE_MEMORY]: handleSaveMemory,
     [TOOL_NAMES.EDIT_MEMORY]: handleEditMemory,
+    [TOOL_NAMES.LIST_MUSIC_LIBRARY]: handleListMusicLibrary,
+    [TOOL_NAMES.ADD_MUSIC_GENRE]: handleAddMusicGenre,
+    [TOOL_NAMES.ADD_MUSIC_TAG]: handleAddMusicTag,
+    [TOOL_NAMES.UPLOAD_TRACK]: handleUploadTrack,
 };
 
 // --- Dispatcher ---

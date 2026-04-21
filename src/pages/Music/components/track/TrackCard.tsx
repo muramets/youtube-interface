@@ -13,6 +13,7 @@ import { useFilterStore } from '../../../../core/stores/filterStore';
 import type { Track, MusicTag } from '../../../../core/types/music/track';
 import type { TrackSource } from '../../../../core/types/music/musicPlaylist';
 import { DEFAULT_ACCENT_COLOR, getDefaultVariant } from '../../../../core/utils/trackUtils';
+import { TrackService } from '../../../../core/services/music/trackService';
 
 // Section marker regex: matches [Verse 1], [Chorus], (Bridge), or bare "Verse 1:" etc.
 const SECTION_RE = /^\s*(?:\[|\()?(verse|chorus|bridge|pre-chorus|intro|outro|hook|interlude|refrain)(?:\s*\d+)?(?:\]|\))?\s*:?\s*$/i;
@@ -187,6 +188,15 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
 
     // Waveform playback progress (0–1)
     const waveformProgress = isCurrentTrack && duration > 0 ? currentTime / duration : 0;
+
+    // Lazy peak persistence — WaveformCanvas auto-generates peaks when array is empty
+    // and audioUrl is present. This callback saves the generated peaks back to Firestore
+    // so next render is instant.
+    const handlePeaksComputed = useCallback((peaks: number[]) => {
+        const peaksKey = currentVariant === 'vocal' ? 'vocalPeaks' : 'instrumentalPeaks';
+        TrackService.updateTrack(userId, channelId, track.id, { [peaksKey]: peaks })
+            .catch((err) => console.error('[TrackCard] Failed to persist peaks:', err));
+    }, [currentVariant, userId, channelId, track.id]);
 
     // Click on waveform → seek (or start playback)
     const handleWaveformSeek = useCallback((position: number) => {
@@ -379,6 +389,7 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
                         height={40}
                         playedColor={accentColor}
                         onSeek={handleWaveformSeek}
+                        onPeaksComputed={handlePeaksComputed}
                         compact
                     />
                 </div>
