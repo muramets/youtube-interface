@@ -20,11 +20,19 @@
 
 ## Roadmap
 
-- **Stage 0 (done):** MVP — 4 tools, lazy peaks, dual variants, ID3 cover extraction, target channel routing
-- **Stage 1:** Batch upload (папка треков → одна команда)
-- **Stage 2:** Suno/Udio URL → автоматическое скачивание → upload
-- **Stage 3:** Авто-тегирование через Gemini по audio features (прослушивает 30 сек семпл → предлагает tags)
-- **Stage 4:** Линковка трека к видео (`linkedVideoIds`) — агент по tags overlap подбирает, куда трек подходит
+- **Stage 0 (done):** MVP — 4 add/read tools, lazy peaks, dual variants, ID3 cover extraction, target channel routing
+- **Stage 1:** Registry management — `updateMusicGenre` / `updateMusicTag` (edit name/color/category), `renameMusicGenre` / `renameMusicTag` (change id + cascade update `tags[]` в tracks), `deleteMusicGenre` / `deleteMusicTag` (cascade remove from tracks). Atomic batch с chunking для >500 tracks.
+- **Stage 2:** Track management — `deleteTrack` (Firestore + Storage cleanup), `updateTrack` (edit metadata, re-link video)
+- **Stage 3:** Batch upload (папка треков → одна команда)
+- **Stage 4:** Suno/Udio URL → автоматическое скачивание → upload
+- **Stage 5:** Авто-тегирование через Gemini по audio features (прослушивает 30 сек семпл → предлагает tags)
+- **Stage 6:** Линковка трека к видео (`linkedVideoIds`) — агент по tags overlap подбирает, куда трек подходит
+
+## Known Limitations (v0.1)
+
+- Registry is **add-only** — rename/delete/update requires UI. Agent must refuse such requests and direct user to UI.
+- Track cannot be deleted or updated via CLI.
+- No batch operations — one track per call.
 
 ## Technical Implementation
 
