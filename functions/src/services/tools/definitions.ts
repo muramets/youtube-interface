@@ -41,6 +41,7 @@ export const TOOL_NAMES = {
     ADD_MUSIC_GENRE: "addMusicGenre",
     ADD_MUSIC_TAG: "addMusicTag",
     UPLOAD_TRACK: "uploadTrack",
+    UPDATE_TRACK: "updateTrack",
 } as const;
 
 export type ToolName = (typeof TOOL_NAMES)[keyof typeof TOOL_NAMES];
@@ -966,6 +967,64 @@ const uploadTrack: ToolDefinition = {
     },
 };
 
+const updateTrack: ToolDefinition = {
+    name: TOOL_NAMES.UPDATE_TRACK,
+    description:
+        "Update text metadata of an existing track (partial update). " +
+        "Only fields explicitly passed are changed — omitted fields keep their current values. " +
+        "Pass null or empty string to clear a field (artist, lyrics, prompt, bpm). " +
+        "Cannot change audio files, storage paths, duration, peaks, or grouping — those require re-upload via UI. " +
+        "Validates genre + tags against the channel registry. " +
+        "Use targetChannelId to update a track in a different channel.",
+    parametersJsonSchema: {
+        type: "object",
+        properties: {
+            trackId: {
+                type: "string",
+                description: "The track ID to update (from uploadTrack result or listMusicLibrary).",
+            },
+            title: {
+                type: "string",
+                description: "New title. Empty string clears is NOT allowed (title is required on track).",
+            },
+            artist: {
+                type: ["string", "null"],
+                description: "Artist name. Pass null or empty string to clear.",
+            },
+            bpm: {
+                type: ["number", "null"],
+                description: "BPM (positive number < 1000). Pass null to clear.",
+            },
+            lyrics: {
+                type: ["string", "null"],
+                description: "Song lyrics. Pass null or empty string to clear.",
+            },
+            prompt: {
+                type: ["string", "null"],
+                description: "AI generation prompt. Pass null or empty string to clear.",
+            },
+            genre: {
+                type: "string",
+                description: "Genre id (must exist in listMusicLibrary).",
+            },
+            tags: {
+                type: "array",
+                items: { type: "string" },
+                description: "Full replacement of track's tags array. All ids must exist in listMusicLibrary.",
+            },
+            liked: {
+                type: "boolean",
+                description: "Liked status.",
+            },
+            targetChannelId: {
+                type: "string",
+                description: "Optional. Internal channel ID where the track lives. Defaults to current channel.",
+            },
+        },
+        required: ["trackId"],
+    },
+};
+
 // --- Exported registries ---
 
 export const TOOL_DECLARATIONS: ToolDefinition[] = [
@@ -992,6 +1051,7 @@ export const TOOL_DECLARATIONS: ToolDefinition[] = [
     addMusicGenre,
     addMusicTag,
     uploadTrack,
+    updateTrack,
 ];
 
 /** @deprecated Empty — saveMemory moved to TOOL_DECLARATIONS. Kept for backward compat (test mocks). */

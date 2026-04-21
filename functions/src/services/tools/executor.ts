@@ -37,6 +37,7 @@ import { handleListMusicLibrary } from "./handlers/music/listMusicLibrary.js";
 import { handleAddMusicGenre } from "./handlers/music/addMusicGenre.js";
 import { handleAddMusicTag } from "./handlers/music/addMusicTag.js";
 import { handleUploadTrack } from "./handlers/music/uploadTrack.js";
+import { handleUpdateTrack } from "./handlers/music/updateTrack.js";
 
 // --- Handler registry ---
 
@@ -64,6 +65,7 @@ const HANDLERS: Record<ToolName, ToolHandler> = {
     [TOOL_NAMES.ADD_MUSIC_GENRE]: handleAddMusicGenre,
     [TOOL_NAMES.ADD_MUSIC_TAG]: handleAddMusicTag,
     [TOOL_NAMES.UPLOAD_TRACK]: handleUploadTrack,
+    [TOOL_NAMES.UPDATE_TRACK]: handleUpdateTrack,
 };
 
 // --- Dispatcher ---
