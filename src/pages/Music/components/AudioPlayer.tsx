@@ -29,7 +29,8 @@ import { usePlaybackNavigation } from '../hooks/usePlaybackNavigation';
 import { useTrimMode } from '../hooks/useTrimMode';
 import { useMediaSessionPlaybackState } from '../hooks/useMediaSessionPlaybackState';
 import type { SharePermissions } from '../../../core/types/music/musicSharing';
-import { DEFAULT_SHARE_PERMISSIONS, OWNER_PERMISSIONS } from '../../../core/types/music/musicSharing';
+import { OWNER_PERMISSIONS } from '../../../core/types/music/musicSharing';
+import { resolveTrackPermissions } from '../../../core/utils/trackUtils';
 
 export const AudioPlayer: React.FC = () => {
     // ── Hook composition ────────────────────────────────────────────────────
@@ -63,19 +64,16 @@ export const AudioPlayer: React.FC = () => {
     const channelId = currentChannel?.id || '';
 
     // ── Shared library awareness ─────────────────────────────────────────
-    // Determine if the playing track belongs to a shared library so we can
-    // use the owner's credentials for mutations and respect permissions.
-    const sharedTracks = useMusicStore((s) => s.sharedTracks);
-    const activeLibrarySource = useMusicStore((s) => s.activeLibrarySource);
-
-    const isSharedTrack = !!playingTrackId && sharedTracks.some((t) => t.id === playingTrackId);
-    const effectiveUserId = isSharedTrack && activeLibrarySource ? activeLibrarySource.ownerUserId : userId;
-    const effectiveChannelId = isSharedTrack && activeLibrarySource ? activeLibrarySource.ownerChannelId : channelId;
-    const permissions: SharePermissions = isSharedTrack && activeLibrarySource?.permissions
-        ? activeLibrarySource.permissions
-        : isSharedTrack
-            ? DEFAULT_SHARE_PERMISSIONS
-            : OWNER_PERMISSIONS;
+    // Effective mutation target and permissions come from the TRACK itself —
+    // not from `activeLibrarySource`, which can be stale when the user
+    // navigates away from /music while a track keeps playing, or when a
+    // track is played out of "All" mixed-mode.
+    const sharedLibraries = useMusicStore((s) => s.sharedLibraries);
+    const effectiveUserId = track?.ownerUserId ?? userId;
+    const effectiveChannelId = track?.ownerChannelId ?? channelId;
+    const permissions: SharePermissions = track
+        ? resolveTrackPermissions(track, userId, sharedLibraries)
+        : OWNER_PERMISSIONS;
 
     const [showPlaylistModal, setShowPlaylistModal] = useState(false);
     const [showTrackSettings, setShowTrackSettings] = useState(false);
@@ -228,7 +226,7 @@ export const AudioPlayer: React.FC = () => {
                     {/* Like button — requires edit permission, uses owner credentials (hidden in trim mode) */}
                     {!isTrimMode && permissions.canEdit && (
                         <button
-                            onClick={() => useMusicStore.getState().toggleLike(effectiveUserId, effectiveChannelId, track.id)}
+                            onClick={() => useMusicStore.getState().toggleLike(track.id)}
                             className={`p-1.5 rounded-lg transition-colors flex-shrink-0 ${track.liked
                                 ? 'text-red-400 hover:text-red-300'
                                 : 'text-text-tertiary hover:text-text-primary'

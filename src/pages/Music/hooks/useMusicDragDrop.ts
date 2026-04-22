@@ -21,8 +21,6 @@ export interface MusicDragDropState {
 export const useMusicDragDrop = () => {
     // Stable actions — created once, references never change, no subscription needed
     const { addTracksToPlaylist, linkAsVersion, linkAsVersionAndReorder, unlinkFromGroup, setDraggingTrackId } = useMusicStore.getState();
-    // Reactive state — subscribe only to what actually changes
-    const activeLibrarySource = useMusicStore((s) => s.activeLibrarySource);
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
 
@@ -60,12 +58,10 @@ export const useMusicDragDrop = () => {
                     || overType === 'music-track-target'
                     || overType === 'music-group-target';
                 if (activeType === 'group-child-sort' && !isOverGroupOrLink && draggedTrack?.groupId) {
-                    const userId = user?.uid || '';
-                    const channelId = currentChannel?.id || '';
-                    const trackOwnerUserId = activeLibrarySource?.ownerUserId ?? userId;
-                    const trackOwnerChannelId = activeLibrarySource?.ownerChannelId ?? channelId;
-                    if (trackOwnerUserId && trackOwnerChannelId) {
-                        unlinkFromGroup(trackOwnerUserId, trackOwnerChannelId, draggedTrack.id);
+                    // Target the track's own library — same rule as every
+                    // other track mutation.
+                    if (draggedTrack.ownerUserId && draggedTrack.ownerChannelId) {
+                        unlinkFromGroup(draggedTrack.ownerUserId, draggedTrack.ownerChannelId, draggedTrack.id);
                     }
                 }
                 setDraggingTrackId(null);
@@ -80,24 +76,18 @@ export const useMusicDragDrop = () => {
             const userId = user?.uid || '';
             const channelId = currentChannel?.id || '';
 
-            // Effective credentials for mutation operations on tracks.
-            // When viewing a shared library, mutations must target the owner's Firestore collection.
-            const trackOwnerUserId = activeLibrarySource?.ownerUserId ?? userId;
-            const trackOwnerChannelId = activeLibrarySource?.ownerChannelId ?? channelId;
-
             if (dropType === 'music-playlist' && userId && channelId) {
                 const playlistId = over.data.current?.playlistId as string | undefined;
-                // Shared playlist: droppable data carries owner credentials
-                const playlistOwnerUserId = (over.data.current?.ownerUserId as string) || userId;
-                const playlistOwnerChannelId = (over.data.current?.ownerChannelId as string) || channelId;
                 if (playlistId) {
-                    // If dragging from a shared library, record the source
-                    const sources = activeLibrarySource
-                        ? { [draggedTrack.id]: { ownerUserId: activeLibrarySource.ownerUserId, ownerChannelId: activeLibrarySource.ownerChannelId } }
+                    // Record source library if dragging a shared-library track into
+                    // an own-library playlist. Owner of target playlist is resolved
+                    // by addTracksToPlaylist from the playlist itself.
+                    const sources = draggedTrack.ownerUserId !== userId || draggedTrack.ownerChannelId !== channelId
+                        ? { [draggedTrack.id]: { ownerUserId: draggedTrack.ownerUserId, ownerChannelId: draggedTrack.ownerChannelId } }
                         : undefined;
-                    addTracksToPlaylist(playlistOwnerUserId, playlistOwnerChannelId, playlistId, [draggedTrack.id], sources);
+                    addTracksToPlaylist(playlistId, [draggedTrack.id], sources);
                 }
-            } else if (dropType === 'music-track-target' && trackOwnerUserId && trackOwnerChannelId) {
+            } else if (dropType === 'music-track-target') {
                 const targetTrackId = over.data.current?.trackId as string | undefined;
                 const targetGroupId = over.data.current?.groupId as string | undefined;
 
@@ -109,14 +99,17 @@ export const useMusicDragDrop = () => {
                     const sameGroup = draggedTrack.groupId
                         && resolvedTargetGroupId
                         && draggedTrack.groupId === resolvedTargetGroupId;
-                    // Same-group reorder is handled by TrackGroupCard's useDndMonitor.
-                    // Only link as version when dragging between different groups/tracks.
-                    if (!sameGroup) {
-                        linkAsVersion(trackOwnerUserId, trackOwnerChannelId, draggedTrack.id, targetTrackId);
+                    // Only link when source and target come from the same library —
+                    // cross-library grouping isn't a supported operation.
+                    const sameLibrary = targetTrack
+                        && targetTrack.ownerUserId === draggedTrack.ownerUserId
+                        && targetTrack.ownerChannelId === draggedTrack.ownerChannelId;
+                    if (!sameGroup && sameLibrary) {
+                        linkAsVersion(draggedTrack.ownerUserId, draggedTrack.ownerChannelId, draggedTrack.id, targetTrackId);
                     }
                 }
 
-            } else if (dropType === 'music-group-target' && trackOwnerUserId && trackOwnerChannelId) {
+            } else if (dropType === 'music-group-target') {
                 const targetGroupId = over.data.current?.groupId as string | undefined;
                 const representativeTrackId = over.data.current?.representativeTrackId as string | undefined;
                 const insertIdx = (over.data.current?.insertionIndex as number) ?? -1;
@@ -126,7 +119,7 @@ export const useMusicDragDrop = () => {
                         // Single atomic write: sets groupId + final groupOrder in one Firestore batch.
                         // Avoids the intermediate Firestore snapshot that caused tracks to swap
                         // when linkAsVersion + reorderGroupTracks fired as two separate writes.
-                        linkAsVersionAndReorder(trackOwnerUserId, trackOwnerChannelId, draggedTrack.id, representativeTrackId, insertIdx);
+                        linkAsVersionAndReorder(draggedTrack.ownerUserId, draggedTrack.ownerChannelId, draggedTrack.id, representativeTrackId, insertIdx);
                     }
                 }
             }
@@ -134,7 +127,7 @@ export const useMusicDragDrop = () => {
 
         setDraggingTrackId(null);
         setDraggedTrack(null);
-    }, [draggedTrack, user?.uid, currentChannel?.id, activeLibrarySource, addTracksToPlaylist, linkAsVersion, linkAsVersionAndReorder, unlinkFromGroup, setDraggingTrackId]);
+    }, [draggedTrack, user?.uid, currentChannel?.id, addTracksToPlaylist, linkAsVersion, linkAsVersionAndReorder, unlinkFromGroup, setDraggingTrackId]);
 
     const handleMusicDragCancel = useCallback(() => {
         setDraggingTrackId(null);

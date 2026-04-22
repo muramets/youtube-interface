@@ -126,11 +126,16 @@ export function useAudioEngine(): AudioEngineResult {
 
                 const urlField = isVocal ? 'vocalUrl' : 'instrumentalUrl';
                 refreshTrackUrl(track.id, urlField, fresh);
-                const parts = storagePath.split('/');
-                const uid = parts[1];
-                const cid = parts[3];
-                if (uid && cid) {
-                    TrackService.updateTrack(uid, cid, track.id, { [urlField]: fresh }).catch(console.error);
+                // Persist to the track's ORIGINAL library. `track.ownerUserId`/
+                // `ownerChannelId` are stamped at subscription time and match
+                // the storage path — use them directly instead of parsing.
+                if (track.ownerUserId && track.ownerChannelId) {
+                    TrackService.updateTrack(
+                        track.ownerUserId,
+                        track.ownerChannelId,
+                        track.id,
+                        { [urlField]: fresh },
+                    ).catch(console.error);
                 }
             } catch (err) {
                 console.error('[AudioPlayer] Failed to refresh audio URL:', err);

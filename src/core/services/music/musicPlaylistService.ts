@@ -45,9 +45,18 @@ export const MusicPlaylistService = {
         channelId: string,
         callback: (playlists: MusicPlaylist[]) => void,
     ) {
+        // Stamp owner onto every playlist at read time. The Firestore path is
+        // the source of truth — same pattern as `TrackService.subscribeToTracks`.
         return subscribeToCollection<MusicPlaylist>(
             getPlaylistsPath(userId, channelId),
-            callback,
+            (docs) => {
+                const stamped = docs.map((d) => ({
+                    ...d,
+                    ownerUserId: userId,
+                    ownerChannelId: channelId,
+                })) as MusicPlaylist[];
+                callback(stamped);
+            },
             [orderBy('createdAt')],
         );
     },

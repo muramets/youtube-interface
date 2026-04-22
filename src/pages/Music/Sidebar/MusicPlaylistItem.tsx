@@ -13,8 +13,6 @@ import { Heart, MoreVertical } from 'lucide-react';
 import { MusicPlaylistContextMenu } from './MusicPlaylistContextMenu';
 import type { MusicPlaylist } from '../../../core/types/music/musicPlaylist';
 import { useMusicStore } from '../../../core/stores/music/musicStore';
-import { useAuth } from '../../../core/hooks/useAuth';
-import { useChannelStore } from '../../../core/stores/channelStore';
 import { MANUAL_NICHE_PALETTE } from '../../../core/stores/trends/trendStore';
 import { ColorPickerPopover } from '../../../components/ui/molecules/ColorPickerPopover';
 
@@ -68,8 +66,6 @@ export const MusicPlaylistItem: React.FC<MusicPlaylistItemProps> = ({
     const [editName, setEditName] = useState(name);
 
     const { updatePlaylist } = useMusicStore();
-    const { user } = useAuth();
-    const { currentChannel } = useChannelStore();
 
     const PRESET_COLORS = MANUAL_NICHE_PALETTE;
 
@@ -111,11 +107,11 @@ export const MusicPlaylistItem: React.FC<MusicPlaylistItemProps> = ({
 
     const handleNameSubmit = useCallback(() => {
         const trimmed = editName.trim();
-        if (trimmed && trimmed !== name && user?.uid && currentChannel?.id) {
-            updatePlaylist(user.uid, currentChannel.id, id, { name: trimmed });
+        if (trimmed && trimmed !== name) {
+            updatePlaylist(id, { name: trimmed });
         }
         setIsEditing(false);
-    }, [editName, name, id, user, currentChannel, updatePlaylist]);
+    }, [editName, name, id, updatePlaylist]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
         if (e.key === 'Enter') {
@@ -129,10 +125,9 @@ export const MusicPlaylistItem: React.FC<MusicPlaylistItemProps> = ({
     }, [handleNameSubmit, name]);
 
     const handleColorChange = useCallback((newColor: string) => {
-        if (!user?.uid || !currentChannel?.id) return;
-        updatePlaylist(user.uid, currentChannel.id, id, { color: newColor });
+        updatePlaylist(id, { color: newColor });
         setIsColorPickerOpen(false);
-    }, [id, user, currentChannel, updatePlaylist]);
+    }, [id, updatePlaylist]);
 
     const handleContextMenu = useCallback((e: React.MouseEvent) => {
         if (icon === 'heart') return;

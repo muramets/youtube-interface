@@ -28,17 +28,39 @@ export interface PlaylistSlice {
     /** Remembered All toggle when user leaves a subview */
     subviewAllSources: boolean;
 
-    // Actions
+    // Actions — mutations resolve owner from the playlist itself (stamped at
+    // subscription time). Callers pass only the playlistId; the slice looks
+    // up own vs shared collection, updates the correct array optimistically,
+    // and writes to the owner's Firestore path.
     subscribePlaylists: (userId: string, channelId: string) => () => void;
     loadPlaylistSettings: (userId: string, channelId: string) => Promise<void>;
     setActivePlaylist: (id: string | null) => void;
     setPlaylistAllSources: (value: boolean) => void;
+    /** Create a new playlist in a specific library — caller decides target
+     *  (own vs shared). `createPlaylist` keeps explicit userId/channelId for
+     *  this reason; all other mutations resolve owner from the playlist. */
     createPlaylist: (userId: string, channelId: string, name: string, group?: string, trackIds?: string[], trackSources?: Record<string, TrackSource>) => Promise<MusicPlaylist>;
-    updatePlaylist: (userId: string, channelId: string, playlistId: string, updates: Partial<Pick<MusicPlaylist, 'name' | 'group' | 'color' | 'order'>>) => Promise<void>;
-    deletePlaylist: (userId: string, channelId: string, playlistId: string) => Promise<void>;
-    addTracksToPlaylist: (userId: string, channelId: string, playlistId: string, trackIds: string[], sources?: Record<string, TrackSource>) => Promise<void>;
-    removeTracksFromPlaylist: (userId: string, channelId: string, playlistId: string, trackIds: string[]) => Promise<void>;
-    reorderPlaylistTracks: (userId: string, channelId: string, playlistId: string, orderedTrackIds: string[]) => Promise<void>;
+    updatePlaylist: (playlistId: string, updates: Partial<Pick<MusicPlaylist, 'name' | 'group' | 'color' | 'order'>>) => Promise<void>;
+    deletePlaylist: (playlistId: string) => Promise<void>;
+    addTracksToPlaylist: (playlistId: string, trackIds: string[], sources?: Record<string, TrackSource>) => Promise<void>;
+    removeTracksFromPlaylist: (playlistId: string, trackIds: string[]) => Promise<void>;
+    reorderPlaylistTracks: (playlistId: string, orderedTrackIds: string[]) => Promise<void>;
+}
+
+// ── Playlist lookup helper ───────────────────────────────────────────────
+// Searches own first, then shared. Returns the playlist and which collection
+// it lives in so mutations update the correct array and write to owner.
+type PlaylistLocation = 'own' | 'shared';
+function findPlaylistWithLocation(
+    playlistId: string,
+    own: MusicPlaylist[],
+    shared: MusicPlaylist[],
+): { playlist: MusicPlaylist; location: PlaylistLocation } | null {
+    const ownMatch = own.find((p) => p.id === playlistId);
+    if (ownMatch) return { playlist: ownMatch, location: 'own' };
+    const sharedMatch = shared.find((p) => p.id === playlistId);
+    if (sharedMatch) return { playlist: sharedMatch, location: 'shared' };
+    return null;
 }
 
 export const createPlaylistSlice: StateCreator<MusicState, [], [], PlaylistSlice> = (set, get) => ({
@@ -117,6 +139,8 @@ export const createPlaylistSlice: StateCreator<MusicState, [], [], PlaylistSlice
             : undefined;
         const playlist: MusicPlaylist = {
             id: uuidv4(),
+            ownerUserId: userId,
+            ownerChannelId: channelId,
             name,
             trackIds: initialIds,
             ...(initialAddedAt && { trackAddedAt: initialAddedAt }),
@@ -126,92 +150,164 @@ export const createPlaylistSlice: StateCreator<MusicState, [], [], PlaylistSlice
             createdAt: now,
             updatedAt: now,
         };
-        set((state) => ({ musicPlaylists: [...state.musicPlaylists, playlist] }));
+        // Optimistic insert into the correct collection. Firestore snapshot
+        // will re-stamp owner on arrival (idempotent).
+        set((state) => {
+            const isOwn = currentOwnUserIdRef === userId && currentOwnChannelIdRef === channelId;
+            return isOwn
+                ? { musicPlaylists: [...state.musicPlaylists, playlist] }
+                : { sharedPlaylists: [...state.sharedPlaylists, playlist] };
+        });
         await MusicPlaylistService.createPlaylist(userId, channelId, playlist);
         return playlist;
     },
 
-    updatePlaylist: async (userId, channelId, playlistId, updates) => {
+    updatePlaylist: async (playlistId, updates) => {
+        const { musicPlaylists, sharedPlaylists } = get();
+        const found = findPlaylistWithLocation(playlistId, musicPlaylists, sharedPlaylists);
+        if (!found) return;
+        const { playlist, location } = found;
         const updatedAt = Date.now();
-        set((state) => ({
-            musicPlaylists: state.musicPlaylists.map((p) =>
-                p.id === playlistId ? { ...p, ...updates, updatedAt } : p
-            ),
-        }));
-        await MusicPlaylistService.updatePlaylist(userId, channelId, playlistId, {
+
+        if (location === 'own') {
+            set((state) => ({
+                musicPlaylists: state.musicPlaylists.map((p) =>
+                    p.id === playlistId ? { ...p, ...updates, updatedAt } : p
+                ),
+            }));
+        } else {
+            set((state) => ({
+                sharedPlaylists: state.sharedPlaylists.map((p) =>
+                    p.id === playlistId ? { ...p, ...updates, updatedAt } : p
+                ),
+            }));
+        }
+        await MusicPlaylistService.updatePlaylist(playlist.ownerUserId, playlist.ownerChannelId, playlistId, {
             ...updates,
             updatedAt,
         });
     },
 
-    deletePlaylist: async (userId, channelId, playlistId) => {
-        set((state) => ({
-            musicPlaylists: state.musicPlaylists.filter((p) => p.id !== playlistId),
-            activePlaylistId: state.activePlaylistId === playlistId ? null : state.activePlaylistId,
-        }));
-        await MusicPlaylistService.deletePlaylist(userId, channelId, playlistId);
+    deletePlaylist: async (playlistId) => {
+        const { musicPlaylists, sharedPlaylists } = get();
+        const found = findPlaylistWithLocation(playlistId, musicPlaylists, sharedPlaylists);
+        if (!found) return;
+        const { playlist, location } = found;
+
+        if (location === 'own') {
+            set((state) => ({
+                musicPlaylists: state.musicPlaylists.filter((p) => p.id !== playlistId),
+                activePlaylistId: state.activePlaylistId === playlistId ? null : state.activePlaylistId,
+            }));
+        } else {
+            set((state) => ({
+                sharedPlaylists: state.sharedPlaylists.filter((p) => p.id !== playlistId),
+                activePlaylistId: state.activePlaylistId === playlistId ? null : state.activePlaylistId,
+            }));
+        }
+        await MusicPlaylistService.deletePlaylist(playlist.ownerUserId, playlist.ownerChannelId, playlistId);
     },
 
-    addTracksToPlaylist: async (userId, channelId, playlistId, trackIds, sources) => {
+    addTracksToPlaylist: async (playlistId, trackIds, sources) => {
         const now = Date.now();
-        // Compute new IDs from current state synchronously via get() — no mutation needed
-        const currentPlaylist = get().musicPlaylists.find(p => p.id === playlistId);
-        const newIds = currentPlaylist
-            ? trackIds.filter(id => !currentPlaylist.trackIds.includes(id))
-            : [...trackIds];
+        const { musicPlaylists, sharedPlaylists } = get();
+        const found = findPlaylistWithLocation(playlistId, musicPlaylists, sharedPlaylists);
+        if (!found) return;
+        const { playlist, location } = found;
+
+        const newIds = trackIds.filter((id) => !playlist.trackIds.includes(id));
         if (newIds.length === 0) return;
 
-        set((state) => ({
-            musicPlaylists: state.musicPlaylists.map((p) => {
-                if (p.id !== playlistId) return p;
-                const addedAt = { ...(p.trackAddedAt || {}) };
-                for (const id of newIds) addedAt[id] = now;
-                const updatedSources = { ...(p.trackSources || {}) };
-                if (sources) {
-                    for (const id of newIds) {
-                        if (sources[id]) updatedSources[id] = sources[id];
-                    }
+        const applyAdd = (p: MusicPlaylist): MusicPlaylist => {
+            const addedAt = { ...(p.trackAddedAt || {}) };
+            for (const id of newIds) addedAt[id] = now;
+            const updatedSources = { ...(p.trackSources || {}) };
+            if (sources) {
+                for (const id of newIds) {
+                    if (sources[id]) updatedSources[id] = sources[id];
                 }
-                return { ...p, trackIds: [...p.trackIds, ...newIds], trackAddedAt: addedAt, trackSources: updatedSources };
-            }),
-        }));
-        await MusicPlaylistService.addTracksToPlaylist(userId, channelId, playlistId, newIds, sources);
+            }
+            return { ...p, trackIds: [...p.trackIds, ...newIds], trackAddedAt: addedAt, trackSources: updatedSources };
+        };
+
+        if (location === 'own') {
+            set((state) => ({
+                musicPlaylists: state.musicPlaylists.map((p) => (p.id === playlistId ? applyAdd(p) : p)),
+            }));
+        } else {
+            set((state) => ({
+                sharedPlaylists: state.sharedPlaylists.map((p) => (p.id === playlistId ? applyAdd(p) : p)),
+            }));
+        }
+        await MusicPlaylistService.addTracksToPlaylist(playlist.ownerUserId, playlist.ownerChannelId, playlistId, newIds, sources);
     },
 
-    removeTracksFromPlaylist: async (userId, channelId, playlistId, trackIds) => {
+    removeTracksFromPlaylist: async (playlistId, trackIds) => {
+        const { musicPlaylists, sharedPlaylists } = get();
+        const found = findPlaylistWithLocation(playlistId, musicPlaylists, sharedPlaylists);
+        if (!found) return;
+        const { playlist, location } = found;
+
         const removeSet = new Set(trackIds);
-        set((state) => ({
-            musicPlaylists: state.musicPlaylists.map((p) => {
-                if (p.id !== playlistId) return p;
-                const addedAt = p.trackAddedAt
-                    ? Object.fromEntries(
-                        Object.entries(p.trackAddedAt).filter(([id]) => !removeSet.has(id))
-                    )
-                    : undefined;
-                const sources = p.trackSources
-                    ? Object.fromEntries(
-                        Object.entries(p.trackSources).filter(([id]) => !removeSet.has(id))
-                    )
-                    : undefined;
-                return {
-                    ...p,
-                    trackIds: p.trackIds.filter(id => !removeSet.has(id)),
-                    ...(addedAt !== undefined && { trackAddedAt: addedAt }),
-                    ...(sources !== undefined && { trackSources: sources }),
-                };
-            }),
-        }));
-        await MusicPlaylistService.removeTracksFromPlaylist(userId, channelId, playlistId, trackIds);
+        const applyRemove = (p: MusicPlaylist): MusicPlaylist => {
+            const addedAt = p.trackAddedAt
+                ? Object.fromEntries(Object.entries(p.trackAddedAt).filter(([id]) => !removeSet.has(id)))
+                : undefined;
+            const sources = p.trackSources
+                ? Object.fromEntries(Object.entries(p.trackSources).filter(([id]) => !removeSet.has(id)))
+                : undefined;
+            return {
+                ...p,
+                trackIds: p.trackIds.filter((id) => !removeSet.has(id)),
+                ...(addedAt !== undefined && { trackAddedAt: addedAt }),
+                ...(sources !== undefined && { trackSources: sources }),
+            };
+        };
+
+        if (location === 'own') {
+            set((state) => ({
+                musicPlaylists: state.musicPlaylists.map((p) => (p.id === playlistId ? applyRemove(p) : p)),
+            }));
+        } else {
+            set((state) => ({
+                sharedPlaylists: state.sharedPlaylists.map((p) => (p.id === playlistId ? applyRemove(p) : p)),
+            }));
+        }
+        await MusicPlaylistService.removeTracksFromPlaylist(playlist.ownerUserId, playlist.ownerChannelId, playlistId, trackIds);
     },
 
-    reorderPlaylistTracks: async (userId, channelId, playlistId, orderedTrackIds) => {
-        set((state) => ({
-            musicPlaylists: state.musicPlaylists.map((p) =>
-                p.id === playlistId
-                    ? { ...p, trackIds: orderedTrackIds }
-                    : p
-            ),
-        }));
-        await MusicPlaylistService.reorderPlaylistTracks(userId, channelId, playlistId, orderedTrackIds);
+    reorderPlaylistTracks: async (playlistId, orderedTrackIds) => {
+        const { musicPlaylists, sharedPlaylists } = get();
+        const found = findPlaylistWithLocation(playlistId, musicPlaylists, sharedPlaylists);
+        if (!found) return;
+        const { playlist, location } = found;
+
+        if (location === 'own') {
+            set((state) => ({
+                musicPlaylists: state.musicPlaylists.map((p) =>
+                    p.id === playlistId ? { ...p, trackIds: orderedTrackIds } : p
+                ),
+            }));
+        } else {
+            set((state) => ({
+                sharedPlaylists: state.sharedPlaylists.map((p) =>
+                    p.id === playlistId ? { ...p, trackIds: orderedTrackIds } : p
+                ),
+            }));
+        }
+        await MusicPlaylistService.reorderPlaylistTracks(playlist.ownerUserId, playlist.ownerChannelId, playlistId, orderedTrackIds);
     },
 });
+
+// ── Own-identity refs (module-level) ─────────────────────────────────────
+// Shared with librarySlice via musicStore — subscribe() there is the single
+// place where the current user/channel identity is known. Needed by
+// createPlaylist to decide whether the new playlist should land in the own
+// or shared collection optimistically.
+let currentOwnUserIdRef: string | null = null;
+let currentOwnChannelIdRef: string | null = null;
+
+export function _setOwnIdentityForPlaylistSlice(userId: string | null, channelId: string | null): void {
+    currentOwnUserIdRef = userId;
+    currentOwnChannelIdRef = channelId;
+}

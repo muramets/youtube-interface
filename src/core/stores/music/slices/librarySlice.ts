@@ -16,6 +16,58 @@ import { db } from '../../../../config/firebase';
 import type { SharedLibrariesSettings } from '../../../types/music/musicSharing';
 import { DEFAULT_GENRES, DEFAULT_TAGS } from '../../../types/music/track';
 import type { MusicState } from '../musicStore';
+import { _setOwnIdentityForPlaylistSlice } from './playlistSlice';
+
+// ── Active-library persistence (per grantee channel) ────────────────────────
+// Keyed by grantee channelId so each of the user's channels remembers its own
+// last opened shared library. `setActiveLibrarySource` runs outside any React
+// context and has no access to auth state — the subscribe call populates this
+// ref with the current grantee channelId, and the setter reads from it.
+const ACTIVE_LIBRARY_STORAGE_PREFIX = 'music_active_lib:';
+const LEGACY_ACTIVE_LIBRARY_STORAGE_KEY = 'music_active_library_channel_id';
+
+let activeGranteeChannelIdRef: string | null = null;
+// ── Current user identity ───────────────────────────────────────────────
+// Set when `subscribe` runs with the user's own (uid, channelId). Used by
+// `saveSettings` to decide whether to apply an optimistic update on the own
+// `genres`/`tags` state or skip it (shared library settings sync through
+// the Firestore subscription instead, no need to touch own state).
+let currentOwnUserIdRef: string | null = null;
+let currentOwnChannelIdRef: string | null = null;
+
+const buildActiveLibraryStorageKey = (granteeChannelId: string): string =>
+    `${ACTIVE_LIBRARY_STORAGE_PREFIX}${granteeChannelId}`;
+
+function readActiveLibraryStorage(granteeChannelId: string): string | null {
+    try {
+        const perChannel = localStorage.getItem(buildActiveLibraryStorageKey(granteeChannelId));
+        if (perChannel) return perChannel;
+        // One-time migration from the old global key: copy into the per-channel
+        // slot and drop the legacy entry. Ensures existing users don't lose
+        // their active-library selection on first load after deploy.
+        const legacy = localStorage.getItem(LEGACY_ACTIVE_LIBRARY_STORAGE_KEY);
+        if (legacy) {
+            localStorage.setItem(buildActiveLibraryStorageKey(granteeChannelId), legacy);
+            localStorage.removeItem(LEGACY_ACTIVE_LIBRARY_STORAGE_KEY);
+            return legacy;
+        }
+        return null;
+    } catch {
+        return null;
+    }
+}
+
+function writeActiveLibraryStorage(granteeChannelId: string, ownerChannelId: string): void {
+    try {
+        localStorage.setItem(buildActiveLibraryStorageKey(granteeChannelId), ownerChannelId);
+    } catch { /* storage unavailable — fail silently */ }
+}
+
+function clearActiveLibraryStorage(granteeChannelId: string): void {
+    try {
+        localStorage.removeItem(buildActiveLibraryStorageKey(granteeChannelId));
+    } catch { /* storage unavailable — fail silently */ }
+}
 
 export interface LibrarySlice {
     // Track data
@@ -61,7 +113,13 @@ export interface LibrarySlice {
     // Actions: Settings mutations
     setGenres: (genres: MusicGenre[]) => void;
     setTags: (tags: MusicTag[]) => void;
-    toggleLike: (userId: string, channelId: string, trackId: string) => void;
+    /**
+     * Toggle like on a track. Owner is resolved from `track.ownerUserId`/
+     * `track.ownerChannelId` — callers don't pass credentials. This guarantees
+     * the mutation lands in the original library regardless of which grantee
+     * channel triggered it.
+     */
+    toggleLike: (trackId: string) => void;
 
     // Actions: Version grouping
     linkAsVersion: (userId: string, channelId: string, sourceTrackId: string, targetTrackId: string) => Promise<void>;
@@ -153,6 +211,13 @@ export const createLibrarySlice: StateCreator<MusicState, [], [], LibrarySlice> 
     // ── Subscription ────────────────────────────────────────────────────────
     subscribe: (userId, channelId) => {
         set({ isLoading: true });
+        // Remember the user's own identity so other slice actions
+        // (saveSettings, createPlaylist) can decide whether an operation
+        // targets the own library or a shared one without asking auth/channel
+        // stores directly from inside the slice.
+        currentOwnUserIdRef = userId;
+        currentOwnChannelIdRef = channelId;
+        _setOwnIdentityForPlaylistSlice(userId, channelId);
         let isFirstSnapshot = true;
 
         const unsubscribe = TrackService.subscribeToTracks(userId, channelId, (tracks) => {
@@ -199,16 +264,44 @@ export const createLibrarySlice: StateCreator<MusicState, [], [], LibrarySlice> 
     },
 
     saveSettings: async (userId, channelId, settings) => {
-        const state = get();
-        const prev = { genres: state.genres, tags: state.tags, categoryOrder: state.categoryOrder, featuredCategories: state.featuredCategories, sortableCategories: state.sortableCategories };
-        // Optimistic update
-        set({ genres: settings.genres, tags: settings.tags, categoryOrder: settings.categoryOrder || prev.categoryOrder, featuredCategories: settings.featuredCategories || prev.featuredCategories, sortableCategories: settings.sortableCategories || prev.sortableCategories });
+        // Apply optimistic update on `genres`/`tags` only if saving to the
+        // user's own library. For shared libraries the Firestore subscription
+        // pipes updates into `sharedGenres`/`sharedTags` automatically;
+        // touching own state would flash the wrong content into the UI.
+        const isOwnLibrary =
+            currentOwnUserIdRef === userId && currentOwnChannelIdRef === channelId;
+
+        if (isOwnLibrary) {
+            const state = get();
+            const prev = {
+                genres: state.genres,
+                tags: state.tags,
+                categoryOrder: state.categoryOrder,
+                featuredCategories: state.featuredCategories,
+                sortableCategories: state.sortableCategories,
+            };
+            set({
+                genres: settings.genres,
+                tags: settings.tags,
+                categoryOrder: settings.categoryOrder || prev.categoryOrder,
+                featuredCategories: settings.featuredCategories || prev.featuredCategories,
+                sortableCategories: settings.sortableCategories || prev.sortableCategories,
+            });
+            try {
+                await TrackService.saveMusicSettings(userId, channelId, settings);
+            } catch (error) {
+                set(prev);
+                console.error('[MusicStore] Failed to save settings:', error);
+                throw error;
+            }
+            return;
+        }
+
+        // Shared library target — no optimistic mutation of own state.
         try {
             await TrackService.saveMusicSettings(userId, channelId, settings);
         } catch (error) {
-            // Rollback on failure
-            set({ genres: prev.genres, tags: prev.tags, categoryOrder: prev.categoryOrder, featuredCategories: prev.featuredCategories, sortableCategories: prev.sortableCategories });
-            console.error('[MusicStore] Failed to save settings:', error);
+            console.error('[MusicStore] Failed to save shared library settings:', error);
             throw error;
         }
     },
@@ -220,7 +313,7 @@ export const createLibrarySlice: StateCreator<MusicState, [], [], LibrarySlice> 
     setGenres: (genres) => set({ genres }),
     setTags: (tags) => set({ tags }),
 
-    toggleLike: (userId, channelId, trackId) => {
+    toggleLike: (trackId) => {
         const { tracks, sharedTracks } = get();
         const ownTrack = tracks.find((t) => t.id === trackId);
         const sharedTrack = !ownTrack ? sharedTracks.find((t) => t.id === trackId) : undefined;
@@ -245,8 +338,15 @@ export const createLibrarySlice: StateCreator<MusicState, [], [], LibrarySlice> 
             }));
         }
 
-        // Persist to Firestore
-        TrackService.updateTrack(userId, channelId, trackId, { liked: newLiked }).catch((err) => {
+        // Persist to the track's OWN library — never the current grantee's.
+        // This is what makes likes a library-level fact shared across all
+        // channels that access it.
+        TrackService.updateTrack(
+            track.ownerUserId,
+            track.ownerChannelId,
+            trackId,
+            { liked: newLiked },
+        ).catch((err) => {
             // Rollback
             if (isShared) {
                 set({ sharedTracks });
@@ -590,6 +690,12 @@ export const createLibrarySlice: StateCreator<MusicState, [], [], LibrarySlice> 
         return (userId: string, channelId: string) => {
             const key = `${userId}:${channelId}`;
 
+            // Record the current grantee channel so setActiveLibrarySource
+            // (which has no access to auth context) can build a per-channel
+            // persistence key. Each user channel remembers its own last
+            // opened shared library.
+            activeGranteeChannelIdRef = channelId;
+
             // If credentials changed, tear down old subscription
             if (key !== activeKey && activeUnsub) {
                 activeUnsub();
@@ -623,7 +729,7 @@ export const createLibrarySlice: StateCreator<MusicState, [], [], LibrarySlice> 
                         const match = libraries.find(lib => lib.ownerChannelId === currentSource.ownerChannelId);
                         if (!match) {
                             set({ activeLibrarySource: null });
-                            localStorage.removeItem('music_active_library_channel_id');
+                            clearActiveLibraryStorage(channelId);
                         } else if (
                             match.permissions?.canEdit !== currentSource.permissions?.canEdit ||
                             match.permissions?.canDelete !== currentSource.permissions?.canDelete ||
@@ -637,7 +743,7 @@ export const createLibrarySlice: StateCreator<MusicState, [], [], LibrarySlice> 
                     if (isFirstSnapshot) {
                         isFirstSnapshot = false;
                         try {
-                            const savedChannelId = localStorage.getItem('music_active_library_channel_id');
+                            const savedChannelId = readActiveLibraryStorage(channelId);
                             if (savedChannelId && !get().activeLibrarySource) {
                                 const match = libraries.find(lib => lib.ownerChannelId === savedChannelId);
                                 if (match) set({ activeLibrarySource: match });
@@ -664,12 +770,13 @@ export const createLibrarySlice: StateCreator<MusicState, [], [], LibrarySlice> 
 
     setActiveLibrarySource: (source) => {
         set({ activeLibrarySource: source });
-        // Persist across reloads: store ownerChannelId so we can restore on next session.
+        const granteeChannelId = activeGranteeChannelIdRef;
+        if (!granteeChannelId) return;
         try {
             if (source) {
-                localStorage.setItem('music_active_library_channel_id', source.ownerChannelId);
+                writeActiveLibraryStorage(granteeChannelId, source.ownerChannelId);
             } else {
-                localStorage.removeItem('music_active_library_channel_id');
+                clearActiveLibraryStorage(granteeChannelId);
             }
         } catch { /* storage unavailable — fail silently */ }
     },

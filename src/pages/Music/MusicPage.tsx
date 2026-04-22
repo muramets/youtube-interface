@@ -289,19 +289,25 @@ export const MusicPage: React.FC = () => {
                 </div>
 
                 {/* Modals */}
+                {/* Edit uses the track's own owner — always the original library,
+                    even in mixed-mode "All" where own and shared tracks interleave.
+                    Create (no editingTrack) targets the active library so new uploads
+                    land where the user is looking. */}
                 <UploadTrackModal
                     isOpen={showUpload || !!editingTrack}
                     onClose={() => { setShowUpload(false); setEditingTrack(null); }}
-                    userId={editingTrack && activeLibrarySource ? activeLibrarySource.ownerUserId : userId}
-                    channelId={editingTrack && activeLibrarySource ? activeLibrarySource.ownerChannelId : channelId}
+                    userId={editingTrack ? editingTrack.ownerUserId : trackOwnerUserId}
+                    channelId={editingTrack ? editingTrack.ownerChannelId : trackOwnerChannelId}
                     editTrack={editingTrack}
                     initialTab={editingTrack ? 'library' : 'track'}
                 />
+                {/* Library Settings (genres/tags) edit the active library's settings,
+                    which lives in the owner's Firestore path — never the grantee's. */}
                 <MusicSettingsModal
                     isOpen={!!showSettings}
                     onClose={() => setShowSettings(null)}
-                    userId={userId}
-                    channelId={channelId}
+                    userId={trackOwnerUserId}
+                    channelId={trackOwnerChannelId}
                     initialTab={showSettings || undefined}
                 />
             </div>

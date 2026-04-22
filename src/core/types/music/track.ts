@@ -8,6 +8,14 @@
  */
 export interface Track {
     id: string;
+    /** User ID that owns the library this track belongs to. Stamped at subscription
+     *  time from the Firestore path — never read from the document body, so it
+     *  stays correct even for legacy records without this field persisted. */
+    ownerUserId: string;
+    /** Channel ID that owns the library this track belongs to. Same stamping
+     *  rule as ownerUserId. All mutations on the track must target this
+     *  channel's Firestore path, regardless of which grantee is viewing. */
+    ownerChannelId: string;
     title: string;
     artist?: string;
     groupId?: string;              // Tracks with same groupId are versions of each other

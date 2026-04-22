@@ -8,6 +8,8 @@ import { deleteField } from 'firebase/firestore';
 import { TrackService } from '../../../core/services/music/trackService';
 import { uploadTrackAudio, uploadTrackCover } from '../../../core/services/storageService';
 import { useMusicStore } from '../../../core/stores/music/musicStore';
+import { useAuth } from '../../../core/hooks/useAuth';
+import { useChannelStore } from '../../../core/stores/channelStore';
 import type { Track, TrackCreateData } from '../../../core/types/music/track';
 import { extractPeaksFromFile } from '../../../core/utils/audioPeaks';
 import { extractAudioMetadata } from '../../../core/utils/audioMetadata';
@@ -47,9 +49,25 @@ function getAudioDuration(file: File): Promise<number> {
 }
 
 export function useTrackForm({ isOpen, onClose, userId, channelId, editTrack }: UseTrackFormProps) {
-    const genres = useMusicStore(s => s.genres);
-    const tags = useMusicStore(s => s.tags);
-    const categoryOrder = useMusicStore(s => s.categoryOrder);
+    // The modal targets whichever library owns the track (userId/channelId
+    // are already resolved to the owner at the call site). When that target
+    // is NOT the current user's own library, we must render genre/tag chips
+    // from the owner's settings — otherwise `track.tags` IDs won't match any
+    // definition in `genres`/`tags` and the chips stay invisible.
+    const { user } = useAuth();
+    const { currentChannel } = useChannelStore();
+    const isOwnLibrary = !!user?.uid && userId === user.uid && channelId === currentChannel?.id;
+
+    const ownGenres = useMusicStore(s => s.genres);
+    const ownTags = useMusicStore(s => s.tags);
+    const ownCategoryOrder = useMusicStore(s => s.categoryOrder);
+    const sharedGenres = useMusicStore(s => s.sharedGenres);
+    const sharedTags = useMusicStore(s => s.sharedTags);
+    const sharedCategoryOrder = useMusicStore(s => s.sharedCategoryOrder);
+
+    const genres = isOwnLibrary ? ownGenres : sharedGenres;
+    const tags = isOwnLibrary ? ownTags : sharedTags;
+    const categoryOrder = isOwnLibrary ? ownCategoryOrder : sharedCategoryOrder;
     const saveSettings = useMusicStore(s => s.saveSettings);
     const isEditMode = !!editTrack;
     const editTrackId = editTrack?.id;
@@ -470,6 +488,8 @@ export function useTrackForm({ isOpen, onClose, userId, channelId, editTrack }: 
                 await TrackService.updateTrack(userId, channelId, trackId, updates);
             } else {
                 const trackData: TrackCreateData = {
+                    ownerUserId: userId,
+                    ownerChannelId: channelId,
                     title: title.trim(),
                     artist: artist.trim() || undefined,
                     genre: selectedGenre || 'other',

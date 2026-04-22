@@ -10,7 +10,9 @@
 1. Media keys на Magic Keyboard (play/next/prev) не маршрутились в таб — Chrome требует явный `navigator.mediaSession.playbackState`, Arc/Safari авто-детектят.
 2. Skip и auto-advance молча не работали, если играющий трек выпадал из очереди (unlike во время playback из плейлиста «Liked» → трек становился «сиротой» в очереди).
 
-← YOU ARE HERE: Core + stability complete. Дальнейшие идеи — в Roadmap.
+**Seamless shared library across channels — DONE (2026-04-22).** И треки, и плейлисты носят `ownerUserId`/`ownerChannelId` (stamped at read-time из пути Firestore — не persist'ится). Любое действие (edit, delete, like, trim, group ops, playlist add/remove/reorder) всегда уходит в оригинальную библиотеку независимо от того, из какого канала юзера открыто. Per-track permissions: same user → full, cross-user grant → grant's permissions. Per-channel persistence выбранной shared library: `music_active_lib:${granteeChannelId}`. Edit Track modal загружает genres/tags из библиотеки-владельца. `saveSettings` не трогает own state когда сохраняем в шаренную библу (нет flicker).
+
+← YOU ARE HERE: Core + stability + seamless multi-channel complete. Дальнейшие идеи — в Roadmap.
 
 ---
 
@@ -63,6 +65,17 @@
 - [x] Queue guard: не дропать играющий трек при rebuild очереди
 - [x] Navigation fallback: при orphan-треке Skip/auto-advance восстанавливается с начала очереди
 
+### Seamless multi-channel ✅
+- [x] `Track` carries `ownerUserId`/`ownerChannelId` — stamped at subscription
+- [x] `MusicPlaylist` carries `ownerUserId`/`ownerChannelId` — stamped at subscription
+- [x] All track-level mutations (update, delete, like, trim, group ops) target track's original library
+- [x] All playlist-level mutations (update, delete, reorder, add/remove tracks) target playlist's original library
+- [x] `resolveTrackPermissions` — same-user access across own channels = OWNER_PERMISSIONS
+- [x] Library Settings (genres/tags) route to active library's owner path
+- [x] Edit Track modal reads genre/tag definitions from the library that owns the track
+- [x] `saveSettings` skips optimistic own-state update when target is a shared library (no UI flicker)
+- [x] Per-channel persistence of last opened shared library (legacy key migrated)
+
 ### Nice-to-have (future)
 - [ ] Shuffle режим
 - [ ] Crossfade между треками
@@ -100,7 +113,20 @@
 ### Queue invariant
 Очередь в `playbackQueue` должна **всегда** содержать `playingTrackId`, пока он не `null`. `shouldRebuildQueue` в `src/pages/Music/utils/queueGuard.ts` — единственное место, где решается пересборка, и оно проверяет оба инварианта (context match + playing track inclusion). `handleNext`, `handlePrevious` и `onEnded` в `useAudioEngine.ts` держат страховочный fallback на случай, если инвариант нарушится — играть первый трек очереди.
 
+### Track & Playlist ownership (data-carries-context)
+Both `Track` and `MusicPlaylist` carry `ownerUserId`/`ownerChannelId`. These are **not** stored in Firestore — they are stamped onto every doc by `TrackService.subscribeToTracks` / `MusicPlaylistService.subscribeToPlaylists` from the path the subscription targets. Legacy records still work; stored fields can't drift from the path. All downstream mutations read owner directly from the entity — no more deriving from UI state (`activeLibrarySource`), which broke in mixed-mode "All" and when playback continued after navigating away from `/music`.
+
+**Playlist signature simplification:** `updatePlaylist`, `deletePlaylist`, `addTracksToPlaylist`, `removeTracksFromPlaylist`, `reorderPlaylistTracks` no longer take `(userId, channelId, ...)` — slice resolves owner from the playlist itself. `createPlaylist` keeps explicit credentials since the creation target is a caller decision (own vs shared).
+
+`resolveTrackPermissions(track, currentUserId, sharedLibraries)` in `src/core/utils/trackUtils.ts` resolves per-track permissions. Rule hierarchy: same user → `OWNER_PERMISSIONS`; different user with matching grant → grant's permissions; otherwise `DEFAULT_SHARE_PERMISSIONS`. The same-user rule is what powers seamless multi-channel UX.
+
+### Active shared library persistence
+Key: `music_active_lib:${granteeChannelId}` in localStorage. Each of the user's own channels remembers its own last opened shared library. Read/write wrappers live inside `librarySlice.ts`; a one-time migration copies the old global key `music_active_library_channel_id` into the per-channel slot on first read.
+
 ### Тесты
 - `src/pages/Music/hooks/__tests__/usePlaybackNavigation.test.ts` — Skip/Prev behavior, orphan recovery, repeat modes
 - `src/pages/Music/hooks/__tests__/useMediaSessionPlaybackState.test.ts` — `playbackState` sync с флагами
 - `src/pages/Music/utils/__tests__/queueGuard.test.ts` — решение пересборки очереди
+- `src/core/utils/__tests__/resolveTrackPermissions.test.ts` — per-track permissions logic (7 tests)
+- `src/core/stores/music/__tests__/playlistSlice.test.ts` — owner-resolved playlist mutations (12 tests)
+- `src/core/stores/music/__tests__/librarySlice.test.ts` — `saveSettings` own-vs-shared routing (3 tests)

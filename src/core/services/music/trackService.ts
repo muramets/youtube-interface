@@ -57,8 +57,17 @@ export const TrackService = {
         callback: (tracks: Track[]) => void
     ) {
         const path = getTracksPath(userId, channelId);
+        // Stamp owner onto every doc at read time. The Firestore path is the
+        // source of truth — doc body fields (if any) are ignored. This keeps
+        // legacy tracks without owner fields working and prevents drift from
+        // stale persisted values.
         return subscribeToCollection<Track>(path, (docs) => {
-            callback(docs as Track[]);
+            const stamped = docs.map((d) => ({
+                ...d,
+                ownerUserId: userId,
+                ownerChannelId: channelId,
+            })) as Track[];
+            callback(stamped);
         });
     },
 

@@ -21,6 +21,8 @@ import { usePlaybackNavigation } from '../usePlaybackNavigation';
 function makeTrack(id: string, overrides: Partial<Track> = {}): Track {
     return {
         id,
+        ownerUserId: 'test-user',
+        ownerChannelId: 'test-channel',
         title: `Track ${id}`,
         genre: 'pop',
         tags: [],

@@ -307,14 +307,17 @@ export function useMusicPageData() {
         useTrackDisplay({ tracks, tags, musicPlaylists: allPlaylists, activePlaylistId, queueContextId, sortBy: musicSortBy, sortAsc: musicSortAsc });
 
     // ── Business logic ──────────────────────────────────────────────────────
+    // Resolve the track's own owner rather than the currently active library —
+    // this keeps delete correct in mixed-mode "All" playlist where own and
+    // shared tracks are interleaved, and the active library source doesn't
+    // reflect per-track origin.
     const handleDeleteTrack = useCallback(async (trackId: string) => {
-        // Use owner credentials when deleting a shared track
-        const effectiveUserId = activeLibrarySource ? activeLibrarySource.ownerUserId : userId;
-        const effectiveChannelId = activeLibrarySource ? activeLibrarySource.ownerChannelId : channelId;
-        if (!effectiveUserId || !effectiveChannelId) return;
-
         const track = tracks.find(t => t.id === trackId);
-        const remainingSibling = track?.groupId
+        if (!track) return;
+        const { ownerUserId, ownerChannelId } = track;
+        if (!ownerUserId || !ownerChannelId) return;
+
+        const remainingSibling = track.groupId
             ? tracks.filter(t => t.groupId === track.groupId && t.id !== trackId)
             : [];
         const shouldDissolve = remainingSibling.length === 1;
@@ -331,16 +334,16 @@ export function useMusicPageData() {
 
         try {
             if (shouldDissolve) {
-                await TrackService.updateTrack(effectiveUserId, effectiveChannelId, remainingSibling[0].id, { groupId: undefined });
+                await TrackService.updateTrack(ownerUserId, ownerChannelId, remainingSibling[0].id, { groupId: undefined });
             }
-            await deleteTrackFolder(effectiveUserId, effectiveChannelId, trackId);
-            await TrackService.deleteTrack(effectiveUserId, effectiveChannelId, trackId);
+            await deleteTrackFolder(ownerUserId, ownerChannelId, trackId);
+            await TrackService.deleteTrack(ownerUserId, ownerChannelId, trackId);
         } catch (error) {
             // Rollback: restore the deleted track and its group membership
             useMusicStore.setState({ tracks });
             console.error('[Music] Failed to delete track:', error);
         }
-    }, [userId, channelId, tracks, activeLibrarySource]);
+    }, [tracks]);
 
     // ── Return ──────────────────────────────────────────────────────────────
     return {

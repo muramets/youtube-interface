@@ -7,8 +7,6 @@ import { useMusicStore, selectAllTags } from '../../../../../core/stores/music/m
 import { createTimelineTrack } from '../../../../../core/types/editing/editing';
 import { formatDuration } from '../utils/formatDuration';
 import { PortalTooltip } from '../../../../../components/ui/atoms/PortalTooltip';
-import { useAuth } from '../../../../../core/hooks/useAuth';
-import { useChannelStore } from '../../../../../core/stores/channelStore';
 
 interface TrackBrowserItemProps {
     track: Track;
@@ -21,11 +19,6 @@ export const TrackBrowserItem: React.FC<TrackBrowserItemProps> = ({ track, isOnT
     const playingTrackId = useMusicStore((s) => s.playingTrackId);
     const isPlaying = useMusicStore((s) => s.isPlaying);
     const genres = useMusicStore((s) => s.genres);
-
-    const { user } = useAuth();
-    const { currentChannel } = useChannelStore();
-    const userId = user?.uid || '';
-    const channelId = currentChannel?.id || '';
 
     const isCurrentlyPlaying = playingTrackId === track.id && isPlaying;
 
@@ -49,8 +42,8 @@ export const TrackBrowserItem: React.FC<TrackBrowserItemProps> = ({ track, isOnT
 
     const handleToggleLike = useCallback((e: React.MouseEvent) => {
         e.stopPropagation();
-        useMusicStore.getState().toggleLike(userId, channelId, track.id);
-    }, [userId, channelId, track.id]);
+        useMusicStore.getState().toggleLike(track.id);
+    }, [track.id]);
 
     // Native drag
     const [isDragging, setIsDragging] = useState(false);

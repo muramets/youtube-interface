@@ -57,8 +57,6 @@ const BetweenDropZone: React.FC<{ rowIndex: number; isGroupChildDragging: boolea
 interface SortablePlaylistTrackItemProps {
     track: Track;
     selectedTrackId: string | null;
-    userId: string;
-    channelId: string;
     onSelect: (trackId: string | null) => void;
     onDelete?: (trackId: string) => void;
     onEdit?: (track: Track) => void;
@@ -71,7 +69,7 @@ interface SortablePlaylistTrackItemProps {
 }
 
 const SortablePlaylistTrackItem: React.FC<SortablePlaylistTrackItemProps> = React.memo(
-    ({ track, selectedTrackId, userId, channelId, onSelect, onDelete, onEdit, canEdit, canReorder, trackSource, sourceName, availableTags, featuredCategories }) => {
+    ({ track, selectedTrackId, onSelect, onDelete, onEdit, canEdit, canReorder, trackSource, sourceName, availableTags, featuredCategories }) => {
         const {
             attributes,
             listeners,
@@ -109,8 +107,6 @@ const SortablePlaylistTrackItem: React.FC<SortablePlaylistTrackItemProps> = Reac
                     <TrackCard
                         track={track}
                         isSelected={selectedTrackId === track.id}
-                        userId={userId}
-                        channelId={channelId}
                         onSelect={onSelect}
                         onDelete={onDelete}
                         onEdit={onEdit}
@@ -144,7 +140,7 @@ export interface PlaylistSortableListProps {
     setSelectedTrackId: (id: string | null) => void;
     handleDeleteTrack: (id: string) => void;
     handleEditTrack: (track: Track) => void;
-    reorderPlaylistTracks: (userId: string, channelId: string, playlistId: string, orderedTrackIds: string[]) => Promise<void>;
+    reorderPlaylistTracks: (playlistId: string, orderedTrackIds: string[]) => Promise<void>;
     toggleGroup: (groupId: string) => void;
     /** trackId → channel name, populated in playlist All mode for shared tracks */
     sourceNameMap?: Record<string, string>;
@@ -174,12 +170,7 @@ export const PlaylistSortableList: React.FC<PlaylistSortableListProps> = ({
     availableTags,
     featuredCategories,
 }) => {
-    const {
-        effectiveUserId: trackOwnerUserId,
-        effectiveChannelId: trackOwnerChannelId,
-        permissions: granteePermissions,
-        trackSource,
-    } = useSharedLibrary();
+    const { permissions: granteePermissions, trackSource } = useSharedLibrary();
     const sortableIds = useMemo(
         () => filteredTracks.map(t => t.id),
         [filteredTracks],
@@ -304,7 +295,7 @@ export const PlaylistSortableList: React.FC<PlaylistSortableListProps> = ({
                 if (oldIdx < 0 || newIdx < 0) return;
 
                 const reordered = arrayMove(filteredTracks, oldIdx, newIdx);
-                reorderPlaylistTracks(trackOwnerUserId, trackOwnerChannelId, activePlaylistId, reordered.map(t => t.id));
+                reorderPlaylistTracks(activePlaylistId, reordered.map(t => t.id));
             }
 
             // ── Group-child unlink ────────────────────────────────────────────
@@ -384,8 +375,6 @@ export const PlaylistSortableList: React.FC<PlaylistSortableListProps> = ({
                             key={track.id}
                             track={track}
                             selectedTrackId={selectedTrackId}
-                            userId={trackOwnerUserId}
-                            channelId={trackOwnerChannelId}
                             onSelect={setSelectedTrackId}
                             onDelete={handleDeleteTrack}
                             onEdit={handleEditTrack}
@@ -465,8 +454,6 @@ export const PlaylistSortableList: React.FC<PlaylistSortableListProps> = ({
                                         isExpanded={item.isExpanded}
                                         onToggle={() => handleToggleGroup(item.groupId)}
                                         selectedTrackId={selectedTrackId}
-                                        userId={trackOwnerUserId}
-                                        channelId={trackOwnerChannelId}
                                         onSelect={setSelectedTrackId}
                                         canReorder={granteePermissions.canReorder}
                                         canEdit={granteePermissions.canEdit}
@@ -480,8 +467,6 @@ export const PlaylistSortableList: React.FC<PlaylistSortableListProps> = ({
                                     <TrackCard
                                         track={item.track}
                                         isSelected={selectedTrackId === item.track.id}
-                                        userId={trackOwnerUserId}
-                                        channelId={trackOwnerChannelId}
                                         onSelect={setSelectedTrackId}
                                         onDelete={granteePermissions.canDelete ? handleDeleteTrack : undefined}
                                         onEdit={granteePermissions.canEdit ? handleEditTrack : undefined}

@@ -22,8 +22,6 @@ import type { TrackSource } from '../../../../core/types/music/musicPlaylist';
 
 interface TrackContextMenuProps {
     track: Track;
-    userId: string;
-    channelId: string;
     onDelete?: (trackId: string) => void;
     onEdit?: (track: Track) => void;
     /** Ref to the card element for overflow detection */
@@ -40,8 +38,6 @@ interface TrackContextMenuProps {
 
 export const TrackContextMenu: React.FC<TrackContextMenuProps> = ({
     track,
-    userId,
-    channelId,
     onDelete,
     onEdit,
     cardRef,
@@ -131,7 +127,7 @@ export const TrackContextMenu: React.FC<TrackContextMenuProps> = ({
                     {/* Like heart — requires edit permission */}
                     {canEdit && (
                         <button
-                            onClick={(e) => { e.stopPropagation(); toggleLike(userId, channelId, track.id); }}
+                            onClick={(e) => { e.stopPropagation(); toggleLike(track.id); }}
                             className={`p-1.5 rounded-lg transition-colors ${track.liked
                                 ? 'text-red-400 hover:text-red-300'
                                 : 'text-text-tertiary hover:text-text-primary'
@@ -198,7 +194,7 @@ export const TrackContextMenu: React.FC<TrackContextMenuProps> = ({
                     {/* Remove from Playlist — only when viewing a playlist */}
                     {activePlaylistId && activePlaylistId !== 'liked' && (
                         <DropdownMenuItem
-                            onClick={() => removeTracksFromPlaylist(userId, channelId, activePlaylistId, [track.id])}
+                            onClick={() => removeTracksFromPlaylist(activePlaylistId, [track.id])}
                             className="text-red-400 focus:text-red-400"
                         >
                             <ListX size={14} className="mr-2" /> Remove from Playlist
@@ -212,7 +208,7 @@ export const TrackContextMenu: React.FC<TrackContextMenuProps> = ({
                                 <Link size={14} className="mr-2" /> Link as Version
                             </DropdownMenuItem>
                             {track.groupId && (
-                                <DropdownMenuItem onClick={() => unlinkFromGroup(userId, channelId, track.id)}>
+                                <DropdownMenuItem onClick={() => unlinkFromGroup(track.ownerUserId, track.ownerChannelId, track.id)}>
                                     <Unlink size={14} className="mr-2" /> Unlink from Group
                                 </DropdownMenuItem>
                             )}
@@ -223,7 +219,7 @@ export const TrackContextMenu: React.FC<TrackContextMenuProps> = ({
                         <>
                             <DropdownMenuSeparator />
                             {canEdit && (
-                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); toggleLike(userId, channelId, track.id); }}>
+                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); toggleLike(track.id); }}>
                                     <Heart size={14} className="mr-2" fill={track.liked ? 'currentColor' : 'none'} />
                                     {track.liked ? 'Unlike' : 'Like'}
                                 </DropdownMenuItem>

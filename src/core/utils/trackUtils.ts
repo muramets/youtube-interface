@@ -3,6 +3,8 @@
 // =============================================================================
 
 import type { Track } from '../types/music/track';
+import type { SharedLibraryEntry, SharePermissions } from '../types/music/musicSharing';
+import { DEFAULT_SHARE_PERMISSIONS, OWNER_PERMISSIONS } from '../types/music/musicSharing';
 
 /**
  * Default accent color used when a track has no genre or the genre has
@@ -28,5 +30,29 @@ export function sortByGroupOrder(a: Track, b: Track): number {
         return a.groupOrder - b.groupOrder;
     }
     return b.createdAt - a.createdAt;
+}
+
+/**
+ * Resolve the effective permissions for a track given the current viewer.
+ *
+ * Rule hierarchy (first match wins):
+ *   1. Same user across channels → OWNER_PERMISSIONS. Multi-channel access to
+ *      your own library must always feel seamless — if you own it, you can edit
+ *      it, regardless of which of your channels you're currently viewing from.
+ *   2. Different user with a share grant → grant's permissions.
+ *   3. Different user, no grant → DEFAULT_SHARE_PERMISSIONS (all-false).
+ */
+export function resolveTrackPermissions(
+    track: Pick<Track, 'ownerUserId' | 'ownerChannelId'>,
+    currentUserId: string,
+    sharedLibraries: SharedLibraryEntry[],
+): SharePermissions {
+    if (track.ownerUserId === currentUserId) return OWNER_PERMISSIONS;
+    const grant = sharedLibraries.find(
+        (lib) =>
+            lib.ownerUserId === track.ownerUserId &&
+            lib.ownerChannelId === track.ownerChannelId,
+    );
+    return grant?.permissions ?? DEFAULT_SHARE_PERMISSIONS;
 }
 

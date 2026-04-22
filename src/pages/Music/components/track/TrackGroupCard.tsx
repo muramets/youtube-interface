@@ -54,8 +54,6 @@ const skipDropAnimation: AnimateLayoutChanges = (args) => {
 interface SortableTrackItemProps {
     track: Track;
     selectedTrackId: string | null;
-    userId: string;
-    channelId: string;
     onSelect: (trackId: string | null) => void;
     onDelete?: (trackId: string) => void;
     onEdit?: (track: Track) => void;
@@ -68,7 +66,7 @@ interface SortableTrackItemProps {
     featuredCategories: string[];
 }
 
-const SortableTrackItem: React.FC<SortableTrackItemProps> = ({ track, selectedTrackId, userId, channelId, onSelect, onDelete, onEdit, trailingElement, children, canEdit, canReorder, trackSource, availableTags, featuredCategories }) => {
+const SortableTrackItem: React.FC<SortableTrackItemProps> = ({ track, selectedTrackId, onSelect, onDelete, onEdit, trailingElement, children, canEdit, canReorder, trackSource, availableTags, featuredCategories }) => {
     const {
         attributes,
         listeners,
@@ -109,8 +107,6 @@ const SortableTrackItem: React.FC<SortableTrackItemProps> = ({ track, selectedTr
             <TrackCard
                 track={track}
                 isSelected={selectedTrackId === track.id}
-                userId={userId}
-                channelId={channelId}
                 onSelect={onSelect}
                 onDelete={onDelete}
                 onEdit={onEdit}
@@ -135,8 +131,6 @@ interface TrackGroupCardProps {
     isExpanded: boolean;
     onToggle: () => void;
     selectedTrackId: string | null;
-    userId: string;
-    channelId: string;
     onSelect: (trackId: string | null) => void;
     onDelete?: (trackId: string) => void;
     onEdit?: (track: Track) => void;
@@ -152,8 +146,6 @@ export const TrackGroupCard: React.FC<TrackGroupCardProps> = ({
     isExpanded,
     onToggle,
     selectedTrackId,
-    userId,
-    channelId,
     onSelect,
     onDelete,
     onEdit,
@@ -163,6 +155,12 @@ export const TrackGroupCard: React.FC<TrackGroupCardProps> = ({
     availableTags,
     featuredCategories,
 }) => {
+    // All tracks in a group share the same owner (groups live within one
+    // library). Pick it off the first track — used for every group-level
+    // mutation below. Falls back to empty strings when the group is transiently
+    // empty (shouldn't happen in practice, but keeps handlers type-safe).
+    const groupOwnerUserId = tracks[0]?.ownerUserId ?? '';
+    const groupOwnerChannelId = tracks[0]?.ownerChannelId ?? '';
     const [insertionIndex, setInsertionIndex] = React.useState(-1);
     const childrenContainerRef = useRef<HTMLDivElement>(null);
     const containerRef = useRef<HTMLDivElement | null>(null);
@@ -276,8 +274,8 @@ export const TrackGroupCard: React.FC<TrackGroupCardProps> = ({
 
             // Dropped outside any target → unlink child (display track stays)
             if (!over) {
-                if (active.id !== displayTrack?.id && groupId && userId && channelId) {
-                    unlinkFromGroup(userId, channelId, active.id as string);
+                if (active.id !== displayTrack?.id && groupId && groupOwnerUserId && groupOwnerChannelId) {
+                    unlinkFromGroup(groupOwnerUserId, groupOwnerChannelId, active.id as string);
                 }
                 return;
             }
@@ -296,10 +294,10 @@ export const TrackGroupCard: React.FC<TrackGroupCardProps> = ({
                 if (shieldTimerRef.current) clearTimeout(shieldTimerRef.current);
                 shieldTimerRef.current = setTimeout(() => { localOrderRef.current = null; }, SYNC_SHIELD_TTL_MS);
 
-                if (groupId && userId && channelId) {
-                    reorderGroupTracks(userId, channelId, groupId, orderedIds);
+                if (groupId && groupOwnerUserId && groupOwnerChannelId) {
+                    reorderGroupTracks(groupOwnerUserId, groupOwnerChannelId, groupId, orderedIds);
                 }
-            } else if (!overInGroup && userId && channelId) {
+            } else if (!overInGroup && groupOwnerUserId && groupOwnerChannelId) {
                 const dropType = over.data.current?.type as string | undefined;
 
                 if (dropType === 'between-sort-zone') {
@@ -307,7 +305,7 @@ export const TrackGroupCard: React.FC<TrackGroupCardProps> = ({
                     // the drop before it can become null — so we handle it separately.
                     // Track returns to its natural sort position in the library.
                     if (active.id !== displayTrack?.id && groupId) {
-                        unlinkFromGroup(userId, channelId, active.id as string);
+                        unlinkFromGroup(groupOwnerUserId, groupOwnerChannelId, active.id as string);
                     }
                 } else if (dropType === 'music-group-target') {
                     // Move (not merge): remove track from source group and insert
@@ -315,7 +313,7 @@ export const TrackGroupCard: React.FC<TrackGroupCardProps> = ({
                     const targetRepId = over.data.current?.representativeTrackId as string | undefined;
                     const insertIdx = (over.data.current?.insertionIndex as number) ?? -1;
                     if (targetRepId && targetRepId !== (active.id as string)) {
-                        moveTrackToGroup(userId, channelId, active.id as string, targetRepId, insertIdx);
+                        moveTrackToGroup(groupOwnerUserId, groupOwnerChannelId, active.id as string, targetRepId, insertIdx);
                     }
                 } else if (dropType === 'music-track-target') {
                     // over.id is the droppable's registered ID ('track-drop-{uuid}');
@@ -325,10 +323,10 @@ export const TrackGroupCard: React.FC<TrackGroupCardProps> = ({
                     if (targetId && targetId !== (active.id as string)) {
                         if (targetGroupId) {
                             // Target is inside another group (unusual — normally disableDropTarget prevents this)
-                            linkAsVersion(userId, channelId, active.id as string, targetId);
+                            linkAsVersion(groupOwnerUserId, groupOwnerChannelId, active.id as string, targetId);
                         } else {
                             // Target is standalone: dissolve source group if needed + create new group
-                            relinkGroupMember(userId, channelId, active.id as string, targetId);
+                            relinkGroupMember(groupOwnerUserId, groupOwnerChannelId, active.id as string, targetId);
                         }
                     }
                 }
@@ -346,8 +344,6 @@ export const TrackGroupCard: React.FC<TrackGroupCardProps> = ({
                 <SortableTrackItem
                     track={displayTrack}
                     selectedTrackId={selectedTrackId}
-                    userId={userId}
-                    channelId={channelId}
                     onSelect={onSelect}
                     onDelete={onDelete}
                     onEdit={onEdit}
@@ -413,8 +409,6 @@ export const TrackGroupCard: React.FC<TrackGroupCardProps> = ({
                                     <SortableTrackItem
                                         track={track}
                                         selectedTrackId={selectedTrackId}
-                                        userId={userId}
-                                        channelId={channelId}
                                         onSelect={onSelect}
                                         onDelete={onDelete}
                                         onEdit={onEdit}

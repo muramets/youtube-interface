@@ -58,8 +58,6 @@ import { formatDuration } from '../../utils/formatDuration';
 interface TrackCardProps {
     track: Track;
     isSelected: boolean;
-    userId: string;
-    channelId: string;
     onSelect: (trackId: string | null) => void;
     onDelete?: (trackId: string) => void;
     onEdit?: (track: Track) => void;
@@ -83,8 +81,6 @@ interface TrackCardProps {
 const TrackCardInner: React.FC<TrackCardProps> = ({
     track,
     isSelected,
-    userId,
-    channelId,
     onSelect,
     onDelete,
     onEdit,
@@ -190,13 +186,13 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
     const waveformProgress = isCurrentTrack && duration > 0 ? currentTime / duration : 0;
 
     // Lazy peak persistence — WaveformCanvas auto-generates peaks when array is empty
-    // and audioUrl is present. This callback saves the generated peaks back to Firestore
-    // so next render is instant.
+    // and audioUrl is present. This callback saves the generated peaks back to the
+    // track's ORIGINAL library (owner path), not the current viewer's channel.
     const handlePeaksComputed = useCallback((peaks: number[]) => {
         const peaksKey = currentVariant === 'vocal' ? 'vocalPeaks' : 'instrumentalPeaks';
-        TrackService.updateTrack(userId, channelId, track.id, { [peaksKey]: peaks })
+        TrackService.updateTrack(track.ownerUserId, track.ownerChannelId, track.id, { [peaksKey]: peaks })
             .catch((err) => console.error('[TrackCard] Failed to persist peaks:', err));
-    }, [currentVariant, userId, channelId, track.id]);
+    }, [currentVariant, track.ownerUserId, track.ownerChannelId, track.id]);
 
     // Click on waveform → seek (or start playback)
     const handleWaveformSeek = useCallback((position: number) => {
@@ -519,8 +515,6 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
 
                 <TrackContextMenu
                     track={track}
-                    userId={userId}
-                    channelId={channelId}
                     onDelete={onDelete}
                     onEdit={onEdit}
                     cardRef={cardRef}

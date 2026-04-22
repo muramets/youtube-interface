@@ -48,17 +48,18 @@ export const AddToMusicPlaylistModal: React.FC<AddToMusicPlaylistModalProps> = (
     }, [musicPlaylists, trackId]);
 
     const handleToggle = async (playlistId: string, currentlyMember: boolean) => {
-        if (!userId || !channelId) return;
         if (currentlyMember) {
-            await removeTracksFromPlaylist(userId, channelId, playlistId, [trackId]);
+            await removeTracksFromPlaylist(playlistId, [trackId]);
         } else {
             const sources = trackSource ? { [trackId]: trackSource } : undefined;
-            await addTracksToPlaylist(userId, channelId, playlistId, [trackId], sources);
+            await addTracksToPlaylist(playlistId, [trackId], sources);
         }
     };
 
     const handleCreate = async (name: string) => {
         if (!userId || !channelId) return;
+        // Create in the user's OWN library — playlists are per-channel curation
+        // on top of a (possibly shared) catalog, not shared content themselves.
         const sources = trackSource ? { [trackId]: trackSource } : undefined;
         await createPlaylist(userId, channelId, name, undefined, [trackId], sources);
     };

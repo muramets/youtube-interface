@@ -11,8 +11,6 @@ import { createPortal } from 'react-dom';
 import { Pencil, Trash2, FolderOpen, FolderPlus } from 'lucide-react';
 import type { MusicPlaylist } from '../../../core/types/music/musicPlaylist';
 import { useMusicStore } from '../../../core/stores/music/musicStore';
-import { useAuth } from '../../../core/hooks/useAuth';
-import { useChannelStore } from '../../../core/stores/channelStore';
 
 interface MusicPlaylistContextMenuProps {
     playlist: MusicPlaylist;
@@ -43,10 +41,11 @@ export const MusicPlaylistContextMenu: React.FC<MusicPlaylistContextMenuProps> =
     ownerChannelId,
 }) => {
     const { deletePlaylist, updatePlaylist } = useMusicStore();
-    const { user } = useAuth();
-    const { currentChannel } = useChannelStore();
-    const userId = ownerUserId || user?.uid || '';
-    const channelId = ownerChannelId || currentChannel?.id || '';
+    // Legacy ownerUserId/ownerChannelId props are now unused — slice resolves
+    // owner from the playlist itself. Props kept for API compatibility with
+    // callers until they can be dropped in a follow-up cleanup.
+    void ownerUserId;
+    void ownerChannelId;
 
     const [showGroupSubmenu, setShowGroupSubmenu] = useState(false);
     const [submenuPos, setSubmenuPos] = useState<{ left: number; top: number } | null>(null);
@@ -99,21 +98,19 @@ export const MusicPlaylistContextMenu: React.FC<MusicPlaylistContextMenuProps> =
     /* eslint-enable react-hooks/set-state-in-effect */
 
     const handleDelete = async () => {
-        if (!userId || !channelId) return;
-        await deletePlaylist(userId, channelId, playlist.id);
+        await deletePlaylist(playlist.id);
         onClose();
     };
 
     const handleMoveToGroup = async (group: string | undefined) => {
-        if (!userId || !channelId) return;
-        await updatePlaylist(userId, channelId, playlist.id, { group });
+        await updatePlaylist(playlist.id, { group });
         onClose();
     };
 
     const handleCreateGroup = async () => {
         const trimmed = newGroupName.trim();
-        if (!trimmed || !userId || !channelId) return;
-        await updatePlaylist(userId, channelId, playlist.id, { group: trimmed });
+        if (!trimmed) return;
+        await updatePlaylist(playlist.id, { group: trimmed });
         onClose();
     };
 
