@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X, User, Camera } from 'lucide-react';
 import { useChannelStore } from '../../../core/stores/channelStore';
 import { useAuth } from '../../../core/hooks/useAuth';
@@ -66,8 +67,8 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({ isOpen, 
         }
     };
 
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
+    return createPortal(
+        <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
             <div className="bg-bg-secondary rounded-xl w-full max-w-md p-6 relative shadow-2xl animate-scale-in border border-border">
                 <button
                     onClick={onClose}
@@ -141,6 +142,7 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({ isOpen, 
                     </div>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };

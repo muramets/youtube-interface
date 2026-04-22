@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Eye, EyeOff, MoreVertical, ChevronDown, ChevronRight } from 'lucide-react';
+import { Eye, EyeOff, MoreVertical, ChevronDown, ChevronRight, Star } from 'lucide-react';
 import type { TrendChannel, TrendNiche } from '../../../core/types/trends';
 import { CollapsibleNicheList } from './CollapsibleNicheList';
 import { useTrendStore } from '../../../core/stores/trends/trendStore';
@@ -10,6 +10,7 @@ interface TrendsChannelItemProps {
     isActive: boolean;
     onChannelClick: (id: string) => void;
     onToggleVisibility: (e: React.MouseEvent, id: string, isVisible: boolean) => void;
+    onToggleFavorite?: (e: React.MouseEvent, id: string, isFavorite: boolean) => void;
     onOpenMenu: (e: React.MouseEvent, channelId: string) => void;
     niches?: TrendNiche[];
     activeNicheIds?: string[];
@@ -35,6 +36,7 @@ export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
     isActive,
     onChannelClick,
     onToggleVisibility,
+    onToggleFavorite,
     onOpenMenu,
     niches = [],
     activeNicheIds = [],
@@ -43,10 +45,11 @@ export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
     viewCount = 0,
     isMenuOpen = false
 }) => {
-    // Persist channel niche section collapse state per-channel
+    // Persist channel niche section collapse state per-channel.
+    // Default is collapsed so the sidebar stays visually quiet until the user opts in.
     const [isExpanded, setIsExpanded] = useState(() => {
         const saved = localStorage.getItem(CHANNEL_EXPANDED_KEY + channel.id);
-        return saved !== null ? saved === 'true' : true; // Default expanded
+        return saved !== null ? saved === 'true' : false;
     });
     useEffect(() => {
         localStorage.setItem(CHANNEL_EXPANDED_KEY + channel.id, String(isExpanded));
@@ -175,12 +178,24 @@ export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
                 )}
 
                 {/* View Count & Actions block */}
-                {(isActive || isHovered || isMenuOpen || !channel.isVisible) && (
+                {(isActive || isHovered || isMenuOpen || !channel.isVisible || channel.isFavorite) && (
                     <div className={`ml-1 flex items-center gap-0.5 shrink-0 transition-opacity animate-fade-in`}>
                         {(isActive || isHovered) && (
                             <span className={`text-[10px] text-text-tertiary shrink-0 leading-none transition-opacity duration-200`}>
                                 {formatViewCount(viewCount)}
                             </span>
+                        )}
+                        {onToggleFavorite && (
+                            <button
+                                onClick={(e) => onToggleFavorite(e, channel.id, channel.isFavorite ?? false)}
+                                className={`p-0.5 rounded-full transition-all relative after:absolute after:-inset-2 after:content-[''] ${channel.isFavorite
+                                    ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 opacity-100'
+                                    : 'text-text-secondary hover:text-amber-400 hover:bg-white/10 opacity-0 group-hover:opacity-100'
+                                    }`}
+                                title={channel.isFavorite ? 'Unpin channel' : 'Pin channel'}
+                            >
+                                <Star size={14} fill={channel.isFavorite ? 'currentColor' : 'none'} />
+                            </button>
                         )}
                         <div className={`flex items-center gap-0.5 ${!channel.isVisible || isMenuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>
                             <button
@@ -210,15 +225,23 @@ export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
                     </div>
                 )}
             </li>
-            {isExpanded && hasContent && (
-                <li className="mb-1">
-                    <CollapsibleNicheList
-                        niches={niches}
-                        activeNicheIds={activeNicheIds}
-                        onNicheClick={(id) => id && onNicheClick?.(id, channel.id)}
-                        trashCount={trashCount}
-                        storageKey={channel.id}
-                    />
+            {hasContent && (
+                <li className={isExpanded ? 'mb-1' : ''}>
+                    <div
+                        className={`grid transition-[grid-template-rows,opacity] duration-300 ease-in-out overflow-hidden ${
+                            isExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+                        }`}
+                    >
+                        <div className="min-h-0">
+                            <CollapsibleNicheList
+                                niches={niches}
+                                activeNicheIds={activeNicheIds}
+                                onNicheClick={(id) => id && onNicheClick?.(id, channel.id)}
+                                trashCount={trashCount}
+                                storageKey={channel.id}
+                            />
+                        </div>
+                    </div>
                 </li>
             )}
         </React.Fragment>

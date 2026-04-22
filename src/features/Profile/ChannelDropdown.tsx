@@ -1,14 +1,20 @@
 import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { User, LogOut, Plus, Check, Settings, Target } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { User, LogOut, Plus, Check, Settings, Target, GripVertical } from 'lucide-react';
 import { useChannelStore } from '../../core/stores/channelStore';
 import { useMusicStore } from '../../core/stores/music/musicStore';
 import { useTrendStore } from '../../core/stores/trends/trendStore';
 import { useChannels } from '../../core/hooks/useChannels';
 import { useSettings } from '../../core/hooks/useSettings';
-import { type Channel } from '../../core/services/channelService';
+import { ChannelService, type Channel } from '../../core/services/channelService';
 import { useAuth } from '../../core/hooks/useAuth';
+import { logger } from '../../core/utils/logger';
 import { CreateChannelModal } from './modals/CreateChannelModal';
 import { EditChannelModal } from './modals/EditChannelModal';
 import { Dropdown } from '../../components/ui/molecules/Dropdown';
@@ -49,6 +55,87 @@ const TargetNicheBadge: React.FC<{ nicheName: string }> = ({ nicheName }) => {
     );
 };
 
+interface SortableChannelItemProps {
+    channel: Channel;
+    isActive: boolean;
+    targetNicheNames: string[];
+    onSwitch: (channelId: string) => void;
+    onEdit: (channel: Channel) => void;
+    showHandle: boolean;
+}
+
+const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
+    channel,
+    isActive,
+    targetNicheNames,
+    onSwitch,
+    onEdit,
+    showHandle
+}) => {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: channel.id });
+
+    const style: React.CSSProperties = {
+        transform: CSS.Transform.toString(transform),
+        transition: isDragging ? undefined : transition,
+        opacity: isDragging ? 0.5 : 1,
+        position: 'relative',
+        zIndex: isDragging ? 50 : 1,
+    };
+
+    return (
+        <div
+            ref={setNodeRef}
+            style={style}
+            className={`group px-4 py-2 flex items-center gap-2 cursor-pointer relative hover:bg-hover-bg ${isActive ? 'bg-hover-bg' : ''}`}
+        >
+            {showHandle && (
+                <div
+                    {...attributes}
+                    {...listeners}
+                    className="cursor-grab active:cursor-grabbing text-text-tertiary hover:text-text-primary opacity-0 group-hover:opacity-100 transition-opacity touch-none shrink-0 -ml-1"
+                    aria-label="Reorder channel"
+                >
+                    <GripVertical size={14} />
+                </div>
+            )}
+
+            <div
+                className="flex items-center gap-3 flex-1 overflow-hidden"
+                onClick={() => onSwitch(channel.id)}
+            >
+                <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center overflow-hidden shrink-0">
+                    {channel.avatar ? (
+                        <img src={channel.avatar} alt={channel.name} className="w-full h-full object-cover" />
+                    ) : (
+                        <User size={16} color="white" />
+                    )}
+                </div>
+                <div className="flex-1 overflow-hidden">
+                    <span className="block text-text-primary truncate">{channel.name}</span>
+                    {targetNicheNames.length > 0 && (
+                        <div className="flex gap-1 mt-0.5">
+                            {targetNicheNames.map((name, idx) => (
+                                <TargetNicheBadge key={idx} nicheName={name} />
+                            ))}
+                        </div>
+                    )}
+                </div>
+                {isActive && <Check size={16} className="text-text-secondary shrink-0" />}
+            </div>
+
+            <div
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit(channel);
+                }}
+                className="p-1 rounded-full text-text-secondary flex items-center justify-center hover:bg-[#3f3f3f] hover:text-white transition-colors"
+            >
+                <Settings size={16} />
+            </div>
+        </div>
+    );
+};
+
 interface ChannelDropdownProps {
     onClose: () => void;
     anchorEl: HTMLElement | null;
@@ -58,8 +145,6 @@ export const ChannelDropdown: React.FC<ChannelDropdownProps> = ({ onClose, ancho
     const { currentChannel, setCurrentChannel } = useChannelStore();
     const {
         niches,
-        clearTrendsFilters,
-        setSelectedChannelId,
         setVideos,
         setChannels,
         setNiches,
@@ -69,10 +154,16 @@ export const ChannelDropdown: React.FC<ChannelDropdownProps> = ({ onClose, ancho
     const { user, logout } = useAuth();
     const { generalSettings, updateGeneralSettings } = useSettings();
     const navigate = useNavigate();
-
+    const queryClient = useQueryClient();
 
     // Use TanStack Query hook for channels
     const { data: channels = [] } = useChannels(user?.uid || '');
+
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: { distance: 3 },
+        })
+    );
 
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
@@ -96,10 +187,12 @@ export const ChannelDropdown: React.FC<ChannelDropdownProps> = ({ onClose, ancho
     const handleSwitch = (channelId: string) => {
         const channel = channels.find(c => c.id === channelId);
         if (channel && channel.id !== currentChannel?.id) {
-            // Clear trends state when switching User Channels
-            // Trend data (niches, channels, assignments, videos) is scoped per userChannel
-            clearTrendsFilters();
-            setSelectedChannelId(null);
+            // Preserve the outgoing user channel's trends context (filters, selected trendChannel,
+            // timeline config) so returning to it later feels seamless.
+            const oldUserChannelId = currentChannel?.id;
+            if (oldUserChannelId) {
+                useTrendStore.getState().saveTrendsSnapshot(oldUserChannelId);
+            }
 
             // CRITICAL: Clear all data synchronously to prevent stale reads by TrendsPage
             // before the new subscription data arrives.
@@ -113,6 +206,10 @@ export const ChannelDropdown: React.FC<ChannelDropdownProps> = ({ onClose, ancho
             useMusicStore.getState().setPlayingTrack(null);
 
             setCurrentChannel(channel);
+
+            // Restore the incoming channel's trends context, or reset to defaults if never visited.
+            useTrendStore.getState().restoreTrendsSnapshot(channel.id);
+
             navigate('/');
         }
         onClose();
@@ -121,6 +218,32 @@ export const ChannelDropdown: React.FC<ChannelDropdownProps> = ({ onClose, ancho
     const handleLogout = async () => {
         await logout();
         onClose();
+    };
+
+    const handleDragEnd = async (event: DragEndEvent) => {
+        const { active, over } = event;
+        if (!over || active.id === over.id) return;
+
+        const userId = user?.uid;
+        if (!userId) return;
+
+        const oldIndex = channels.findIndex(c => c.id === active.id);
+        const newIndex = channels.findIndex(c => c.id === over.id);
+        if (oldIndex === -1 || newIndex === -1) return;
+
+        const reordered = arrayMove(channels, oldIndex, newIndex);
+        const queryKey = ['channels', userId];
+
+        // Optimistic update — UI reflects the new order immediately, before Firestore confirms.
+        queryClient.setQueryData(queryKey, reordered);
+
+        try {
+            await ChannelService.reorderChannels(userId, reordered.map(c => c.id));
+        } catch (error) {
+            logger.error('Failed to reorder channels', { error, component: 'ChannelDropdown', userId });
+            // Rollback optimistic update; the live snapshot will re-sync shortly.
+            queryClient.setQueryData(queryKey, channels);
+        }
     };
 
     const handleThemeChange = (theme: 'light' | 'dark' | 'device') => {
@@ -178,50 +301,29 @@ export const ChannelDropdown: React.FC<ChannelDropdownProps> = ({ onClose, ancho
                         <div className="px-4 pb-2 text-xs text-text-secondary font-bold">
                             Your Channels
                         </div>
-                        {channels.map(channel => {
-                            const targetNicheNames = getTargetNicheNames(channel);
-                            return (
-                                <div
-                                    key={channel.id}
-                                    className={`group px-4 py-2 flex items-center gap-3 cursor-pointer relative hover:bg-hover-bg ${currentChannel?.id === channel.id ? 'bg-hover-bg' : ''}`}
-                                >
-                                    <div
-                                        className="flex items-center gap-3 flex-1 overflow-hidden"
-                                        onClick={() => handleSwitch(channel.id)}
-                                    >
-                                        <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center overflow-hidden shrink-0">
-                                            {channel.avatar ? (
-                                                <img src={channel.avatar} alt={channel.name} className="w-full h-full object-cover" />
-                                            ) : (
-                                                <User size={16} color="white" />
-                                            )}
-                                        </div>
-                                        <div className="flex-1 overflow-hidden">
-                                            <span className="block text-text-primary truncate">{channel.name}</span>
-                                            {/* Target Niche Badges */}
-                                            {targetNicheNames.length > 0 && (
-                                                <div className="flex gap-1 mt-0.5">
-                                                    {targetNicheNames.map((name, idx) => (
-                                                        <TargetNicheBadge key={idx} nicheName={name} />
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                        {currentChannel?.id === channel.id && <Check size={16} className="text-text-secondary shrink-0" />}
-                                    </div>
-
-                                    <div
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setEditingChannel(channel);
-                                        }}
-                                        className="p-1 rounded-full text-text-secondary flex items-center justify-center hover:bg-[#3f3f3f] hover:text-white transition-colors"
-                                    >
-                                        <Settings size={16} />
-                                    </div>
-                                </div>
-                            );
-                        })}
+                        <DndContext
+                            sensors={sensors}
+                            collisionDetection={closestCenter}
+                            onDragEnd={handleDragEnd}
+                            modifiers={[restrictToVerticalAxis]}
+                        >
+                            <SortableContext
+                                items={channels.map(c => c.id)}
+                                strategy={verticalListSortingStrategy}
+                            >
+                                {channels.map(channel => (
+                                    <SortableChannelItem
+                                        key={channel.id}
+                                        channel={channel}
+                                        isActive={currentChannel?.id === channel.id}
+                                        targetNicheNames={getTargetNicheNames(channel)}
+                                        onSwitch={handleSwitch}
+                                        onEdit={setEditingChannel}
+                                        showHandle={channels.length > 1}
+                                    />
+                                ))}
+                            </SortableContext>
+                        </DndContext>
 
                         {/* Add Channel - Moved to bottom of list */}
                         <div

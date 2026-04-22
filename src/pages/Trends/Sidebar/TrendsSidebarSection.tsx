@@ -4,7 +4,9 @@ import { TrendsChannelItem } from './TrendsChannelItem';
 import { TrendsChannelSkeleton } from './TrendsChannelSkeleton';
 import { CollapsibleNicheList } from './CollapsibleNicheList';
 import { SidebarDivider } from '../../../components/Layout/Sidebar';
+import { CollapsibleSection } from '../../../components/ui/molecules/CollapsibleSection';
 import { Dropdown } from '../../../components/ui/molecules/Dropdown';
+import { sortTrendChannels } from './channelSort';
 import { ConfirmationModal } from '../../../components/ui/organisms/ConfirmationModal';
 import { CopyChannelModal } from './CopyChannelModal';
 import { useTrendsSidebar } from './hooks/useTrendsSidebar';
@@ -25,6 +27,7 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
         handleTrendsClick,
         handleChannelClick,
         handleToggleVisibility,
+        handleToggleFavorite,
         handleRemoveChannel,
         handleSyncChannel
     } = useTrendsSidebar();
@@ -39,6 +42,15 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
     useEffect(() => {
         localStorage.setItem('trends-section-expanded', String(isContentExpanded));
     }, [isContentExpanded]);
+
+    // Persist Global Niches collapse state; default collapsed to keep the sidebar quiet on first load.
+    const [isGlobalNichesOpen, setIsGlobalNichesOpen] = useState(() => {
+        const saved = localStorage.getItem('trends-global-niches-expanded');
+        return saved !== null ? saved === 'true' : false;
+    });
+    useEffect(() => {
+        localStorage.setItem('trends-global-niches-expanded', String(isGlobalNichesOpen));
+    }, [isGlobalNichesOpen]);
 
     // State for copy channel modal
     const [channelToCopy, setChannelToCopy] = useState<TrendChannel | null>(null);
@@ -210,13 +222,10 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
     // Priorities: 
     // 1. Channel's persisted totalViewCount (global stats)
     // 2. Computed view count from currently loaded videos (fallback)
-    const sortedChannels = React.useMemo(() => {
-        return [...channels].sort((a, b) => {
-            const viewsA = a.totalViewCount ?? (channelViewCounts.get(a.id) || 0);
-            const viewsB = b.totalViewCount ?? (channelViewCounts.get(b.id) || 0);
-            return viewsB - viewsA;
-        });
-    }, [channels, channelViewCounts]);
+    const sortedChannels = React.useMemo(
+        () => sortTrendChannels(channels, (id) => channelViewCounts.get(id) || 0),
+        [channels, channelViewCounts]
+    );
 
     const getNicheViewCount = (niche: { id: string, viewCount?: number }) => {
         const computed = nicheViewCounts.get(niche.id);
@@ -292,12 +301,20 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
                                 {/* Global Niches */}
                                 {globalNiches.length > 0 && (
                                     <div className="mb-3">
-                                        <CollapsibleNicheList
-                                            niches={globalNiches}
-                                            activeNicheIds={activeNicheIds}
-                                            onNicheClick={handleNicheClick}
-                                            storageKey="global"
-                                        />
+                                        <CollapsibleSection
+                                            title={`Global Niches (${globalNiches.length})`}
+                                            variant="micro"
+                                            isOpen={isGlobalNichesOpen}
+                                            onToggle={() => setIsGlobalNichesOpen(!isGlobalNichesOpen)}
+                                            headerGap="mb-1"
+                                        >
+                                            <CollapsibleNicheList
+                                                niches={globalNiches}
+                                                activeNicheIds={activeNicheIds}
+                                                onNicheClick={handleNicheClick}
+                                                storageKey="global"
+                                            />
+                                        </CollapsibleSection>
                                     </div>
                                 )}
 
@@ -321,6 +338,7 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
                                                     isActive={isOnTrendsPage && selectedChannelId === channel.id}
                                                     onChannelClick={handleChannelClick}
                                                     onToggleVisibility={handleToggleVisibility}
+                                                    onToggleFavorite={handleToggleFavorite}
                                                     onOpenMenu={(e, channelId) => {
                                                         if (menuState.channelId === channelId) {
                                                             setMenuState({ anchorEl: null, channelId: null });

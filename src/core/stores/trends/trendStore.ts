@@ -49,6 +49,19 @@ export interface HiddenVideo {
     hiddenAt: number;
 }
 
+/**
+ * Snapshot of per-user-channel trends context.
+ * Captures what would otherwise be lost when switching user channels so the UX stays seamless
+ * when the user returns.
+ */
+export interface TrendsSnapshot {
+    trendsFilters: TrendsFilterItem[];
+    selectedChannelId: string | null;
+    isAppliedFromAllChannels: boolean;
+    filterMode: 'global' | 'filtered';
+    timelineConfig: TimelineConfig;
+}
+
 interface TrendStore {
     // Data
     userId: string | null;
@@ -72,6 +85,8 @@ interface TrendStore {
     channelRootFilters: Record<string, TrendsFilterItem[]>;
     nicheFilters: Record<string, TrendsFilterItem[]>;
     hiddenVideos: HiddenVideo[]; // Videos moved to trash
+    /** Saved trends context keyed by userChannelId — preserved across user-channel switches. */
+    trendsSnapshotsByUserChannel: Record<string, TrendsSnapshot>;
 
     // UI State
     timelineConfig: TimelineConfig;
@@ -143,6 +158,10 @@ interface TrendStore {
 
     // Helpers
     toggleChannelVisibility: (id: string) => void;
+
+    // Per-user-channel snapshot (seamless UX across user channel switches)
+    saveTrendsSnapshot: (userChannelId: string) => void;
+    restoreTrendsSnapshot: (userChannelId: string) => void;
 }
 
 export const useTrendStore = create<TrendStore>()(
@@ -156,6 +175,7 @@ export const useTrendStore = create<TrendStore>()(
             channelRootFilters: {},
             nicheFilters: {},
             hiddenVideos: [],
+            trendsSnapshotsByUserChannel: {},
 
             timelineConfig: { ...DEFAULT_TIMELINE_CONFIG },
             filterMode: 'global', // Default to global Scaling
@@ -186,7 +206,8 @@ export const useTrendStore = create<TrendStore>()(
                     filterMode: 'global',
                     savedConfigs: {},
                     selectedChannelId: null,
-                    timelineConfig: { ...DEFAULT_TIMELINE_CONFIG }
+                    timelineConfig: { ...DEFAULT_TIMELINE_CONFIG },
+                    trendsSnapshotsByUserChannel: {} // Snapshots belong to the previous account
                 };
             }),
 
@@ -652,6 +673,47 @@ export const useTrendStore = create<TrendStore>()(
                     targetNicheNames: newTargetNames
                 });
             },
+
+            /**
+             * Save current trends context under the given userChannelId so it can be restored
+             * when the user returns to this user channel.
+             */
+            saveTrendsSnapshot: (userChannelId) => set((state) => ({
+                trendsSnapshotsByUserChannel: {
+                    ...state.trendsSnapshotsByUserChannel,
+                    [userChannelId]: {
+                        trendsFilters: state.trendsFilters,
+                        selectedChannelId: state.selectedChannelId,
+                        isAppliedFromAllChannels: state.isAppliedFromAllChannels,
+                        filterMode: state.filterMode,
+                        timelineConfig: state.timelineConfig,
+                    }
+                }
+            })),
+
+            /**
+             * Apply the saved trends context for the given userChannelId, or reset to defaults
+             * if no snapshot exists yet (first visit).
+             */
+            restoreTrendsSnapshot: (userChannelId) => set((state) => {
+                const snapshot = state.trendsSnapshotsByUserChannel[userChannelId];
+                if (!snapshot) {
+                    return {
+                        trendsFilters: [],
+                        selectedChannelId: null,
+                        isAppliedFromAllChannels: false,
+                        filterMode: 'global',
+                        timelineConfig: { ...DEFAULT_TIMELINE_CONFIG },
+                    };
+                }
+                return {
+                    trendsFilters: snapshot.trendsFilters,
+                    selectedChannelId: snapshot.selectedChannelId,
+                    isAppliedFromAllChannels: snapshot.isAppliedFromAllChannels,
+                    filterMode: snapshot.filterMode,
+                    timelineConfig: snapshot.timelineConfig,
+                };
+            }),
         }),
         {
             name: 'trend-store',
@@ -665,7 +727,8 @@ export const useTrendStore = create<TrendStore>()(
                 isAppliedFromAllChannels: state.isAppliedFromAllChannels,
                 // hiddenVideos: state.hiddenVideos, // Moved to Firestore
                 filterMode: state.filterMode,
-                userId: state.userId
+                userId: state.userId,
+                trendsSnapshotsByUserChannel: state.trendsSnapshotsByUserChannel
             }),
         }
     )

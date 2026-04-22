@@ -8,7 +8,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useDndContext } from '@dnd-kit/core';
-import { Music, Plus, ChevronDown, ChevronRight, Heart, Share2 } from 'lucide-react';
+import { Music, Plus, ChevronDown, ChevronRight, Star, Share2 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useMusicStore } from '../../../core/stores/music/musicStore';
 import { useAuth } from '../../../core/hooks/useAuth';
@@ -16,6 +16,7 @@ import { useChannelStore } from '../../../core/stores/channelStore';
 import { MusicPlaylistItem } from './MusicPlaylistItem';
 import { MusicPlaylistSkeleton } from './MusicPlaylistSkeleton';
 import { SidebarDivider } from '../../../components/Layout/Sidebar';
+import { CollapsibleSection } from '../../../components/ui/molecules/CollapsibleSection';
 import { CreateMusicPlaylistModal } from '../modals/CreateMusicPlaylistModal';
 import { MusicPlaylistService } from '../../../core/services/music/musicPlaylistService';
 import type { MusicPlaylist } from '../../../core/types/music/musicPlaylist';
@@ -32,8 +33,8 @@ const LikedPlaylistRow: React.FC<{ isActive: boolean; likedCount: number; onClic
             className={`flex items-center cursor-pointer p-2 rounded-lg hover-trail select-none animate-fade-in-down ${isActive ? 'bg-black/10 dark:bg-white/10' : 'hover:bg-black/5 dark:hover:bg-white/5'}`}
             style={{ animationDelay: '0ms', animationFillMode: 'both' }}
         >
-            <div className={`w-6 h-6 rounded-full mr-3 flex items-center justify-center ${isActive ? 'bg-red-500/20 ring-2 ring-red-400/30' : 'bg-black/5 dark:bg-white/5'}`}>
-                <Heart size={14} className={isActive ? 'text-red-400 fill-red-400' : 'text-red-400/60 fill-red-400/60'} />
+            <div className="w-6 h-6 mr-3 flex items-center justify-center">
+                <Star size={16} className="text-amber-400 fill-amber-400" />
             </div>
             <span className={`text-sm flex-1 overflow-hidden whitespace-nowrap transition-colors ${isActive ? 'text-text-primary font-medium' : 'text-text-secondary'}`}>
                 Liked
@@ -139,14 +140,32 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
         };
     }, [sharedLibraries]);
 
-    // Persist collapse state
+    // Persist collapse state — collapsed by default so the sidebar stays quiet on first load.
     const [isContentExpanded, setIsContentExpanded] = useState(() => {
         const saved = localStorage.getItem('music-section-expanded');
-        return saved !== null ? saved === 'true' : true;
+        return saved !== null ? saved === 'true' : false;
     });
     useEffect(() => {
         localStorage.setItem('music-section-expanded', String(isContentExpanded));
     }, [isContentExpanded]);
+
+    // Persist Playlists subsection collapse state — independent of Music-section toggle.
+    const [isPlaylistsOpen, setIsPlaylistsOpen] = useState(() => {
+        const saved = localStorage.getItem('music-playlists-expanded');
+        return saved !== null ? saved === 'true' : false;
+    });
+    useEffect(() => {
+        localStorage.setItem('music-playlists-expanded', String(isPlaylistsOpen));
+    }, [isPlaylistsOpen]);
+
+    // Persist Shared-with-me subsection collapse state.
+    const [isSharedOpen, setIsSharedOpen] = useState(() => {
+        const saved = localStorage.getItem('music-shared-expanded');
+        return saved !== null ? saved === 'true' : false;
+    });
+    useEffect(() => {
+        localStorage.setItem('music-shared-expanded', String(isSharedOpen));
+    }, [isSharedOpen]);
 
     // Track if we're on Music page
     const isOnMusicPage = location.pathname.startsWith('/music');
@@ -224,11 +243,6 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
         });
     };
 
-    const handleMusicClick = () => {
-        setActivePlaylist(null);
-        navigate('/music');
-    };
-
     const handlePlaylistClick = (playlistId: string) => {
         // Only restore subview state for subview→subview transitions
         // (e.g. coming from a shared playlist). For library→subview,
@@ -277,15 +291,25 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
             <div>
                 {/* Music Header */}
                 <div
-                    className={`w-full flex items-center justify-between py-2.5 px-3 mb-1 rounded-lg transition-all duration-200 group ${isOnMusicPage && activePlaylistId === null
+                    onClick={() => setIsContentExpanded(!isContentExpanded)}
+                    className={`w-full flex items-center justify-between py-2.5 px-3 mb-1 rounded-lg transition-all duration-200 cursor-pointer group ${isOnMusicPage && activePlaylistId === null
                         ? 'bg-sidebar-active text-text-primary'
                         : 'text-text-secondary hover:bg-sidebar-hover hover:text-text-primary'
                         }`}
                 >
-                    {/* Main Click Target */}
+                    {/*
+                     * Icon + label: navigates to /music when not already there.
+                     * When already on /music, propagation isn't stopped → the outer row toggle fires.
+                     */}
                     <div
                         className="flex items-center gap-6 flex-1 cursor-pointer"
-                        onClick={handleMusicClick}
+                        onClick={(e) => {
+                            if (!isOnMusicPage) {
+                                e.stopPropagation();
+                                setActivePlaylist(null);
+                                navigate('/music');
+                            }
+                        }}
                     >
                         <Music
                             size={24}
@@ -300,16 +324,13 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
 
                     {/* Actions */}
                     <div className="flex items-center gap-1">
-                        {/* Toggle Collapse */}
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setIsContentExpanded(!isContentExpanded);
-                            }}
-                            className="p-1 hover:bg-black/10 dark:hover:bg-white/10 rounded-full transition-colors cursor-pointer text-text-secondary hover:text-text-primary"
+                        {/* Collapse indicator — decorative, toggle happens on the main click target */}
+                        <div
+                            className="p-1 text-text-secondary pointer-events-none"
+                            aria-hidden="true"
                         >
                             {isContentExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                        </button>
+                        </div>
 
                         {/* Add Playlist */}
                         <button
@@ -325,24 +346,32 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
                     </div>
                 </div>
 
-                {/* Content */}
+                {/* Music content — visible only when the Music section is expanded */}
                 {isContentExpanded && (
                     <div className="pl-3 pb-2">
+                        {/* Liked — always visible inside expanded Music (quick access) */}
+                        <ul className="space-y-0.5 mb-1">
+                            <LikedPlaylistRow
+                                isActive={isOnMusicPage && activePlaylistId === 'liked'}
+                                likedCount={likedCount}
+                                onClick={handleLikedClick}
+                            />
+                        </ul>
+
+                        {/* Playlists — nested collapse, own persist key. Shows only when user opens. */}
                         {isPlaylistsLoading ? (
-                            /* Skeleton replaces the entire list including the Liked row.
-                               GroupRowSkeleton matches Liked's dimensions (w-6 h-6 circle + name + w-4 count). */
                             <ul className="space-y-0.5">
                                 <MusicPlaylistSkeleton count={5} variant="grouped" />
                             </ul>
-                        ) : (
-                            <ul className="space-y-0.5">
-                                {/* ♥ Liked — channel-level sizing */}
-                                <LikedPlaylistRow
-                                    isActive={isOnMusicPage && activePlaylistId === 'liked'}
-                                    likedCount={likedCount}
-                                    onClick={handleLikedClick}
-                                />
-
+                        ) : musicPlaylists.length > 0 && (
+                            <CollapsibleSection
+                                title={`Playlists (${musicPlaylists.length})`}
+                                variant="micro"
+                                isOpen={isPlaylistsOpen}
+                                onToggle={() => setIsPlaylistsOpen(!isPlaylistsOpen)}
+                                headerGap="mb-1"
+                            >
+                                <ul className="space-y-0.5">
                                 {/* Grouped Playlists */}
                                 {groupedPlaylists.map(([groupName, playlists], groupIdx) => {
                                     if (playlists.length === 0) return null;
@@ -421,17 +450,22 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
                                         </li>
                                     );
                                 })}
-                            </ul>
+                                </ul>
+                            </CollapsibleSection>
                         )}
                     </div>
                 )}
 
-                {/* Shared Libraries — owner's playlists under "SHARED WITH ME" */}
+                {/* Shared Libraries — owner's playlists under "SHARED WITH ME", collapsed by default */}
                 {isContentExpanded && sharedLibraries.length > 0 && (
                     <div className="pl-3 pb-2">
-                        <div className="flex items-center gap-1.5 px-2 pt-3 pb-1">
-                            <span className="text-[10px] font-medium text-text-tertiary uppercase tracking-wider">Shared with me</span>
-                        </div>
+                        <CollapsibleSection
+                            title={`Shared with me (${sharedLibraries.length})`}
+                            variant="micro"
+                            isOpen={isSharedOpen}
+                            onToggle={() => setIsSharedOpen(!isSharedOpen)}
+                            headerGap="mb-1"
+                        >
                         <ul className="space-y-0.5">
                             {/* Shared library entries — one per shared channel, collapsible */}
                             {sharedLibraries.map(lib => {
@@ -518,6 +552,7 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
                                 );
                             })}
                         </ul>
+                        </CollapsibleSection>
                     </div>
                 )}
             </div>

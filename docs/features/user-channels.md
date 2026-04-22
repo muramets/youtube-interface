@@ -16,6 +16,9 @@
 - Per-channel кастомизация: целевые ниши (max 2), кастомные языки
 - При переключении канала: синхронно очищается старый стейт, подписки переключаются на новый канал
 - Удаление канала каскадно удаляет все подколлекции (videos, playlists, settings)
+- Пользователь вручную задаёт порядок каналов в dropdown через drag-and-drop (персонально для каждого юзера, сохраняется в Firestore)
+- В модалке настроек канала (EditChannelModal) есть секция Target Niches со списком привязанных ниш и кнопкой удаления; добавление таргета по-прежнему делается через контекстное меню ниши в Trends sidebar
+- При переключении user-канала текущий trends-контекст (активные фильтры, выбранный trendChannel, timeline config) сохраняется как per-user-channel snapshot и восстанавливается при возврате — бесшовный UX, фильтры не теряются
 
 ## User Flow
 
@@ -25,6 +28,7 @@
 4. **Переключение** → `ChannelDropdown` в header: клик по другому каналу → моментальная смена контекста
 5. **Редактирование** → `EditChannelModal`: изменение имени/аватара, удаление канала с подтверждением
 6. **Настройки** → Каждый канал имеет независимые настройки (тема, auto-sync, packaging defaults и др.)
+7. **Переупорядочивание** → В `ChannelDropdown` юзер хватает канал за drag-handle (иконка grip-vertical слева, появляется при наведении), перетаскивает вверх/вниз — новый порядок мгновенно виден в UI и сохраняется в Firestore. Порядок персональный (живёт в документе канала юзера, который уже привязан к `users/{uid}`).
 
 ## Архитектура изоляции данных
 
@@ -45,11 +49,14 @@
 
 Критически важный flow — при переключении нельзя допустить "мерцание" данных старого канала:
 
-1. **Синхронная очистка** — trends data, music player, фильтры обнуляются до смены канала
-2. **Смена currentChannel** — Zustand store обновляется, localStorage сохраняет выбор
-3. **Навигация на Home** — предотвращает показ страницы с несуществующими данными
-4. **Filter sync** — `useFilterChannelSync` сохраняет фильтры старого канала, загружает фильтры нового
-5. **Подписки обновляются** — TanStack Query + Firestore onSnapshot переподключаются к новому каналу
+1. **Save trends snapshot** — текущие trends-фильтры, selectedChannelId, timelineConfig уходят в `trendsSnapshotsByUserChannel[oldUserChannelId]`
+2. **Синхронная очистка эпhemeral data** — videos/channels/niches/assignments/hiddenVideos обнуляются до смены канала
+3. **Стоп аудиоплеера** — музыкальные треки привязаны к каналу
+4. **Смена currentChannel** — Zustand store обновляется, localStorage сохраняет выбор
+5. **Restore trends snapshot** — из `trendsSnapshotsByUserChannel[newUserChannelId]` или defaults, если user-channel посещается впервые
+6. **Навигация на Home** — предотвращает показ страницы с несуществующими данными
+7. **Filter sync** — `useFilterChannelSync` сохраняет фильтры старого канала, загружает фильтры нового
+8. **Подписки обновляются** — TanStack Query + Firestore onSnapshot переподключаются к новому каналу
 
 ## Roadmap
 
@@ -99,8 +106,16 @@ interface Channel {
     customLanguages?: CustomLanguage[];  // Per-channel language overrides
     targetNicheIds?: string[];           // Trend niche targets (max 2)
     targetNicheNames?: string[];         // Cached niche names for cross-channel display
+    order?: number;                      // User-defined position in ChannelDropdown (absent until first reorder)
 }
 ```
+
+### Reorder Mechanics
+
+- **DnD library:** `@dnd-kit/core` + `@dnd-kit/sortable` + `@dnd-kit/modifiers` (тот же набор, что в `CTRRulesList`).
+- **Sort order:** `compareChannels` сравнивает по `order` если оба канала его имеют; каналы с `order` всегда впереди тех, у кого его нет; при отсутствии `order` у обоих — fallback на `createdAt`. После первого drag все каналы получают `order` в одном `writeBatch` (`ChannelService.reorderChannels`), дальше сортировка всегда детерминированная.
+- **Optimistic update:** `handleDragEnd` в `ChannelDropdown` сразу обновляет `queryClient.setQueryData(['channels', userId], reordered)`, чтобы UI не ждал Firestore. При ошибке `writeBatch` — откат к прежнему массиву, `onSnapshot` синхронизирует правду.
+- **Drag handle:** иконка `GripVertical` отображается только при `channels.length > 1` и появляется на hover (`group-hover:opacity-100`). `PointerSensor` с `activationConstraint: { distance: 3 }` отделяет клик (switch) от перетаскивания.
 
 ### Key Files
 

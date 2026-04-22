@@ -4,7 +4,8 @@ import {
     setDoc,
     deleteDoc,
     getDocs,
-    onSnapshot
+    onSnapshot,
+    writeBatch
 } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 
@@ -24,7 +25,23 @@ export interface Channel {
     targetNicheIds?: string[];
     /** Cached names of target niches for display across user channels */
     targetNicheNames?: string[];
+    /** User-defined position in the channel list. Lower = shown first. Absent for channels that have never been reordered. */
+    order?: number;
 }
+
+/**
+ * Sort channels by user-defined `order` when present, falling back to `createdAt`
+ * so channels that have never been reordered keep their original positions.
+ * Channels with `order` always come before those without.
+ */
+const compareChannels = (a: Channel, b: Channel): number => {
+    const aHasOrder = typeof a.order === 'number';
+    const bHasOrder = typeof b.order === 'number';
+    if (aHasOrder && bHasOrder) return a.order! - b.order!;
+    if (aHasOrder) return -1;
+    if (bHasOrder) return 1;
+    return a.createdAt - b.createdAt;
+};
 
 export const ChannelService = {
     getUserChannels: async (userId: string): Promise<Channel[]> => {
@@ -34,7 +51,7 @@ export const ChannelService = {
         snapshot.forEach((doc) => {
             loadedChannels.push({ id: doc.id, ...doc.data() } as Channel);
         });
-        loadedChannels.sort((a, b) => a.createdAt - b.createdAt);
+        loadedChannels.sort(compareChannels);
         return loadedChannels;
     },
 
@@ -45,7 +62,7 @@ export const ChannelService = {
             snapshot.forEach((doc) => {
                 loadedChannels.push({ id: doc.id, ...doc.data() } as Channel);
             });
-            loadedChannels.sort((a, b) => a.createdAt - b.createdAt);
+            loadedChannels.sort(compareChannels);
             callback(loadedChannels);
         });
     },
@@ -65,6 +82,19 @@ export const ChannelService = {
     updateChannel: async (userId: string, channelId: string, updates: Partial<Channel>) => {
         const channelRef = doc(db, `users/${userId}/channels/${channelId}`);
         await setDoc(channelRef, updates, { merge: true });
+    },
+
+    /**
+     * Persist a new channel order. Writes `order` on every channel in one atomic batch
+     * so subsequent snapshots can sort by `order` deterministically.
+     */
+    reorderChannels: async (userId: string, orderedChannelIds: string[]) => {
+        const batch = writeBatch(db);
+        orderedChannelIds.forEach((channelId, index) => {
+            const channelRef = doc(db, `users/${userId}/channels/${channelId}`);
+            batch.set(channelRef, { order: index }, { merge: true });
+        });
+        await batch.commit();
     },
 
     deleteChannel: async (userId: string, channelId: string) => {

@@ -20,6 +20,8 @@ export interface TrendChannel {
     avatarUrl: string;
     uploadsPlaylistId: string;
     isVisible: boolean;
+    /** Pinned-to-top flag controlled from the sidebar. Absent on channels that haven't been pinned yet. */
+    isFavorite?: boolean;
     subscriberCount?: number; // Optional context
     averageViews?: number; // Cached average for relative hit calc
     totalViewCount?: number; // Total accumulated views from synced videos

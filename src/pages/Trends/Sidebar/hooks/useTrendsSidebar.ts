@@ -110,6 +110,13 @@ export const useTrendsSidebar = () => {
         }
     };
 
+    const handleToggleFavorite = async (e: React.MouseEvent, channelId: string, currentFavorite: boolean) => {
+        e.stopPropagation();
+        if (user && currentChannel) {
+            await TrendService.updateChannel(user.uid, currentChannel.id, channelId, { isFavorite: !currentFavorite });
+        }
+    };
+
     const handleRemoveChannel = async () => {
         if (user && currentChannel && channelToDelete) {
             await TrendService.removeTrendChannel(user.uid, currentChannel.id, channelToDelete.id);
@@ -196,6 +203,7 @@ export const useTrendsSidebar = () => {
         handleTrendsClick,
         handleChannelClick,
         handleToggleVisibility,
+        handleToggleFavorite,
         handleRemoveChannel,
         handleSyncChannel
     };

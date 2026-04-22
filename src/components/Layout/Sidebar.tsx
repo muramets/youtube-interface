@@ -8,6 +8,7 @@ import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
 import { useChannels } from '../../core/hooks/useChannels';
 import { TrendsSidebarSection } from '../../pages/Trends/Sidebar/TrendsSidebarSection';
+import { sortTrendChannels } from '../../pages/Trends/Sidebar/channelSort';
 import { MusicSidebarSection } from '../../pages/Music/Sidebar/MusicSidebarSection';
 import { AddChannelModal } from '../../pages/Trends/Sidebar/AddChannelModal';
 import { useTrendStore } from '../../core/stores/trends/trendStore';
@@ -79,9 +80,14 @@ export const TrendsCollapsedGroup: React.FC<{
   const [isHovered, setHovered] = React.useState(false);
   const { brokenAvatarChannelIds, markAvatarBroken } = useTrendStore();
 
+  // Apply the same ordering rule as the expanded sidebar — favorites first, then by totalViewCount.
+  const orderedChannels = React.useMemo(() => sortTrendChannels(channels), [channels]);
+
+  // On hover: show only pinned (favorite) channels — quick access to what the user cares about.
+  // Otherwise: keep the currently selected channel visible as working context, if any.
   const visibleChannels = isHovered
-    ? channels
-    : (selectedChannelId ? channels.filter(c => c.id === selectedChannelId) : []);
+    ? orderedChannels.filter(c => c.isFavorite)
+    : (selectedChannelId ? orderedChannels.filter(c => c.id === selectedChannelId) : []);
 
   return (
     <div
