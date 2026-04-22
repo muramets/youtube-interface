@@ -7,7 +7,7 @@ import { useChannelStore } from '../../../../core/stores/channelStore';
 import { useChannels } from '../../../../core/hooks/useChannels';
 import { useApiKey } from '../../../../core/hooks/useApiKey';
 import { useUIStore } from '../../../../core/stores/uiStore';
-import { useNotificationStore } from '../../../../core/stores/notificationStore';
+import { logger } from '../../../../core/utils/logger';
 import type { TrendChannel } from '../../../../core/types/trends';
 
 interface MenuState {
@@ -20,9 +20,8 @@ export const useTrendsSidebar = () => {
     const { user, isLoading: isAuthLoading } = useAuth();
     const { currentChannel } = useChannelStore();
     const { isLoading: isChannelsLoading } = useChannels(user?.uid || '');
-    const { apiKey, hasApiKey } = useApiKey();
+    const { hasApiKey } = useApiKey();
     const { showToast } = useUIStore();
-    const { addNotification } = useNotificationStore();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -136,44 +135,26 @@ export const useTrendsSidebar = () => {
             return;
         }
 
-        // Check if this channel has a broken avatar that needs refresh
         const brokenAvatarChannelIds = useTrendStore.getState().brokenAvatarChannelIds;
         const needsAvatarRefresh = brokenAvatarChannelIds.has(channelId);
 
-        showToast(`Syncing all videos for ${channel.title}...`, 'success');
+        showToast(`Syncing ${channel.title} — you'll be notified when done.`, 'success');
 
-        try {
-            // Force full sync (true) to update view counts for existing videos
-            // Also refresh avatar if it was broken
-            const { totalNewVideos, totalQuotaUsed, quotaBreakdown, newAvatarUrl } = await TrendService.syncChannelVideos(
-                user.uid,
-                currentChannel.id,
-                channel,
-                apiKey,
-                true,
-                needsAvatarRefresh
-            );
-
-            // Clear broken avatar flag if we got a new avatar
-            if (newAvatarUrl) {
-                useTrendStore.getState().clearBrokenAvatar(channelId);
-            }
-
-            showToast(`${channel.title} sync complete. Processed ${totalNewVideos} videos.`, 'success');
-
-            await addNotification({
-                title: `Trends Sync: ${channel.title}`,
-                message: `Updated ${totalNewVideos} videos.`,
-                type: 'success',
-                meta: totalQuotaUsed.toString(),
-                avatarUrl: newAvatarUrl || channel.avatarUrl,
-                quotaBreakdown,
-                category: 'trends'
+        TrendService.syncChannelCloud(currentChannel.id, [channelId], needsAvatarRefresh)
+            .then(() => {
+                if (needsAvatarRefresh) {
+                    useTrendStore.getState().clearBrokenAvatar(channelId);
+                }
+            })
+            .catch((error: unknown) => {
+                const message = error instanceof Error ? error.message : String(error);
+                logger.error('Per-channel sync dispatch failed', {
+                    component: 'useTrendsSidebar',
+                    channelId,
+                    error: message
+                });
+                showToast(`Sync failed: ${message}`, 'error');
             });
-        } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : String(error);
-            showToast(`Sync failed: ${message}`, 'error');
-        }
     };
 
     // Show skeleton while any loading is in progress

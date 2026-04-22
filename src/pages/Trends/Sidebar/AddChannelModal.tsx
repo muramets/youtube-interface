@@ -6,7 +6,7 @@ import { useAuth } from '../../../core/hooks/useAuth';
 import { useApiKey } from '../../../core/hooks/useApiKey';
 import { useChannelStore } from '../../../core/stores/channelStore';
 import { useUIStore } from '../../../core/stores/uiStore';
-import { useNotificationStore } from '../../../core/stores/notificationStore';
+import { logger } from '../../../core/utils/logger';
 
 interface AddChannelModalProps {
     isOpen: boolean;
@@ -22,9 +22,7 @@ export const AddChannelModal: React.FC<AddChannelModalProps> = ({ isOpen, onClos
     const { apiKey, hasApiKey } = useApiKey();
     const { currentChannel } = useChannelStore();
     const { showToast } = useUIStore();
-    const { addNotification } = useNotificationStore();
 
-    // Reset state on open
     React.useEffect(() => {
         if (isOpen) {
             setUrl('');
@@ -35,8 +33,6 @@ export const AddChannelModal: React.FC<AddChannelModalProps> = ({ isOpen, onClos
     const validateInput = (input: string): boolean => {
         const trimmed = input.trim();
         if (!trimmed) return false;
-        // Basic check: must be a handle (@...) or a youtube URL part (UC... or custom)
-        // We let the service handle deep validation, but here we just ensure non-empty sane string
         return trimmed.length > 1;
     };
 
@@ -62,24 +58,28 @@ export const AddChannelModal: React.FC<AddChannelModalProps> = ({ isOpen, onClos
         setError('');
 
         try {
-            const { channel, quotaCost, totalNewVideos, quotaBreakdown } = await TrendService.addTrendChannel(user.uid, currentChannel.id, url.trim(), apiKey);
+            const { channel } = await TrendService.addTrendChannel(user.uid, currentChannel.id, url.trim(), apiKey);
 
-            showToast(`${channel.title} added successfully.`, 'success');
+            // Dispatch background sync via the same Cloud Function the header Sync button uses.
+            // Fire-and-forget: the UI picks up videos from the Firestore subscription once the
+            // function writes `lastUpdated`, and the user is notified via the notifications bell.
+            TrendService.syncChannelCloud(currentChannel.id, [channel.id], false)
+                .catch((err: unknown) => {
+                    logger.error('Initial sync dispatch failed', {
+                        component: 'AddChannelModal',
+                        channelId: channel.id,
+                        error: err instanceof Error ? err.message : String(err)
+                    });
+                    showToast(`Sync for ${channel.title} failed to start. Use the Sync button in the header.`, 'error');
+                });
 
-            await addNotification({
-                title: `Trends Sync: ${channel.title}`,
-                message: `Initial sync complete. Added ${totalNewVideos} videos.`,
-                type: 'success',
-                meta: quotaCost.toString(),
-                avatarUrl: channel.avatarUrl,
-                quotaBreakdown,
-                link: '/trends',
-                category: 'trends'
-            });
-
+            showToast(`${channel.title} added. Syncing videos in background.`, 'success');
             onClose();
         } catch (err) {
-            console.error(err);
+            logger.error('Add channel failed', {
+                component: 'AddChannelModal',
+                error: err instanceof Error ? err.message : String(err)
+            });
             const message = err instanceof Error ? err.message : 'Failed to add channel';
             setError(message);
         } finally {

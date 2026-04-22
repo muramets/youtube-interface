@@ -17,7 +17,6 @@ import {
 import { db } from '../../config/firebase';
 import { trackRead } from '../utils/debug';
 import type { TrendChannel, TrendVideo, TrendNiche, HiddenVideo, TrendSnapshot } from '../types/trends';
-import { getPercentileDistribution } from '../../../shared/percentiles';
 
 // IndexedDB Schema
 interface TrendsDB extends DBSchema {
@@ -43,31 +42,50 @@ const getDB = () => {
     return dbPromise;
 };
 
-// Minimal interface for YouTube API Video Resource
-interface YouTubeVideoResource {
-    id: string;
-    snippet: {
-        publishedAt: string;
-        title: string;
-        channelTitle?: string;
-        thumbnails: {
-            maxres?: { url: string };
-            high?: { url: string };
-            medium?: { url: string };
-            default?: { url: string };
-        };
-        tags?: string[];
-        description?: string;
-    };
-    contentDetails: {
-        duration: string;
-    };
-    statistics: {
-        viewCount: string;
-        likeCount?: string;
-        commentCount?: string;
-    };
-}
+/**
+ * Resolve arbitrary user input (URL, @handle, bare handle, UC-id) to the fields
+ * needed for the YouTube `channels.list` call.
+ *
+ * Exactly one of { channelId, handle } is non-empty on return.
+ */
+export const parseChannelInput = (input: string): { channelId: string; handle: string } => {
+    let channelId = '';
+    let handle = '';
+    const trimmed = input.trim();
+
+    try {
+        const url = new URL(trimmed.startsWith('http') ? trimmed : `https://${trimmed}`);
+        const pathname = url.pathname;
+
+        const handleMatch = pathname.match(/\/@([^/]+)/);
+        if (handleMatch) {
+            handle = '@' + handleMatch[1];
+        } else if (pathname.includes('/channel/')) {
+            const idMatch = pathname.match(/\/channel\/(UC[a-zA-Z0-9_-]+)/);
+            if (idMatch) channelId = idMatch[1];
+        } else if (pathname.includes('/c/')) {
+            const customMatch = pathname.match(/\/c\/([^/]+)/);
+            if (customMatch) handle = '@' + customMatch[1];
+        } else if (pathname.includes('/user/')) {
+            const userMatch = pathname.match(/\/user\/([^/]+)/);
+            if (userMatch) handle = '@' + userMatch[1];
+        }
+    } catch {
+        // Not a URL — treat as bare handle or channel id
+    }
+
+    if (!channelId && !handle) {
+        if (trimmed.startsWith('@')) {
+            handle = trimmed;
+        } else if (trimmed.startsWith('UC') && trimmed.length >= 20) {
+            channelId = trimmed;
+        } else {
+            handle = '@' + trimmed;
+        }
+    }
+
+    return { channelId, handle };
+};
 
 export const TrendService = {
     // --- Channel Management (Firestore) ---
@@ -445,55 +463,19 @@ export const TrendService = {
         await batch.commit();
     },
 
-    addTrendChannel: async (userId: string, userChannelId: string, channelUrl: string, apiKey: string) => {
-        // Smart Channel URL/Handle/ID Parser
-        let channelId = '';
-        let handle = '';
+    /**
+     * Add a competitor channel.
+     *
+     * 1. Resolve handle/URL/ID to channel metadata via YouTube `channels.list` (1 quota unit).
+     * 2. Persist a minimal channel doc to Firestore with `lastUpdated: 0` — the subscribe-to-channels
+     *    snapshot immediately surfaces it in the sidebar.
+     * 3. Caller is expected to dispatch `syncChannelCloud` for the new channel id, so videos
+     *    and snapshots are filled in by the `manualTrendSync` Cloud Function — the same code
+     *    path as the header Sync button. See docs/features/trends/sync-pipeline.md.
+     */
+    addTrendChannel: async (userId: string, userChannelId: string, channelUrl: string, apiKey: string): Promise<{ channel: TrendChannel }> => {
+        const { channelId, handle } = parseChannelInput(channelUrl);
 
-        const input = channelUrl.trim();
-
-        // Try to parse as URL first
-        try {
-            const url = new URL(input.startsWith('http') ? input : `https://${input}`);
-            const pathname = url.pathname;
-
-            // Handle format: youtube.com/@handle or youtube.com/@handle/videos
-            const handleMatch = pathname.match(/\/@([^/]+)/);
-            if (handleMatch) {
-                handle = '@' + handleMatch[1];
-            }
-            // Channel ID format: youtube.com/channel/UC...
-            else if (pathname.includes('/channel/')) {
-                const idMatch = pathname.match(/\/channel\/(UC[a-zA-Z0-9_-]+)/);
-                if (idMatch) channelId = idMatch[1];
-            }
-            // Custom URL format: youtube.com/c/ChannelName
-            else if (pathname.includes('/c/')) {
-                const customMatch = pathname.match(/\/c\/([^/]+)/);
-                if (customMatch) handle = '@' + customMatch[1];
-            }
-            // User format: youtube.com/user/Username
-            else if (pathname.includes('/user/')) {
-                const userMatch = pathname.match(/\/user\/([^/]+)/);
-                if (userMatch) handle = '@' + userMatch[1];
-            }
-        } catch {
-            // Not a valid URL, try direct parsing
-        }
-
-        // If URL parsing didn't yield results, try direct input
-        if (!channelId && !handle) {
-            if (input.startsWith('@')) {
-                handle = input;
-            } else if (input.startsWith('UC') && input.length >= 20) {
-                channelId = input;
-            } else {
-                // Assume it's a handle without @
-                handle = '@' + input;
-            }
-        }
-
-        // 2. Fetch Metadata from YouTube
         const params = new URLSearchParams({
             part: 'snippet,contentDetails,statistics',
             key: apiKey,
@@ -521,30 +503,12 @@ export const TrendService = {
             uploadsPlaylistId: item.contentDetails.relatedPlaylists.uploads,
             isVisible: true,
             subscriberCount: parseInt(item.statistics.subscriberCount),
-            lastUpdated: 0, // Never updated
+            lastUpdated: 0,
         };
 
-        // 3. Save to Firestore
         await setDoc(doc(db, `users/${userId}/channels/${userChannelId}/trendChannels`, newChannel.id), newChannel);
 
-        // 4. Initial Sync of Videos
-        let initialSyncStats = { totalQuotaUsed: 0, totalNewVideos: 0, quotaBreakdown: { list: 0, details: 0 } };
-        try {
-            initialSyncStats = await TrendService.syncChannelVideos(userId, userChannelId, newChannel, apiKey);
-        } catch (error) {
-            console.error('Initial video sync failed:', error);
-            // We still return the channel even if sync fails, it will just be empty initially
-        }
-
-        return {
-            channel: newChannel,
-            quotaCost: 1 + initialSyncStats.totalQuotaUsed,
-            totalNewVideos: initialSyncStats.totalNewVideos,
-            quotaBreakdown: {
-                search: 1,
-                ...initialSyncStats.quotaBreakdown
-            }
-        }; // 1 (channel search) + sync cost
+        return { channel: newChannel };
     },
 
     removeTrendChannel: async (userId: string, userChannelId: string, channelId: string) => {
@@ -570,184 +534,6 @@ export const TrendService = {
     },
 
     // --- Video Fetching & Caching (IndexedDB) ---
-
-    syncChannelVideos: async (userId: string, userChannelId: string, channel: TrendChannel, apiKey: string, forceFullSync: boolean = false, refreshAvatar: boolean = false): Promise<{ totalNewVideos: number; totalQuotaUsed: number; quotaBreakdown: { list: number; details: number }; newAvatarUrl?: string }> => {
-        console.log(`[TrendService] Starting sync for channel: ${channel.title} (Full Sync: ${forceFullSync}, Refresh Avatar: ${refreshAvatar})`);
-
-        let nextPageToken: string | undefined = undefined;
-        let totalProcessedVideos = 0;
-        let totalQuotaUsed = 0;
-        const quotaBreakdown = { list: 0, details: 0 };
-
-        const idb = await getDB();
-
-        // Recursively fetch all pages from playlistItems
-        do {
-            const params = new URLSearchParams({
-                part: 'snippet,contentDetails',
-                playlistId: channel.uploadsPlaylistId,
-                maxResults: '50',
-                key: apiKey,
-            });
-
-            if (nextPageToken) {
-                params.append('pageToken', nextPageToken);
-            }
-
-            const res = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?${params.toString()}`);
-            const data = await res.json();
-            totalQuotaUsed += 1; // playlistItems cost
-            quotaBreakdown.list += 1;
-
-            if (!data.items || data.items.length === 0) {
-                break;
-            }
-
-            // Determine which videos to fetch details for
-            const videosToFetch: string[] = [];
-
-            for (const item of data.items) {
-                const videoId = item.contentDetails.videoId;
-
-                if (forceFullSync) {
-                    // In full sync, we update everything encountered
-                    videosToFetch.push(videoId);
-                } else {
-                    // In incremental sync, check against DB
-                    const existing = await idb.get('videos', videoId);
-                    if (!existing) {
-                        videosToFetch.push(videoId);
-                    }
-                }
-            }
-
-            if (videosToFetch.length > 0) {
-                // Fetch details for the chunk
-                const videoIdsChunk = videosToFetch.join(',');
-                const statsParams = new URLSearchParams({
-                    part: 'statistics,contentDetails,snippet',
-                    id: videoIdsChunk,
-                    key: apiKey,
-                });
-
-                const statsRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?${statsParams.toString()}`);
-                const statsData = await statsRes.json();
-                totalQuotaUsed += 1; // videos list cost
-                quotaBreakdown.details += 1;
-
-                if (statsData.items) {
-                    // YouTube Data API often omits `maxres` from snippet.thumbnails even when
-                    // the CDN file exists (maxresdefault.jpg returns 200).
-                    // A lightweight HEAD probe upgrades ~5% of thumbnails from 320×180 to 1280×720.
-                    const thumbnailMap = new Map<string, string>();
-                    const cdnProbes: Promise<void>[] = [];
-                    for (const item of statsData.items as YouTubeVideoResource[]) {
-                        const thumbnails = item.snippet.thumbnails;
-                        if (thumbnails.maxres?.url) {
-                            thumbnailMap.set(item.id, thumbnails.maxres.url);
-                        } else {
-                            const apiFallback = thumbnails.high?.url || thumbnails.medium?.url || thumbnails.default?.url || '';
-                            thumbnailMap.set(item.id, apiFallback);
-                            const cdnUrl = `https://i.ytimg.com/vi/${item.id}/maxresdefault.jpg`;
-                            cdnProbes.push(
-                                fetch(cdnUrl, { method: 'HEAD' })
-                                    .then(res => { if (res.ok) thumbnailMap.set(item.id, cdnUrl); })
-                                    .catch(() => { /* keep API fallback */ })
-                            );
-                        }
-                    }
-                    if (cdnProbes.length > 0) await Promise.all(cdnProbes);
-
-                    const videos: TrendVideo[] = statsData.items.map((item: YouTubeVideoResource) => ({
-                        id: item.id,
-                        channelId: channel.id,
-                        channelTitle: item.snippet.channelTitle || '',
-                        publishedAt: item.snippet.publishedAt,
-                        publishedAtTimestamp: new Date(item.snippet.publishedAt).getTime(),
-                        title: item.snippet.title,
-                        thumbnail: thumbnailMap.get(item.id) || '',
-                        viewCount: parseInt(item.statistics.viewCount || '0'),
-                        likeCount: parseInt(item.statistics.likeCount || '0'),
-                        commentCount: parseInt(item.statistics.commentCount || '0'),
-                        duration: item.contentDetails.duration || '',
-                        tags: item.snippet.tags || [],
-                        description: item.snippet.description || '',
-                    }));
-
-                    // 1. Save to IndexedDB (speed layer)
-                    const tx = idb.transaction('videos', 'readwrite');
-                    await Promise.all(videos.map(v => tx.store.put(v)));
-                    await tx.done;
-
-                    // 2. Save to Firestore (sync layer) — merge to preserve backend-written fields
-                    const videoBatch = writeBatch(db);
-                    videos.forEach(v => {
-                        const vRef = doc(db, `users/${userId}/channels/${userChannelId}/trendChannels/${channel.id}/videos`, v.id);
-                        videoBatch.set(vRef, v, { merge: true });
-                    });
-                    await videoBatch.commit();
-
-                    totalProcessedVideos += videos.length;
-                }
-            } else {
-                console.log('[TrendService] All videos in this page already exist. Skipping details fetch.');
-            }
-
-            nextPageToken = data.nextPageToken;
-
-        } while (nextPageToken);
-
-        console.log(`[TrendService] Sync complete. Processed ${totalProcessedVideos} videos. Quota used: ${totalQuotaUsed}`);
-
-        // Update stats
-        const allVideos = await idb.getAllFromIndex('videos', 'by-channel', channel.id);
-        const totalViews = allVideos.reduce((sum, v) => sum + v.viewCount, 0);
-        const averageViews = allVideos.length > 0 ? totalViews / allVideos.length : 0;
-
-        // Always refresh subscriberCount; optionally refresh avatar (+1 API call, shared)
-        let newAvatarUrl: string | undefined;
-        let freshSubscriberCount: number | undefined;
-        try {
-            const channelParts = refreshAvatar ? 'snippet,statistics' : 'statistics';
-            const channelParams = new URLSearchParams({
-                part: channelParts,
-                id: channel.id,
-                key: apiKey,
-            });
-            const channelRes = await fetch(`https://www.googleapis.com/youtube/v3/channels?${channelParams.toString()}`);
-            const channelData = await channelRes.json();
-            totalQuotaUsed += 1;
-            quotaBreakdown.details += 1;
-
-            const channelItem = channelData.items?.[0];
-
-            if (channelItem?.statistics?.subscriberCount) {
-                freshSubscriberCount = parseInt(channelItem.statistics.subscriberCount);
-            }
-
-            if (refreshAvatar && channelItem?.snippet?.thumbnails) {
-                const thumbnails = channelItem.snippet.thumbnails;
-                newAvatarUrl = thumbnails.medium?.url || thumbnails.default?.url;
-                console.log(`[TrendService] Refreshed avatar for ${channel.title}: ${newAvatarUrl}`);
-            }
-        } catch (err) {
-            console.error('[TrendService] Failed to refresh channel info:', err);
-        }
-
-        const performanceDistribution = getPercentileDistribution(allVideos);
-
-        await updateDoc(doc(db, `users/${userId}/channels/${userChannelId}/trendChannels`, channel.id), {
-            lastUpdated: Date.now(),
-            averageViews,
-            totalViewCount: totalViews,
-            videoCount: allVideos.length,
-            performanceDistribution,
-            ...(freshSubscriberCount !== undefined ? { subscriberCount: freshSubscriberCount } : {}),
-            ...(newAvatarUrl ? { avatarUrl: newAvatarUrl } : {})
-        });
-
-        return { totalNewVideos: totalProcessedVideos, totalQuotaUsed, quotaBreakdown, newAvatarUrl };
-    },
 
     /**
      * Triggers Server-Side Sync for a user channel.
