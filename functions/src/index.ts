@@ -32,3 +32,6 @@ export { backfillEmbeddings } from "./embedding/backfillEmbeddings.js";
 
 // ─── Audio Processing ──────────────────────────────────────────────────
 export { trimAudioFile } from "./audio/trimAudioFile.js";
+
+// ─── Video Management ──────────────────────────────────────────────────
+export { moveVideoToChannel } from "./video/moveVideo.js";
