@@ -46,9 +46,41 @@ const cleanupTrafficData = async (trafficPath: string): Promise<void> => {
     await Promise.all(deleteTrafficPromises);
 };
 
+export interface MoveVideoResult {
+    success: true;
+    docsCopied: number;
+    storageFilesCopied: number;
+    playlistsUpdated: number;
+}
+
 export const VideoService = {
     fetchVideos: async (userId: string, channelId: string): Promise<VideoDetails[]> => {
         return fetchCollection<VideoDetails>(getVideosPath(userId, channelId));
+    },
+
+    /**
+     * Move a single video (with all snapshots, traffic data, thumbnail history,
+     * custom thumbnails, storage files and videoOrder position) from one user
+     * channel to another. Dispatches the `moveVideoToChannel` Cloud Function,
+     * which handles atomicity (write-dest → verify → delete-source).
+     *
+     * Throws the underlying HttpsError on failure so the caller can surface it.
+     */
+    moveVideoToChannel: async (
+        sourceChannelId: string,
+        destChannelId: string,
+        videoId: string
+    ): Promise<MoveVideoResult> => {
+        const { functions } = await import('../../config/firebase');
+        const { httpsCallable } = await import('firebase/functions');
+
+        const callable = httpsCallable<
+            { sourceChannelId: string; destChannelId: string; videoId: string },
+            MoveVideoResult
+        >(functions, 'moveVideoToChannel');
+
+        const res = await callable({ sourceChannelId, destChannelId, videoId });
+        return res.data;
     },
 
     getVideoDocRef(userId: string, channelId: string, videoId: string) {

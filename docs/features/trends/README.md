@@ -99,7 +99,9 @@
 | YouTubeService | `functions/src/services/youtube.ts` |
 | Backend types | `functions/src/types.ts` |
 | Delta utility | `src/core/utils/computeVideoDeltas.ts` |
-| Tests | `functions/src/trends/__tests__/scheduledSync.test.ts` |
+| Channel transfer UI | `src/pages/Trends/Sidebar/ChannelTransferModal/` |
+| Tests (backend) | `functions/src/trends/__tests__/scheduledSync.test.ts` |
+| Tests (frontend) | `src/core/services/__tests__/trendService.test.ts` |
 
 ### Firestore Collections
 
@@ -148,3 +150,17 @@ TimelineCanvas / TrendsTable
 - **IndexedDB** (`trends-db`) — local video cache с индексами `by-channel` и `by-published`
 - **Firestore** — persistent data (channels, niches, assignments, hidden, snapshots)
 - **localStorage** — Zustand store persistence (filters, timeline config)
+
+### Channel Transfer (Copy / Move / Delete)
+
+Три операции над trend-каналом внутри user-канала идут через один набор методов в `TrendService`:
+
+- **Copy (fresh)** — `copyTrendChannel(merge=false)`: в target-user-channel создаётся полная реплика (channel doc с `lastUpdated: 0`, `videos/*`, `snapshots/*`, relevant niches, videoNicheAssignments, hiddenVideos). После записи — fire-and-forget `syncChannelCloud` чтобы target получил свежий snapshot в своём контексте и чтобы `lastUpdated` обновился. Source нетронут.
+- **Copy (merge)** — `copyTrendChannel(merge=true)`: target уже содержит этот trend-канал. Копируются только niches (same-name reuse), videoNicheAssignments (union), hiddenVideos и video-документы (с `merge: true`). **Snapshots НЕ копируются** — у target своя история, затирать её нельзя. Source нетронут.
+- **Move** — `moveTrendChannel`: сначала `copyTrendChannel`, затем `deleteSourceTrendChannelData`. Не атомарно — если delete падает после успешного copy, UI показывает `partialMove` state с кнопкой Retry Cleanup (delete идемпотентен).
+- **Delete (sidebar «⋮ → Remove channel»)** — `removeTrendChannel` → `deleteSourceTrendChannelData`. Чистит всё, что принадлежит этому trend-каналу в source user-канале: сам документ, обе подколлекции (`videos`, `snapshots`), assignments только для видео этого канала, hidden только с `channelId === trendChannelId`, **local-niches** (`type === 'local' && channelId === trendChannelId`). **Global-niches остаются** — их могут использовать другие trend-каналы.
+
+Что гарантируется:
+- `TREND_CHANNEL_SUBCOLLECTIONS` (`videos`, `snapshots`) — единая константа в `trendService.ts`, к которой привязаны и copy, и delete. Добавляется новая подколлекция → правка в одной константе.
+- `commitInChunks` (`BATCH_CHUNK_SIZE = 400`) обходит 500-операционный лимит Firestore writeBatch — каналы с тысячами видео/snapshots копируются без падений.
+- `deleteSourceTrendChannelData` идемпотентен (Firestore `batch.delete` не падает на несуществующих документах) — любой Retry безопасен.

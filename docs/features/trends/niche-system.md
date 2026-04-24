@@ -117,7 +117,7 @@ users/{userId}/channels/{channelId}/
 | `CollapsibleNicheList` | Раскрываемый список ниш per-channel |
 | `NicheContextMenu` | Контекстное меню (edit, delete, split, merge) |
 | `AddChannelModal` | Модалка добавления канала |
-| `CopyChannelModal` | Копирование каналов с опциональным копированием ниш |
+| `ChannelTransferModal` | Перенос trend-канала между user-каналами (Copy / Move), с merge-веткой при конфликте |
 
 ### Color Palettes
 

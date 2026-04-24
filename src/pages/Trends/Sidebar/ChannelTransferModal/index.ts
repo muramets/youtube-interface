@@ -1,0 +1,1 @@
+export { ChannelTransferModal } from './ChannelTransferModal';
