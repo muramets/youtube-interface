@@ -46,8 +46,11 @@ const cleanupTrafficData = async (trafficPath: string): Promise<void> => {
     await Promise.all(deleteTrafficPromises);
 };
 
+export type VideoTransferMode = 'copy' | 'move';
+
 export interface MoveVideoResult {
     success: true;
+    mode: VideoTransferMode;
     docsCopied: number;
     storageFilesCopied: number;
     playlistsUpdated: number;
@@ -59,27 +62,32 @@ export const VideoService = {
     },
 
     /**
-     * Move a single video (with all snapshots, traffic data, thumbnail history,
-     * custom thumbnails, storage files and videoOrder position) from one user
-     * channel to another. Dispatches the `moveVideoToChannel` Cloud Function,
-     * which handles atomicity (write-dest → verify → delete-source).
+     * Transfer a single video (with all snapshots, traffic data, thumbnail
+     * history, custom thumbnails, storage files and videoOrder position) from
+     * one user channel to another. Dispatches the `moveVideoToChannel` Cloud
+     * Function, which handles atomicity (write-dest → verify → optionally
+     * delete-source).
+     *
+     * @param mode 'move' (default) deletes source after dest is verified and
+     *             cleans up source playlists. 'copy' leaves source intact.
      *
      * Throws the underlying HttpsError on failure so the caller can surface it.
      */
     moveVideoToChannel: async (
         sourceChannelId: string,
         destChannelId: string,
-        videoId: string
+        videoId: string,
+        mode: VideoTransferMode = 'move'
     ): Promise<MoveVideoResult> => {
         const { functions } = await import('../../config/firebase');
         const { httpsCallable } = await import('firebase/functions');
 
         const callable = httpsCallable<
-            { sourceChannelId: string; destChannelId: string; videoId: string },
+            { sourceChannelId: string; destChannelId: string; videoId: string; mode: VideoTransferMode },
             MoveVideoResult
         >(functions, 'moveVideoToChannel');
 
-        const res = await callable({ sourceChannelId, destChannelId, videoId });
+        const res = await callable({ sourceChannelId, destChannelId, videoId, mode });
         return res.data;
     },
 

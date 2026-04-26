@@ -1,11 +1,11 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useTrendStore } from '../../../../core/stores/trends/trendStore';
 import { useChannelStore } from '../../../../core/stores/channelStore';
 import { useChannels } from '../../../../core/hooks/useChannels';
 import { useAuth } from '../../../../core/hooks/useAuth';
 import { TrendService } from '../../../../core/services/trendService';
 import { logger } from '../../../../core/utils/logger';
-import type { TrendChannel, TrendNiche } from '../../../../core/types/trends';
+import type { TrendChannel, TrendNiche, TrendVideo } from '../../../../core/types/trends';
 import type { Channel } from '../../../../core/services/channelService';
 
 export type TransferMode = 'copy' | 'move';
@@ -32,6 +32,7 @@ interface UseChannelTransferReturn {
     nichesToTransfer: TrendNiche[];
     videosCount: number;
     hiddenVideosCount: number;
+    isCountLoading: boolean;
 
     setMode: (mode: TransferMode) => void;
     setTargetChannel: (channelId: string) => void;
@@ -59,7 +60,6 @@ export const useChannelTransfer = (sourceTrendChannel: TrendChannel | null): Use
 
     const {
         niches,
-        videos,
         videoNicheAssignments,
         hiddenVideos
     } = useTrendStore();
@@ -72,6 +72,42 @@ export const useChannelTransfer = (sourceTrendChannel: TrendChannel | null): Use
         error: null
     });
 
+    // Source videos are loaded directly from Firestore for the preview counter.
+    // The trendStore.videos cache only holds videos of currently-visible channels
+    // on /trends, so it can't be trusted as the source of truth for an arbitrary
+    // trend channel the user is copying/moving.
+    const [sourceVideos, setSourceVideos] = useState<TrendVideo[]>([]);
+    const [isCountLoading, setIsCountLoading] = useState(false);
+
+    useEffect(() => {
+        if (!user?.uid || !currentChannel?.id || !sourceTrendChannel?.id) {
+            setSourceVideos([]);
+            setIsCountLoading(false);
+            return;
+        }
+        let cancelled = false;
+        setIsCountLoading(true);
+        TrendService.getChannelVideosFromFirestore(user.uid, currentChannel.id, sourceTrendChannel.id)
+            .then(videos => {
+                if (cancelled) return;
+                setSourceVideos(videos);
+                setIsCountLoading(false);
+            })
+            .catch(err => {
+                if (cancelled) return;
+                logger.error('Failed to load source videos for transfer preview', {
+                    component: 'useChannelTransfer',
+                    channelId: sourceTrendChannel.id,
+                    error: err instanceof Error ? err.message : String(err)
+                });
+                setSourceVideos([]);
+                setIsCountLoading(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [user?.uid, currentChannel?.id, sourceTrendChannel?.id]);
+
     const availableTargets = useMemo(() => {
         if (!currentChannel) return [];
         return userChannels.filter(c => c.id !== currentChannel.id);
@@ -81,29 +117,27 @@ export const useChannelTransfer = (sourceTrendChannel: TrendChannel | null): Use
         if (!sourceTrendChannel) return [];
         return niches.filter(n => {
             if (n.type === 'global') {
-                return videos.some(v => {
-                    if (v.channelId !== sourceTrendChannel.id) return false;
+                return sourceVideos.some(v => {
                     const assignments = videoNicheAssignments[v.id] || [];
                     return assignments.some(a => a.nicheId === n.id);
                 });
             }
             return n.type === 'local' && n.channelId === sourceTrendChannel.id;
         });
-    }, [niches, videos, videoNicheAssignments, sourceTrendChannel]);
+    }, [niches, sourceVideos, videoNicheAssignments, sourceTrendChannel]);
 
     const videosCount = useMemo(() => {
         if (!sourceTrendChannel) return 0;
         const nicheIds = new Set(nichesToTransfer.map(n => n.id));
         let count = 0;
-        videos.forEach(v => {
-            if (v.channelId !== sourceTrendChannel.id) return;
+        sourceVideos.forEach(v => {
             const assignments = videoNicheAssignments[v.id] || [];
             if (assignments.some(a => nicheIds.has(a.nicheId))) {
                 count++;
             }
         });
         return count;
-    }, [videos, videoNicheAssignments, nichesToTransfer, sourceTrendChannel]);
+    }, [sourceVideos, videoNicheAssignments, nichesToTransfer, sourceTrendChannel]);
 
     const hiddenVideosCount = useMemo(() => {
         if (!sourceTrendChannel) return 0;
@@ -240,6 +274,7 @@ export const useChannelTransfer = (sourceTrendChannel: TrendChannel | null): Use
         nichesToTransfer,
         videosCount,
         hiddenVideosCount,
+        isCountLoading,
         setMode,
         setTargetChannel,
         checkAndExecute,

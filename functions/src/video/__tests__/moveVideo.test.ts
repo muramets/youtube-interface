@@ -349,4 +349,79 @@ describe("runMove happy path", () => {
         expect(result.storageFilesCopied).toBe(0);
         expect(result.playlistsUpdated).toBe(0);
     });
+
+    it("returns mode='move' by default", async () => {
+        seedHappyPath();
+        const result = await runMove({
+            userId: UID, sourceChannelId: SRC, destChannelId: DST, videoId: VID,
+        });
+        expect(result.mode).toBe('move');
+    });
+});
+
+describe("runMove copy mode", () => {
+    it("copies tree to dest while leaving source untouched", async () => {
+        seedHappyPath();
+        const result = await runMove({
+            userId: UID, sourceChannelId: SRC, destChannelId: DST, videoId: VID, mode: 'copy',
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.mode).toBe('copy');
+        expect(result.docsCopied).toBe(3);
+        expect(result.storageFilesCopied).toBe(3);
+        expect(result.playlistsUpdated).toBe(0); // copy never touches source playlists
+
+        // Dest got the full tree
+        expect(store.docs.get(`users/${UID}/channels/${DST}/videos/${VID}`)).toBeDefined();
+        expect(store.docs.get(
+            `users/${UID}/channels/${DST}/videos/${VID}/traffic/main`,
+        )).toBeDefined();
+
+        // Source video doc still there
+        expect(store.docs.has(`users/${UID}/channels/${SRC}/videos/${VID}`)).toBe(true);
+        // Source subcollections still there
+        expect(store.docs.has(`users/${UID}/channels/${SRC}/videos/${VID}/traffic/main`)).toBe(true);
+        // Source storage still there
+        expect(store.files.has(`users/${UID}/channels/${SRC}/videos/${VID}/img.jpg`)).toBe(true);
+        // Source playlist still references the video
+        const playlist = store.docs.get(`users/${UID}/channels/${SRC}/playlists/p1`) as { videoIds: string[] };
+        expect(playlist.videoIds).toEqual(["other-vid", VID]);
+    });
+
+    it("preserves source videoOrder on copy (only dest is updated)", async () => {
+        seedHappyPath();
+        await runMove({
+            userId: UID, sourceChannelId: SRC, destChannelId: DST, videoId: VID, mode: 'copy',
+        });
+
+        const srcOrder = store.docs.get(`users/${UID}/channels/${SRC}/settings/videoOrder`) as { order: string[] };
+        expect(srcOrder.order).toEqual(["other-vid", VID, "third"]); // unchanged
+
+        const dstOrder = store.docs.get(`users/${UID}/channels/${DST}/settings/videoOrder`) as { order: string[] };
+        expect(dstOrder.order).toEqual(["existing-vid", VID]); // appended
+    });
+
+    it("never emits source-delete operations in callLog", async () => {
+        seedHappyPath();
+        await runMove({
+            userId: UID, sourceChannelId: SRC, destChannelId: DST, videoId: VID, mode: 'copy',
+        });
+
+        const sourceDeletes = store.callLog.filter(
+            op => op.startsWith(`delete:users/${UID}/channels/${SRC}/`)
+                || op.startsWith(`storageDelete:users/${UID}/channels/${SRC}/`),
+        );
+        expect(sourceDeletes).toEqual([]);
+    });
+
+    it("refuses to overwrite an existing dest video in copy mode (same as move)", async () => {
+        seedHappyPath();
+        store.docs.set(`users/${UID}/channels/${DST}/videos/${VID}`, { existing: true });
+        await expect(
+            runMove({
+                userId: UID, sourceChannelId: SRC, destChannelId: DST, videoId: VID, mode: 'copy',
+            }),
+        ).rejects.toThrow(/already exists in destination/);
+    });
 });

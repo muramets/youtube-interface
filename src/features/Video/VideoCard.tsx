@@ -13,7 +13,7 @@ import { useVideos } from '../../core/hooks/useVideos';
 import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
 import { VideoCardMenu } from './VideoCardMenu';
 import { AddToPlaylistModal as PlaylistSelectionModal } from '../Playlists/modals/AddToPlaylistModal';
-import { MoveVideoModal } from './Modals/MoveVideoModal';
+import { VideoTransferModal } from './Modals/VideoTransferModal';
 import { ConfirmationModal } from '../../components/ui/organisms/ConfirmationModal';
 import { ClonedVideoTooltipContent } from './ClonedVideoTooltipContent';
 import { useThumbnailActions } from './hooks/useThumbnailActions';
@@ -66,7 +66,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [showPlaylistModal, setShowPlaylistModal] = useState(false);
-  const [showMoveModal, setShowMoveModal] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
 
   const [isSyncing, setIsSyncing] = useState(false);
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
@@ -666,9 +666,9 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
                       handleMenuClose();
                     } : undefined}
                     onAddToHome={playlistId ? handleAddToHome : undefined}
-                    onMoveToChannel={!playlistId ? (e) => {
+                    onTransferToChannel={!isOrphanInPlaylist ? (e) => {
                       e.stopPropagation();
-                      setShowMoveModal(true);
+                      setShowTransferModal(true);
                       handleMenuClose();
                     } : undefined}
                     isOrphanInPlaylist={isOrphanInPlaylist}
@@ -692,10 +692,10 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
         )
       }
 
-      {/* Move Video to Channel Modal */}
-      <MoveVideoModal
-        isOpen={showMoveModal}
-        onClose={() => setShowMoveModal(false)}
+      {/* Transfer (Copy/Move) Video to Channel Modal */}
+      <VideoTransferModal
+        isOpen={showTransferModal}
+        onClose={() => setShowTransferModal(false)}
         video={video}
       />
 

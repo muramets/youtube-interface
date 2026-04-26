@@ -32,6 +32,7 @@ export const ChannelTransferModal: React.FC<ChannelTransferModalProps> = ({
         nichesToTransfer,
         videosCount,
         hiddenVideosCount,
+        isCountLoading,
         setMode,
         setTargetChannel,
         checkAndExecute,
@@ -99,8 +100,15 @@ export const ChannelTransferModal: React.FC<ChannelTransferModalProps> = ({
                                 {trendChannel.title}
                             </div>
                             <div className="text-xs text-text-tertiary">
-                                {nichesToTransfer.length} niches • {videosCount} videos
-                                {hiddenVideosCount > 0 && ` • ${hiddenVideosCount} hidden`}
+                                {isCountLoading
+                                    ? '— niches • — videos'
+                                    : (
+                                        <>
+                                            {nichesToTransfer.length} niches • {videosCount} videos
+                                            {hiddenVideosCount > 0 && ` • ${hiddenVideosCount} hidden`}
+                                        </>
+                                    )
+                                }
                             </div>
                         </div>
                     </div>

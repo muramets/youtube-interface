@@ -1,9 +1,11 @@
 /**
- * video/moveVideo.ts — Move a video document tree from one channel to another.
+ * video/moveVideo.ts — Transfer a video document tree (Copy or Move) between two
+ * user channels.
  *
- * Atomicity strategy: write everything to dest first, verify, then delete source.
- * If anything fails mid-way, source remains intact and dest may be partial.
- * Recovery = delete partial dest manually and re-run.
+ * Atomicity strategy: write everything to dest first, verify; for `mode: 'move'`
+ * then delete source + clean source playlists. If anything fails mid-way, source
+ * remains intact and dest may be partial. Recovery = delete partial dest manually
+ * and re-run.
  *
  * Subcollections are discovered via listCollections() so future additions
  * (e.g. comments/, renders/) are migrated automatically.
@@ -13,14 +15,18 @@ import { admin, db } from "../shared/db.js";
 import { planVideoMigration } from "../shared/videoMigration.js";
 import type { SubcollectionDocs, DocData } from "../shared/videoMigration.js";
 
+export type TransferMode = 'copy' | 'move';
+
 interface MoveVideoRequest {
     sourceChannelId?: string;
     destChannelId?: string;
     videoId?: string;
+    mode?: TransferMode;
 }
 
 interface MoveVideoResult {
     success: true;
+    mode: TransferMode;
     docsCopied: number;
     storageFilesCopied: number;
     playlistsUpdated: number;
@@ -29,10 +35,15 @@ interface MoveVideoResult {
 const VIDEO_ORDER_DOC = "videoOrder";
 
 /**
- * Callable Function: Move a video (with all snapshots, traffic data, custom
+ * Callable Function: Transfer a video (with all snapshots, traffic data, custom
  * thumbnail, storage files, and videoOrder position) between two of the user's
- * channels. Source playlists referencing the video have the reference removed;
- * dest playlists are NOT auto-updated.
+ * channels.
+ *
+ * - `mode: 'move'` (default, backward compatible): source video tree and storage
+ *   files are deleted after dest is verified, source playlists referencing the
+ *   video are cleaned up.
+ * - `mode: 'copy'`: source remains untouched. Dest playlists are NOT auto-updated
+ *   in either mode.
  */
 export const moveVideoToChannel = onCall(
     { timeoutSeconds: 120, memory: "512MiB" },
@@ -41,16 +52,17 @@ export const moveVideoToChannel = onCall(
             throw new HttpsError("unauthenticated", "Authentication required.");
         }
         const userId = request.auth.uid;
-        const { sourceChannelId, destChannelId, videoId } =
+        const { sourceChannelId, destChannelId, videoId, mode } =
             (request.data ?? {}) as MoveVideoRequest;
 
-        validateRequest({ sourceChannelId, destChannelId, videoId });
+        validateRequest({ sourceChannelId, destChannelId, videoId, mode });
 
         return runMove({
             userId,
             sourceChannelId: sourceChannelId!,
             destChannelId: destChannelId!,
             videoId: videoId!,
+            mode: mode ?? 'move',
         });
     },
 );
@@ -64,8 +76,10 @@ export async function runMove(args: {
     sourceChannelId: string;
     destChannelId: string;
     videoId: string;
+    mode?: TransferMode;
 }): Promise<MoveVideoResult> {
     const { userId, sourceChannelId, destChannelId, videoId } = args;
+    const mode: TransferMode = args.mode ?? 'move';
 
     await assertSourceAndDestState({ userId, sourceChannelId, destChannelId, videoId });
 
@@ -77,7 +91,7 @@ export async function runMove(args: {
         subcollections: tree.subcollections,
     });
 
-    // Force the moved video to appear on Home of the destination channel.
+    // Force the transferred video to appear on Home of the destination channel.
     // Home filters by `!isPlaylistOnly` and sorts by `addedToHomeAt`, so refreshing
     // both fields makes the video visible AND surfaces it at the top of the list.
     plan.mainDoc.isPlaylistOnly = false;
@@ -87,19 +101,23 @@ export async function runMove(args: {
     const storageFilesCopied = await copyStorageFiles({
         userId, sourceChannelId, destChannelId, videoId,
     });
-    await updateVideoOrders({ userId, sourceChannelId, destChannelId, videoId });
+    await updateVideoOrders({ userId, sourceChannelId, destChannelId, videoId, mode });
     await verifyDestExists({ userId, destChannelId, videoId });
 
-    await deleteSourceTree({ userId, sourceChannelId, videoId });
-    const playlistsUpdated = await cleanupSourcePlaylists({
-        userId, sourceChannelId, videoId,
-    });
+    let playlistsUpdated = 0;
+    if (mode === 'move') {
+        await deleteSourceTree({ userId, sourceChannelId, videoId });
+        playlistsUpdated = await cleanupSourcePlaylists({
+            userId, sourceChannelId, videoId,
+        });
+    }
 
     const docsCopied = 1 + Object.values(plan.subcollections)
         .reduce((acc, sub) => acc + Object.keys(sub).length, 0);
 
     return {
         success: true,
+        mode,
         docsCopied,
         storageFilesCopied,
         playlistsUpdated,
@@ -119,6 +137,12 @@ function validateRequest(req: MoveVideoRequest): void {
         throw new HttpsError(
             "invalid-argument",
             "sourceChannelId and destChannelId must differ.",
+        );
+    }
+    if (req.mode !== undefined && req.mode !== 'copy' && req.mode !== 'move') {
+        throw new HttpsError(
+            "invalid-argument",
+            `mode must be 'copy' or 'move' (got ${String(req.mode)}).`,
         );
     }
 }
@@ -234,8 +258,9 @@ async function updateVideoOrders(args: {
     sourceChannelId: string;
     destChannelId: string;
     videoId: string;
+    mode: TransferMode;
 }): Promise<void> {
-    const { userId, sourceChannelId, destChannelId, videoId } = args;
+    const { userId, sourceChannelId, destChannelId, videoId, mode } = args;
 
     const srcRef = db.doc(`users/${userId}/channels/${sourceChannelId}/settings/${VIDEO_ORDER_DOC}`);
     const dstRef = db.doc(`users/${userId}/channels/${destChannelId}/settings/${VIDEO_ORDER_DOC}`);
@@ -243,7 +268,8 @@ async function updateVideoOrders(args: {
     await db.runTransaction(async (tx) => {
         const [srcSnap, dstSnap] = await Promise.all([tx.get(srcRef), tx.get(dstRef)]);
 
-        if (srcSnap.exists) {
+        // Only remove from source order on move — copy keeps the video in source.
+        if (mode === 'move' && srcSnap.exists) {
             const srcOrder = (srcSnap.data()?.order as string[] | undefined) ?? [];
             const filtered = srcOrder.filter((id) => id !== videoId);
             if (filtered.length !== srcOrder.length) {

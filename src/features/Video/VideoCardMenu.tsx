@@ -16,8 +16,9 @@ interface VideoCardMenuProps {
     onDetails?: (e: React.MouseEvent) => void;
     onSetAsCover?: (e: React.MouseEvent) => void;
     onAddToHome?: (e: React.MouseEvent) => void;
-    onMoveToChannel?: (e: React.MouseEvent) => void;
+    onTransferToChannel?: (e: React.MouseEvent) => void;
     isOrphanInPlaylist?: boolean;
+    hideDelete?: boolean;
 }
 
 export const VideoCardMenu: React.FC<VideoCardMenuProps> = ({
@@ -34,12 +35,13 @@ export const VideoCardMenu: React.FC<VideoCardMenuProps> = ({
     onDetails,
     onSetAsCover,
     onAddToHome,
-    onMoveToChannel,
-    isOrphanInPlaylist
+    onTransferToChannel,
+    isOrphanInPlaylist,
+    hideDelete
 }) => {
     const showSaveToPlaylist = true; // Always allow saving/toggling playlists
 
-    const showDelete = true; // Always allow deleting/removing
+    const showDelete = !hideDelete;
     const showSync = !!onSync;
 
     return (
@@ -111,13 +113,13 @@ export const VideoCardMenu: React.FC<VideoCardMenuProps> = ({
                 </div>
             )}
 
-            {onMoveToChannel && (
+            {onTransferToChannel && (
                 <div
                     className="flex items-center gap-3 px-4 py-2 cursor-pointer hover:bg-hover-bg text-sm"
-                    onClick={onMoveToChannel}
+                    onClick={onTransferToChannel}
                 >
                     <ArrowRightLeft size={20} />
-                    <span>Move to channel...</span>
+                    <span>Transfer to channel...</span>
                 </div>
             )}
 
