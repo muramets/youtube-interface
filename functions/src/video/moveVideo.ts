@@ -29,7 +29,12 @@ interface MoveVideoResult {
     mode: TransferMode;
     docsCopied: number;
     storageFilesCopied: number;
+    /** Source playlists whose videoIds were modified — only on `mode: 'move'`. */
     playlistsUpdated: number;
+    /** Target playlists newly created to mirror source playlist membership. */
+    targetPlaylistsCreated: number;
+    /** Target playlists where the transferred video was appended to existing videoIds. */
+    targetPlaylistsUpdated: number;
 }
 
 const VIDEO_ORDER_DOC = "videoOrder";
@@ -91,11 +96,16 @@ export async function runMove(args: {
         subcollections: tree.subcollections,
     });
 
-    // Force the transferred video to appear on Home of the destination channel.
-    // Home filters by `!isPlaylistOnly` and sorts by `addedToHomeAt`, so refreshing
-    // both fields makes the video visible AND surfaces it at the top of the list.
-    plan.mainDoc.isPlaylistOnly = false;
-    plan.mainDoc.addedToHomeAt = Date.now();
+    // Mirror source's Home placement. If the source video was Home-visible
+    // (`isPlaylistOnly` falsy), surface it on target Home with a fresh
+    // `addedToHomeAt` so it appears at the top. If the source was
+    // playlist-only, target stays playlist-only — the video will surface in
+    // the mirrored target playlists, not on Home.
+    const sourceIsPlaylistOnly = tree.mainDoc.isPlaylistOnly === true;
+    plan.mainDoc.isPlaylistOnly = sourceIsPlaylistOnly;
+    if (!sourceIsPlaylistOnly) {
+        plan.mainDoc.addedToHomeAt = Date.now();
+    }
 
     await writeDestVideoTree({ userId, destChannelId, videoId, plan });
     const storageFilesCopied = await copyStorageFiles({
@@ -103,6 +113,10 @@ export async function runMove(args: {
     });
     await updateVideoOrders({ userId, sourceChannelId, destChannelId, videoId, mode });
     await verifyDestExists({ userId, destChannelId, videoId });
+
+    const playlistMirror = await mirrorPlaylistMembership({
+        userId, sourceChannelId, destChannelId, videoId,
+    });
 
     let playlistsUpdated = 0;
     if (mode === 'move') {
@@ -121,6 +135,8 @@ export async function runMove(args: {
         docsCopied,
         storageFilesCopied,
         playlistsUpdated,
+        targetPlaylistsCreated: playlistMirror.created,
+        targetPlaylistsUpdated: playlistMirror.updated,
     };
 }
 
@@ -327,6 +343,73 @@ async function deleteSourceTree(args: {
 
     // Main doc
     await videoRef.delete();
+}
+
+/**
+ * For each source playlist that contains the transferred video, ensure a
+ * matching target playlist exists with the video appended to its videoIds.
+ *
+ * Source-of-truth for matching is the playlist ID (UUID). If target already
+ * has a playlist with the same ID, the videoId is appended (deduped). If not,
+ * a new playlist doc is created at the same ID, copying name/coverImage/group
+ * from source but resetting videoIds to just the transferred video — only
+ * THIS video is being transferred, not the rest of the source playlist.
+ *
+ * This runs in both copy and move modes. In move mode, source playlist
+ * membership is then cleaned up by `cleanupSourcePlaylists`.
+ */
+async function mirrorPlaylistMembership(args: {
+    userId: string;
+    sourceChannelId: string;
+    destChannelId: string;
+    videoId: string;
+}): Promise<{ created: number; updated: number }> {
+    const { userId, sourceChannelId, destChannelId, videoId } = args;
+
+    const sourcePlaylistsRef = db.collection(`users/${userId}/channels/${sourceChannelId}/playlists`);
+    const sourcePlaylists = await sourcePlaylistsRef.get();
+    const containing = sourcePlaylists.docs.filter((p) => {
+        const ids = (p.data().videoIds as string[] | undefined) ?? [];
+        return ids.includes(videoId);
+    });
+
+    if (containing.length === 0) return { created: 0, updated: 0 };
+
+    let created = 0;
+    let updated = 0;
+
+    for (const sp of containing) {
+        const destRef = db.doc(`users/${userId}/channels/${destChannelId}/playlists/${sp.id}`);
+        const destSnap = await destRef.get();
+
+        if (destSnap.exists) {
+            const existingIds = (destSnap.data()?.videoIds as string[] | undefined) ?? [];
+            if (!existingIds.includes(videoId)) {
+                await destRef.update({
+                    videoIds: [...existingIds, videoId],
+                    updatedAt: Date.now(),
+                });
+                updated++;
+            }
+            continue;
+        }
+
+        // Copy playlist metadata but only this video. The rest of the source
+        // playlist's videos stay in source — we're transferring one video.
+        const data = sp.data();
+        const { videoIds: _drop, ...meta } = data as { videoIds?: string[]; [k: string]: unknown };
+        void _drop;
+        await destRef.set({
+            ...meta,
+            id: sp.id,
+            videoIds: [videoId],
+            createdAt: data.createdAt ?? Date.now(),
+            updatedAt: Date.now(),
+        });
+        created++;
+    }
+
+    return { created, updated };
 }
 
 async function cleanupSourcePlaylists(args: {

@@ -316,11 +316,27 @@ describe("runMove happy path", () => {
         expect(futureDoc).toEqual({ payload: "anything" });
     });
 
-    it("forces the dest video onto Home (isPlaylistOnly=false, fresh addedToHomeAt)", async () => {
+    it("mirrors source isPlaylistOnly=true (video stays out of dest Home)", async () => {
         seedHappyPath();
-        // Source had video hidden from home and with stale timestamp
         const srcDoc = store.docs.get(`users/${UID}/channels/${SRC}/videos/${VID}`)!;
         srcDoc.isPlaylistOnly = true;
+        srcDoc.addedToHomeAt = 100;
+
+        await runMove({ userId: UID, sourceChannelId: SRC, destChannelId: DST, videoId: VID });
+
+        const dst = store.docs.get(`users/${UID}/channels/${DST}/videos/${VID}`) as {
+            isPlaylistOnly: boolean;
+            addedToHomeAt: number;
+        };
+        expect(dst.isPlaylistOnly).toBe(true);
+        // addedToHomeAt is not refreshed when the video stays playlist-only
+        expect(dst.addedToHomeAt).toBe(100);
+    });
+
+    it("surfaces a Home-visible source video on dest Home with fresh addedToHomeAt", async () => {
+        seedHappyPath();
+        const srcDoc = store.docs.get(`users/${UID}/channels/${SRC}/videos/${VID}`)!;
+        srcDoc.isPlaylistOnly = false;
         srcDoc.addedToHomeAt = 100;
 
         const before = Date.now();
@@ -423,5 +439,127 @@ describe("runMove copy mode", () => {
                 userId: UID, sourceChannelId: SRC, destChannelId: DST, videoId: VID, mode: 'copy',
             }),
         ).rejects.toThrow(/already exists in destination/);
+    });
+});
+
+describe("runMove playlist mirroring", () => {
+    it("creates a target playlist mirroring source when target has none with that ID", async () => {
+        seedHappyPath();
+        // seedHappyPath already creates source playlist p1 = [other-vid, VID]
+        const result = await runMove({
+            userId: UID, sourceChannelId: SRC, destChannelId: DST, videoId: VID,
+        });
+
+        expect(result.targetPlaylistsCreated).toBe(1);
+        expect(result.targetPlaylistsUpdated).toBe(0);
+
+        const destPL = store.docs.get(`users/${UID}/channels/${DST}/playlists/p1`) as {
+            id: string;
+            name: string;
+            videoIds: string[];
+        };
+        expect(destPL).toBeDefined();
+        expect(destPL.id).toBe('p1');
+        expect(destPL.name).toBe('Source PL'); // copied from source metadata
+        expect(destPL.videoIds).toEqual([VID]); // ONLY this video, not source's other-vid
+    });
+
+    it("appends the video to an existing target playlist (matched by ID)", async () => {
+        seedHappyPath();
+        // Pre-existing target playlist with same ID and other videos
+        store.docs.set(`users/${UID}/channels/${DST}/playlists/p1`, {
+            id: 'p1',
+            name: 'Target PL Custom Name',
+            videoIds: ['target-only-vid'],
+            createdAt: 1000,
+        });
+
+        const result = await runMove({
+            userId: UID, sourceChannelId: SRC, destChannelId: DST, videoId: VID,
+        });
+
+        expect(result.targetPlaylistsCreated).toBe(0);
+        expect(result.targetPlaylistsUpdated).toBe(1);
+
+        const destPL = store.docs.get(`users/${UID}/channels/${DST}/playlists/p1`) as {
+            name: string;
+            videoIds: string[];
+        };
+        expect(destPL.name).toBe('Target PL Custom Name'); // existing name preserved (not overwritten)
+        expect(destPL.videoIds).toEqual(['target-only-vid', VID]);
+    });
+
+    it("dedupes when video is already in the target playlist", async () => {
+        seedHappyPath();
+        store.docs.set(`users/${UID}/channels/${DST}/playlists/p1`, {
+            id: 'p1',
+            name: 'Target PL',
+            videoIds: [VID, 'other'],
+            createdAt: 1000,
+        });
+
+        const result = await runMove({
+            userId: UID, sourceChannelId: SRC, destChannelId: DST, videoId: VID,
+        });
+
+        expect(result.targetPlaylistsCreated).toBe(0);
+        expect(result.targetPlaylistsUpdated).toBe(0); // no-op, already present
+
+        const destPL = store.docs.get(`users/${UID}/channels/${DST}/playlists/p1`) as { videoIds: string[] };
+        expect(destPL.videoIds).toEqual([VID, 'other']); // unchanged
+    });
+
+    it("mirrors multiple source playlists when video belongs to several", async () => {
+        seedHappyPath();
+        store.docs.set(`users/${UID}/channels/${SRC}/playlists/p2`, {
+            id: 'p2',
+            name: 'Second Source PL',
+            videoIds: [VID],
+        });
+
+        const result = await runMove({
+            userId: UID, sourceChannelId: SRC, destChannelId: DST, videoId: VID,
+        });
+
+        expect(result.targetPlaylistsCreated).toBe(2);
+        expect(store.docs.get(`users/${UID}/channels/${DST}/playlists/p1`)).toBeDefined();
+        expect(store.docs.get(`users/${UID}/channels/${DST}/playlists/p2`)).toBeDefined();
+    });
+
+    it("returns zero counts when video is in no source playlists", async () => {
+        seedHappyPath();
+        // Wipe the source playlist so the video is unaffiliated
+        store.docs.delete(`users/${UID}/channels/${SRC}/playlists/p1`);
+
+        const result = await runMove({
+            userId: UID, sourceChannelId: SRC, destChannelId: DST, videoId: VID,
+        });
+
+        expect(result.targetPlaylistsCreated).toBe(0);
+        expect(result.targetPlaylistsUpdated).toBe(0);
+        // No target playlists created
+        const destPlaylistKeys = [...store.docs.keys()].filter(k =>
+            k.startsWith(`users/${UID}/channels/${DST}/playlists/`),
+        );
+        expect(destPlaylistKeys).toEqual([]);
+    });
+
+    it("works in copy mode (target playlist created, source playlist preserved)", async () => {
+        seedHappyPath();
+
+        const result = await runMove({
+            userId: UID, sourceChannelId: SRC, destChannelId: DST, videoId: VID, mode: 'copy',
+        });
+
+        expect(result.mode).toBe('copy');
+        expect(result.targetPlaylistsCreated).toBe(1);
+
+        // Source playlist still has the video reference
+        const srcPL = store.docs.get(`users/${UID}/channels/${SRC}/playlists/p1`) as { videoIds: string[] };
+        expect(srcPL.videoIds).toContain(VID);
+
+        // Dest playlist has the video
+        const destPL = store.docs.get(`users/${UID}/channels/${DST}/playlists/p1`) as { videoIds: string[] };
+        expect(destPL.videoIds).toEqual([VID]);
     });
 });
