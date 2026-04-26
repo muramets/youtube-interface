@@ -8,10 +8,12 @@ import { usePlaylists } from '../../core/hooks/usePlaylists';
 import { useVideoSelection } from '../../features/Video/hooks/useVideoSelection';
 import { useSelectionContextBridge } from '../../features/Video/hooks/useSelectionContextBridge';
 import { VideoSelectionFloatingBar } from '../../features/Video/components/VideoSelectionFloatingBar';
+import { VideoTransferModal } from '../../features/Video/Modals/VideoTransferModal';
 import { useFilterStore } from '../../core/stores/filterStore';
 import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
 import { useUIStore } from '../../core/stores/uiStore';
 import { videoToCardContext } from '../../core/utils/videoAdapters';
+import type { VideoDetails } from '../../core/utils/youtubeApi';
 
 export const HomePage: React.FC = () => {
     const { user } = useAuth();
@@ -57,6 +59,20 @@ export const HomePage: React.FC = () => {
         clearSelection();
     };
 
+    const [transferVideos, setTransferVideos] = React.useState<VideoDetails[]>([]);
+    const isTransferOpen = transferVideos.length > 0;
+
+    const handleTransfer = React.useCallback((ids: string[]) => {
+        const subset = videos.filter(v => ids.includes(v.id));
+        if (subset.length === 0) return;
+        setTransferVideos(subset);
+    }, [videos]);
+
+    const handleTransferClose = React.useCallback(() => {
+        setTransferVideos([]);
+        clearSelection();
+    }, [clearSelection]);
+
     const handleAddToCanvas = React.useCallback((ids: string[], pageId: string, pageTitle: string) => {
         const videosToAdd = videos.filter((v) => ids.includes(v.id))
             .sort((a, b) => {
@@ -97,6 +113,13 @@ export const HomePage: React.FC = () => {
                     onClearSelection={clearSelection}
                     onDelete={handleBulkDelete}
                     onAddToCanvas={handleAddToCanvas}
+                    onTransfer={handleTransfer}
+                />
+
+                <VideoTransferModal
+                    isOpen={isTransferOpen}
+                    onClose={handleTransferClose}
+                    videos={transferVideos}
                 />
             </div>
         </div>

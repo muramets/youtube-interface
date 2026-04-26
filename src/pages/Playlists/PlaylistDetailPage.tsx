@@ -18,11 +18,13 @@ import { usePickTheWinner } from '../../features/Playlists/hooks/usePickTheWinne
 import { useRankings } from '../../features/Playlists/hooks/usePlaylistRankings';
 import { PickTheWinnerBar } from '../../features/Playlists/components/PickTheWinnerBar';
 import type { VideoCardAnonymizeData } from '../../features/Video/VideoCard';
+import type { VideoDetails } from '../../core/utils/youtubeApi';
 import { useSettings } from '../../core/hooks/useSettings';
 import { ConfirmationModal } from '../../components/ui/organisms/ConfirmationModal';
 import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
 import { useVideoSelection } from '../../features/Video/hooks/useVideoSelection';
 import { VideoSelectionFloatingBar } from '../../features/Video/components/VideoSelectionFloatingBar';
+import { VideoTransferModal } from '../../features/Video/Modals/VideoTransferModal';
 import { useSelectionContextBridge } from '../../features/Video/hooks/useSelectionContextBridge';
 import { useAddToCanvas } from '../../features/Video/hooks/useAddToCanvas';
 import { useVideoSelectionStore, selectAllSelectedIds } from '../../core/stores/videoSelectionStore';
@@ -94,6 +96,7 @@ export const PlaylistDetailPage: React.FC = () => {
     // Hide/Delete Losers state
     const [hideLosers, setHideLosers] = useState(false);
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+    const [transferVideos, setTransferVideos] = useState<VideoDetails[]>([]);
     const isViewingRanking = playlistVideoSortBy.startsWith('ranking-');
 
     // Anonymization data for Pick the Winner
@@ -706,6 +709,19 @@ export const PlaylistDetailPage: React.FC = () => {
                         ));
                         clearAll();
                     } : undefined}
+                    onTransfer={(ids) => {
+                        const subset = videos.filter(v => ids.includes(v.id));
+                        if (subset.length > 0) setTransferVideos(subset);
+                    }}
+                />
+
+                <VideoTransferModal
+                    isOpen={transferVideos.length > 0}
+                    onClose={() => {
+                        setTransferVideos([]);
+                        clearAll();
+                    }}
+                    videos={transferVideos}
                 />
 
                 {playlistVideos.length === 0 && (

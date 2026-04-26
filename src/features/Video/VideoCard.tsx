@@ -696,7 +696,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
       <VideoTransferModal
         isOpen={showTransferModal}
         onClose={() => setShowTransferModal(false)}
-        video={video}
+        videos={[video]}
       />
 
       {/* Confirmation Modal */}

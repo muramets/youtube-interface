@@ -37,6 +37,8 @@ import { GroupSettingsModal } from '../../features/Playlists/modals/GroupSetting
 // Cross-playlist selection
 import { useVideoSelectionStore, selectTotalCount, selectAllSelectedIds } from '../../core/stores/videoSelectionStore';
 import { VideoSelectionFloatingBar } from '../../features/Video/components/VideoSelectionFloatingBar';
+import { VideoTransferModal } from '../../features/Video/Modals/VideoTransferModal';
+import type { VideoDetails } from '../../core/utils/youtubeApi';
 import { useSelectionContextBridge } from '../../features/Video/hooks/useSelectionContextBridge';
 import { useAddToCanvas } from '../../features/Video/hooks/useAddToCanvas';
 
@@ -101,6 +103,7 @@ export const PlaylistsPage: React.FC = () => {
     const [openMenuId, setOpenMenuId] = useState<string | null>(null);
     const [deleteConfirmation, setDeleteConfirmation] = useState<{ isOpen: boolean, playlistId: string | null }>({ isOpen: false, playlistId: null });
     const [groupModalState, setGroupModalState] = useState<{ isOpen: boolean, groupName: string | null }>({ isOpen: false, groupName: null });
+    const [transferVideos, setTransferVideos] = useState<VideoDetails[]>([]);
 
     // Collapsed groups persistence
     const { isGroupCollapsed, toggleGroup } = useCollapsedGroups('playlists-collapsed-groups', false);
@@ -401,6 +404,19 @@ export const PlaylistsPage: React.FC = () => {
                 selectedIds={allSelectedIds}
                 onClearSelection={clearAll}
                 onAddToCanvas={handleAddToCanvas}
+                onTransfer={(ids) => {
+                    const subset = videos.filter(v => ids.includes(v.id));
+                    if (subset.length > 0) setTransferVideos(subset);
+                }}
+            />
+
+            <VideoTransferModal
+                isOpen={transferVideos.length > 0}
+                onClose={() => {
+                    setTransferVideos([]);
+                    clearAll();
+                }}
+                videos={transferVideos}
             />
         </div>
     );
