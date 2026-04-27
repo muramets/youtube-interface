@@ -11,11 +11,12 @@
 // =============================================================================
 
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Heart, Download, MoreHorizontal, Trash2, Settings, ListMusic, Link, Unlink, Mic, Piano, ListX } from 'lucide-react';
+import { Heart, Download, MoreHorizontal, Trash2, Settings, ListMusic, Link, Unlink, Mic, Piano, ListX, ArrowRightLeft } from 'lucide-react';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '../../../../components/ui/molecules/DropdownMenu';
 import { ConfirmationModal } from '../../../../components/ui/organisms/ConfirmationModal';
 import { AddToMusicPlaylistModal } from '../../modals/AddToMusicPlaylistModal';
 import { LinkVersionModal } from '../../modals/LinkVersionModal';
+import { TrackTransferModal } from '../../modals/TrackTransferModal';
 import { useMusicStore } from '../../../../core/stores/music/musicStore';
 import type { Track } from '../../../../core/types/music/track';
 import type { TrackSource } from '../../../../core/types/music/musicPlaylist';
@@ -56,6 +57,7 @@ export const TrackContextMenu: React.FC<TrackContextMenuProps> = ({
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showAddToPlaylist, setShowAddToPlaylist] = useState(false);
     const [showLinkVersion, setShowLinkVersion] = useState(false);
+    const [showTransfer, setShowTransfer] = useState(false);
     const [downloadVisible, setDownloadVisible] = useState(true);
 
     const overflowRef = useRef<HTMLDivElement>(null);
@@ -252,6 +254,17 @@ export const TrackContextMenu: React.FC<TrackContextMenuProps> = ({
                             </DropdownMenuItem>
                         </>
                     )}
+                    {/* Transfer to another channel — only for tracks in the user's own
+                        library. Tracks viewed via a shared-library grant (`trackSource`)
+                        belong to a different owner and can't be moved out from here. */}
+                    {canEdit && !trackSource && (
+                        <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => setShowTransfer(true)}>
+                                <ArrowRightLeft size={14} className="mr-2" /> Transfer to channel...
+                            </DropdownMenuItem>
+                        </>
+                    )}
                     {/* Delete — available for both own and shared tracks */}
                     {onDelete && <DropdownMenuSeparator />}
                     {onDelete && (
@@ -288,6 +301,12 @@ export const TrackContextMenu: React.FC<TrackContextMenuProps> = ({
                 isOpen={showLinkVersion}
                 onClose={() => setShowLinkVersion(false)}
                 sourceTrackId={track.id}
+            />
+            {/* Transfer (Move) to another channel */}
+            <TrackTransferModal
+                isOpen={showTransfer}
+                onClose={() => setShowTransfer(false)}
+                track={track}
             />
         </>
     );

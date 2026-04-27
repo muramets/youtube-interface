@@ -47,7 +47,39 @@ const MUSIC_SETTINGS_DOC_ID = 'music';
 // Track CRUD
 // ---------------------------------------------------------------------------
 
+export interface MoveTrackResult {
+    success: true;
+    storageFilesCopied: number;
+    sourcePlaylistsUpdated: number;
+}
+
 export const TrackService = {
+    /**
+     * Move a track (with vocal/instrumental/cover storage files) from one
+     * user channel to another. Dispatches the `moveTrackToChannel` Cloud
+     * Function which handles atomicity (write-dest → verify → delete-source).
+     *
+     * Source playlists referencing the track are cleaned up automatically.
+     * Group/version-link relationships and linkedVideoIds are reset on the
+     * destination — they're scoped to the source channel.
+     */
+    moveTrackToChannel: async (
+        sourceChannelId: string,
+        destChannelId: string,
+        trackId: string,
+    ): Promise<MoveTrackResult> => {
+        const { functions } = await import('../../../config/firebase');
+        const { httpsCallable } = await import('firebase/functions');
+
+        const callable = httpsCallable<
+            { sourceChannelId: string; destChannelId: string; trackId: string },
+            MoveTrackResult
+        >(functions, 'moveTrackToChannel');
+
+        const res = await callable({ sourceChannelId, destChannelId, trackId });
+        return res.data;
+    },
+
     /**
      * Subscribe to all tracks for a channel (real-time).
      */

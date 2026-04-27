@@ -35,3 +35,6 @@ export { trimAudioFile } from "./audio/trimAudioFile.js";
 
 // ─── Video Management ──────────────────────────────────────────────────
 export { moveVideoToChannel } from "./video/moveVideo.js";
+
+// ─── Music Management ──────────────────────────────────────────────────
+export { moveTrackToChannel } from "./music/moveTrack.js";
